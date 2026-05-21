@@ -29,6 +29,7 @@ window.MZJ_FUNNELS_COLLECTION = "marketing_funnels";
 window.MZJ_PLATFORMS_COLLECTION = "marketing_platforms";
 window.MZJ_STOCK_CARS_COLLECTION = "cars";
 window.MZJ_CAMPAIGNS_COLLECTION = "marketing_campaigns";
+window.MZJ_CAMPAIGN_TASKS_COLLECTION = "campaign_tasks";
 
 const routes = ['dashboard','campaigns','create-campaign','departments','calendar','tasks','stock','reports','settings'];
 const loginView = document.getElementById('loginView');
@@ -49,6 +50,7 @@ let campaignTypes = [];
 let funnels = [];
 let platforms = [];
 let campaigns = [];
+let campaignTasks = [];
 let cars = [];
 
 function isLoggedIn(){ return sessionStorage.getItem('mzj_logged_in') === '1'; }
@@ -69,6 +71,8 @@ function uniqueList(list){ return [...new Set(list.map(normalizeText).filter(Boo
 function getSelectedValues(select){ return [...(select?.selectedOptions || [])].map(option => option.value).filter(Boolean); }
 function serverTime(){ return firebase.firestore.FieldValue.serverTimestamp(); }
 function safeCollection(name){ return mainDb.collection(name); }
+function getCurrentUser(){ try{ return JSON.parse(sessionStorage.getItem('mzj_user') || '{}') || {}; }catch(_){ return {}; } }
+function isCurrentUserAdmin(){ const user = getCurrentUser(); return user.role === 'admin' || (Array.isArray(user.pages) && user.pages.includes('admin')); }
 
 function initFirebase(){
   if(!window.firebase || !firebase.apps) return;
@@ -250,7 +254,7 @@ function refreshDynamicSelects(){
 function loadUsers(){
   if(!mainDb) return;
   safeCollection(window.MZJ_USERS_COLLECTION).onSnapshot(snapshot => {
-    users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, email: data.email || '' }; });
+    users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, email: data.email || '', department: data.department || '', departmentId: data.departmentId || '', departmentIds: Array.isArray(data.departmentIds) ? data.departmentIds : [], role: data.role || '', pages: Array.isArray(data.pages) ? data.pages : [] }; });
     refreshDynamicSelects(); renderDepartments();
   }, error => console.error('Users load error', error));
 }
@@ -438,6 +442,113 @@ function generateCampaignCode(){
 }
 
 
+function normalizeDepartmentRole(name){
+  const text = normalizeText(name).toLowerCase();
+  if(['التصوير','تصوير','shooting','photography','photo'].some(x => text.includes(x))) return 'shooting';
+  if(['المحتوى','محتوى','content','writer','copy'].some(x => text.includes(x))) return 'content';
+  if(['التصميم','تصميم','design','graphic'].some(x => text.includes(x))) return 'design';
+  if(['المونتاج','مونتاج','montage','edit','video'].some(x => text.includes(x))) return 'montage';
+  if(['النشر','نشر','publish','social'].some(x => text.includes(x))) return 'publish';
+  return 'other';
+}
+function departmentForUser(userId){
+  const user = users.find(item => item.id === userId) || {};
+  const ids = [user.departmentId, ...(Array.isArray(user.departmentIds) ? user.departmentIds : [])].filter(Boolean);
+  let dep = departments.find(item => ids.includes(item.id));
+  if(!dep && user.department) dep = departments.find(item => item.id === user.department || normalizeText(item.name).toLowerCase() === normalizeText(user.department).toLowerCase());
+  if(!dep) dep = departments.find(item => Array.isArray(item.userIds) && item.userIds.includes(userId));
+  return dep || { id: user.departmentId || user.department || '', name: user.department || '' };
+}
+function taskStepTemplate(role){
+  const templates = {
+    shooting: [
+      ['التصوير قبل الفلترة', 20, false], ['الاعتماد', 20, true], ['الاديت', 20, false], ['الاعتماد', 20, true], ['التسليم و الارفاق', 20, false]
+    ],
+    content: [
+      ['نموذج المحتوى', 20, false], ['الاعتماد', 20, true], ['كتابة المحتوى', 20, false], ['الاعتماد', 20, true], ['التسليم و الارفاق', 20, false]
+    ],
+    design: [
+      ['النسخة الاولى', 35, false], ['الاعتماد', 35, true], ['التسليم و الارفاق', 30, false]
+    ],
+    montage: [
+      ['اختيار اللقطات المناسبة', 10, false], ['تجهيز مشاهد الذكاء الاصطناعي', 10, false], ['فويس اوفر', 10, false], ['الهوك', 10, false], ['الاعتماد', 15, true], ['النسخة الأولى', 20, false], ['الاعتماد', 15, true], ['التسليم و الارفاق', 10, false]
+    ],
+    publish: [['استلام النشر', 25, false], ['التجهيز', 25, false], ['النشر', 50, false]],
+    other: [['تم الاستلام', 20, false], ['التنفيذ', 60, false], ['التسليم و الارفاق', 20, false]]
+  };
+  return (templates[role] || templates.other).map(([label, percent, adminOnly], index) => ({ label, percent, adminOnly, done: false, index }));
+}
+function taskProgress(task){
+  if(Array.isArray(task.steps) && task.steps.length){
+    return Math.min(100, Math.round(task.steps.reduce((sum, step) => sum + (step.done ? Number(step.percent || 0) : 0), 0)));
+  }
+  return Number(task.progress || 0);
+}
+function campaignRequiredProgress(campaign){
+  const related = campaignTasks.filter(task => task.campaignId === campaign.id);
+  const roles = ['content','shooting','design','montage'];
+  if(!related.length) return 0;
+  return Math.round(roles.reduce((total, role) => {
+    const tasks = related.filter(task => task.departmentRole === role);
+    if(!tasks.length) return total;
+    const avg = tasks.reduce((sum, task) => sum + taskProgress(task), 0) / tasks.length;
+    return total + (avg * 0.25);
+  }, 0));
+}
+function campaignPublishProgress(campaign){
+  const stages = campaign.publishStages || {};
+  return (stages.prep ? 35 : 0) + (stages.approval ? 30 : 0) + (stages.publish ? 35 : 0);
+}
+function buildCampaignTaskDocs(campaignId, payload){
+  const docs = [];
+  (payload.creatives || []).forEach((creativeRow, creativeIndex) => {
+    (creativeRow.tasks || []).forEach((task, taskIndex) => {
+      (task.userIds || []).forEach(userId => {
+        const user = users.find(item => item.id === userId) || {};
+        const dep = departmentForUser(userId);
+        const role = normalizeDepartmentRole(dep.name || user.department || task.contentSectionName);
+        docs.push({
+          campaignId,
+          campaignName: payload.campaignName || payload.name || '',
+          campaignCode: payload.campaignCode || '',
+          creative: creativeRow.creative || '',
+          product: creativeRow.product || '',
+          contentSectionId: task.contentSectionId || '',
+          contentSectionName: task.contentSectionName || '',
+          taskType: task.taskType || '',
+          assignedToUid: userId,
+          assignedToName: userName(user) || userId,
+          assignedToEmail: user.email || '',
+          assignedDepartmentId: dep.id || '',
+          assignedDepartmentName: dep.name || user.department || '',
+          departmentRole: role,
+          received: false,
+          progress: 0,
+          steps: taskStepTemplate(role),
+          status: 'pending',
+          creativeIndex,
+          taskIndex,
+          createdAt: serverTime(),
+          updatedAt: serverTime(),
+          source: 'mzj-marketing-spa'
+        });
+      });
+    });
+  });
+  return docs;
+}
+async function createCampaignTasks(campaignId, payload){
+  const docs = buildCampaignTaskDocs(campaignId, payload);
+  if(!docs.length) return 0;
+  const batch = mainDb.batch();
+  docs.slice(0, 450).forEach(item => {
+    const ref = safeCollection(window.MZJ_CAMPAIGN_TASKS_COLLECTION).doc();
+    batch.set(ref, item);
+  });
+  await batch.commit();
+  return docs.length;
+}
+
 function getFormData(form){
   const data = {};
   if(!form) return data;
@@ -603,7 +714,9 @@ async function saveCampaignToFirebase(){
     createdAt: serverTime()
   };
   try{
-    await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).add(payload);
+    const docRef = await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).add(payload);
+    const taskCount = await createCampaignTasks(docRef.id, payload);
+    await docRef.update({ id: docRef.id, taskCount, updatedAt: serverTime() });
     showToast('تم حفظ الحملة على Firebase.');
   }catch(error){
     console.error('Campaign save error', error, payload);
@@ -764,6 +877,56 @@ function formatDateShort(value){
     return date.toLocaleDateString('ar-SA');
   }catch(_){ return escapeHtml(value); }
 }
+
+function renderAdminDashboard(){
+  const count = document.getElementById('dashboardCampaignsCount'); if(count) count.textContent = campaigns.length || '—';
+  const tasksCount = document.getElementById('dashboardTasksCount'); if(tasksCount) tasksCount.textContent = campaignTasks.length || '—';
+  const adminBoard = document.getElementById('adminDashboardBoard');
+  if(!adminBoard) return;
+  const requiredCards = campaigns.map(campaign => {
+    const related = campaignTasks.filter(task => task.campaignId === campaign.id);
+    const received = related.filter(task => task.received).length;
+    const ready = campaignRequiredProgress(campaign);
+    const publish = campaignPublishProgress(campaign);
+    const isPublish = ready >= 100;
+    const isArchive = publish >= 100;
+    return { campaign, related, received, ready, publish, isPublish, isArchive };
+  });
+  const cardHtml = item => `<article class="dash-campaign-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
+    <div class="dash-card-top"><strong>${escapeHtml(item.campaign.campaignName || item.campaign.name || item.campaign.campaignCode || 'حملة بدون اسم')}</strong><span>${escapeHtml(item.campaign.campaignCode || 'بدون كود')}</span></div>
+    <div class="dash-progress"><span style="width:${Math.min(100, item.ready)}%"></span></div>
+    <p>${item.related.length} تاسك · تم الاستلام ${item.received}</p>
+  </article>`;
+  const publishHtml = item => `<article class="dash-campaign-card publish-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
+    <div class="dash-card-top"><strong>${escapeHtml(item.campaign.campaignName || item.campaign.name || item.campaign.campaignCode || 'حملة بدون اسم')}</strong><span>${item.publish}%</span></div>
+    <div class="publish-actions">
+      <button type="button" data-stage="prep" data-campaign-id="${escapeHtml(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.prep ? 'done' : ''}">التجهيز 35%</button>
+      <button type="button" data-stage="approval" data-campaign-id="${escapeHtml(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.approval ? 'done' : ''}">الاعتماد 30%</button>
+      <button type="button" data-stage="publish" data-campaign-id="${escapeHtml(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.publish ? 'done' : ''}">النشر 35%</button>
+    </div>
+  </article>`;
+  adminBoard.innerHTML = `
+    <section class="admin-dash-col"><h2>TASK - المطلوب</h2><p>إجمالي التاسكات وحالة الاستلام.</p>${requiredCards.length ? requiredCards.map(cardHtml).join('') : '<div class="empty-state">لا توجد حملات.</div>'}</section>
+    <section class="admin-dash-col"><h2>جاهزية المطلوب</h2><p>تقدم تاسكات كل حملة حسب الأقسام.</p>${requiredCards.length ? requiredCards.map(item => `<article class="dash-campaign-card" data-open-campaign="${escapeHtml(item.campaign.id)}"><div class="dash-card-top"><strong>${escapeHtml(item.campaign.campaignName || item.campaign.name || 'حملة')}</strong><span>${item.ready}%</span></div><div class="dash-progress"><span style="width:${Math.min(100,item.ready)}%"></span></div></article>`).join('') : '<div class="empty-state">لا توجد حملات.</div>'}</section>
+    <section class="admin-dash-col"><h2>قسم النشر</h2><p>تظهر الحملة هنا عند اكتمال جاهزية المطلوب.</p>${requiredCards.filter(x => x.isPublish).length ? requiredCards.filter(x => x.isPublish).map(publishHtml).join('') : '<div class="empty-state">لا توجد حملات جاهزة للنشر.</div>'}</section>
+    <section class="admin-dash-col"><h2>جاهز للأرشيف</h2><p>بعد اكتمال مراحل النشر.</p>${requiredCards.filter(x => x.isArchive).length ? requiredCards.filter(x => x.isArchive).map(item => `<article class="dash-campaign-card" data-open-campaign="${escapeHtml(item.campaign.id)}"><strong>${escapeHtml(item.campaign.campaignName || item.campaign.name || 'حملة')}</strong><p>${escapeHtml(item.campaign.campaignCode || '')}</p></article>`).join('') : '<div class="empty-state">لا توجد حملات جاهزة للأرشيف.</div>'}</section>`;
+}
+function renderCampaignDetail(campaignId){
+  const campaign = campaigns.find(item => item.id === campaignId);
+  const detail = document.getElementById('dashboardCampaignDetail');
+  if(!detail || !campaign) return;
+  const related = campaignTasks.filter(task => task.campaignId === campaignId);
+  detail.classList.add('show');
+  detail.innerHTML = `<div class="detail-head"><div><h2>${escapeHtml(campaign.campaignName || campaign.name || 'حملة')}</h2><p>${escapeHtml(campaign.campaignCode || '')}</p></div><button type="button" class="mini-btn" id="closeDashboardDetail">إغلاق</button></div>
+    <div class="task-detail-list">${related.length ? related.map(task => `<article class="task-detail-card"><div><strong>${escapeHtml(task.creative || '')}</strong><p>${escapeHtml(task.taskType || '')} · ${escapeHtml(task.assignedToName || '')} · ${escapeHtml(task.assignedDepartmentName || '')}</p></div><span class="chip">${taskProgress(task)}%</span></article>`).join('') : '<div class="empty-state">لا توجد تاسكات للحملة.</div>'}</div>`;
+}
+async function togglePublishStage(campaignId, stage){
+  const campaign = campaigns.find(item => item.id === campaignId);
+  if(!campaign || !mainDb) return;
+  const stages = { ...(campaign.publishStages || {}) };
+  stages[stage] = !stages[stage];
+  await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaignId).update({ publishStages: stages, updatedAt: serverTime() });
+}
 function renderCampaignCards(containerId, limit = 6){
   const el = document.getElementById(containerId); if(!el) return;
   if(!campaigns.length){ el.innerHTML = '<div class="empty-state">لا توجد حملات محفوظة حتى الآن.</div>'; return; }
@@ -780,8 +943,7 @@ function renderCampaignCards(containerId, limit = 6){
     </article>`).join('');
 }
 function renderCampaigns(){
-  const count = document.getElementById('dashboardCampaignsCount'); if(count) count.textContent = campaigns.length || '—';
-  renderCampaignCards('dashboardCampaignsList', 5);
+  renderAdminDashboard();
   renderCampaignCards('campaignsList', 50);
 }
 function loadCampaigns(){
@@ -790,6 +952,13 @@ function loadCampaigns(){
     campaigns = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) }));
     renderCampaigns();
   }, error => { console.error('Campaigns load error', error); renderCampaigns(); });
+}
+function loadCampaignTasks(){
+  if(!mainDb) return;
+  safeCollection(window.MZJ_CAMPAIGN_TASKS_COLLECTION).onSnapshot(snapshot => {
+    campaignTasks = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) }));
+    renderCampaigns();
+  }, error => { console.error('Campaign tasks load error', error); renderCampaigns(); });
 }
 
 function bootstrapData(){
@@ -811,6 +980,7 @@ function bootstrapData(){
     }, error => console.error(error));
   }
   loadCampaigns();
+  loadCampaignTasks();
   loadStock();
 }
 
@@ -886,7 +1056,12 @@ document.addEventListener('DOMContentLoaded', () => {
       sessionStorage.setItem('mzj_user', JSON.stringify({
         uid: authUser?.uid || userDoc.id,
         email: userDoc.email || rawEmail,
-        name: userDoc.name || userDoc.displayName || userDoc.username || ''
+        name: userDoc.name || userDoc.displayName || userDoc.username || '',
+        role: userDoc.role || '',
+        department: userDoc.department || '',
+        departmentId: userDoc.departmentId || '',
+        departmentIds: Array.isArray(userDoc.departmentIds) ? userDoc.departmentIds : [],
+        pages: Array.isArray(userDoc.pages) ? userDoc.pages : []
       }));
       showMessage('loginMessage', '');
       openApp();
@@ -897,5 +1072,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('logoutBtn')?.addEventListener('click', () => { sessionStorage.removeItem('mzj_logged_in'); openLogin(); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
-  bindCampaignBuilder(); bindDepartments(); isLoggedIn() ? openApp() : openLogin();
+  bindCampaignBuilder(); bindDepartments();
+  document.getElementById('dashboard')?.addEventListener('click', async event => {
+    const stageBtn = event.target.closest('[data-stage][data-campaign-id]');
+    if(stageBtn){ event.stopPropagation(); await togglePublishStage(stageBtn.dataset.campaignId, stageBtn.dataset.stage); return; }
+    const campaignCard = event.target.closest('[data-open-campaign]');
+    if(campaignCard){ renderCampaignDetail(campaignCard.dataset.openCampaign); return; }
+    if(event.target.id === 'closeDashboardDetail'){ document.getElementById('dashboardCampaignDetail')?.classList.remove('show'); }
+  });
+  isLoggedIn() ? openApp() : openLogin();
 });

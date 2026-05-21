@@ -85,7 +85,7 @@ service cloud.firestore {
         "attachmentUrl",
         "attachmentUrls",
         "updatedAt",
-        "updatedBy"
+        "updatedBy",
       ]);
     }
 
@@ -121,7 +121,7 @@ service cloud.firestore {
         "createdAt",
         "createdBy",
         "updatedAt",
-        "updatedBy"
+        "updatedBy",
       ]);
     }
 
@@ -142,7 +142,7 @@ service cloud.firestore {
         "createdAt",
         "createdBy",
         "updatedAt",
-        "updatedBy"
+        "updatedBy",
       ]);
     }
 
@@ -163,7 +163,7 @@ service cloud.firestore {
         "createdAt",
         "createdBy",
         "updatedAt",
-        "updatedBy"
+        "updatedBy",
       ]);
     }
 
@@ -214,7 +214,7 @@ service cloud.firestore {
         "createdAt",
         "createdBy",
         "updatedAt",
-        "updatedBy"
+        "updatedBy",
       ]);
     }
 
@@ -286,7 +286,7 @@ service cloud.firestore {
         "createdAt",
         "createdBy",
         "updatedAt",
-        "updatedBy"
+        "updatedBy",
       ]);
     }
 
@@ -470,9 +470,15 @@ service cloud.firestore {
 
     match /marketing_campaigns/{docId} {
       allow read: if true;
-      allow create, update: if marketingCampaignKeysValid();
+      allow create, update: if true;
       allow delete: if true;
     }
+
+    match /campaign_tasks/{docId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
 
     match /{document=**} {
       allow read, create, update, delete: if false;
