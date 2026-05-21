@@ -146,6 +146,22 @@ function taskTypeOptionsForSection(sectionId, selectedValue = ''){
   const types = Array.isArray(section?.types) ? section.types : [];
   return '<option value="">اختر نوع التاسك</option>' + types.map(type => `<option value="${escapeHtml(type)}"${selectedValue === type ? ' selected' : ''}>${escapeHtml(type)}</option>`).join('');
 }
+
+function usersForContentSection(sectionId){
+  const section = contentSections.find(item => item.id === sectionId);
+  const ids = Array.isArray(section?.userIds) ? section.userIds : Array.isArray(section?.memberUids) ? section.memberUids : Array.isArray(section?.users) ? section.users : [];
+  if(ids.length) return ids.map(id => users.find(user => user.id === id)).filter(Boolean);
+  const departmentId = section?.departmentId || section?.department || section?.contentDepartmentId || '';
+  if(departmentId){
+    const dep = departments.find(item => item.id === departmentId || item.name === departmentId);
+    if(dep?.userIds?.length) return dep.userIds.map(id => users.find(user => user.id === id)).filter(Boolean);
+  }
+  return users;
+}
+function multiTaskUserOptions(sectionId, selectedIds = []){
+  const list = usersForContentSection(sectionId);
+  return list.length ? list.map(user => `<option value="${escapeHtml(user.id)}"${selectedIds.includes(user.id) ? ' selected' : ''}>${escapeHtml(userName(user))}</option>`).join('') : '<option value="" disabled>لا توجد يوزرات لهذا القسم</option>';
+}
 function selectedOptionTexts(control){
   if(control?.classList?.contains('js-role-picker')){
     return [...control.querySelectorAll('input[type="checkbox"]:checked')]
@@ -199,13 +215,20 @@ function formatCampaignCodeLabel(item){
 
 function refreshDynamicSelects(){
   document.querySelectorAll('.js-department-select').forEach(select => { const value = select.value; select.innerHTML = departmentOptions(value); });
-  document.querySelectorAll('.js-content-section-select').forEach(select => { const value = select.value; select.innerHTML = contentSectionOptions(value); });
+  document.querySelectorAll('.js-content-section-select,.js-task-section-select').forEach(select => { const value = select.value; select.innerHTML = contentSectionOptions(value); });
   document.querySelectorAll('.js-creative-select').forEach(select => { const value = select.value; select.innerHTML = creativeOptions(value); });
   document.querySelectorAll('.js-task-type').forEach(select => {
     const value = select.value;
-    const row = select.closest('tr');
-    const sectionId = row?.querySelector('.js-content-section-select')?.value || '';
+    const block = select.closest('.creative-task-block');
+    const row = select.closest('.creative-row-card');
+    const sectionId = block?.querySelector('.js-task-section-select')?.value || row?.querySelector('.js-content-section-select')?.value || '';
     select.innerHTML = taskTypeOptionsForSection(sectionId, value);
+  });
+  document.querySelectorAll('.js-task-user').forEach(select => {
+    const selected = selectedOptionValues(select);
+    const block = select.closest('.creative-task-block');
+    const sectionId = block?.querySelector('.js-task-section-select')?.value || '';
+    select.innerHTML = multiTaskUserOptions(sectionId, selected);
   });
   document.querySelectorAll('.js-user-select').forEach(select => { const value = select.value; select.innerHTML = userOptions(value); });
   document.querySelectorAll('.js-role-user-select').forEach(select => {
@@ -378,19 +401,29 @@ function renderStock(){
   }).join('');
 }
 
-function clearEmptyRow(tbody){ const empty = tbody?.querySelector('.empty-row'); if(empty) empty.remove(); }
-function restoreEmptyRow(tbody, colSpan, text){ if(tbody && tbody.children.length === 0){ const row = document.createElement('tr'); row.className = 'empty-row'; row.innerHTML = `<td colspan="${colSpan}">${text}</td>`; tbody.appendChild(row); } }
+function clearEmptyRow(container){ container?.querySelector('.empty-row, .empty-state')?.remove(); }
+function restoreEmptyRow(container, colSpan, text){
+  if(!container || container.children.length !== 0) return;
+  if(container.tagName === 'TBODY'){ const row = document.createElement('tr'); row.className = 'empty-row'; row.innerHTML = `<td colspan="${colSpan}">${text}</td>`; container.appendChild(row); }
+  else { const empty = document.createElement('div'); empty.className = 'empty-state'; empty.textContent = text; container.appendChild(empty); }
+}
 function makeSelect(label, className = ''){ return `<select class="${className}" aria-label="${label}"><option value="">اختر</option></select>`; }
 function showToast(text){ let toast = document.querySelector('.save-toast'); if(!toast){ toast = document.createElement('div'); toast.className = 'save-toast'; document.body.appendChild(toast); } toast.textContent = text; toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 1800); }
+function taskBlockHtml(index){
+  return `<div class="creative-task-block" data-task-index="${index}">
+    <label><span>قسم المحتوى</span><select class="js-task-section-select">${contentSectionOptions()}</select></label>
+    <label><span>نوع التاسك</span><select class="js-task-type"><option value="">اختر نوع التاسك</option></select></label>
+    <label><span>اليوزر</span><select class="js-task-user" multiple>${multiTaskUserOptions('', [])}</select></label>
+  </div>`;
+}
 
 function updateProductOutput(row){
   const creative = row?.querySelector('.js-creative-select')?.value || '';
-  const roleSelectors = ['.js-content-user','.js-shoot-user','.js-design-user','.js-edit-user'];
-  const userNames = roleSelectors.flatMap(sel => selectedOptionTexts(row?.querySelector(sel)));
+  const userNames = [...(row?.querySelectorAll('.js-task-user') || [])].flatMap(control => selectedOptionTexts(control));
   const output = row?.querySelector('.js-product-output');
-  if(output) output.value = creative && userNames.length ? `${creative} - ${userNames.join(' - ')}` : '';
+  if(output) output.value = creative && userNames.length ? `${creative} - ${uniqueList(userNames).join(' - ')}` : '';
 }
-function updateAllProductOutputs(){ document.querySelectorAll('#creativeRows tr').forEach(updateProductOutput); }
+function updateAllProductOutputs(){ document.querySelectorAll('#creativeRows .creative-row-card').forEach(updateProductOutput); }
 function generateCampaignCode(){
   const select = document.getElementById('campaignCodeSelect');
   const output = document.getElementById('campaignCodeInput');
@@ -417,43 +450,41 @@ function readSelectText(select){
 }
 
 function collectCampaignRows(){
-  return [...document.querySelectorAll('#creativeRows tr:not(.empty-row)')].map(row => {
-    const contentSection = row.querySelector('.js-content-section-select');
-    const taskType = row.querySelector('.js-task-type');
-    const contentUser = row.querySelector('.js-content-user');
-    const shootingUser = row.querySelector('.js-shoot-user');
-    const designUser = row.querySelector('.js-design-user');
-    const montageUser = row.querySelector('.js-edit-user');
-    const publishUser = row.querySelector('.js-publish-user');
+  return [...document.querySelectorAll('#creativeRows .creative-row-card')].map(row => {
+    const tasks = [...row.querySelectorAll('.creative-task-block')].map(block => {
+      const section = block.querySelector('.js-task-section-select');
+      const task = block.querySelector('.js-task-type');
+      const userControl = block.querySelector('.js-task-user');
+      return {
+        contentSectionId: section?.value || '',
+        contentSectionName: readSelectText(section),
+        taskType: task?.value || '',
+        userIds: selectedOptionValues(userControl),
+        userNames: selectedOptionTexts(userControl)
+      };
+    }).filter(item => item.contentSectionId || item.taskType || item.userIds.length);
     return {
       creative: row.querySelector('.js-creative-select')?.value || '',
-      contentSectionId: contentSection?.value || '',
-      contentSectionName: readSelectText(contentSection),
-      taskType: taskType?.value || '',
-      contentUserIds: selectedOptionValues(contentUser),
-      contentUserNames: selectedOptionTexts(contentUser),
-      shootingUserIds: selectedOptionValues(shootingUser),
-      shootingUserNames: selectedOptionTexts(shootingUser),
-      designUserIds: selectedOptionValues(designUser),
-      designUserNames: selectedOptionTexts(designUser),
-      montageUserIds: selectedOptionValues(montageUser),
-      montageUserNames: selectedOptionTexts(montageUser),
-      publishUserIds: selectedOptionValues(publishUser),
-      publishUserNames: selectedOptionTexts(publishUser),
+      tasks,
       product: row.querySelector('.js-product-output')?.value || ''
     };
-  }).filter(item => item.creative || item.contentSectionId || item.taskType || item.product);
+  }).filter(item => item.creative || item.tasks.length || item.product);
 }
 function getCampaignProducts(){
   return uniqueList([...document.querySelectorAll('.js-product-output')].map(input => normalizeText(input.value)).filter(Boolean));
 }
 function getCampaignPublishOutputs(){
   const outputs = [];
-  document.querySelectorAll('#creativeRows tr:not(.empty-row)').forEach(row => {
+  document.querySelectorAll('#creativeRows .creative-row-card').forEach(row => {
     const creative = row.querySelector('.js-creative-select')?.value || '';
-    const designNames = selectedOptionTexts(row.querySelector('.js-design-user'));
-    const montageNames = selectedOptionTexts(row.querySelector('.js-edit-user'));
-    [...designNames, ...montageNames].filter(Boolean).forEach(name => outputs.push(`${creative || 'مخرج'} - ${name}`));
+    const product = normalizeText(row.querySelector('.js-product-output')?.value);
+    if(product) outputs.push(product);
+    row.querySelectorAll('.creative-task-block').forEach(block => {
+      const taskName = block.querySelector('.js-task-type')?.value || '';
+      selectedOptionTexts(block.querySelector('.js-task-user')).forEach(name => {
+        if(name) outputs.push(`${creative || 'مخرج'} - ${taskName ? taskName + ' - ' : ''}${name}`);
+      });
+    });
   });
   return uniqueList(outputs);
 }
@@ -607,19 +638,18 @@ function bindCampaignBuilder(){
   const creativeRows = document.getElementById('creativeRows'); const budgetRows = document.getElementById('budgetRows');
   document.getElementById('addCreativeBtn')?.addEventListener('click', () => {
     clearEmptyRow(creativeRows);
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${makeSelect('الكريتيف', 'js-creative-select')}</td>
-      <td>${makeSelect('قسم المحتوى', 'js-content-section-select')}</td>
-      <td class="task-cell">${makeSelect('نوع التاسك', 'js-task-type')}</td>
-      <td>${rolePickerHtml('content', 'js-content-user', 'المحتوى')}</td>
-      <td>${rolePickerHtml('shooting', 'js-shoot-user', 'التصوير')}</td>
-      <td>${rolePickerHtml('design', 'js-design-user', 'التصميم')}</td>
-      <td>${rolePickerHtml('montage', 'js-edit-user', 'المونتاج')}</td>
-      <td><input class="product-output js-product-output" type="text" readonly aria-label="المنتجات" /></td>
-      <td>${rolePickerHtml('publish', 'js-publish-user', 'النشر')}</td>
-      <td><button class="delete-row" type="button" aria-label="حذف الصف">×</button></td>`;
-    creativeRows?.appendChild(row); refreshDynamicSelects(); renderPublishAgenda();
+    const card = document.createElement('article');
+    card.className = 'creative-row-card';
+    card.innerHTML = `
+      <div class="creative-row-head">
+        <label class="creative-main-select"><span>الكريتيف</span><select class="js-creative-select">${creativeOptions()}</select></label>
+        <label class="creative-product-field"><span>المنتجات</span><input class="product-output js-product-output" type="text" readonly aria-label="المنتجات" /></label>
+        <button class="delete-row" type="button" aria-label="حذف الصف">×</button>
+      </div>
+      <div class="creative-task-grid">
+        ${taskBlockHtml(1)}${taskBlockHtml(2)}${taskBlockHtml(3)}${taskBlockHtml(4)}
+      </div>`;
+    creativeRows?.appendChild(card); refreshDynamicSelects(); renderPublishAgenda();
   });
   document.getElementById('campaignCodeSelect')?.addEventListener('change', generateCampaignCode);
   document.getElementById('refreshPublishAgendaBtn')?.addEventListener('click', renderPublishAgenda);
@@ -632,23 +662,24 @@ function bindCampaignBuilder(){
     if(toggle){ toggle.closest('.multi-dropdown')?.classList.toggle('open'); return; }
     if(!event.target.closest('.multi-dropdown')) document.querySelectorAll('.multi-dropdown.open').forEach(el => el.classList.remove('open'));
     const btn = event.target.closest('.delete-row');
-    if(btn){ const tbody = btn.closest('tbody'); btn.closest('tr')?.remove(); if(tbody?.id === 'creativeRows') restoreEmptyRow(tbody, 10, 'ابدأ بإضافة صف كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
+    if(btn){ const container = document.getElementById('creativeRows'); btn.closest('.creative-row-card')?.remove(); restoreEmptyRow(container, 1, 'ابدأ بإضافة صف كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
     const budgetDel = event.target.closest('.delete-budget-row');
     if(budgetDel){ budgetDel.closest('.budget-item-card')?.remove(); if(budgetRows && !budgetRows.querySelector('.budget-item-card')) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; }
   });
   document.addEventListener('change', event => {
-    if(event.target.matches('.js-content-section-select')){
-      const row = event.target.closest('tr');
-      const taskSelect = row?.querySelector('.js-task-type');
+    if(event.target.matches('.js-task-section-select')){
+      const block = event.target.closest('.creative-task-block');
+      const taskSelect = block?.querySelector('.js-task-type');
+      const userSelect = block?.querySelector('.js-task-user');
       if(taskSelect) taskSelect.innerHTML = taskTypeOptionsForSection(event.target.value, '');
+      if(userSelect) userSelect.innerHTML = multiTaskUserOptions(event.target.value, []);
+      updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return;
     }
-    if(event.target.matches('.js-role-picker input[type="checkbox"]')){
-      const picker = event.target.closest('.js-role-picker'); updateRolePickerLabel(picker); updateProductOutput(event.target.closest('tr')); renderPublishAgenda(); refreshDynamicSelects(); return;
-    }
+    if(event.target.matches('.js-task-user')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
-    if(event.target.matches('.js-creative-select,.js-content-user,.js-shoot-user,.js-design-user,.js-edit-user')){ updateProductOutput(event.target.closest('tr')); renderPublishAgenda(); refreshDynamicSelects(); }
+    if(event.target.matches('.js-creative-select,.js-task-type')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
-  document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<tr class="empty-row"><td colspan="10">ابدأ بإضافة صف كريتيف للحملة.</td></tr>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; generateCampaignCode(); });
+  document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<div class="empty-state">ابدأ بإضافة صف كريتيف للحملة.</div>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; generateCampaignCode(); });
   document.getElementById('saveCampaignDraft')?.addEventListener('click', saveCampaignToFirebase);
 }
 
