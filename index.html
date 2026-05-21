@@ -276,18 +276,41 @@
           <div class="page-title"><h1>الاستوك</h1><p>قراءة فقط من مسار السيارات: أسماء السيارات Unique Spec Key، وحصر الماركات والمواصفات والألوان المتاحة.</p></div>
           <button class="btn btn-light" type="button" id="refreshStockBtn">تحديث</button>
         </div>
-        <div class="grid stats">
-          <div class="card stat"><div><p>إجمالي السيارات</p><div class="num" id="stockTotalCars">—</div></div><div class="stat-icon">▧</div></div>
-          <div class="card stat"><div><p>Unique Spec Key</p><div class="num" id="stockUniqueCarsCount">—</div></div><div class="stat-icon">◇</div></div>
-          <div class="card stat"><div><p>عدد الماركات</p><div class="num" id="stockBrandsCount">—</div></div><div class="stat-icon">◆</div></div>
-          <div class="card stat"><div><p>عدد المواصفات</p><div class="num" id="stockSpecsCount">—</div></div><div class="stat-icon">☷</div></div>
-          <div class="card stat"><div><p>عدد الألوان</p><div class="num" id="stockColorsCount">—</div></div><div class="stat-icon">●</div></div>
+        <div class="grid stats stock-stats">
+          <div class="card stat"><div><p>إجمالي ظاهر</p><div class="num" id="stockTotalCars">—</div><small>حسب البحث الحالي</small></div><div class="stat-icon">▧</div></div>
+          <div class="card stat"><div><p>إجمالي بعد الاستبعاد</p><div class="num" id="stockAvailableAfterExclude">—</div><small>بدون مباع تم التسليم والأرشيف</small></div><div class="stat-icon">◇</div></div>
+          <div class="card stat"><div><p>متاح للبيع</p><div class="num" id="stockAvailableForSale">—</div><small>حسب حقل status</small></div><div class="stat-icon">◆</div></div>
+          <div class="card stat"><div><p>حجز</p><div class="num" id="stockReserved">—</div><small>حسب حقل status</small></div><div class="stat-icon">☷</div></div>
+          <div class="card stat"><div><p>مباع تحت التسليم</p><div class="num" id="stockUnderDelivery">—</div><small>حسب حقل status</small></div><div class="stat-icon">●</div></div>
         </div>
-        <div class="grid stock-grid mt">
-          <div class="card"><h2>أسماء السيارات / Unique Spec Key</h2><div id="stockUniqueCars" class="chip-list"><div class="empty-state">جاري التحميل...</div></div></div>
-          <div class="card"><h2>الماركات المتاحة</h2><div id="stockBrands" class="chip-list"><div class="empty-state">جاري التحميل...</div></div></div>
-          <div class="card"><h2>المواصفات المتاحة</h2><div id="stockSpecs" class="chip-list"><div class="empty-state">جاري التحميل...</div></div></div>
-          <div class="card"><h2>الألوان المتاحة</h2><div id="stockColors" class="chip-list"><div class="empty-state">جاري التحميل...</div></div></div>
+
+        <div class="card stock-table-card mt">
+          <div class="card-title stock-title-row">
+            <div>
+              <h2>حصر الماركات والمواصفات والألوان المتاحة</h2>
+              <p>تجميع قراءة فقط حسب اسم السيارة + البيان + الموديل، مع عدد السيارات والألوان المتاحة.</p>
+            </div>
+            <small>unique spec key</small>
+          </div>
+          <div class="stock-table-wrap">
+            <table class="stock-table" aria-label="حصر الاستوك">
+              <thead>
+                <tr>
+                  <th>م</th>
+                  <th>Unique Spec Key</th>
+                  <th>اسم السيارة</th>
+                  <th>الموديل</th>
+                  <th>العدد</th>
+                  <th>الألوان الخارجية المتاحة</th>
+                  <th>الألوان الداخلية المتاحة</th>
+                  <th>الحالات</th>
+                </tr>
+              </thead>
+              <tbody id="stockSummaryRows">
+                <tr class="empty-row"><td colspan="8">جاري تحميل بيانات الاستوك...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 

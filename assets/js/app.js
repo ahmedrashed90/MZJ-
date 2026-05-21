@@ -20,12 +20,13 @@ window.MZJ_STOCK_FIREBASE_CONFIG = {
 
 window.MZJ_DEPARTMENTS_COLLECTION = "departments";
 window.MZJ_USERS_COLLECTION = "users";
-window.MZJ_CREATIVES_COLLECTION = "creatives";
-window.MZJ_TASK_TYPES_COLLECTION = "taskTypes";
-window.MZJ_CONTENT_SECTIONS_COLLECTION = "contentSections";
-window.MZJ_CAMPAIGN_CODES_COLLECTION = "campaignCodes";
-window.MZJ_CAMPAIGN_TYPES_COLLECTION = "campaignTypes";
+window.MZJ_CREATIVES_COLLECTION = "marketing_creatives";
+window.MZJ_TASK_TYPES_COLLECTION = "marketing_task_types";
+window.MZJ_CONTENT_SECTIONS_COLLECTION = "content_categories";
+window.MZJ_CAMPAIGN_CODES_COLLECTION = "marketing_campaign_codes";
+window.MZJ_CAMPAIGN_TYPES_COLLECTION = "marketing_campaign_types";
 window.MZJ_STOCK_CARS_COLLECTION = "cars";
+window.MZJ_CAMPAIGNS_COLLECTION = "marketing_campaigns";
 
 const routes = ['dashboard','campaigns','create-campaign','departments','calendar','tasks','stock','reports','settings'];
 const loginView = document.getElementById('loginView');
@@ -44,7 +45,7 @@ let campaignCodes = [];
 let campaignTypes = [];
 let cars = [];
 
-function isLoggedIn(){ return localStorage.getItem('mzj_logged_in') === '1'; }
+function isLoggedIn(){ return sessionStorage.getItem('mzj_logged_in') === '1'; }
 function getRoute(){ return (location.hash || '#dashboard').replace('#',''); }
 function openApp(){ loginView.classList.add('is-hidden'); appShell.classList.remove('is-hidden'); renderRoute(); bootstrapData(); }
 function openLogin(){ appShell.classList.add('is-hidden'); loginView.classList.remove('is-hidden'); }
@@ -188,21 +189,87 @@ function loadStock(){
   stockDb.collection(window.MZJ_STOCK_CARS_COLLECTION).onSnapshot(snapshot => {
     cars = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) }));
     renderStock();
-  }, error => { console.error('Stock load error', error); ['stockUniqueCars','stockBrands','stockSpecs','stockColors'].forEach(id => renderChips(id, [])); });
+  }, error => { console.error('Stock load error', error); renderStockError(); });
+}
+function pickFirstValue(obj, keys){
+  for(const key of keys){
+    if(obj && obj[key] !== undefined && obj[key] !== null && String(obj[key]).trim() !== '') return obj[key];
+  }
+  return '';
+}
+function valueListFromFields(obj, keys){
+  const values = [];
+  keys.forEach(key => values.push(...normalizeMaybeArray(obj?.[key])));
+  return uniqueList(values);
+}
+function normalizeStatus(value){ return normalizeText(value || 'غير محدد'); }
+function stockStatusOf(car){
+  return normalizeStatus(pickFirstValue(car, ['status','carStatus','stockStatus','availability','الحالة','حالة السيارة']));
+}
+function isExcludedStockStatus(status){
+  const text = normalizeStatus(status);
+  return text.includes('تم التسليم') || text.includes('ارشيف') || text.includes('أرشيف') || text.includes('archive');
+}
+function statusCount(statusName){
+  return cars.filter(car => stockStatusOf(car).includes(statusName)).length;
+}
+function stockChipHtml(name, count = null, extraClass = ''){
+  const suffix = count !== null && count !== undefined ? ` <small>${escapeHtml(count)}</small>` : '';
+  return `<span class="stock-chip ${extraClass}">${escapeHtml(name)}${suffix}</span>`;
+}
+function renderStockError(){
+  ['stockTotalCars','dashboardCarsCount','stockAvailableAfterExclude','stockAvailableForSale','stockReserved','stockUnderDelivery'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = '—'; });
+  const tbody = document.getElementById('stockSummaryRows');
+  if(tbody) tbody.innerHTML = '<tr class="empty-row"><td colspan="8">تعذر تحميل بيانات الاستوك.</td></tr>';
 }
 function renderStock(){
-  const uniqueCarValues = [], brandValues = [], specValues = [], colorValues = [];
-  cars.forEach(car => {
-    uniqueCarValues.push(...normalizeMaybeArray(getField(car, ['uniqueSpecKey','Unique Spec Key','unique_spec_key','specKey','uniqueKey','name','carName','model','title','اسم السيارة','اسم'] )));
-    brandValues.push(...normalizeMaybeArray(getField(car, ['brand','make','maker','manufacturer','ماركة','الماركة'])));
-    specValues.push(...normalizeMaybeArray(getField(car, ['specifications','specs','spec','trim','category','grade','مواصفات','المواصفات'])));
-    colorValues.push(...normalizeMaybeArray(getField(car, ['color','colour','exteriorColor','externalColor','لون','اللون'])));
-  });
-  const uniqueCars = countValues(uniqueCarValues), brands = countValues(brandValues), specs = countValues(specValues), colors = countValues(colorValues);
+  const tbody = document.getElementById('stockSummaryRows');
   const setText = (id, value) => { const el = document.getElementById(id); if(el) el.textContent = value; };
-  setText('stockTotalCars', cars.length || '—'); setText('dashboardCarsCount', cars.length || '—');
-  setText('stockUniqueCarsCount', uniqueCars.length || '—'); setText('stockBrandsCount', brands.length || '—'); setText('stockSpecsCount', specs.length || '—'); setText('stockColorsCount', colors.length || '—');
-  renderChips('stockUniqueCars', uniqueCars); renderChips('stockBrands', brands); renderChips('stockSpecs', specs); renderChips('stockColors', colors);
+  setText('stockTotalCars', cars.length || '—');
+  setText('dashboardCarsCount', cars.length || '—');
+  setText('stockAvailableAfterExclude', cars.filter(car => !isExcludedStockStatus(stockStatusOf(car))).length || '—');
+  setText('stockAvailableForSale', statusCount('متاح للبيع') || '—');
+  setText('stockReserved', statusCount('حجز') || '—');
+  setText('stockUnderDelivery', statusCount('مباع تحت التسليم') || '—');
+  if(!tbody) return;
+  if(!cars.length){ tbody.innerHTML = '<tr class="empty-row"><td colspan="8">لا توجد بيانات استوك متاحة.</td></tr>'; return; }
+
+  const groups = new Map();
+  cars.forEach(car => {
+    const key = normalizeText(pickFirstValue(car, [
+      'uniqueSpecKey','Unique Spec Key','unique_spec_key','specKey','spec_key','uniqueKey','unique_key','sku','code','title','name','اسم السيارة','اسم'
+    ])) || car.id;
+    const name = normalizeText(pickFirstValue(car, ['carName','name','title','modelName','vehicleName','اسم السيارة','السيارة','brand','make','ماركة','الماركة'])) || '—';
+    const model = normalizeText(pickFirstValue(car, ['model','year','modelYear','موديل','الموديل','سنة','السنة'])) || '—';
+    if(!groups.has(key)){
+      groups.set(key, { key, name, model, count: 0, exterior: new Map(), interior: new Map(), statuses: new Map(), sub: normalizeText(pickFirstValue(car, ['description','trim','spec','specName','grade','الفئة','المواصفة'])) });
+    }
+    const group = groups.get(key);
+    group.count += 1;
+    if(group.name === '—' && name !== '—') group.name = name;
+    if(group.model === '—' && model !== '—') group.model = model;
+    valueListFromFields(car, ['exteriorColor','externalColor','outsideColor','outerColor','color','colour','colors','availableColors','لون خارجي','اللون الخارجي','الألوان الخارجية']).forEach(color => group.exterior.set(color, (group.exterior.get(color) || 0) + 1));
+    valueListFromFields(car, ['interiorColor','insideColor','internalColor','innerColor','interiorColors','لون داخلي','اللون الداخلي','الألوان الداخلية']).forEach(color => group.interior.set(color, (group.interior.get(color) || 0) + 1));
+    const status = stockStatusOf(car);
+    group.statuses.set(status, (group.statuses.get(status) || 0) + 1);
+  });
+
+  const rows = [...groups.values()].sort((a,b) => b.count - a.count || a.key.localeCompare(b.key, 'ar'));
+  tbody.innerHTML = rows.map((group, index) => {
+    const ext = [...group.exterior.entries()].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0], 'ar'));
+    const intr = [...group.interior.entries()].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0], 'ar'));
+    const statuses = [...group.statuses.entries()].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0], 'ar'));
+    return `<tr>
+      <td>${index + 1}</td>
+      <td class="stock-key">${escapeHtml(group.key)}${group.sub ? `<small>${escapeHtml(group.sub)}</small>` : ''}</td>
+      <td>${escapeHtml(group.name)}</td>
+      <td>${escapeHtml(group.model)}</td>
+      <td><span class="stock-count">${group.count}</span></td>
+      <td><div class="stock-chip-list">${ext.length ? ext.map(([n,c]) => stockChipHtml(n,c)).join('') : '<span class="stock-chip">—</span>'}</div></td>
+      <td><div class="stock-chip-list">${intr.length ? intr.map(([n,c]) => stockChipHtml(n,c)).join('') : '<span class="stock-chip">—</span>'}</div></td>
+      <td><div class="stock-chip-list">${statuses.length ? statuses.map(([n,c]) => stockChipHtml(n,c,'stock-status')).join('') : '<span class="stock-chip">—</span>'}</div></td>
+    </tr>`;
+  }).join('');
 }
 
 function clearEmptyRow(tbody){ const empty = tbody?.querySelector('.empty-row'); if(empty) empty.remove(); }
@@ -229,6 +296,81 @@ function generateCampaignCode(){
   output.value = `${item.prefix || 'MZJ'}-${item.code}-${yy}${mm}-${serial}`;
 }
 
+
+function getFormData(form){
+  const data = {};
+  if(!form) return data;
+  new FormData(form).forEach((value, key) => { data[key] = normalizeText(value); });
+  return data;
+}
+function readSelectText(select){
+  const text = select?.selectedOptions?.[0]?.textContent?.trim() || '';
+  return text.startsWith('اختر') ? '' : text;
+}
+function collectCampaignRows(){
+  return [...document.querySelectorAll('#creativeRows tr:not(.empty-row)')].map(row => ({
+    creative: row.querySelector('.js-creative-select')?.value || '',
+    departmentId: row.querySelector('.js-department-select')?.value || '',
+    departmentName: readSelectText(row.querySelector('.js-department-select')),
+    taskType: row.querySelector('.js-task-type')?.value || '',
+    contentUserId: row.querySelector('.js-content-user')?.value || '',
+    contentUserName: readSelectText(row.querySelector('.js-content-user')),
+    shootingUserId: row.querySelector('.js-shoot-user')?.value || '',
+    shootingUserName: readSelectText(row.querySelector('.js-shoot-user')),
+    designUserId: row.querySelector('.js-design-user')?.value || '',
+    designUserName: readSelectText(row.querySelector('.js-design-user')),
+    montageUserId: row.querySelector('.js-edit-user')?.value || '',
+    montageUserName: readSelectText(row.querySelector('.js-edit-user')),
+    product: row.querySelector('.js-product-output')?.value || '',
+    publishUserId: row.querySelector('td:nth-child(9) select')?.value || '',
+    publishUserName: readSelectText(row.querySelector('td:nth-child(9) select'))
+  })).filter(item => item.creative || item.departmentId || item.taskType || item.product);
+}
+function collectPublishRows(){
+  return [...document.querySelectorAll('#publishRows tr:not(.empty-row)')].map(row => ({
+    creative: row.querySelector('.js-creative-select')?.value || '',
+    channel: readSelectText(row.querySelector('td:nth-child(2) select')),
+    date: row.querySelector('td:nth-child(3) input')?.value || '',
+    time: row.querySelector('td:nth-child(4) input')?.value || '',
+    status: readSelectText(row.querySelector('td:nth-child(5) select'))
+  })).filter(item => item.creative || item.date || item.time);
+}
+function collectBudgetRows(){
+  return [...document.querySelectorAll('#budgetRows tr:not(.empty-row)')].map(row => ({
+    item: normalizeText(row.querySelector('td:nth-child(1) input')?.value),
+    amount: Number(row.querySelector('td:nth-child(2) input')?.value || 0),
+    notes: normalizeText(row.querySelector('td:nth-child(3) input')?.value)
+  })).filter(item => item.item || item.amount || item.notes);
+}
+async function saveCampaignToFirebase(){
+  if(!mainDb){ showToast('اتصال Firebase غير متاح.'); return; }
+  const request = getFormData(document.getElementById('campaignRequestForm'));
+  const codeItem = campaignCodes.find(code => code.id === document.getElementById('campaignCodeSelect')?.value);
+  const campaignCode = document.getElementById('campaignCodeInput')?.value || '';
+  const payload = {
+    ...request,
+    campaignCode,
+    campaignCodeId: codeItem?.id || '',
+    campaignCodePrefix: codeItem?.prefix || '',
+    campaignCodeShortCode: codeItem?.code || '',
+    campaignType: request.campaign_type || '',
+    creatives: collectCampaignRows(),
+    publishSchedule: collectPublishRows(),
+    budgetItems: collectBudgetRows(),
+    status: request.request_status || 'draft',
+    source: 'mzj-marketing-spa',
+    updatedAt: serverTime(),
+    createdAt: serverTime()
+  };
+  try{
+    await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).add(payload);
+    showToast('تم حفظ الحملة على Firebase.');
+  }catch(error){
+    console.error(error);
+    showToast('تعذر حفظ الحملة على Firebase.');
+  }
+}
+
 function bindCampaignBuilder(){
   const creativeRows = document.getElementById('creativeRows'); const publishRows = document.getElementById('publishRows'); const budgetRows = document.getElementById('budgetRows');
   document.getElementById('addCreativeBtn')?.addEventListener('click', () => {
@@ -253,7 +395,7 @@ function bindCampaignBuilder(){
   document.addEventListener('click', event => { const btn = event.target.closest('.delete-row'); if(!btn) return; const tbody = btn.closest('tbody'); btn.closest('tr')?.remove(); if(tbody?.id === 'creativeRows') restoreEmptyRow(tbody, 10, 'ابدأ بإضافة صف كريتيف للحملة.'); if(tbody?.id === 'publishRows') restoreEmptyRow(tbody, 6, 'لا توجد مواعيد نشر.'); if(tbody?.id === 'budgetRows') restoreEmptyRow(tbody, 4, 'لا توجد بنود ميزانية.'); });
   document.addEventListener('change', event => { if(event.target.matches('.js-creative-select,.js-content-user,.js-shoot-user,.js-design-user,.js-edit-user')) updateProductOutput(event.target.closest('tr')); });
   document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<tr class="empty-row"><td colspan="10">ابدأ بإضافة صف كريتيف للحملة.</td></tr>'; if(publishRows) publishRows.innerHTML = '<tr class="empty-row"><td colspan="6">لا توجد مواعيد نشر.</td></tr>'; if(budgetRows) budgetRows.innerHTML = '<tr class="empty-row"><td colspan="4">لا توجد بنود ميزانية.</td></tr>'; generateCampaignCode(); });
-  document.getElementById('saveCampaignDraft')?.addEventListener('click', () => showToast('تم حفظ شكل الحملة محلياً للمعاينة'));
+  document.getElementById('saveCampaignDraft')?.addEventListener('click', saveCampaignToFirebase);
 }
 
 function resetForm(ids){ ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; }); }
@@ -354,9 +496,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!data || (data.password !== password && data.pass !== password)){ showMessage('loginMessage', 'بيانات الدخول غير صحيحة.'); return; }
       }catch(error){ console.error(error); showMessage('loginMessage', 'تعذر التحقق من بيانات الدخول.'); return; }
     }
-    localStorage.setItem('mzj_logged_in','1'); showMessage('loginMessage', ''); openApp();
+    sessionStorage.setItem('mzj_logged_in','1'); showMessage('loginMessage', ''); openApp();
   });
-  document.getElementById('logoutBtn')?.addEventListener('click', () => { localStorage.removeItem('mzj_logged_in'); openLogin(); });
+  document.getElementById('logoutBtn')?.addEventListener('click', () => { sessionStorage.removeItem('mzj_logged_in'); openLogin(); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
   bindCampaignBuilder(); bindDepartments(); isLoggedIn() ? openApp() : openLogin();
 });
