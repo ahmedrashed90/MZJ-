@@ -263,6 +263,8 @@ service cloud.firestore {
         "campaignName",
         "campaign_name",
         "campaign_date",
+        "publish_start_date",
+        "publish_end_date",
         "campaignCode",
         "campaignCodeId",
         "campaignCodePrefix",
