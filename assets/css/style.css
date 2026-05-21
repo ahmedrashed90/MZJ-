@@ -194,3 +194,25 @@ body{font-size:11.8px;line-height:1.32}
 .kanban-task-meta span{background:#f7eee8;border:1px solid var(--line);border-radius:999px;padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:48%}
 @media(max-width:1100px){.task-kanban-board{grid-template-columns:repeat(2,minmax(180px,1fr))}}
 @media(max-width:700px){.task-kanban-board{grid-template-columns:1fr}}
+
+/* User dashboard + task workflow */
+.user-dashboard-panel{grid-column:1/-1;background:rgba(255,253,252,.88);border:1px solid var(--border);border-radius:18px;padding:14px;box-shadow:var(--shadow)}
+.user-dash-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.user-dash-head h2{font-size:16px;margin:0 0 4px;color:var(--text)}
+.user-dash-head p{font-size:11px;color:var(--muted);margin:0}
+.user-task-stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.user-task-stats span{border:1px solid var(--border);background:var(--surface-2);border-radius:999px;padding:5px 8px;font-size:10px;font-weight:900;color:var(--primary)}
+.kanban-task-card{cursor:pointer;transition:.18s ease}
+.kanban-task-card:hover{transform:translateY(-1px);border-color:var(--secondary);box-shadow:0 10px 22px rgba(95,56,45,.10)}
+.task-detail-panel{border:1px solid var(--border);border-radius:16px;background:#fffaf6;padding:12px;display:grid;gap:12px}
+.task-detail-info{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.task-detail-info span{border:1px solid var(--border);border-radius:12px;background:#fff;padding:8px;font-size:10.5px;color:var(--muted);font-weight:700}
+.task-detail-info strong{display:block;color:var(--text);font-size:11px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task-receive-row{display:flex;justify-content:flex-start}.mini-btn.done{background:var(--success);border-color:#b9d4ad;color:#355b25}
+.task-step-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.step-btn{border:1px solid var(--border);background:#fff;border-radius:13px;padding:9px 8px;display:grid;gap:4px;text-align:right;cursor:pointer;color:var(--text);min-height:58px;transition:.18s ease}
+.step-btn span{font-size:10.5px;font-weight:900;line-height:1.35}.step-btn strong{font-size:11px;color:var(--secondary)}.step-btn em{font-style:normal;font-size:9px;color:var(--muted)}
+.step-btn.done{background:linear-gradient(135deg,#e8f3df,#fff);border-color:#bfd7ae;color:#315722}.step-btn.done strong{color:#315722}
+.step-btn:disabled{opacity:.55;cursor:not-allowed;background:#f8eee8}
+@media(max-width:1100px){.task-detail-info{grid-template-columns:repeat(2,minmax(0,1fr))}.task-step-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.user-dash-head{flex-direction:column}.user-task-stats{justify-content:flex-start}}
+@media(max-width:640px){.task-detail-info,.task-step-grid{grid-template-columns:1fr}}
