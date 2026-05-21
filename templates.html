@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MZJ MZJ Marketing System - المحتوى</title>
+  <title>MZJ MZJ Marketing System - قوالب الحملات</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="theme.css" />
 </head>
-<body data-user-role="user">
+<body data-user-role="admin">
   <aside class="sidebar" id="sidebar">
     <div class="brand-block">
       <button class="menu-toggle" id="sidebarToggle" type="button" aria-label="فتح وإغلاق القائمة">
@@ -38,21 +38,81 @@
     <div class="sidebar-card"><span class="status-dot"></span><div><strong>نظام التسويق</strong><small>متصل بالبراند الجديد</small></div></div>
   </aside>
 
-  <main class="main-shell">
+  <main class="main-shell templates-main">
     <header class="topbar">
       <div class="page-title">
-        <p>CONTENT</p>
-        <h1>المحتوى</h1>
+        <p>TEMPLATES</p>
+        <h1>قوالب الحملات</h1>
+      </div>
+      <div class="topbar-actions">
+        <a class="ghost-btn" href="dashboard.html">الداش بورد</a>
+        <button class="primary-btn" type="button" id="clearTemplateForm">قالب جديد</button>
       </div>
     </header>
 
-    <section class="workspace-card empty-state-card">
-      <span class="eyebrow">NEW VERSION ROUTE</span>
-      <h2>المحتوى</h2>
-      <p>هنا هيتبني شكل ومحتوى صفحة المحتوى.</p>
+    <section class="workspace-card dashboard-intro">
+      <div>
+        <span class="eyebrow">Template Library</span>
+        <h2>ارفع Excel Template واحفظه باسم داخل السيستم</h2>
+        <p>كل Template بيتحفظ باسمه ونوعه. في نموذج إنشاء تاسك، القوالب تظهر عند اختيار حملة فقط، ويتم عرض الحملة بنفس شكل الشيت.</p>
+      </div>
+      <div class="template-help-card">
+        <strong>طريقة القراءة</strong>
+        <small>الشيت يتم حفظه وعرضه بنفس ترتيب الصفوف والخانات</small>
+        <small>مدير التسويق يملأه في إنشاء الحملة</small>
+      </div>
+    </section>
+
+    <section class="template-layout">
+      <article class="workspace-card template-form-card">
+        <div class="board-head">
+          <h3>رفع Template</h3>
+          <span class="column-hint">Excel: xlsx / xls / csv</span>
+        </div>
+        <form id="templateUploadForm" class="template-upload-form">
+          <label class="mzj-field">
+            <span>اسم الـ Template</span>
+            <input id="templateName" type="text" placeholder="مثال: حملة ثقة - Brand Reel" required />
+          </label>
+          <label class="mzj-field">
+            <span>يظهر في</span>
+            <select id="templateType" required>
+              <option value="campaign">الحملات فقط</option>
+              <option value="agenda">الأجندات فقط</option>
+              <option value="both">الحملات والأجندات</option>
+            </select>
+          </label>
+          <label class="mzj-field file-field">
+            <span>Excel Template</span>
+            <input id="templateFile" type="file" accept=".xlsx,.xls,.csv" required />
+          </label>
+          <button class="primary-btn" type="submit">حفظ Template في السيستم</button>
+          <p class="form-note" id="templateFormNote">القوالب تتحفظ على Firebase في campaign_templates وتظهر لكل اليوزرات حسب الصلاحيات.</p>
+        </form>
+      </article>
+
+      <article class="workspace-card template-preview-card">
+        <div class="board-head">
+          <h3>معاينة شكل القالب</h3>
+          <span class="column-hint" id="templateSheetName">لم يتم رفع ملف</span>
+        </div>
+        <div class="template-preview-box" id="templatePreviewBox">
+          <strong>شكل الحملة حسب الشيت</strong>
+          <p>بعد رفع الشيت، هتظهر أسماء الأعمدة هنا كخانات نموذج.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="workspace-card saved-templates-card">
+      <div class="board-head">
+        <h3>Templates محفوظة</h3>
+        <span class="column-hint">تظهر عند اختيار حملة فقط</span>
+      </div>
+      <div class="saved-template-list" id="savedTemplateList"></div>
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
