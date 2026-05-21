@@ -85,7 +85,7 @@ service cloud.firestore {
         "attachmentUrl",
         "attachmentUrls",
         "updatedAt",
-        "updatedBy",
+        "updatedBy"
       ]);
     }
 
@@ -121,7 +121,7 @@ service cloud.firestore {
         "createdAt",
         "createdBy",
         "updatedAt",
-        "updatedBy",
+        "updatedBy"
       ]);
     }
 
@@ -142,7 +142,7 @@ service cloud.firestore {
         "createdAt",
         "createdBy",
         "updatedAt",
-        "updatedBy",
+        "updatedBy"
       ]);
     }
 
@@ -163,7 +163,7 @@ service cloud.firestore {
         "createdAt",
         "createdBy",
         "updatedAt",
-        "updatedBy",
+        "updatedBy"
       ]);
     }
 
@@ -214,7 +214,7 @@ service cloud.firestore {
         "createdAt",
         "createdBy",
         "updatedAt",
-        "updatedBy",
+        "updatedBy"
       ]);
     }
 
@@ -258,35 +258,45 @@ service cloud.firestore {
 
     function marketingCampaignKeysValid() {
       return request.resource.data.keys().hasOnly([
+        "campaign_date", "campaign_code_key", "campaign_code", "campaign_name",
+        "campaign_type", "campaign_goal", "management_goal", "content_writer_brief",
+        "structure_deadline", "request_status", "campaignCode", "campaignCodeId",
+        "campaignCodePrefix", "campaignCodeShortCode", "campaignType", "creatives",
+        "publishSchedule", "budgetItems", "status", "source",
+        "id", "name", "campaignName", "taskCount", "publishStages",
+        "createdAt", "createdBy", "updatedAt", "updatedBy"
+      ]);
+    }
+
+
+    function campaignTaskKeysValid() {
+      return request.resource.data.keys().hasOnly([
         "id",
-        "name",
+        "campaignId",
         "campaignName",
-        "campaign_name",
-        "campaign_date",
-        "publish_start_date",
-        "publish_end_date",
         "campaignCode",
-        "campaignCodeId",
-        "campaignCodePrefix",
-        "campaignCodeShortCode",
-        "campaign_code",
-        "campaign_code_key",
-        "campaignType",
-        "campaign_type",
-        "campaign_goal",
-        "management_goal",
-        "content_writer_brief",
-        "structure_deadline",
-        "request_status",
-        "creatives",
-        "publishSchedule",
-        "budgetItems",
+        "creative",
+        "product",
+        "contentSectionId",
+        "contentSectionName",
+        "taskType",
+        "assignedToUid",
+        "assignedToName",
+        "assignedToEmail",
+        "assignedDepartmentId",
+        "assignedDepartmentName",
+        "departmentRole",
+        "received",
+        "progress",
+        "steps",
         "status",
+        "creativeIndex",
+        "taskIndex",
         "source",
         "createdAt",
         "createdBy",
         "updatedAt",
-        "updatedBy",
+        "updatedBy"
       ]);
     }
 
@@ -470,15 +480,16 @@ service cloud.firestore {
 
     match /marketing_campaigns/{docId} {
       allow read: if true;
-      allow create, update: if true;
+      allow create, update: if marketingCampaignKeysValid();
       allow delete: if true;
     }
 
+
     match /campaign_tasks/{docId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create, update: if campaignTaskKeysValid();
+      allow delete: if true;
     }
-
 
     match /{document=**} {
       allow read, create, update, delete: if false;

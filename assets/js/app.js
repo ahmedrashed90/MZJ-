@@ -801,6 +801,21 @@ function bindCampaignBuilder(){
 function resetForm(ids){ ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; }); }
 function collectionByKind(kind){ return {department: window.MZJ_DEPARTMENTS_COLLECTION, creative: window.MZJ_CREATIVES_COLLECTION, taskType: window.MZJ_TASK_TYPES_COLLECTION, contentSection: window.MZJ_CONTENT_SECTIONS_COLLECTION, campaignCode: window.MZJ_CAMPAIGN_CODES_COLLECTION, campaignType: window.MZJ_CAMPAIGN_TYPES_COLLECTION, platform: window.MZJ_PLATFORMS_COLLECTION}[kind]; }
 async function deleteDoc(kind, id){ if(!mainDb || !id) return; if(!confirm('تأكيد الحذف؟')) return; await safeCollection(collectionByKind(kind)).doc(id).delete(); }
+async function deleteCampaignWithTasks(campaignId){
+  if(!mainDb || !campaignId) return;
+  if(!confirm('تأكيد حذف الحملة وكل التاسكات التابعة لها؟')) return;
+  try{
+    const tasksSnap = await safeCollection(window.MZJ_CAMPAIGN_TASKS_COLLECTION).where('campaignId','==',campaignId).get();
+    const batch = mainDb.batch();
+    tasksSnap.docs.slice(0, 450).forEach(doc => batch.delete(doc.ref));
+    batch.delete(safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaignId));
+    await batch.commit();
+    showToast('تم حذف الحملة والتاسكات التابعة لها.');
+  }catch(error){
+    console.error('Delete campaign error', error);
+    showToast('تعذر حذف الحملة. راجع قواعد Firestore.');
+  }
+}
 function bindNamedForm(formId, editId, inputId, messageId, collectionName, successText, extraPayloadFn = null){
   document.getElementById(formId)?.addEventListener('submit', async event => {
     event.preventDefault();
@@ -842,6 +857,7 @@ function bindDepartments(){
     catch(error){ console.error(error); showMessage('contentSectionMessage', 'تعذر حفظ قسم المحتوى.'); }
   });
   document.addEventListener('click', async event => {
+    const campaignDel = event.target.closest('[data-delete-campaign]'); if(campaignDel){ await deleteCampaignWithTasks(campaignDel.dataset.deleteCampaign); return; }
     const depEdit = event.target.closest('[data-edit-department]'); if(depEdit){ const item = departments.find(x => x.id === depEdit.dataset.editDepartment); if(item){ document.getElementById('departmentEditId').value = item.id; document.getElementById('departmentName').value = item.name; document.getElementById('departmentUsers').innerHTML = multiUserOptions(item.userIds); } return; }
     const depDel = event.target.closest('[data-delete-department]'); if(depDel){ await deleteDoc('department', depDel.dataset.deleteDepartment); return; }
     const crEdit = event.target.closest('[data-edit-creative]'); if(crEdit){ const item = creatives.find(x => x.id === crEdit.dataset.editCreative); if(item){ document.getElementById('creativeEditId').value = item.id; document.getElementById('creativeName').value = item.name; } return; }
@@ -939,6 +955,7 @@ function renderCampaignCards(containerId, limit = 6){
       <div class="campaign-card-meta">
         <span class="chip">${escapeHtml(campaign.status || 'draft')}</span>
         <small>${formatDateShort(campaign.createdAt || campaign.campaign_date)}</small>
+        <button class="mini-btn danger" type="button" data-delete-campaign="${escapeHtml(campaign.id)}">حذف</button>
       </div>
     </article>`).join('');
 }
