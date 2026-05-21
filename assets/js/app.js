@@ -1022,6 +1022,27 @@ function bindDepartments(){
 }
 
 
+
+function setDashboardMode(mode){
+  const dashboard = document.getElementById('dashboard');
+  if(!dashboard) return;
+  const isAdminMode = mode === 'admin';
+  dashboard.classList.toggle('admin-mode', isAdminMode);
+  dashboard.classList.toggle('user-mode', !isAdminMode);
+  const title = dashboard.querySelector('.page-title h1');
+  const desc = dashboard.querySelector('.page-title p');
+  const createBtn = dashboard.querySelector('.page-head > .btn, .page-head a.btn');
+  if(isAdminMode){
+    if(title) title.textContent = 'لوحة التحكم';
+    if(desc) desc.textContent = 'متابعة الحملات والتاسكات للأدمن.';
+    if(createBtn) createBtn.classList.remove('is-hidden');
+  }else{
+    if(title) title.textContent = 'لوحة التنفيذ';
+    if(desc) desc.textContent = 'المطلوب منك فقط حسب الحساب والقسم المسند لك.';
+    if(createBtn) createBtn.classList.add('is-hidden');
+  }
+}
+
 function formatDateShort(value){
   if(!value) return '—';
   try{
@@ -1032,6 +1053,7 @@ function formatDateShort(value){
 }
 
 function renderUserDashboard(){
+  setDashboardMode('user');
   const board = document.getElementById('adminDashboardBoard');
   if(!board) return;
   const myTasks = getVisibleTasksForCurrentUser();
@@ -1043,8 +1065,8 @@ function renderUserDashboard(){
     <p>${escapeHtml([task.contentSectionName, task.taskType].filter(Boolean).join(' / ') || 'بدون نوع')}</p>
     <div class="kanban-task-meta"><span>${escapeHtml(task.campaignName || task.campaignCode || 'حملة')}</span><span>${task.received ? 'تم الاستلام' : 'لم يتم الاستلام'}</span></div>
   </article>`;
-  board.innerHTML = `<section class="user-dashboard-panel">
-    <div class="user-dash-head"><div><h2>تاسكاتي</h2><p>التاسكات المسندة لحسابك حسب المحتوى المطلوب.</p></div><div class="user-task-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div></div>
+  board.innerHTML = `<section class="user-dashboard-panel user-dashboard-only">
+    <div class="user-dash-head"><div><h2>المطلوب منك</h2><p>هنا تظهر مهام حسابك فقط، ولا تظهر لوحة الأدمن أو حملات باقي الفريق.</p></div><div class="user-task-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div></div>
     ${groups.length ? `<div class="task-kanban-board user-task-board">${groups.map(group => `<section class="task-kanban-col"><div class="kanban-col-head"><strong>${group.label}</strong><span>${group.tasks.length}</span></div><div class="kanban-col-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : '<div class="empty-state">لا توجد تاسكات مسندة لك حالياً.</div>'}
   </section>`;
 }
@@ -1055,6 +1077,7 @@ function renderAdminDashboard(){
   const adminBoard = document.getElementById('adminDashboardBoard');
   if(!adminBoard) return;
   if(!isCurrentUserAdmin()) { renderUserDashboard(); return; }
+  setDashboardMode('admin');
   const requiredCards = campaigns.map(campaign => {
     const related = tasksForCampaign(campaign);
     const received = related.filter(task => task.received).length;
