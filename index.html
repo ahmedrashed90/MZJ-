@@ -85,14 +85,96 @@
       </section>
 
       <section class="view" id="create-campaign" data-title="إنشاء حملة">
-        <div class="page-head"><div class="page-title"><h1>إنشاء حملة</h1><p>نموذج فارغ جاهز للربط.</p></div></div>
-        <div class="card form-card">
-          <form class="form">
-            <div class="split"><label class="field"><span>اسم الحملة</span><input type="text" /></label><label class="field"><span>هدف الحملة</span><select><option value="">اختر الهدف</option></select></label></div>
-            <div class="split"><label class="field"><span>تاريخ البداية</span><input type="date" /></label><label class="field"><span>تاريخ النهاية</span><input type="date" /></label></div>
-            <label class="field"><span>وصف الحملة</span><textarea></textarea></label>
-            <div class="actions"><button class="btn btn-primary" type="button">حفظ الحملة</button><button class="btn btn-light" type="reset">مسح</button></div>
-          </form>
+        <div class="page-head campaign-builder-head">
+          <div class="page-title">
+            <h1>إنشاء حملة</h1>
+            <p>هيكل طلب الحملة: بيانات أساسية، كريتيفات، مهام تنفيذ، وجدول نشر.</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-light" type="button" id="resetCampaignBuilder">مسح النموذج</button>
+            <button class="btn btn-primary" type="button" id="saveCampaignDraft">حفظ الحملة</button>
+          </div>
+        </div>
+
+        <div class="campaign-builder">
+          <aside class="request-panel card">
+            <div class="panel-title">بيانات طلب الحملة</div>
+            <form class="form compact-form" id="campaignRequestForm">
+              <label class="field"><span>تاريخ الحملة</span><input type="date" name="campaign_date" /></label>
+              <label class="field"><span>كود الحملة</span><input type="text" name="campaign_code" /></label>
+              <label class="field"><span>اسم الحملة</span><input type="text" name="campaign_name" /></label>
+              <label class="field"><span>نوع الحملة</span><select name="campaign_type"><option value="">اختر نوع الحملة</option></select></label>
+              <label class="field"><span>هدف الحملة</span><textarea name="campaign_goal"></textarea></label>
+              <label class="field"><span>هدف الإدارة</span><textarea name="management_goal"></textarea></label>
+              <label class="field"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief"></textarea></label>
+              <label class="field"><span>موعد تسليم الهيكل</span><input type="datetime-local" name="structure_deadline" /></label>
+              <label class="field"><span>حالة الطلب</span><select name="request_status"><option value="">اختر الحالة</option></select></label>
+            </form>
+          </aside>
+
+          <div class="builder-workspace">
+            <div class="card campaign-section-card">
+              <div class="section-toolbar">
+                <div>
+                  <h2>الكريتيفات والمهام</h2>
+                  <p>أضف كل كريتيف ثم وزّع عليه مهام المحتوى، التصوير، التصميم، المونتاج، المنتجات والنشر.</p>
+                </div>
+                <button class="btn btn-primary" type="button" id="addCreativeBtn">＋ إضافة كريتيف</button>
+              </div>
+
+              <div class="campaign-table-wrap">
+                <table class="campaign-matrix" aria-label="جدول كريتيفات ومهام الحملة">
+                  <thead>
+                    <tr>
+                      <th class="wide">الكريتيف</th>
+                      <th>اسم القسم</th>
+                      <th>نوع التاسك</th>
+                      <th>المحتوى</th>
+                      <th>التصوير</th>
+                      <th>التصميم</th>
+                      <th>المونتاج</th>
+                      <th class="wide">المنتجات</th>
+                      <th>النشر</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="creativeRows">
+                    <tr class="empty-row">
+                      <td colspan="10">ابدأ بإضافة كريتيف جديد للحملة.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="grid builder-bottom">
+              <div class="card campaign-section-card">
+                <div class="section-toolbar small-toolbar">
+                  <div><h2>جدول النشر</h2><p>يتم تحديد مواعيد النشر لكل كريتيف.</p></div>
+                  <button class="btn btn-light" type="button" id="addPublishRowBtn">＋ موعد نشر</button>
+                </div>
+                <div class="mini-table-wrap">
+                  <table class="mini-table">
+                    <thead><tr><th>الكريتيف</th><th>القناة</th><th>التاريخ</th><th>الوقت</th><th>الحالة</th><th></th></tr></thead>
+                    <tbody id="publishRows"><tr class="empty-row"><td colspan="6">لا توجد مواعيد نشر.</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="card campaign-section-card">
+                <div class="section-toolbar small-toolbar">
+                  <div><h2>الميزانية</h2><p>بنود الميزانية الخاصة بالحملة.</p></div>
+                  <button class="btn btn-light" type="button" id="addBudgetRowBtn">＋ بند ميزانية</button>
+                </div>
+                <div class="mini-table-wrap">
+                  <table class="mini-table">
+                    <thead><tr><th>البند</th><th>التكلفة</th><th>ملاحظات</th><th></th></tr></thead>
+                    <tbody id="budgetRows"><tr class="empty-row"><td colspan="4">لا توجد بنود ميزانية.</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
