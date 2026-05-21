@@ -139,7 +139,7 @@ function updateRolePickerLabel(picker){
   if(button) button.textContent = names.length ? names.join('، ') : `اختيار ${picker.getAttribute('aria-label') || ''}`;
 }
 function contentSectionOptions(selectedValue = ''){
-  return '<option value="">اختر قسم المحتوى</option>' + contentSections.map(item => `<option value="${escapeHtml(item.id)}"${selectedValue === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
+  return '<option value="">اختار المحتوى</option>' + contentSections.map(item => `<option value="${escapeHtml(item.id)}"${selectedValue === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
 }
 function taskTypeOptionsForSection(sectionId, selectedValue = ''){
   const section = contentSections.find(item => item.id === sectionId);
@@ -411,7 +411,7 @@ function makeSelect(label, className = ''){ return `<select class="${className}"
 function showToast(text){ let toast = document.querySelector('.save-toast'); if(!toast){ toast = document.createElement('div'); toast.className = 'save-toast'; document.body.appendChild(toast); } toast.textContent = text; toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 1800); }
 function taskBlockHtml(index){
   return `<div class="creative-task-block" data-task-index="${index}">
-    <label><span>قسم المحتوى</span><select class="js-task-section-select">${contentSectionOptions()}</select></label>
+    <label><span>اختار المحتوى</span><select class="js-task-section-select">${contentSectionOptions()}</select></label>
     <label><span>نوع التاسك</span><select class="js-task-type"><option value="">اختر نوع التاسك</option></select></label>
     <label><span>اليوزر</span><select class="js-task-user" multiple>${multiTaskUserOptions('', [])}</select></label>
   </div>`;
@@ -477,13 +477,11 @@ function getCampaignPublishOutputs(){
   const outputs = [];
   document.querySelectorAll('#creativeRows .creative-row-card').forEach(row => {
     const creative = row.querySelector('.js-creative-select')?.value || '';
-    const product = normalizeText(row.querySelector('.js-product-output')?.value);
-    if(product) outputs.push(product);
     row.querySelectorAll('.creative-task-block').forEach(block => {
+      const sectionName = readSelectText(block.querySelector('.js-task-section-select'));
       const taskName = block.querySelector('.js-task-type')?.value || '';
-      selectedOptionTexts(block.querySelector('.js-task-user')).forEach(name => {
-        if(name) outputs.push(`${creative || 'مخرج'} - ${taskName ? taskName + ' - ' : ''}${name}`);
-      });
+      if(!sectionName && !taskName) return;
+      outputs.push([creative, sectionName, taskName].filter(Boolean).join(' - '));
     });
   });
   return uniqueList(outputs);
@@ -582,6 +580,9 @@ function collectBudgetRows(){
 async function saveCampaignToFirebase(){
   if(!mainDb){ showToast('اتصال Firebase غير متاح.'); return; }
   const request = getFormData(document.getElementById('campaignRequestForm'));
+  // تاريخ بداية/نهاية النشر موجودين داخل publishSchedule، ومش بنحفظهم كحقول مستقلة عشان مايكسرش قواعد Firestore القديمة.
+  delete request.publish_start_date;
+  delete request.publish_end_date;
   const codeItem = campaignCodes.find(code => code.id === document.getElementById('campaignCodeSelect')?.value);
   const campaignCode = document.getElementById('campaignCodeInput')?.value || '';
   const payload = {
@@ -605,8 +606,9 @@ async function saveCampaignToFirebase(){
     await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).add(payload);
     showToast('تم حفظ الحملة على Firebase.');
   }catch(error){
-    console.error(error);
-    showToast('تعذر حفظ الحملة على Firebase.');
+    console.error('Campaign save error', error, payload);
+    const msg = error?.code === 'permission-denied' ? 'تعذر حفظ الحملة: راجع قواعد Firestore.' : 'تعذر حفظ الحملة على Firebase.';
+    showToast(msg);
   }
 }
 
