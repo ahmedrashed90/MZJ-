@@ -224,7 +224,7 @@
         <div class="user-card-main">
           <strong>${esc(u.name||u.email)}</strong>
           <small>${esc(u.email)} · ${roleName(u.role)} · ${esc(depName(u.department))}</small>
-          <small>كلمة المرور: <b>${esc(u.password || '')}</b></small>
+          <small>كلمة المرور: <b>${u.password ? 'تم تعيينها' : 'غير مفعلة'}</b></small>
           <div class="user-pages-list">${pagesFor(u).map(k=>`<span>${esc((pages.find(p=>p[0]===k)||[])[1]||k)}</span>`).join('') || '<em>بدون صفحات محددة</em>'}</div>
         </div>
         <div class="user-card-actions">

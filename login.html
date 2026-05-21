@@ -3,39 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>تسجيل الدخول | نظام التسويق</title>
+  <title>تسجيل الدخول - نظام التسويق</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="theme.css" />
 </head>
-<body class="login-page">
-  <main class="login-shell">
-    <section class="login-card" aria-label="تسجيل الدخول">
-      <aside class="login-art">
-        <img src="assets/img/logo.png" alt="محمد بن دغار العجمي MZJ">
-        <div>
-          <h2>نظام التسويق</h2>
-          <p>إدارة الحملات، المحتوى، التقويم الشهري، والمهام من مكان واحد.</p>
-        </div>
-      </aside>
+<body class="login-page brand-login-page" data-user-role="guest">
+  <main class="login-shell brand-login-shell">
+    <section class="login-card brand-login-card" aria-labelledby="loginTitle">
+      <div class="login-logo-wrap">
+        <img src="assets/brand-logo.png" alt="محمد بن دغار العجمي" class="login-brand-logo" />
+      </div>
 
-      <section class="login-form">
-        <h1>تسجيل الدخول</h1>
-        <p class="login-subtitle">أدخل بيانات حسابك للمتابعة.</p>
-        <form id="loginForm" class="form">
-          <label class="mzj-field" for="loginEmail">
-            <span>البريد الإلكتروني</span>
-            <input id="loginEmail" name="email" type="email" autocomplete="email" required>
-          </label>
-          <label class="mzj-field" for="loginPassword">
-            <span>كلمة المرور</span>
-            <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
-          </label>
-          <button class="primary-btn" type="submit">تسجيل الدخول</button>
-          <p id="loginMessage" class="admin-only-note" aria-live="polite"></p>
-        </form>
-      </section>
+      <div class="login-copy">
+        <span class="eyebrow">نظام التسويق</span>
+        <h1 id="loginTitle">تسجيل الدخول</h1>
+        <p>ادخل بيانات حسابك للمتابعة إلى لوحة التحكم.</p>
+      </div>
+
+      <form id="loginForm" class="login-form" autocomplete="on">
+        <label class="mzj-field">
+          <span>البريد الإلكتروني</span>
+          <input id="loginEmail" name="email" type="email" required autocomplete="email" />
+        </label>
+        <label class="mzj-field">
+          <span>كلمة المرور</span>
+          <input id="loginPassword" name="password" type="password" required autocomplete="current-password" />
+        </label>
+        <button class="primary-btn login-submit" type="submit">تسجيل الدخول</button>
+        <p id="loginMessage" class="login-message" role="status" aria-live="polite"></p>
+      </form>
     </section>
   </main>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>

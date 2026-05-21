@@ -342,17 +342,18 @@
         const email = (document.getElementById('loginEmail')?.value || '').trim();
         const password = document.getElementById('loginPassword')?.value || '';
         const msg = document.getElementById('loginMessage');
-        if (msg) msg.textContent = 'جاري البحث في مسار users...';
+        if (msg) msg.textContent = 'جاري تسجيل الدخول...';
 
         const firestoreResult = await getFirestoreUser(email);
         if (firestoreResult && firestoreResult.error && firestoreResult.error !== 'firebase-sdk-missing') {
           const code = firestoreResult.error.code || firestoreResult.error.message || firestoreResult.error;
-          if(msg) msg.textContent = 'فشل قراءة مسار users من Firebase: ' + code + ' — راجع قواعد Firestore أو الصلاحيات.';
+          if(msg) msg.textContent = 'تعذر تسجيل الدخول: ' + code + ' — راجع قواعد Firestore أو الصلاحيات.';
           return;
         }
         let found = firestoreResult ? firestoreResult.user : null;
         if (found) {
           const savedPassword = found.password || '';
+          if (!savedPassword) { if(msg) msg.textContent = 'الحساب لا يحتوي على كلمة مرور مفعلة.'; return; }
           if (String(savedPassword) !== String(password)) {
             if(msg) msg.textContent = 'كلمة المرور غير صحيحة.';
             return;
@@ -367,7 +368,7 @@
         }
 
         if (!found) found = TEST_USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-        if (!found) { if(msg) msg.textContent = 'الحساب غير موجود في مسار users أو كلمة المرور غير صحيحة.'; return; }
+        if (!found) { if(msg) msg.textContent = 'بيانات الدخول غير صحيحة.'; return; }
 
         const loginUser = {
           id: found.id || found.uid || '',
