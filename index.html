@@ -104,9 +104,10 @@
             <div class="panel-title">بيانات طلب الحملة</div>
             <form class="form request-grid" id="campaignRequestForm">
               <label class="field"><span>تاريخ الحملة</span><input type="date" name="campaign_date" /></label>
-              <label class="field"><span>كود الحملة</span><input type="text" name="campaign_code" /></label>
+              <label class="field"><span>اختيار كود الحملة</span><select id="campaignCodeSelect" name="campaign_code_key" class="js-campaign-code-select"><option value="">اختر الكود</option></select></label>
+              <label class="field"><span>كود الحملة</span><input id="campaignCodeInput" type="text" name="campaign_code" readonly /></label>
               <label class="field"><span>اسم الحملة</span><input type="text" name="campaign_name" /></label>
-              <label class="field"><span>نوع الحملة</span><select name="campaign_type"><option value="">اختر نوع الحملة</option></select></label>
+              <label class="field"><span>نوع الحملة</span><select name="campaign_type" class="js-campaign-type-select"><option value="">اختر نوع الحملة</option></select></label>
               <label class="field field-wide"><span>هدف الحملة</span><textarea name="campaign_goal"></textarea></label>
               <label class="field field-wide"><span>هدف الإدارة</span><textarea name="management_goal"></textarea></label>
               <label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief"></textarea></label>
@@ -181,7 +182,7 @@
 
       <section class="view" id="departments" data-title="الأقسام">
         <div class="page-head">
-          <div class="page-title"><h1>الأقسام</h1><p>إدارة الأقسام، اليوزرات داخل كل قسم، الكريتيفات، أنواع التاسك، وأقسام المحتوى.</p></div>
+          <div class="page-title"><h1>الأقسام</h1><p>إدارة الأقسام، اليوزرات داخل كل قسم، الكريتيفات، أنواع التاسك، أكواد وأنواع الحملات، وأقسام المحتوى.</p></div>
         </div>
 
         <div class="grid admin-layout">
@@ -217,6 +218,28 @@
           </div>
 
           <div class="card admin-form-card">
+            <h2>إضافة كود حملة</h2>
+            <form class="form" id="campaignCodeForm">
+              <input type="hidden" id="campaignCodeEditId" />
+              <label class="field"><span>الكود المختصر</span><input type="text" id="campaignCodeValue" required placeholder="مثال: BV" /></label>
+              <label class="field"><span>بادئة الكود</span><input type="text" id="campaignCodePrefix" value="MZJ" /></label>
+              <label class="field"><span>وصف الكود</span><input type="text" id="campaignCodeName" /></label>
+              <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ الكود</button><button class="btn btn-light" type="button" id="cancelCampaignCodeEdit">إلغاء</button></div>
+              <p class="form-message" id="campaignCodeMessage"></p>
+            </form>
+          </div>
+
+          <div class="card admin-form-card">
+            <h2>إضافة نوع حملة</h2>
+            <form class="form" id="campaignTypeForm">
+              <input type="hidden" id="campaignTypeEditId" />
+              <label class="field"><span>نوع الحملة</span><input type="text" id="campaignTypeName" required /></label>
+              <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ نوع الحملة</button><button class="btn btn-light" type="button" id="cancelCampaignTypeEdit">إلغاء</button></div>
+              <p class="form-message" id="campaignTypeMessage"></p>
+            </form>
+          </div>
+
+          <div class="card admin-form-card">
             <h2>إضافة قسم محتوى</h2>
             <form class="form" id="contentSectionForm">
               <input type="hidden" id="contentSectionEditId" />
@@ -232,6 +255,8 @@
           <div class="card"><div class="card-title"><h2>قائمة الأقسام</h2><button class="btn btn-light" type="button" id="refreshDepartmentsBtn">تحديث</button></div><div id="departmentsList" class="departments-list"><div class="empty-state">جاري تحميل الأقسام...</div></div></div>
           <div class="card"><h2>قائمة الكريتيفات</h2><div id="creativesList" class="departments-list"><div class="empty-state">جاري تحميل الكريتيفات...</div></div></div>
           <div class="card"><h2>أنواع التاسك</h2><div id="taskTypesList" class="departments-list"><div class="empty-state">جاري تحميل أنواع التاسك...</div></div></div>
+          <div class="card"><h2>أكواد الحملات</h2><div id="campaignCodesList" class="departments-list"><div class="empty-state">جاري تحميل أكواد الحملات...</div></div></div>
+          <div class="card"><h2>أنواع الحملات</h2><div id="campaignTypesList" class="departments-list"><div class="empty-state">جاري تحميل أنواع الحملات...</div></div></div>
           <div class="card"><h2>أقسام المحتوى وأنواعها</h2><div id="contentSectionsList" class="departments-list"><div class="empty-state">جاري تحميل أقسام المحتوى...</div></div></div>
         </div>
       </section>
@@ -248,16 +273,18 @@
 
       <section class="view" id="stock" data-title="الاستوك">
         <div class="page-head">
-          <div class="page-title"><h1>الاستوك</h1><p>قراءة فقط من مسار السيارات: حصر الماركات والمواصفات والألوان المتاحة.</p></div>
+          <div class="page-title"><h1>الاستوك</h1><p>قراءة فقط من مسار السيارات: أسماء السيارات Unique Spec Key، وحصر الماركات والمواصفات والألوان المتاحة.</p></div>
           <button class="btn btn-light" type="button" id="refreshStockBtn">تحديث</button>
         </div>
         <div class="grid stats">
           <div class="card stat"><div><p>إجمالي السيارات</p><div class="num" id="stockTotalCars">—</div></div><div class="stat-icon">▧</div></div>
+          <div class="card stat"><div><p>Unique Spec Key</p><div class="num" id="stockUniqueCarsCount">—</div></div><div class="stat-icon">◇</div></div>
           <div class="card stat"><div><p>عدد الماركات</p><div class="num" id="stockBrandsCount">—</div></div><div class="stat-icon">◆</div></div>
           <div class="card stat"><div><p>عدد المواصفات</p><div class="num" id="stockSpecsCount">—</div></div><div class="stat-icon">☷</div></div>
           <div class="card stat"><div><p>عدد الألوان</p><div class="num" id="stockColorsCount">—</div></div><div class="stat-icon">●</div></div>
         </div>
         <div class="grid stock-grid mt">
+          <div class="card"><h2>أسماء السيارات / Unique Spec Key</h2><div id="stockUniqueCars" class="chip-list"><div class="empty-state">جاري التحميل...</div></div></div>
           <div class="card"><h2>الماركات المتاحة</h2><div id="stockBrands" class="chip-list"><div class="empty-state">جاري التحميل...</div></div></div>
           <div class="card"><h2>المواصفات المتاحة</h2><div id="stockSpecs" class="chip-list"><div class="empty-state">جاري التحميل...</div></div></div>
           <div class="card"><h2>الألوان المتاحة</h2><div id="stockColors" class="chip-list"><div class="empty-state">جاري التحميل...</div></div></div>
