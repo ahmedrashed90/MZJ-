@@ -25,6 +25,8 @@ window.MZJ_TASK_TYPES_COLLECTION = "marketing_task_types";
 window.MZJ_CONTENT_SECTIONS_COLLECTION = "content_categories";
 window.MZJ_CAMPAIGN_CODES_COLLECTION = "marketing_campaign_codes";
 window.MZJ_CAMPAIGN_TYPES_COLLECTION = "marketing_campaign_types";
+window.MZJ_FUNNELS_COLLECTION = "marketing_funnels";
+window.MZJ_PLATFORMS_COLLECTION = "marketing_platforms";
 window.MZJ_STOCK_CARS_COLLECTION = "cars";
 window.MZJ_CAMPAIGNS_COLLECTION = "marketing_campaigns";
 
@@ -44,6 +46,8 @@ let taskTypes = [];
 let contentSections = [];
 let campaignCodes = [];
 let campaignTypes = [];
+let funnels = [];
+let platforms = [];
 let campaigns = [];
 let cars = [];
 
@@ -115,6 +119,25 @@ function multiUserOptionsForRole(role, selectedIds = []){
   const options = list.map(user => `<option value="${escapeHtml(user.id)}"${selectedIds.includes(user.id) ? ' selected' : ''}>${escapeHtml(userName(user))}</option>`).join('');
   return options || '<option value="" disabled>لا توجد يوزرات في هذا القسم</option>';
 }
+function rolePickerHtml(role, extraClass, label){
+  return `<div class="multi-dropdown js-role-picker ${extraClass}" data-role="${escapeHtml(role)}" aria-label="${escapeHtml(label)}"><button class="multi-toggle" type="button">اختيار ${escapeHtml(label)}</button><div class="multi-menu"></div></div>`;
+}
+function refreshRolePicker(picker){
+  const selected = selectedOptionValues(picker);
+  const role = picker.dataset.role;
+  const list = usersForRole(role);
+  const menu = picker.querySelector('.multi-menu');
+  const button = picker.querySelector('.multi-toggle');
+  if(menu){
+    menu.innerHTML = list.length ? list.map(user => `<label><input type="checkbox" value="${escapeHtml(user.id)}" data-name="${escapeHtml(userName(user))}"${selected.includes(user.id) ? ' checked' : ''}> <span>${escapeHtml(userName(user))}</span></label>`).join('') : '<div class="multi-empty">لا توجد يوزرات في هذا القسم</div>';
+  }
+  updateRolePickerLabel(picker);
+}
+function updateRolePickerLabel(picker){
+  const button = picker?.querySelector('.multi-toggle');
+  const names = selectedOptionTexts(picker);
+  if(button) button.textContent = names.length ? names.join('، ') : `اختيار ${picker.getAttribute('aria-label') || ''}`;
+}
 function contentSectionOptions(selectedValue = ''){
   return '<option value="">اختر قسم المحتوى</option>' + contentSections.map(item => `<option value="${escapeHtml(item.id)}"${selectedValue === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
 }
@@ -123,13 +146,21 @@ function taskTypeOptionsForSection(sectionId, selectedValue = ''){
   const types = Array.isArray(section?.types) ? section.types : [];
   return '<option value="">اختر نوع التاسك</option>' + types.map(type => `<option value="${escapeHtml(type)}"${selectedValue === type ? ' selected' : ''}>${escapeHtml(type)}</option>`).join('');
 }
-function selectedOptionTexts(select){
-  return [...(select?.selectedOptions || [])]
+function selectedOptionTexts(control){
+  if(control?.classList?.contains('js-role-picker')){
+    return [...control.querySelectorAll('input[type="checkbox"]:checked')]
+      .map(input => input.dataset.name || input.closest('label')?.textContent?.trim() || '')
+      .filter(Boolean);
+  }
+  return [...(control?.selectedOptions || [])]
     .map(option => option.textContent.trim())
     .filter(text => text && !text.startsWith('اختر') && !text.startsWith('لا توجد'));
 }
-function selectedOptionValues(select){
-  return [...(select?.selectedOptions || [])]
+function selectedOptionValues(control){
+  if(control?.classList?.contains('js-role-picker')){
+    return [...control.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value).filter(Boolean);
+  }
+  return [...(control?.selectedOptions || [])]
     .map(option => option.value)
     .filter(Boolean);
 }
@@ -144,6 +175,16 @@ function taskTypeOptions(selectedValue = ''){
 }
 function campaignTypeOptions(selectedValue = ''){
   return '<option value="">اختر نوع الحملة</option>' + campaignTypes.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
+}
+function platformOptions(selectedValue = ''){
+  return '<option value="">اختر المنصة</option>' + platforms.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
+}
+function funnelOptions(selectedValue = ''){
+  return '<option value="">اختر Funnel</option>' + funnels.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
+}
+function productOptions(selectedValue = ''){
+  const products = getCampaignProducts();
+  return '<option value="">اختر المنتج</option>' + products.map(item => `<option value="${escapeHtml(item)}"${selectedValue === item ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('');
 }
 function campaignCodeOptions(selectedValue = ''){
   return '<option value="">اختر الكود</option>' + campaignCodes.map(item => {
@@ -173,6 +214,10 @@ function refreshDynamicSelects(){
   });
   document.querySelectorAll('.js-campaign-code-select').forEach(select => { const value = select.value; select.innerHTML = campaignCodeOptions(value); });
   document.querySelectorAll('.js-campaign-type-select').forEach(select => { const value = select.value; select.innerHTML = campaignTypeOptions(value); });
+  document.querySelectorAll('.js-platform-select').forEach(select => { const value = select.value; select.innerHTML = platformOptions(value); });
+  document.querySelectorAll('.js-funnel-select').forEach(select => { const value = select.value; select.innerHTML = funnelOptions(value); });
+  document.querySelectorAll('.js-product-select').forEach(select => { const value = select.value; select.innerHTML = productOptions(value); });
+  document.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
   const departmentUsers = document.getElementById('departmentUsers');
   if(departmentUsers){ const selected = getSelectedValues(departmentUsers); departmentUsers.innerHTML = multiUserOptions(selected); }
   generateCampaignCode();
@@ -216,6 +261,7 @@ function renderDepartments(){
 function renderCreatives(){ renderNameList('creativesList', creatives, 'data-edit-creative', 'data-delete-creative', 'لا توجد كريتيفات حتى الآن.'); }
 function renderTaskTypes(){ renderNameList('taskTypesList', taskTypes, 'data-edit-task-type', 'data-delete-task-type', 'لا توجد أنواع تاسك حتى الآن.'); }
 function renderCampaignTypes(){ renderNameList('campaignTypesList', campaignTypes, 'data-edit-campaign-type', 'data-delete-campaign-type', 'لا توجد أنواع حملات حتى الآن.'); }
+function renderPlatforms(){ renderNameList('platformsList', platforms, 'data-edit-platform', 'data-delete-platform', 'لا توجد منصات حتى الآن.'); }
 function renderCampaignCodes(){
   const list = document.getElementById('campaignCodesList'); if(!list) return;
   if(!campaignCodes.length){ list.innerHTML = '<div class="empty-state">لا توجد أكواد حملات حتى الآن.</div>'; return; }
@@ -398,21 +444,72 @@ function collectCampaignRows(){
     };
   }).filter(item => item.creative || item.contentSectionId || item.taskType || item.product);
 }
+function getCampaignProducts(){
+  return uniqueList([...document.querySelectorAll('.js-product-output')].map(input => normalizeText(input.value)).filter(Boolean));
+}
+function getCampaignPublishOutputs(){
+  const outputs = [];
+  document.querySelectorAll('#creativeRows tr:not(.empty-row)').forEach(row => {
+    const creative = row.querySelector('.js-creative-select')?.value || '';
+    const designNames = selectedOptionTexts(row.querySelector('.js-design-user'));
+    const montageNames = selectedOptionTexts(row.querySelector('.js-edit-user'));
+    [...designNames, ...montageNames].filter(Boolean).forEach(name => outputs.push(`${creative || 'مخرج'} - ${name}`));
+  });
+  return uniqueList(outputs);
+}
+function dateRange(start, end){
+  if(!start || !end) return [];
+  const a = new Date(`${start}T00:00:00`), b = new Date(`${end}T00:00:00`);
+  if(Number.isNaN(a.getTime()) || Number.isNaN(b.getTime()) || b < a) return [];
+  const days = [];
+  for(let d = new Date(a); d <= b && days.length < 62; d.setDate(d.getDate() + 1)) days.push(new Date(d));
+  return days;
+}
+function formatInputDate(date){ return date.toISOString().slice(0,10); }
+function dayName(date){ return date.toLocaleDateString('ar-SA', { weekday: 'long' }); }
+function renderPublishAgenda(){
+  const wrap = document.getElementById('publishAgenda'); if(!wrap) return;
+  const days = dateRange(document.getElementById('publishStartDate')?.value, document.getElementById('publishEndDate')?.value);
+  const outputs = getCampaignPublishOutputs();
+  if(!days.length){ wrap.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر لعرض الأجندة.</div>'; return; }
+  if(!outputs.length){ wrap.innerHTML = '<div class="empty-state">اختر مخرجات التصميم أو المونتاج أولاً عشان تظهر في جدول النشر.</div>'; return; }
+  wrap.innerHTML = days.map(date => {
+    const iso = formatInputDate(date);
+    return `<article class="publish-day-card" data-date="${iso}">
+      <div class="publish-day-head"><strong>${dayName(date)}</strong><span>${iso}</span></div>
+      <label class="field"><span>المخرج</span><select class="js-publish-output-select">${outputs.map(out => `<option value="${escapeHtml(out)}">${escapeHtml(out)}</option>`).join('')}</select></label>
+      <label class="field"><span>المنصة</span><select class="js-platform-select">${platformOptions()}</select></label>
+      <label class="field"><span>وقت النشر</span><input type="time" class="js-publish-time" /></label>
+      <label class="field"><span>ملاحظات</span><input type="text" class="js-publish-note" /></label>
+    </article>`;
+  }).join('');
+}
 function collectPublishRows(){
-  return [...document.querySelectorAll('#publishRows tr:not(.empty-row)')].map(row => ({
-    creative: row.querySelector('.js-creative-select')?.value || '',
-    channel: readSelectText(row.querySelector('td:nth-child(2) select')),
-    date: row.querySelector('td:nth-child(3) input')?.value || '',
-    time: row.querySelector('td:nth-child(4) input')?.value || '',
-    status: readSelectText(row.querySelector('td:nth-child(5) select'))
-  })).filter(item => item.creative || item.date || item.time);
+  return [...document.querySelectorAll('.publish-day-card')].map(card => ({
+    date: card.dataset.date || '',
+    day: card.querySelector('.publish-day-head strong')?.textContent || '',
+    output: card.querySelector('.js-publish-output-select')?.value || '',
+    platform: card.querySelector('.js-platform-select')?.value || '',
+    time: card.querySelector('.js-publish-time')?.value || '',
+    note: normalizeText(card.querySelector('.js-publish-note')?.value)
+  })).filter(item => item.date || item.output || item.platform || item.time || item.note);
 }
 function collectBudgetRows(){
-  return [...document.querySelectorAll('#budgetRows tr:not(.empty-row)')].map(row => ({
-    item: normalizeText(row.querySelector('td:nth-child(1) input')?.value),
-    amount: Number(row.querySelector('td:nth-child(2) input')?.value || 0),
-    notes: normalizeText(row.querySelector('td:nth-child(3) input')?.value)
-  })).filter(item => item.item || item.amount || item.notes);
+  return [...document.querySelectorAll('.budget-item-card')].map((card, index) => ({
+    index: index + 1,
+    funnel: card.querySelector('.js-funnel-select')?.value || '',
+    newFunnel: normalizeText(card.querySelector('.js-new-funnel')?.value),
+    product: card.querySelector('.js-product-select')?.value || '',
+    platform: card.querySelector('.js-platform-select')?.value || '',
+    publishDate: card.querySelector('.js-budget-publish-date')?.value || '',
+    duration: normalizeText(card.querySelector('.js-budget-duration')?.value),
+    adsCount: Number(card.querySelector('.js-budget-ads-count')?.value || 0),
+    contentGoal: normalizeText(card.querySelector('.js-budget-content-goal')?.value),
+    expectedGoal: normalizeText(card.querySelector('.js-budget-expected-goal')?.value),
+    quantity: Number(card.querySelector('.js-budget-quantity')?.value || 0),
+    value: Number(card.querySelector('.js-budget-value')?.value || 0),
+    total: Number(card.querySelector('.js-budget-total')?.value || 0)
+  })).filter(item => item.funnel || item.newFunnel || item.product || item.platform || item.value || item.total);
 }
 async function saveCampaignToFirebase(){
   if(!mainDb){ showToast('اتصال Firebase غير متاح.'); return; }
@@ -446,8 +543,31 @@ async function saveCampaignToFirebase(){
 }
 
 
+function addBudgetItem(){
+  const wrap = document.getElementById('budgetRows'); if(!wrap) return;
+  const empty = wrap.querySelector('.empty-state'); if(empty) empty.remove();
+  const card = document.createElement('article');
+  card.className = 'budget-item-card';
+  card.innerHTML = `<div class="budget-item-title"><strong>ميزانية</strong><button class="delete-budget-row" type="button">×</button></div>
+    <div class="budget-grid">
+      <label class="field"><span>Funnel</span><select class="js-funnel-select">${funnelOptions()}</select></label>
+      <label class="field"><span>Funnel جديد</span><input class="js-new-funnel" type="text" placeholder="اكتب Funnel" /></label>
+      <label class="field"><span>المنتج</span><select class="js-product-select">${productOptions()}</select></label>
+      <label class="field"><span>المنصة</span><select class="js-platform-select">${platformOptions()}</select></label>
+      <label class="field"><span>تاريخ النشر</span><input class="js-budget-publish-date" type="date" /></label>
+      <label class="field"><span>مدة الإعلان</span><input class="js-budget-duration" type="text" placeholder="مثال: 7 أيام" /></label>
+      <label class="field"><span>عدد الإعلانات</span><input class="js-budget-ads-count" type="number" min="0" /></label>
+      <label class="field"><span>هدف المحتوى</span><input class="js-budget-content-goal" type="text" /></label>
+      <label class="field"><span>الهدف المتوقع</span><input class="js-budget-expected-goal" type="text" /></label>
+      <label class="field"><span>الكمية</span><input class="js-budget-quantity" type="number" min="0" /></label>
+      <label class="field"><span>القيمة</span><input class="js-budget-value" type="number" min="0" step="0.01" /></label>
+      <label class="field"><span>الإجمالي</span><input class="js-budget-total" type="number" min="0" step="0.01" /></label>
+    </div>`;
+  wrap.appendChild(card);
+  refreshDynamicSelects();
+}
 function bindCampaignBuilder(){
-  const creativeRows = document.getElementById('creativeRows'); const publishRows = document.getElementById('publishRows'); const budgetRows = document.getElementById('budgetRows');
+  const creativeRows = document.getElementById('creativeRows'); const budgetRows = document.getElementById('budgetRows');
   document.getElementById('addCreativeBtn')?.addEventListener('click', () => {
     clearEmptyRow(creativeRows);
     const row = document.createElement('tr');
@@ -455,33 +575,47 @@ function bindCampaignBuilder(){
       <td>${makeSelect('الكريتيف', 'js-creative-select')}</td>
       <td>${makeSelect('قسم المحتوى', 'js-content-section-select')}</td>
       <td class="task-cell">${makeSelect('نوع التاسك', 'js-task-type')}</td>
-      <td><select multiple size="4" class="js-role-user-select js-content-user" data-role="content" aria-label="المحتوى"></select></td>
-      <td><select multiple size="4" class="js-role-user-select js-shoot-user" data-role="shooting" aria-label="التصوير"></select></td>
-      <td><select multiple size="4" class="js-role-user-select js-design-user" data-role="design" aria-label="التصميم"></select></td>
-      <td><select multiple size="4" class="js-role-user-select js-edit-user" data-role="montage" aria-label="المونتاج"></select></td>
+      <td>${rolePickerHtml('content', 'js-content-user', 'المحتوى')}</td>
+      <td>${rolePickerHtml('shooting', 'js-shoot-user', 'التصوير')}</td>
+      <td>${rolePickerHtml('design', 'js-design-user', 'التصميم')}</td>
+      <td>${rolePickerHtml('montage', 'js-edit-user', 'المونتاج')}</td>
       <td><input class="product-output js-product-output" type="text" readonly aria-label="المنتجات" /></td>
-      <td><select multiple size="4" class="js-role-user-select js-publish-user" data-role="publish" aria-label="النشر"></select></td>
+      <td>${rolePickerHtml('publish', 'js-publish-user', 'النشر')}</td>
       <td><button class="delete-row" type="button" aria-label="حذف الصف">×</button></td>`;
-    creativeRows?.appendChild(row); refreshDynamicSelects();
+    creativeRows?.appendChild(row); refreshDynamicSelects(); renderPublishAgenda();
   });
   document.getElementById('campaignCodeSelect')?.addEventListener('change', generateCampaignCode);
-  document.getElementById('addPublishRowBtn')?.addEventListener('click', () => { clearEmptyRow(publishRows); const row = document.createElement('tr'); row.innerHTML = `<td>${makeSelect('الكريتيف', 'js-creative-select')}</td><td>${makeSelect('القناة')}</td><td><input type="date" /></td><td><input type="time" /></td><td>${makeSelect('الحالة')}</td><td><button class="delete-row" type="button">×</button></td>`; publishRows?.appendChild(row); refreshDynamicSelects(); });
-  document.getElementById('addBudgetRowBtn')?.addEventListener('click', () => { clearEmptyRow(budgetRows); const row = document.createElement('tr'); row.innerHTML = `<td><input type="text" /></td><td><input type="number" min="0" step="0.01" /></td><td><input type="text" /></td><td><button class="delete-row" type="button">×</button></td>`; budgetRows?.appendChild(row); });
-  document.addEventListener('click', event => { const btn = event.target.closest('.delete-row'); if(!btn) return; const tbody = btn.closest('tbody'); btn.closest('tr')?.remove(); if(tbody?.id === 'creativeRows') restoreEmptyRow(tbody, 10, 'ابدأ بإضافة صف كريتيف للحملة.'); if(tbody?.id === 'publishRows') restoreEmptyRow(tbody, 6, 'لا توجد مواعيد نشر.'); if(tbody?.id === 'budgetRows') restoreEmptyRow(tbody, 4, 'لا توجد بنود ميزانية.'); });
+  document.getElementById('refreshPublishAgendaBtn')?.addEventListener('click', renderPublishAgenda);
+  document.getElementById('publishStartDate')?.addEventListener('change', renderPublishAgenda);
+  document.getElementById('publishEndDate')?.addEventListener('change', renderPublishAgenda);
+  document.getElementById('addBudgetRowBtn')?.addEventListener('click', addBudgetItem);
+  document.addEventListener('click', event => {
+    const toggle = event.target.closest('.multi-toggle');
+    document.querySelectorAll('.multi-dropdown.open').forEach(el => { if(el !== toggle?.closest('.multi-dropdown')) el.classList.remove('open'); });
+    if(toggle){ toggle.closest('.multi-dropdown')?.classList.toggle('open'); return; }
+    if(!event.target.closest('.multi-dropdown')) document.querySelectorAll('.multi-dropdown.open').forEach(el => el.classList.remove('open'));
+    const btn = event.target.closest('.delete-row');
+    if(btn){ const tbody = btn.closest('tbody'); btn.closest('tr')?.remove(); if(tbody?.id === 'creativeRows') restoreEmptyRow(tbody, 10, 'ابدأ بإضافة صف كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
+    const budgetDel = event.target.closest('.delete-budget-row');
+    if(budgetDel){ budgetDel.closest('.budget-item-card')?.remove(); if(budgetRows && !budgetRows.querySelector('.budget-item-card')) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; }
+  });
   document.addEventListener('change', event => {
     if(event.target.matches('.js-content-section-select')){
       const row = event.target.closest('tr');
       const taskSelect = row?.querySelector('.js-task-type');
       if(taskSelect) taskSelect.innerHTML = taskTypeOptionsForSection(event.target.value, '');
     }
-    if(event.target.matches('.js-creative-select,.js-content-user,.js-shoot-user,.js-design-user,.js-edit-user')) updateProductOutput(event.target.closest('tr'));
+    if(event.target.matches('.js-role-picker input[type="checkbox"]')){
+      const picker = event.target.closest('.js-role-picker'); updateRolePickerLabel(picker); updateProductOutput(event.target.closest('tr')); renderPublishAgenda(); refreshDynamicSelects(); return;
+    }
+    if(event.target.matches('.js-creative-select,.js-content-user,.js-shoot-user,.js-design-user,.js-edit-user')){ updateProductOutput(event.target.closest('tr')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
-  document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<tr class="empty-row"><td colspan="10">ابدأ بإضافة صف كريتيف للحملة.</td></tr>'; if(publishRows) publishRows.innerHTML = '<tr class="empty-row"><td colspan="6">لا توجد مواعيد نشر.</td></tr>'; if(budgetRows) budgetRows.innerHTML = '<tr class="empty-row"><td colspan="4">لا توجد بنود ميزانية.</td></tr>'; generateCampaignCode(); });
+  document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<tr class="empty-row"><td colspan="10">ابدأ بإضافة صف كريتيف للحملة.</td></tr>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; generateCampaignCode(); });
   document.getElementById('saveCampaignDraft')?.addEventListener('click', saveCampaignToFirebase);
 }
 
 function resetForm(ids){ ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; }); }
-function collectionByKind(kind){ return {department: window.MZJ_DEPARTMENTS_COLLECTION, creative: window.MZJ_CREATIVES_COLLECTION, taskType: window.MZJ_TASK_TYPES_COLLECTION, contentSection: window.MZJ_CONTENT_SECTIONS_COLLECTION, campaignCode: window.MZJ_CAMPAIGN_CODES_COLLECTION, campaignType: window.MZJ_CAMPAIGN_TYPES_COLLECTION}[kind]; }
+function collectionByKind(kind){ return {department: window.MZJ_DEPARTMENTS_COLLECTION, creative: window.MZJ_CREATIVES_COLLECTION, taskType: window.MZJ_TASK_TYPES_COLLECTION, contentSection: window.MZJ_CONTENT_SECTIONS_COLLECTION, campaignCode: window.MZJ_CAMPAIGN_CODES_COLLECTION, campaignType: window.MZJ_CAMPAIGN_TYPES_COLLECTION, platform: window.MZJ_PLATFORMS_COLLECTION}[kind]; }
 async function deleteDoc(kind, id){ if(!mainDb || !id) return; if(!confirm('تأكيد الحذف؟')) return; await safeCollection(collectionByKind(kind)).doc(id).delete(); }
 function bindNamedForm(formId, editId, inputId, messageId, collectionName, successText, extraPayloadFn = null){
   document.getElementById(formId)?.addEventListener('submit', async event => {
@@ -507,6 +641,7 @@ function bindDepartments(){
   bindNamedForm('creativeForm', 'creativeEditId', 'creativeName', 'creativeMessage', window.MZJ_CREATIVES_COLLECTION, 'تم حفظ الكريتيف.');
   bindNamedForm('taskTypeForm', 'taskTypeEditId', 'taskTypeName', 'taskTypeMessage', window.MZJ_TASK_TYPES_COLLECTION, 'تم حفظ نوع التاسك.');
   bindNamedForm('campaignTypeForm', 'campaignTypeEditId', 'campaignTypeName', 'campaignTypeMessage', window.MZJ_CAMPAIGN_TYPES_COLLECTION, 'تم حفظ نوع الحملة.');
+  bindNamedForm('platformForm', 'platformEditId', 'platformName', 'platformMessage', window.MZJ_PLATFORMS_COLLECTION, 'تم حفظ المنصة.');
   document.getElementById('campaignCodeForm')?.addEventListener('submit', async event => {
     event.preventDefault();
     const id = document.getElementById('campaignCodeEditId')?.value;
@@ -533,6 +668,8 @@ function bindDepartments(){
     const ccDel = event.target.closest('[data-delete-campaign-code]'); if(ccDel){ await deleteDoc('campaignCode', ccDel.dataset.deleteCampaignCode); return; }
     const ctEdit = event.target.closest('[data-edit-campaign-type]'); if(ctEdit){ const item = campaignTypes.find(x => x.id === ctEdit.dataset.editCampaignType); if(item){ document.getElementById('campaignTypeEditId').value = item.id; document.getElementById('campaignTypeName').value = item.name; } return; }
     const ctDel = event.target.closest('[data-delete-campaign-type]'); if(ctDel){ await deleteDoc('campaignType', ctDel.dataset.deleteCampaignType); return; }
+    const pEdit = event.target.closest('[data-edit-platform]'); if(pEdit){ const item = platforms.find(x => x.id === pEdit.dataset.editPlatform); if(item){ document.getElementById('platformEditId').value = item.id; document.getElementById('platformName').value = item.name; } return; }
+    const pDel = event.target.closest('[data-delete-platform]'); if(pDel){ await deleteDoc('platform', pDel.dataset.deletePlatform); return; }
     const csEdit = event.target.closest('[data-edit-content-section]'); if(csEdit){ const item = contentSections.find(x => x.id === csEdit.dataset.editContentSection); if(item){ document.getElementById('contentSectionEditId').value = item.id; document.getElementById('contentSectionName').value = item.name; document.getElementById('contentSectionTypes').value = (item.types || []).join('\n'); } return; }
     const csDel = event.target.closest('[data-delete-content-section]'); if(csDel){ await deleteDoc('contentSection', csDel.dataset.deleteContentSection); }
   });
@@ -541,6 +678,7 @@ function bindDepartments(){
   document.getElementById('cancelTaskTypeEdit')?.addEventListener('click', () => { document.getElementById('taskTypeForm')?.reset(); resetForm(['taskTypeEditId']); });
   document.getElementById('cancelCampaignCodeEdit')?.addEventListener('click', () => { document.getElementById('campaignCodeForm')?.reset(); document.getElementById('campaignCodePrefix').value = 'MZJ'; resetForm(['campaignCodeEditId']); });
   document.getElementById('cancelCampaignTypeEdit')?.addEventListener('click', () => { document.getElementById('campaignTypeForm')?.reset(); resetForm(['campaignTypeEditId']); });
+  document.getElementById('cancelPlatformEdit')?.addEventListener('click', () => { document.getElementById('platformForm')?.reset(); resetForm(['platformEditId']); });
   document.getElementById('cancelContentSectionEdit')?.addEventListener('click', () => { document.getElementById('contentSectionForm')?.reset(); resetForm(['contentSectionEditId']); });
   document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignCodes(); renderCampaignTypes(); renderContentSections(); });
   document.getElementById('refreshStockBtn')?.addEventListener('click', renderStock);
@@ -593,6 +731,8 @@ function bootstrapData(){
   loadSimpleCollection(window.MZJ_TASK_TYPES_COLLECTION, taskTypes, renderTaskTypes);
   loadSimpleCollection(window.MZJ_CAMPAIGN_CODES_COLLECTION, campaignCodes, renderCampaignCodes);
   loadSimpleCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION, campaignTypes, renderCampaignTypes);
+  loadSimpleCollection(window.MZJ_FUNNELS_COLLECTION, funnels, function(){}, true);
+  loadSimpleCollection(window.MZJ_PLATFORMS_COLLECTION, platforms, renderPlatforms);
   if(mainDb){
     safeCollection(window.MZJ_CONTENT_SECTIONS_COLLECTION).orderBy('name').onSnapshot(snapshot => {
       contentSections = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, types: Array.isArray(data.types) ? data.types.map(normalizeText).filter(Boolean) : [] }; });

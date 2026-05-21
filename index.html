@@ -104,6 +104,8 @@
             <div class="panel-title">بيانات طلب الحملة</div>
             <form class="form request-grid" id="campaignRequestForm">
               <label class="field"><span>تاريخ الحملة</span><input type="date" name="campaign_date" /></label>
+              <label class="field"><span>بداية النشر</span><input type="date" name="publish_start_date" id="publishStartDate" /></label>
+              <label class="field"><span>نهاية النشر</span><input type="date" name="publish_end_date" id="publishEndDate" /></label>
               <label class="field"><span>اختيار كود الحملة</span><select id="campaignCodeSelect" name="campaign_code_key" class="js-campaign-code-select"><option value="">اختر الكود</option></select></label>
               <label class="field"><span>كود الحملة</span><input id="campaignCodeInput" type="text" name="campaign_code" readonly /></label>
               <label class="field"><span>اسم الحملة</span><input type="text" name="campaign_name" /></label>
@@ -149,31 +151,21 @@
               </div>
             </div>
 
-            <div class="grid builder-bottom">
+            <div class="builder-bottom-stacked">
               <div class="card campaign-section-card">
                 <div class="section-toolbar small-toolbar">
-                  <div><h2>جدول النشر</h2><p>يتم تحديد مواعيد النشر لكل كريتيف.</p></div>
-                  <button class="btn btn-light" type="button" id="addPublishRowBtn">＋ موعد نشر</button>
+                  <div><h2>جدول النشر</h2><p>يتولد كأجندة حسب تاريخ بداية ونهاية النشر، والاختيارات تعتمد على مخرجات التصميم والمونتاج.</p></div>
+                  <button class="btn btn-light" type="button" id="refreshPublishAgendaBtn">تحديث الجدول</button>
                 </div>
-                <div class="mini-table-wrap">
-                  <table class="mini-table">
-                    <thead><tr><th>الكريتيف</th><th>القناة</th><th>التاريخ</th><th>الوقت</th><th>الحالة</th><th></th></tr></thead>
-                    <tbody id="publishRows"><tr class="empty-row"><td colspan="6">لا توجد مواعيد نشر.</td></tr></tbody>
-                  </table>
-                </div>
+                <div id="publishAgenda" class="publish-agenda"><div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div></div>
               </div>
 
               <div class="card campaign-section-card">
                 <div class="section-toolbar small-toolbar">
-                  <div><h2>الميزانية</h2><p>بنود الميزانية الخاصة بالحملة.</p></div>
-                  <button class="btn btn-light" type="button" id="addBudgetRowBtn">＋ بند ميزانية</button>
+                  <div><h2>الميزانية</h2><p>كل بند ميزانية: Funnel، المنتج، المنصة، والقيمة. المنصات تظهر من صفحة الأقسام.</p></div>
+                  <button class="btn btn-light" type="button" id="addBudgetRowBtn">＋ إضافة بند ميزانية</button>
                 </div>
-                <div class="mini-table-wrap">
-                  <table class="mini-table">
-                    <thead><tr><th>البند</th><th>التكلفة</th><th>ملاحظات</th><th></th></tr></thead>
-                    <tbody id="budgetRows"><tr class="empty-row"><td colspan="4">لا توجد بنود ميزانية.</td></tr></tbody>
-                  </table>
-                </div>
+                <div id="budgetRows" class="budget-items"><div class="empty-state">لا توجد بنود ميزانية.</div></div>
               </div>
             </div>
           </div>
@@ -240,6 +232,16 @@
           </div>
 
           <div class="card admin-form-card">
+            <h2>إضافة منصة</h2>
+            <form class="form" id="platformForm">
+              <input type="hidden" id="platformEditId" />
+              <label class="field"><span>اسم المنصة</span><input type="text" id="platformName" required /></label>
+              <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ المنصة</button><button class="btn btn-light" type="button" id="cancelPlatformEdit">إلغاء</button></div>
+              <p class="form-message" id="platformMessage"></p>
+            </form>
+          </div>
+
+          <div class="card admin-form-card">
             <h2>إضافة قسم محتوى</h2>
             <form class="form" id="contentSectionForm">
               <input type="hidden" id="contentSectionEditId" />
@@ -257,6 +259,7 @@
           <div class="card"><h2>أنواع التاسك</h2><div id="taskTypesList" class="departments-list"><div class="empty-state">جاري تحميل أنواع التاسك...</div></div></div>
           <div class="card"><h2>أكواد الحملات</h2><div id="campaignCodesList" class="departments-list"><div class="empty-state">جاري تحميل أكواد الحملات...</div></div></div>
           <div class="card"><h2>أنواع الحملات</h2><div id="campaignTypesList" class="departments-list"><div class="empty-state">جاري تحميل أنواع الحملات...</div></div></div>
+          <div class="card"><h2>المنصات</h2><div id="platformsList" class="departments-list"><div class="empty-state">جاري تحميل المنصات...</div></div></div>
           <div class="card"><h2>أقسام المحتوى وأنواعها</h2><div id="contentSectionsList" class="departments-list"><div class="empty-state">جاري تحميل أقسام المحتوى...</div></div></div>
         </div>
       </section>
