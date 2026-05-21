@@ -1,48 +1,44 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>تسجيل الدخول | نظام التسويق</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="theme.css" />
+  <link rel="stylesheet" href="assets/css/style.css">
 </head>
-<body class="auth-page">
-  <main class="auth-shell">
-    <section class="auth-brand-panel" aria-label="هوية النظام">
-      <div class="brand-mark">
-        <img src="assets/brand-logo.png" alt="محمد بن دغار العجمي" />
-      </div>
-      <div class="brand-copy">
-        <span class="eyebrow">نظام التسويق</span>
-        <h1>إدارة حملاتك ومهام المحتوى من مكان واحد</h1>
-        <p>منصة داخلية لتنظيم الحملات، التقويم الشهري، المهام، والتقارير.</p>
-      </div>
-    </section>
+<body>
+  <main class="login-page">
+    <section class="login-card" aria-label="تسجيل الدخول">
+      <aside class="login-art">
+        <div>
+          <img src="assets/img/logo.png" alt="MZJ Logo">
+          <h2>نظام التسويق</h2>
+          <p>إدارة الحملات، المحتوى، التقويم الشهري، والمهام من مكان واحد.</p>
+        </div>
+      </aside>
 
-    <section class="auth-card" aria-label="تسجيل الدخول">
-      <div class="auth-card-header">
-        <span class="eyebrow">مرحباً بك</span>
-        <h2>تسجيل الدخول</h2>
-        <p>استخدم بيانات حسابك للدخول إلى النظام.</p>
-      </div>
+      <section class="login-form">
+        <h1>تسجيل الدخول</h1>
+        <p style="color:var(--muted)">أدخل بيانات حسابك للمتابعة.</p>
 
-      <form id="loginForm" class="auth-form" autocomplete="on">
-        <label class="form-field" for="loginEmail">
-          <span>البريد الإلكتروني</span>
-          <input id="loginEmail" name="email" type="email" autocomplete="email" required />
-        </label>
+        <form id="loginForm" class="form" style="margin-top:24px">
+          <div class="field">
+            <label for="loginEmail">البريد الإلكتروني</label>
+            <input id="loginEmail" name="email" type="email" autocomplete="email" required>
+          </div>
 
-        <label class="form-field" for="loginPassword">
-          <span>كلمة المرور</span>
-          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required />
-        </label>
+          <div class="field">
+            <label for="loginPassword">كلمة المرور</label>
+            <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+          </div>
 
-        <button class="btn btn-primary" type="submit">تسجيل الدخول</button>
-        <p id="loginMessage" class="form-message" role="status" aria-live="polite"></p>
-      </form>
+          <button class="btn btn-primary" type="submit" style="justify-content:center">تسجيل الدخول</button>
+          <p id="loginMessage" class="empty-state" aria-live="polite" style="padding:0;margin:0;text-align:right"></p>
+        </form>
+      </section>
     </section>
   </main>
 
