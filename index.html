@@ -71,20 +71,20 @@
           <a class="btn btn-primary" href="#create-campaign">＋ حملة جديدة</a>
         </div>
         <div class="grid stats">
-          <div class="card stat"><div><p>إجمالي الحملات</p><div class="num">—</div></div><div class="stat-icon">📣</div></div>
+          <div class="card stat"><div><p>إجمالي الحملات</p><div class="num" id="dashboardCampaignsCount">—</div></div><div class="stat-icon">📣</div></div>
           <div class="card stat"><div><p>الأقسام</p><div class="num" id="dashboardDepartmentsCount">—</div></div><div class="stat-icon">▤</div></div>
           <div class="card stat"><div><p>المهام المفتوحة</p><div class="num">—</div></div><div class="stat-icon">☑</div></div>
           <div class="card stat"><div><p>السيارات في الاستوك</p><div class="num" id="dashboardCarsCount">—</div></div><div class="stat-icon">▧</div></div>
         </div>
         <div class="grid layout-2 no-channel-card">
-          <div class="card"><div class="card-title"><h2>أداء الحملات</h2><select class="select"><option>حسب البيانات المتاحة</option></select></div><div class="chart-placeholder">سيظهر الرسم البياني بعد ربط بيانات الحملات.</div></div>
+          <div class="card"><div class="card-title"><h2>آخر الحملات المحفوظة</h2><a class="btn btn-light" href="#campaigns">عرض الكل</a></div><div id="dashboardCampaignsList" class="campaign-list"><div class="empty-state">لا توجد حملات محفوظة حتى الآن.</div></div></div>
           <div class="card"><h2>المهام القريبة</h2><div class="empty-state">لا توجد مهام للعرض.</div></div>
         </div>
       </section>
 
       <section class="view" id="campaigns" data-title="الحملات">
         <div class="page-head"><div class="page-title"><h1>إدارة الحملات</h1><p>إنشاء ومتابعة الحملات التسويقية.</p></div><a class="btn btn-primary" href="#create-campaign">＋ إنشاء حملة</a></div>
-        <div class="card"><div class="filters"><input class="control" type="search" placeholder="ابحث عن حملة" /><select class="select"><option>كل الحالات</option></select></div><div class="empty-state">لا توجد حملات حتى الآن.</div></div>
+        <div class="card"><div class="filters"><input class="control" type="search" placeholder="ابحث عن حملة" /><select class="select"><option>كل الحالات</option></select></div><div id="campaignsList" class="campaign-list"><div class="empty-state">لا توجد حملات حتى الآن.</div></div></div>
       </section>
 
       <section class="view" id="create-campaign" data-title="إنشاء حملة">
@@ -121,7 +121,7 @@
               <div class="section-toolbar">
                 <div>
                   <h2>الكريتيفات والمهام</h2>
-                  <p>الكريتيف يظهر من صفحة الأقسام، والمنتجات تتكوّن تلقائياً من الكريتيف + اسم اليوزر المختار.</p>
+                  <p>الكريتيف يظهر من صفحة الأقسام، ونوع التاسك يتغير حسب قسم المحتوى، والمنتجات تتكوّن تلقائياً من الكريتيف + يوزرات المحتوى والتصوير والتصميم والمونتاج.</p>
                 </div>
                 <button class="btn btn-primary" type="button" id="addCreativeBtn">＋ إضافة صف كريتيف</button>
               </div>
@@ -131,7 +131,7 @@
                   <thead>
                     <tr>
                       <th class="wide">الكريتيف</th>
-                      <th>اسم القسم</th>
+                      <th>قسم المحتوى</th>
                       <th>نوع التاسك</th>
                       <th>المحتوى</th>
                       <th>التصوير</th>

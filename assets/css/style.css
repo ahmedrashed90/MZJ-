@@ -31,3 +31,15 @@
 .stock-chip small{color:var(--primary);font-weight:900}
 @media(max-width:1180px){.stock-stats{grid-template-columns:repeat(2,1fr)}.request-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.request-grid .field,.request-grid .field-wide{grid-column:span 3}}
 @media(max-width:780px){.stock-stats{grid-template-columns:1fr}.request-grid{grid-template-columns:1fr}.request-grid .field,.request-grid .field-wide{grid-column:span 1}}
+
+
+/* Campaign rows updates */
+.campaign-matrix select[multiple]{min-height:118px;min-width:150px;padding:8px;text-align:right}
+.campaign-matrix select[multiple] option{padding:7px 8px;border-radius:8px;margin:2px 0}
+.campaign-list{display:grid;gap:12px}
+.campaign-card-item{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border:1px solid var(--border);background:rgba(255,255,255,.68);border-radius:18px;padding:16px}
+.campaign-card-item h3{margin:0 0 6px;font-size:18px;color:var(--text)}
+.campaign-card-item p{margin:0;color:var(--muted);font-weight:800}
+.campaign-card-meta{display:grid;gap:8px;justify-items:end;white-space:nowrap}
+.campaign-card-meta small{color:var(--muted);font-weight:800}
+@media(max-width:780px){.campaign-card-item{flex-direction:column}.campaign-card-meta{justify-items:start}.campaign-matrix select[multiple]{min-width:170px}}

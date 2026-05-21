@@ -258,12 +258,33 @@ service cloud.firestore {
 
     function marketingCampaignKeysValid() {
       return request.resource.data.keys().hasOnly([
-        "campaign_date", "campaign_code_key", "campaign_code", "campaign_name",
-        "campaign_type", "campaign_goal", "management_goal", "content_writer_brief",
-        "structure_deadline", "request_status", "campaignCode", "campaignCodeId",
-        "campaignCodePrefix", "campaignCodeShortCode", "campaignType", "creatives",
-        "publishSchedule", "budgetItems", "status", "source",
-        "createdAt", "createdBy", "updatedAt", "updatedBy"
+        "id",
+        "name",
+        "campaignName",
+        "campaign_name",
+        "campaign_date",
+        "campaignCode",
+        "campaignCodeId",
+        "campaignCodePrefix",
+        "campaignCodeShortCode",
+        "campaign_code",
+        "campaign_code_key",
+        "campaignType",
+        "campaign_type",
+        "campaign_goal",
+        "management_goal",
+        "content_writer_brief",
+        "structure_deadline",
+        "request_status",
+        "creatives",
+        "publishSchedule",
+        "budgetItems",
+        "status",
+        "source",
+        "createdAt",
+        "createdBy",
+        "updatedAt",
+        "updatedBy"
       ]);
     }
 
