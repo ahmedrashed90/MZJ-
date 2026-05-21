@@ -181,30 +181,58 @@
 
       <section class="view" id="departments" data-title="الأقسام">
         <div class="page-head">
-          <div class="page-title"><h1>الأقسام</h1><p>إضافة الأقسام والكريتيفات. الكريتيفات المضافة هنا تظهر في دروب داون إنشاء الحملة.</p></div>
+          <div class="page-title"><h1>الأقسام</h1><p>إدارة الأقسام، اليوزرات داخل كل قسم، الكريتيفات، أنواع التاسك، وأقسام المحتوى.</p></div>
         </div>
-        <div class="grid departments-layout">
-          <div class="card">
+
+        <div class="grid admin-layout">
+          <div class="card admin-form-card">
             <h2>إضافة قسم جديد</h2>
             <form class="form" id="departmentForm">
+              <input type="hidden" id="departmentEditId" />
               <label class="field"><span>اسم القسم</span><input type="text" id="departmentName" required /></label>
-              <button class="btn btn-primary full" type="submit">إضافة القسم</button>
+              <label class="field"><span>اليوزرات داخل القسم</span><select id="departmentUsers" multiple size="5"></select></label>
+              <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ القسم</button><button class="btn btn-light" type="button" id="cancelDepartmentEdit">إلغاء</button></div>
               <p class="form-message" id="departmentMessage"></p>
             </form>
           </div>
-          <div class="card">
+
+          <div class="card admin-form-card">
             <h2>إضافة كريتيف</h2>
             <form class="form" id="creativeForm">
-              <label class="field"><span>القسم</span><select id="creativeDepartment" required><option value="">اختر القسم</option></select></label>
+              <input type="hidden" id="creativeEditId" />
               <label class="field"><span>اسم الكريتيف</span><input type="text" id="creativeName" required /></label>
-              <button class="btn btn-primary full" type="submit">إضافة الكريتيف</button>
+              <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ الكريتيف</button><button class="btn btn-light" type="button" id="cancelCreativeEdit">إلغاء</button></div>
               <p class="form-message" id="creativeMessage"></p>
             </form>
           </div>
+
+          <div class="card admin-form-card">
+            <h2>إضافة نوع التاسك</h2>
+            <form class="form" id="taskTypeForm">
+              <input type="hidden" id="taskTypeEditId" />
+              <label class="field"><span>نوع التاسك</span><input type="text" id="taskTypeName" required /></label>
+              <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ نوع التاسك</button><button class="btn btn-light" type="button" id="cancelTaskTypeEdit">إلغاء</button></div>
+              <p class="form-message" id="taskTypeMessage"></p>
+            </form>
+          </div>
+
+          <div class="card admin-form-card">
+            <h2>إضافة قسم محتوى</h2>
+            <form class="form" id="contentSectionForm">
+              <input type="hidden" id="contentSectionEditId" />
+              <label class="field"><span>اسم قسم المحتوى</span><input type="text" id="contentSectionName" required /></label>
+              <label class="field"><span>أنواع المحتوى داخل القسم</span><textarea id="contentSectionTypes" placeholder="اكتب كل نوع في سطر منفصل"></textarea></label>
+              <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ قسم المحتوى</button><button class="btn btn-light" type="button" id="cancelContentSectionEdit">إلغاء</button></div>
+              <p class="form-message" id="contentSectionMessage"></p>
+            </form>
+          </div>
         </div>
-        <div class="card mt">
-          <div class="card-title"><h2>قائمة الأقسام والكريتيفات</h2><button class="btn btn-light" type="button" id="refreshDepartmentsBtn">تحديث</button></div>
-          <div id="departmentsList" class="departments-list"><div class="empty-state">جاري تحميل الأقسام...</div></div>
+
+        <div class="grid admin-lists mt">
+          <div class="card"><div class="card-title"><h2>قائمة الأقسام</h2><button class="btn btn-light" type="button" id="refreshDepartmentsBtn">تحديث</button></div><div id="departmentsList" class="departments-list"><div class="empty-state">جاري تحميل الأقسام...</div></div></div>
+          <div class="card"><h2>قائمة الكريتيفات</h2><div id="creativesList" class="departments-list"><div class="empty-state">جاري تحميل الكريتيفات...</div></div></div>
+          <div class="card"><h2>أنواع التاسك</h2><div id="taskTypesList" class="departments-list"><div class="empty-state">جاري تحميل أنواع التاسك...</div></div></div>
+          <div class="card"><h2>أقسام المحتوى وأنواعها</h2><div id="contentSectionsList" class="departments-list"><div class="empty-state">جاري تحميل أقسام المحتوى...</div></div></div>
         </div>
       </section>
 
