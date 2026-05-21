@@ -467,22 +467,59 @@ function dateRange(start, end){
 }
 function formatInputDate(date){ return date.toISOString().slice(0,10); }
 function dayName(date){ return date.toLocaleDateString('ar-SA', { weekday: 'long' }); }
+function getPublishSelections(){
+  const selections = {};
+  document.querySelectorAll('.publish-day-card[data-date]').forEach(card => {
+    const date = card.dataset.date || '';
+    if(!date) return;
+    selections[date] = {
+      output: card.querySelector('.js-publish-output-select')?.value || '',
+      platform: card.querySelector('.js-platform-select')?.value || '',
+      time: card.querySelector('.js-publish-time')?.value || '',
+      note: normalizeText(card.querySelector('.js-publish-note')?.value)
+    };
+  });
+  return selections;
+}
+function makePublishOutputOptions(outputs, currentValue = ''){
+  return '<option value="">اضغط لاختيار النشر</option>' + outputs.map(out => `<option value="${escapeHtml(out)}"${currentValue === out ? ' selected' : ''}>${escapeHtml(out)}</option>`).join('');
+}
+function updatePublishOutputAvailability(){
+  const used = new Set([...document.querySelectorAll('.js-publish-output-select')].map(sel => sel.value).filter(Boolean));
+  document.querySelectorAll('.js-publish-output-select').forEach(select => {
+    [...select.options].forEach(option => {
+      if(!option.value) return;
+      option.disabled = used.has(option.value) && option.value !== select.value;
+    });
+  });
+}
 function renderPublishAgenda(){
   const wrap = document.getElementById('publishAgenda'); if(!wrap) return;
+  const previous = getPublishSelections();
   const days = dateRange(document.getElementById('publishStartDate')?.value, document.getElementById('publishEndDate')?.value);
   const outputs = getCampaignPublishOutputs();
   if(!days.length){ wrap.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر لعرض الأجندة.</div>'; return; }
   if(!outputs.length){ wrap.innerHTML = '<div class="empty-state">اختر مخرجات التصميم أو المونتاج أولاً عشان تظهر في جدول النشر.</div>'; return; }
-  wrap.innerHTML = days.map(date => {
+  const firstDay = days[0];
+  const leading = firstDay.getDay();
+  const cells = [];
+  for(let i = 0; i < leading; i += 1){ cells.push('<article class="publish-day-card publish-day-empty"></article>'); }
+  days.forEach(date => {
     const iso = formatInputDate(date);
-    return `<article class="publish-day-card" data-date="${iso}">
-      <div class="publish-day-head"><strong>${dayName(date)}</strong><span>${iso}</span></div>
-      <label class="field"><span>المخرج</span><select class="js-publish-output-select">${outputs.map(out => `<option value="${escapeHtml(out)}">${escapeHtml(out)}</option>`).join('')}</select></label>
-      <label class="field"><span>المنصة</span><select class="js-platform-select">${platformOptions()}</select></label>
-      <label class="field"><span>وقت النشر</span><input type="time" class="js-publish-time" /></label>
-      <label class="field"><span>ملاحظات</span><input type="text" class="js-publish-note" /></label>
-    </article>`;
-  }).join('');
+    const prev = previous[iso] || {};
+    const currentOutput = outputs.includes(prev.output) ? prev.output : '';
+    cells.push(`<article class="publish-day-card" data-date="${iso}">
+      <div class="publish-day-head"><strong>${dayName(date)}</strong></div>
+      <div class="publish-day-number">${date.getDate()}</div>
+      <div class="publish-day-date">${iso}</div>
+      <select class="js-publish-output-select compact-select" aria-label="اختيار النشر">${makePublishOutputOptions(outputs, currentOutput)}</select>
+      <select class="js-platform-select compact-select" aria-label="المنصة">${platformOptions(prev.platform || '')}</select>
+      <input type="time" class="js-publish-time compact-input" value="${escapeHtml(prev.time || '')}" aria-label="وقت النشر" />
+      <input type="text" class="js-publish-note compact-input" value="${escapeHtml(prev.note || '')}" placeholder="ملاحظة" aria-label="ملاحظات" />
+    </article>`);
+  });
+  wrap.innerHTML = `<div class="publish-calendar-head"><span>الأحد</span><span>الإثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div><div class="publish-calendar-grid">${cells.join('')}</div>`;
+  updatePublishOutputAvailability();
 }
 function collectPublishRows(){
   return [...document.querySelectorAll('.publish-day-card')].map(card => ({
@@ -608,6 +645,7 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-role-picker input[type="checkbox"]')){
       const picker = event.target.closest('.js-role-picker'); updateRolePickerLabel(picker); updateProductOutput(event.target.closest('tr')); renderPublishAgenda(); refreshDynamicSelects(); return;
     }
+    if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.matches('.js-creative-select,.js-content-user,.js-shoot-user,.js-design-user,.js-edit-user')){ updateProductOutput(event.target.closest('tr')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
   document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<tr class="empty-row"><td colspan="10">ابدأ بإضافة صف كريتيف للحملة.</td></tr>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; generateCampaignCode(); });
