@@ -35,6 +35,7 @@ const sidebar = document.getElementById('sidebar');
 const overlay = document.querySelector('[data-close-menu]');
 
 let mainDb = null;
+let mainAuth = null;
 let stockDb = null;
 let departments = [];
 let users = [];
@@ -69,6 +70,7 @@ function initFirebase(){
   try{
     const mainApp = firebase.apps.find(app => app.name === '[DEFAULT]') || firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
     mainDb = firebase.firestore(mainApp);
+    if(firebase.auth) mainAuth = firebase.auth(mainApp);
   }catch(error){ console.error('Main Firebase init error', error); }
   try{
     const stockApp = firebase.apps.find(app => app.name === 'stockApp') || firebase.initializeApp(window.MZJ_STOCK_FIREBASE_CONFIG, 'stockApp');
@@ -487,16 +489,82 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('[data-menu]')?.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('show'); });
   overlay?.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); });
   document.getElementById('loginForm')?.addEventListener('submit', async event => {
-    event.preventDefault(); showMessage('loginMessage', 'جاري التحقق...'); initFirebase();
-    const email = normalizeText(document.getElementById('loginEmail')?.value).toLowerCase(); const password = document.getElementById('loginPassword')?.value || '';
-    if(mainDb){
-      try{
-        const snapshot = await mainDb.collection(window.MZJ_USERS_COLLECTION).where('email','==',email).limit(1).get();
-        const doc = snapshot.docs[0]; const data = doc?.data() || null;
-        if(!data || (data.password !== password && data.pass !== password)){ showMessage('loginMessage', 'بيانات الدخول غير صحيحة.'); return; }
-      }catch(error){ console.error(error); showMessage('loginMessage', 'تعذر التحقق من بيانات الدخول.'); return; }
+    event.preventDefault();
+    showMessage('loginMessage', 'جاري التحقق...');
+    initFirebase();
+
+    const rawEmail = normalizeText(document.getElementById('loginEmail')?.value);
+    const email = rawEmail.toLowerCase();
+    const password = document.getElementById('loginPassword')?.value || '';
+
+    if(!rawEmail || !password){
+      showMessage('loginMessage', 'اكتب البريد الإلكتروني وكلمة المرور.');
+      return;
     }
-    sessionStorage.setItem('mzj_logged_in','1'); showMessage('loginMessage', ''); openApp();
+
+    try{
+      let userDoc = null;
+      let authUser = null;
+
+      // الطريقة الأساسية: Firebase Authentication عشان request.auth يشتغل في القواعد.
+      if(mainAuth){
+        try{
+          const credential = await mainAuth.signInWithEmailAndPassword(rawEmail, password);
+          authUser = credential.user;
+        }catch(authError){
+          console.warn('Firebase Auth login failed, trying Firestore users fallback', authError);
+        }
+      }
+
+      // قراءة بيانات اليوزر من users بالـ uid لو تسجيل Firebase Auth نجح.
+      if(authUser && mainDb){
+        const byUid = await mainDb.collection(window.MZJ_USERS_COLLECTION).doc(authUser.uid).get();
+        if(byUid.exists) userDoc = { id: byUid.id, ...byUid.data() };
+      }
+
+      // fallback: بحث مباشر في users لو الحسابات القديمة محفوظة في Firestore فقط.
+      if(!userDoc && mainDb){
+        const checks = [
+          mainDb.collection(window.MZJ_USERS_COLLECTION).where('email','==',rawEmail).limit(1).get(),
+          mainDb.collection(window.MZJ_USERS_COLLECTION).where('email','==',email).limit(1).get(),
+          mainDb.collection(window.MZJ_USERS_COLLECTION).where('emailLower','==',email).limit(1).get()
+        ];
+        for(const req of checks){
+          const snapshot = await req;
+          if(!snapshot.empty){
+            const doc = snapshot.docs[0];
+            userDoc = { id: doc.id, ...doc.data() };
+            break;
+          }
+        }
+      }
+
+      if(!userDoc){
+        showMessage('loginMessage', 'الحساب غير موجود في users أو Firebase Authentication.');
+        return;
+      }
+
+      // لو مفيش Firebase Auth للحساب القديم، نراجع password داخل users.
+      if(!authUser){
+        const storedPassword = userDoc.password || userDoc.pass || '';
+        if(storedPassword !== password){
+          showMessage('loginMessage', 'كلمة المرور غير صحيحة.');
+          return;
+        }
+      }
+
+      sessionStorage.setItem('mzj_logged_in','1');
+      sessionStorage.setItem('mzj_user', JSON.stringify({
+        uid: authUser?.uid || userDoc.id,
+        email: userDoc.email || rawEmail,
+        name: userDoc.name || userDoc.displayName || userDoc.username || ''
+      }));
+      showMessage('loginMessage', '');
+      openApp();
+    }catch(error){
+      console.error('Login error', error);
+      showMessage('loginMessage', 'تعذر تسجيل الدخول. راجع إعدادات Firebase أو صلاحيات users.');
+    }
   });
   document.getElementById('logoutBtn')?.addEventListener('click', () => { sessionStorage.removeItem('mzj_logged_in'); openLogin(); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
