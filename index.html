@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>مجموعة محمد ذعار العجمي</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css" />
 </head>
 <body>
@@ -14,11 +17,11 @@
       <div class="login-art">
         <div class="login-art-content">
           <h1>مجموعة محمد ذعار العجمي</h1>
-          <p>إدارة الحملات، المحتوى، التقويم والمهام من مكان واحد.</p>
+          <p>إدارة الحملات، الأقسام، التقويم، المهام والاستوك من مكان واحد.</p>
         </div>
       </div>
       <form class="login-form" id="loginForm" autocomplete="on">
-        <div class="login-logo-wrap"><img src="assets/img/logo.png" alt="MZJ" /></div>
+        <div class="login-logo-wrap no-bg"><img src="assets/img/logo.png" alt="مجموعة محمد ذعار العجمي" /></div>
         <span class="eyebrow">مجموعة محمد ذعار العجمي</span>
         <h2>تسجيل الدخول</h2>
         <p>ادخل بيانات حسابك للمتابعة.</p>
@@ -38,14 +41,15 @@
 
   <div id="appShell" class="app is-hidden">
     <aside class="sidebar" id="sidebar">
-      <div class="brand"><img src="assets/img/logo.png" alt="MZJ" /></div>
+      <div class="brand"><img src="assets/img/logo.png" alt="مجموعة محمد ذعار العجمي" /></div>
       <nav class="nav" id="mainNav" aria-label="القائمة الرئيسية">
         <a href="#dashboard" data-route="dashboard"><span class="icon">⌂</span><span>لوحة التحكم</span></a>
         <a href="#campaigns" data-route="campaigns"><span class="icon">📣</span><span>الحملات</span></a>
         <a href="#create-campaign" data-route="create-campaign"><span class="icon">＋</span><span>إنشاء حملة</span></a>
-        <a href="#content" data-route="content"><span class="icon">▤</span><span>المحتوى</span></a>
+        <a href="#departments" data-route="departments"><span class="icon">▤</span><span>الأقسام</span></a>
         <a href="#calendar" data-route="calendar"><span class="icon">▦</span><span>التقويم</span></a>
         <a href="#tasks" data-route="tasks"><span class="icon">☑</span><span>المهام</span></a>
+        <a href="#stock" data-route="stock"><span class="icon">▧</span><span>الاستوك</span></a>
         <a href="#reports" data-route="reports"><span class="icon">▥</span><span>التقارير</span></a>
         <a href="#settings" data-route="settings"><span class="icon">⚙</span><span>الإعدادات</span></a>
       </nav>
@@ -63,20 +67,19 @@
 
       <section class="view" id="dashboard" data-title="لوحة التحكم">
         <div class="page-head">
-          <div class="page-title"><h1>لوحة التحكم</h1><p>نظرة عامة على النظام بعد ربط البيانات الحقيقية.</p></div>
+          <div class="page-title"><h1>لوحة التحكم</h1><p>نظرة عامة بعد ربط البيانات الحقيقية.</p></div>
           <a class="btn btn-primary" href="#create-campaign">＋ حملة جديدة</a>
         </div>
         <div class="grid stats">
           <div class="card stat"><div><p>إجمالي الحملات</p><div class="num">—</div></div><div class="stat-icon">📣</div></div>
-          <div class="card stat"><div><p>المحتوى المنشور</p><div class="num">—</div></div><div class="stat-icon">▤</div></div>
+          <div class="card stat"><div><p>الأقسام</p><div class="num" id="dashboardDepartmentsCount">—</div></div><div class="stat-icon">▤</div></div>
           <div class="card stat"><div><p>المهام المفتوحة</p><div class="num">—</div></div><div class="stat-icon">☑</div></div>
-          <div class="card stat"><div><p>معدل التحويل</p><div class="num">—</div></div><div class="stat-icon">↗</div></div>
+          <div class="card stat"><div><p>السيارات في الاستوك</p><div class="num" id="dashboardCarsCount">—</div></div><div class="stat-icon">▧</div></div>
         </div>
         <div class="grid layout-2 no-channel-card">
           <div class="card"><div class="card-title"><h2>أداء الحملات</h2><select class="select"><option>حسب البيانات المتاحة</option></select></div><div class="chart-placeholder">سيظهر الرسم البياني بعد ربط بيانات الحملات.</div></div>
           <div class="card"><h2>المهام القريبة</h2><div class="empty-state">لا توجد مهام للعرض.</div></div>
         </div>
-        <div class="card mt"><div class="card-title"><h2>أحدث الحملات</h2><a href="#campaigns" class="btn btn-light">عرض الكل</a></div><div class="empty-state">لا توجد حملات مسجلة حالياً.</div></div>
       </section>
 
       <section class="view" id="campaigns" data-title="الحملات">
@@ -88,7 +91,7 @@
         <div class="page-head campaign-builder-head">
           <div class="page-title">
             <h1>إنشاء حملة</h1>
-            <p>هيكل طلب الحملة: بيانات أساسية، كريتيفات، مهام تنفيذ، وجدول نشر.</p>
+            <p>بيانات الطلب في الأعلى، ثم كريتيفات الحملة والمهام وجدول النشر والميزانية.</p>
           </div>
           <div class="actions">
             <button class="btn btn-light" type="button" id="resetCampaignBuilder">مسح النموذج</button>
@@ -96,30 +99,30 @@
           </div>
         </div>
 
-        <div class="campaign-builder">
-          <aside class="request-panel card">
+        <div class="campaign-builder stacked">
+          <section class="request-panel card request-top">
             <div class="panel-title">بيانات طلب الحملة</div>
-            <form class="form compact-form" id="campaignRequestForm">
+            <form class="form request-grid" id="campaignRequestForm">
               <label class="field"><span>تاريخ الحملة</span><input type="date" name="campaign_date" /></label>
               <label class="field"><span>كود الحملة</span><input type="text" name="campaign_code" /></label>
               <label class="field"><span>اسم الحملة</span><input type="text" name="campaign_name" /></label>
               <label class="field"><span>نوع الحملة</span><select name="campaign_type"><option value="">اختر نوع الحملة</option></select></label>
-              <label class="field"><span>هدف الحملة</span><textarea name="campaign_goal"></textarea></label>
-              <label class="field"><span>هدف الإدارة</span><textarea name="management_goal"></textarea></label>
-              <label class="field"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief"></textarea></label>
+              <label class="field field-wide"><span>هدف الحملة</span><textarea name="campaign_goal"></textarea></label>
+              <label class="field field-wide"><span>هدف الإدارة</span><textarea name="management_goal"></textarea></label>
+              <label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief"></textarea></label>
               <label class="field"><span>موعد تسليم الهيكل</span><input type="datetime-local" name="structure_deadline" /></label>
               <label class="field"><span>حالة الطلب</span><select name="request_status"><option value="">اختر الحالة</option></select></label>
             </form>
-          </aside>
+          </section>
 
           <div class="builder-workspace">
             <div class="card campaign-section-card">
               <div class="section-toolbar">
                 <div>
                   <h2>الكريتيفات والمهام</h2>
-                  <p>أضف كل كريتيف ثم وزّع عليه مهام المحتوى، التصوير، التصميم، المونتاج، المنتجات والنشر.</p>
+                  <p>الكريتيف يظهر من صفحة الأقسام، والمنتجات تتكوّن تلقائياً من الكريتيف + اسم اليوزر المختار.</p>
                 </div>
-                <button class="btn btn-primary" type="button" id="addCreativeBtn">＋ إضافة كريتيف</button>
+                <button class="btn btn-primary" type="button" id="addCreativeBtn">＋ إضافة صف كريتيف</button>
               </div>
 
               <div class="campaign-table-wrap">
@@ -139,9 +142,7 @@
                     </tr>
                   </thead>
                   <tbody id="creativeRows">
-                    <tr class="empty-row">
-                      <td colspan="10">ابدأ بإضافة كريتيف جديد للحملة.</td>
-                    </tr>
+                    <tr class="empty-row"><td colspan="10">ابدأ بإضافة صف كريتيف للحملة.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -178,41 +179,77 @@
         </div>
       </section>
 
-      <section class="view" id="content" data-title="المحتوى">
-        <div class="page-head"><div class="page-title"><h1>المحتوى</h1><p>إدارة أفكار ومنشورات المحتوى.</p></div><button class="btn btn-primary" type="button">＋ محتوى جديد</button></div>
-        <div class="grid layout-2 content-layout">
-          <div class="card"><h2>جدول المحتوى</h2><div class="empty-state">لا يوجد محتوى مجدول حالياً.</div></div>
-          <div class="card"><h2>ملاحظات المحتوى</h2><label class="field"><span>ملاحظة</span><textarea></textarea></label></div>
+      <section class="view" id="departments" data-title="الأقسام">
+        <div class="page-head">
+          <div class="page-title"><h1>الأقسام</h1><p>إضافة الأقسام والكريتيفات. الكريتيفات المضافة هنا تظهر في دروب داون إنشاء الحملة.</p></div>
+        </div>
+        <div class="grid departments-layout">
+          <div class="card">
+            <h2>إضافة قسم جديد</h2>
+            <form class="form" id="departmentForm">
+              <label class="field"><span>اسم القسم</span><input type="text" id="departmentName" required /></label>
+              <button class="btn btn-primary full" type="submit">إضافة القسم</button>
+              <p class="form-message" id="departmentMessage"></p>
+            </form>
+          </div>
+          <div class="card">
+            <h2>إضافة كريتيف</h2>
+            <form class="form" id="creativeForm">
+              <label class="field"><span>القسم</span><select id="creativeDepartment" required><option value="">اختر القسم</option></select></label>
+              <label class="field"><span>اسم الكريتيف</span><input type="text" id="creativeName" required /></label>
+              <button class="btn btn-primary full" type="submit">إضافة الكريتيف</button>
+              <p class="form-message" id="creativeMessage"></p>
+            </form>
+          </div>
+        </div>
+        <div class="card mt">
+          <div class="card-title"><h2>قائمة الأقسام والكريتيفات</h2><button class="btn btn-light" type="button" id="refreshDepartmentsBtn">تحديث</button></div>
+          <div id="departmentsList" class="departments-list"><div class="empty-state">جاري تحميل الأقسام...</div></div>
         </div>
       </section>
 
       <section class="view" id="calendar" data-title="التقويم">
-        <div class="page-head"><div class="page-title"><h1>التقويم</h1><p>عرض شهري للحملات والمحتوى والمهام.</p></div><button class="btn btn-primary" type="button">＋ إضافة موعد</button></div>
-        <div class="card"><div class="calendar-toolbar"><button class="icon-btn" type="button">‹</button><strong>الشهر الحالي</strong><button class="icon-btn" type="button">›</button></div><div class="calendar empty-calendar"><div class="day day-head">السبت</div><div class="day day-head">الأحد</div><div class="day day-head">الإثنين</div><div class="day day-head">الثلاثاء</div><div class="day day-head">الأربعاء</div><div class="day day-head">الخميس</div><div class="day day-head">الجمعة</div></div><div class="empty-state">لا توجد مواعيد مجدولة.</div></div>
+        <div class="page-head"><div class="page-title"><h1>التقويم</h1><p>جدولة النشر والمهام الشهرية.</p></div></div>
+        <div class="card"><div class="empty-state">سيتم بناء التقويم بعد اعتماد الحقول النهائية.</div></div>
       </section>
 
       <section class="view" id="tasks" data-title="المهام">
-        <div class="page-head"><div class="page-title"><h1>المهام</h1><p>متابعة مهام الفريق.</p></div><button class="btn btn-primary" type="button">＋ مهمة جديدة</button></div>
-        <div class="kanban">
-          <div class="lane"><h3>قيد التنفيذ <span>0</span></h3><div class="empty-state small">لا توجد مهام.</div></div>
-          <div class="lane"><h3>مراجعة <span>0</span></h3><div class="empty-state small">لا توجد مهام.</div></div>
-          <div class="lane"><h3>مكتمل <span>0</span></h3><div class="empty-state small">لا توجد مهام.</div></div>
-          <div class="lane"><h3>مؤجل <span>0</span></h3><div class="empty-state small">لا توجد مهام.</div></div>
+        <div class="page-head"><div class="page-title"><h1>المهام</h1><p>متابعة تنفيذ مهام الحملات.</p></div></div>
+        <div class="grid kanban"><div class="card"><h2>قيد التنفيذ</h2><div class="empty-state">لا توجد مهام.</div></div><div class="card"><h2>مراجعة</h2><div class="empty-state">لا توجد مهام.</div></div><div class="card"><h2>مكتمل</h2><div class="empty-state">لا توجد مهام.</div></div></div>
+      </section>
+
+      <section class="view" id="stock" data-title="الاستوك">
+        <div class="page-head">
+          <div class="page-title"><h1>الاستوك</h1><p>قراءة فقط من مسار السيارات: حصر الماركات والمواصفات والألوان المتاحة.</p></div>
+          <button class="btn btn-light" type="button" id="refreshStockBtn">تحديث</button>
+        </div>
+        <div class="grid stats">
+          <div class="card stat"><div><p>إجمالي السيارات</p><div class="num" id="stockTotalCars">—</div></div><div class="stat-icon">▧</div></div>
+          <div class="card stat"><div><p>عدد الماركات</p><div class="num" id="stockBrandsCount">—</div></div><div class="stat-icon">◆</div></div>
+          <div class="card stat"><div><p>عدد المواصفات</p><div class="num" id="stockSpecsCount">—</div></div><div class="stat-icon">☷</div></div>
+          <div class="card stat"><div><p>عدد الألوان</p><div class="num" id="stockColorsCount">—</div></div><div class="stat-icon">●</div></div>
+        </div>
+        <div class="grid stock-grid mt">
+          <div class="card"><h2>الماركات المتاحة</h2><div id="stockBrands" class="chip-list"><div class="empty-state">جاري التحميل...</div></div></div>
+          <div class="card"><h2>المواصفات المتاحة</h2><div id="stockSpecs" class="chip-list"><div class="empty-state">جاري التحميل...</div></div></div>
+          <div class="card"><h2>الألوان المتاحة</h2><div id="stockColors" class="chip-list"><div class="empty-state">جاري التحميل...</div></div></div>
         </div>
       </section>
 
       <section class="view" id="reports" data-title="التقارير">
-        <div class="page-head"><div class="page-title"><h1>التقارير</h1><p>تجميع تقارير الأداء بعد ربط البيانات.</p></div><button class="btn btn-primary" type="button">تصدير</button></div>
-        <div class="grid stats"><div class="card stat"><div><p>الإنفاق</p><div class="num">—</div></div><div class="stat-icon">◷</div></div><div class="card stat"><div><p>الوصول</p><div class="num">—</div></div><div class="stat-icon">◎</div></div><div class="card stat"><div><p>التفاعل</p><div class="num">—</div></div><div class="stat-icon">♡</div></div><div class="card stat"><div><p>التحويل</p><div class="num">—</div></div><div class="stat-icon">↗</div></div></div>
-        <div class="card"><div class="chart-placeholder">لا توجد بيانات تقارير للعرض.</div></div>
+        <div class="page-head"><div class="page-title"><h1>التقارير</h1><p>تقارير الأداء بعد ربط البيانات.</p></div></div>
+        <div class="card"><div class="empty-state">لا توجد بيانات تقارير حالياً.</div></div>
       </section>
 
       <section class="view" id="settings" data-title="الإعدادات">
-        <div class="page-head"><div class="page-title"><h1>الإعدادات</h1><p>إعدادات النظام والبراند.</p></div></div>
-        <div class="grid layout-2"><div class="card"><h2>هوية النظام</h2><form class="form"><label class="field"><span>اسم النظام</span><input type="text" /></label><label class="field"><span>البريد الرسمي</span><input type="email" /></label><button class="btn btn-primary" type="button">حفظ</button></form></div><div class="card"><h2>ألوان الثيم</h2><div class="color-swatch"><span class="swatch c1"></span><span class="swatch c2"></span><span class="swatch c3"></span><span class="swatch c4"></span></div></div></div>
+        <div class="page-head"><div class="page-title"><h1>الإعدادات</h1><p>إعدادات النظام والصلاحيات.</p></div></div>
+        <div class="card"><div class="empty-state">سيتم ضبط الإعدادات بعد تحديد الصلاحيات.</div></div>
       </section>
     </main>
   </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>
