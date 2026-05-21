@@ -484,8 +484,58 @@ function taskProgress(task){
   }
   return Number(task.progress || 0);
 }
+function fallbackTasksFromCampaign(campaign){
+  const fallback = [];
+  (campaign.creatives || []).forEach((creativeRow, creativeIndex) => {
+    (creativeRow.tasks || []).forEach((task, taskIndex) => {
+      const ids = Array.isArray(task.userIds) ? task.userIds : [];
+      const names = Array.isArray(task.userNames) ? task.userNames : [];
+      const entries = ids.length ? ids.map((id, i) => ({ id, name: names[i] || id })) : names.map((name, i) => ({ id: `${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}-${i}`, name }));
+      const finalEntries = entries.length ? entries : [{ id: `${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}`, name: 'غير محدد' }];
+      finalEntries.forEach(entry => {
+        const user = users.find(item => item.id === entry.id) || users.find(item => userName(item) === entry.name) || {};
+        const dep = departmentForUser(user.id || entry.id);
+        const role = normalizeDepartmentRole(dep.name || user.department || task.contentSectionName);
+        fallback.push({
+          id: `fallback-${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}-${entry.id}`,
+          campaignId: campaign.id,
+          campaignName: campaign.campaignName || campaign.name || campaign.campaign_name || '',
+          campaignCode: campaign.campaignCode || campaign.campaign_code || '',
+          creative: creativeRow.creative || '',
+          product: creativeRow.product || '',
+          contentSectionId: task.contentSectionId || '',
+          contentSectionName: task.contentSectionName || '',
+          taskType: task.taskType || '',
+          assignedToUid: user.id || entry.id || '',
+          assignedToName: userName(user) || entry.name || 'غير محدد',
+          assignedToEmail: user.email || '',
+          assignedDepartmentId: dep.id || '',
+          assignedDepartmentName: dep.name || user.department || task.contentSectionName || '',
+          departmentRole: role,
+          received: false,
+          progress: 0,
+          steps: taskStepTemplate(role),
+          status: 'pending',
+          creativeIndex,
+          taskIndex,
+          source: 'campaign-creatives-fallback'
+        });
+      });
+    });
+  });
+  return fallback;
+}
+function tasksForCampaign(campaign){
+  const saved = campaignTasks.filter(task => task.campaignId === campaign.id || task.campaignId === campaign.docId);
+  return saved.length ? saved : fallbackTasksFromCampaign(campaign);
+}
+function groupTasksForKanban(tasks){
+  const order = ['content','shooting','design','montage','publish','other'];
+  const labels = { content:'المحتوى', shooting:'التصوير', design:'التصميم', montage:'المونتاج', publish:'النشر', other:'أخرى' };
+  return order.map(role => ({ role, label: labels[role], tasks: tasks.filter(task => (task.departmentRole || 'other') === role) })).filter(group => group.tasks.length);
+}
 function campaignRequiredProgress(campaign){
-  const related = campaignTasks.filter(task => task.campaignId === campaign.id);
+  const related = tasksForCampaign(campaign);
   const roles = ['content','shooting','design','montage'];
   if(!related.length) return 0;
   return Math.round(roles.reduce((total, role) => {
@@ -900,7 +950,7 @@ function renderAdminDashboard(){
   const adminBoard = document.getElementById('adminDashboardBoard');
   if(!adminBoard) return;
   const requiredCards = campaigns.map(campaign => {
-    const related = campaignTasks.filter(task => task.campaignId === campaign.id);
+    const related = tasksForCampaign(campaign);
     const received = related.filter(task => task.received).length;
     const ready = campaignRequiredProgress(campaign);
     const publish = campaignPublishProgress(campaign);
@@ -931,10 +981,16 @@ function renderCampaignDetail(campaignId){
   const campaign = campaigns.find(item => item.id === campaignId);
   const detail = document.getElementById('dashboardCampaignDetail');
   if(!detail || !campaign) return;
-  const related = campaignTasks.filter(task => task.campaignId === campaignId);
+  const related = tasksForCampaign(campaign);
+  const groups = groupTasksForKanban(related);
+  const taskCard = task => `<article class="kanban-task-card">
+    <div class="kanban-task-main"><strong>${escapeHtml(task.creative || task.product || 'تاسك')}</strong><span>${taskProgress(task)}%</span></div>
+    <p>${escapeHtml([task.contentSectionName, task.taskType].filter(Boolean).join(' / ') || 'بدون نوع')}</p>
+    <div class="kanban-task-meta"><span>${escapeHtml(task.assignedToName || 'غير محدد')}</span><span>${task.received ? 'تم الاستلام' : 'لم يتم الاستلام'}</span></div>
+  </article>`;
   detail.classList.add('show');
   detail.innerHTML = `<div class="detail-head"><div><h2>${escapeHtml(campaign.campaignName || campaign.name || 'حملة')}</h2><p>${escapeHtml(campaign.campaignCode || '')}</p></div><button type="button" class="mini-btn" id="closeDashboardDetail">إغلاق</button></div>
-    <div class="task-detail-list">${related.length ? related.map(task => `<article class="task-detail-card"><div><strong>${escapeHtml(task.creative || '')}</strong><p>${escapeHtml(task.taskType || '')} · ${escapeHtml(task.assignedToName || '')} · ${escapeHtml(task.assignedDepartmentName || '')}</p></div><span class="chip">${taskProgress(task)}%</span></article>`).join('') : '<div class="empty-state">لا توجد تاسكات للحملة.</div>'}</div>`;
+    ${groups.length ? `<div class="task-kanban-board">${groups.map(group => `<section class="task-kanban-col"><div class="kanban-col-head"><strong>${group.label}</strong><span>${group.tasks.length}</span></div><div class="kanban-col-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : '<div class="empty-state">لا توجد تاسكات للحملة.</div>'}`;
 }
 async function togglePublishStage(campaignId, stage){
   const campaign = campaigns.find(item => item.id === campaignId);
