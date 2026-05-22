@@ -478,97 +478,6 @@ function taskStepTemplate(role){
   };
   return (templates[role] || templates.other).map(([label, percent, adminOnly], index) => ({ label, percent, adminOnly, done: false, index }));
 }
-
-function departmentTaskFromAssignment(campaignId, payload, creativeRow, creativeIndex, task, taskIndex, userId, userIndex){
-  const user = users.find(item => item.id === userId) || {};
-  const dep = departmentForUser(userId);
-  const role = normalizeDepartmentRole(dep.name || user.department || task.contentSectionName);
-  const taskId = task.id || `dt-${campaignId || 'new'}-${creativeIndex}-${taskIndex}-${userId || userIndex}`;
-  return {
-    id: taskId,
-    campaignId,
-    campaignName: payload.campaignName || payload.name || payload.campaign_name || '',
-    campaignCode: payload.campaignCode || payload.campaign_code || '',
-    creative: creativeRow.creative || '',
-    product: creativeRow.product || '',
-    contentSectionId: task.contentSectionId || '',
-    contentSectionName: task.contentSectionName || '',
-    taskType: task.taskType || '',
-    departmentId: dep.id || '',
-    departmentKind: role,
-    departmentRole: role,
-    departmentName: dep.name || user.department || task.contentSectionName || '',
-    assignedDepartmentId: dep.id || '',
-    assignedDepartmentName: dep.name || user.department || task.contentSectionName || '',
-    userId: userId || '',
-    userUid: userId || '',
-    userName: userName(user) || userId || '',
-    userEmail: user.email || '',
-    assigneeUid: userId || '',
-    assigneeEmail: user.email || '',
-    assigneeName: userName(user) || userId || '',
-    assignedToUid: userId || '',
-    assignedToName: userName(user) || userId || 'غير محدد',
-    assignedToEmail: user.email || '',
-    receivedConfirmed: false,
-    received: false,
-    receivedAt: '',
-    receivedBy: '',
-    progress: 0,
-    steps: taskStepTemplate(role),
-    status: 'pending',
-    creativeIndex,
-    taskIndex,
-    userIndex,
-    source: 'departmentTasks'
-  };
-}
-function buildDepartmentTasks(campaignId, payload){
-  const tasks = [];
-  (payload.creatives || []).forEach((creativeRow, creativeIndex) => {
-    (creativeRow.tasks || []).forEach((task, taskIndex) => {
-      const ids = Array.isArray(task.userIds) ? task.userIds : [];
-      ids.forEach((userId, userIndex) => tasks.push(departmentTaskFromAssignment(campaignId, payload, creativeRow, creativeIndex, task, taskIndex, userId, userIndex)));
-    });
-  });
-  return tasks;
-}
-function normalizeCampaignTask(campaign, rawTask, index = 0){
-  const userId = rawTask.assignedToUid || rawTask.assigneeUid || rawTask.userUid || rawTask.userId || '';
-  const depName = rawTask.assignedDepartmentName || rawTask.departmentName || rawTask.department || rawTask.contentSectionName || '';
-  const role = rawTask.departmentRole || rawTask.departmentKind || normalizeDepartmentRole(depName);
-  const id = rawTask.id || `dt-${campaign.id || campaign.docId || 'campaign'}-${index}`;
-  return {
-    ...rawTask,
-    id,
-    campaignId: campaign.id || campaign.docId || rawTask.campaignId || '',
-    campaignName: campaign.campaignName || campaign.name || campaign.campaign_name || rawTask.campaignName || '',
-    campaignCode: campaign.campaignCode || campaign.campaign_code || rawTask.campaignCode || '',
-    creative: rawTask.creative || rawTask.creativeName || '',
-    product: rawTask.product || '',
-    contentSectionName: rawTask.contentSectionName || rawTask.requiredTaskName || rawTask.departmentName || '',
-    taskType: rawTask.taskType || rawTask.taskName || rawTask.requiredTaskName || '',
-    assignedToUid: userId,
-    assignedToName: rawTask.assignedToName || rawTask.assigneeName || rawTask.userName || 'غير محدد',
-    assignedToEmail: rawTask.assignedToEmail || rawTask.assigneeEmail || rawTask.userEmail || '',
-    assignedDepartmentName: rawTask.assignedDepartmentName || rawTask.departmentName || '',
-    departmentRole: role,
-    received: Boolean(rawTask.received || rawTask.receivedConfirmed),
-    receivedConfirmed: Boolean(rawTask.receivedConfirmed || rawTask.received),
-    progress: Number(rawTask.progress || 0),
-    steps: Array.isArray(rawTask.steps) && rawTask.steps.length ? rawTask.steps : taskStepTemplate(role),
-    status: rawTask.status || 'pending'
-  };
-}
-function campaignTaskArray(campaign){
-  const raw = Array.isArray(campaign.departmentTasks) && campaign.departmentTasks.length ? campaign.departmentTasks : [];
-  return raw.map((task, index) => normalizeCampaignTask(campaign, task, index));
-}
-function findCampaignContainingTask(taskId, campaignId = ''){
-  const pool = campaignId ? campaigns.filter(item => item.id === campaignId || item.docId === campaignId) : campaigns;
-  return pool.find(campaign => tasksForCampaign(campaign).some(task => task.id === taskId));
-}
-
 function taskProgress(task){
   if(Array.isArray(task.steps) && task.steps.length){
     return Math.min(100, Math.round(task.steps.reduce((sum, step) => sum + (step.done ? Number(step.percent || 0) : 0), 0)));
@@ -576,17 +485,49 @@ function taskProgress(task){
   return Number(task.progress || 0);
 }
 function fallbackTasksFromCampaign(campaign){
-  const generated = buildDepartmentTasks(campaign.id || campaign.docId || '', {
-    ...campaign,
-    campaignName: campaign.campaignName || campaign.name || campaign.campaign_name || '',
-    campaignCode: campaign.campaignCode || campaign.campaign_code || '',
-    creatives: campaign.creatives || []
+  const fallback = [];
+  (campaign.creatives || []).forEach((creativeRow, creativeIndex) => {
+    (creativeRow.tasks || []).forEach((task, taskIndex) => {
+      const ids = Array.isArray(task.userIds) ? task.userIds : [];
+      const names = Array.isArray(task.userNames) ? task.userNames : [];
+      const entries = ids.length ? ids.map((id, i) => ({ id, name: names[i] || id })) : names.map((name, i) => ({ id: `${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}-${i}`, name }));
+      const finalEntries = entries.length ? entries : [{ id: `${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}`, name: 'غير محدد' }];
+      finalEntries.forEach(entry => {
+        const user = users.find(item => item.id === entry.id) || users.find(item => userName(item) === entry.name) || {};
+        const dep = departmentForUser(user.id || entry.id);
+        const role = normalizeDepartmentRole(dep.name || user.department || task.contentSectionName);
+        fallback.push({
+          id: `fallback-${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}-${entry.id}`,
+          campaignId: campaign.id,
+          campaignName: campaign.campaignName || campaign.name || campaign.campaign_name || '',
+          campaignCode: campaign.campaignCode || campaign.campaign_code || '',
+          creative: creativeRow.creative || '',
+          product: creativeRow.product || '',
+          contentSectionId: task.contentSectionId || '',
+          contentSectionName: task.contentSectionName || '',
+          taskType: task.taskType || '',
+          assignedToUid: user.id || entry.id || '',
+          assignedToName: userName(user) || entry.name || 'غير محدد',
+          assignedToEmail: user.email || '',
+          assignedDepartmentId: dep.id || '',
+          assignedDepartmentName: dep.name || user.department || task.contentSectionName || '',
+          departmentRole: role,
+          received: false,
+          progress: 0,
+          steps: taskStepTemplate(role),
+          status: 'pending',
+          creativeIndex,
+          taskIndex,
+          source: 'campaign-creatives-fallback'
+        });
+      });
+    });
   });
-  return generated.map((task, index) => normalizeCampaignTask(campaign, task, index));
+  return fallback;
 }
 function tasksForCampaign(campaign){
-  const fromDepartmentTasks = campaignTaskArray(campaign);
-  return fromDepartmentTasks.length ? fromDepartmentTasks : fallbackTasksFromCampaign(campaign);
+  const saved = campaignTasks.filter(task => task.campaignId === campaign.id || task.campaignId === campaign.docId);
+  return saved.length ? saved : fallbackTasksFromCampaign(campaign);
 }
 function groupTasksForKanban(tasks){
   const order = ['content','shooting','design','montage','publish','other'];
@@ -611,12 +552,8 @@ function campaignPublishProgress(campaign){
 
 function currentUserMatchesTask(task){
   const user = getCurrentUser();
-  const keys = [user.uid, user.id, user.email, user.name, user.displayName].map(normalizeText).filter(Boolean);
-  const taskKeys = [
-    task.assignedToUid, task.assignedToId, task.assignedToEmail, task.assignedToName,
-    task.assigneeUid, task.assigneeEmail, task.assigneeName,
-    task.userId, task.userUid, task.userEmail, task.userName
-  ].map(normalizeText).filter(Boolean);
+  const keys = [user.uid, user.id, user.email, user.name].map(normalizeText).filter(Boolean);
+  const taskKeys = [task.assignedToUid, task.assignedToId, task.assignedToEmail, task.assignedToName].map(normalizeText).filter(Boolean);
   return keys.some(key => taskKeys.includes(key));
 }
 function getVisibleTasksForCurrentUser(){
@@ -625,46 +562,27 @@ function getVisibleTasksForCurrentUser(){
   return campaigns.flatMap(campaign => tasksForCampaign(campaign)).filter(task => currentUserMatchesTask(task));
 }
 function findTaskById(taskId, campaignId = ''){
-  const campaignList = campaignId ? campaigns.filter(item => item.id === campaignId || item.docId === campaignId) : campaigns;
+  const saved = campaignTasks.find(task => task.id === taskId);
+  if(saved) return saved;
+  const campaignList = campaignId ? campaigns.filter(item => item.id === campaignId) : campaigns;
   for(const campaign of campaignList){
-    const found = tasksForCampaign(campaign).find(task => task.id === taskId);
+    const found = fallbackTasksFromCampaign(campaign).find(task => task.id === taskId);
     if(found) return found;
   }
   return null;
 }
 function campaignForTask(task){
-  return campaigns.find(item => item.id === task?.campaignId || item.docId === task?.campaignId || tasksForCampaign(item).some(t => t.id === task?.id)) || {};
+  return campaigns.find(item => item.id === task?.campaignId || item.docId === task?.campaignId) || {};
 }
 function stepButtonClass(step){ return step.done ? 'step-btn done' : 'step-btn'; }
 function stepButtonTitle(step){ return step.adminOnly ? 'اعتماد الأدمن فقط' : 'تنفيذ المرحلة'; }
 async function updateTaskOnFirebase(taskId, patch){
-  if(!mainDb || !taskId){
-    showToast('اتصال Firebase غير متاح.');
-    return;
-  }
-  const campaign = findCampaignContainingTask(taskId, patch.campaignId || '');
-  if(!campaign){
-    showToast('لم يتم العثور على الحملة الخاصة بالتاسك.');
+  if(!mainDb || !taskId || taskId.startsWith('fallback-')){
+    showToast('التاسك غير محفوظ على Firebase بعد. احفظ الحملة مرة أخرى.');
     return;
   }
   try{
-    let departmentTasks = Array.isArray(campaign.departmentTasks) && campaign.departmentTasks.length
-      ? campaign.departmentTasks.map((task, index) => ({ ...normalizeCampaignTask(campaign, task, index) }))
-      : tasksForCampaign(campaign).map(task => ({ ...task }));
-    departmentTasks = departmentTasks.map(task => {
-      if(task.id !== taskId) return task;
-      return { ...task, ...patch, updatedAt: new Date().toISOString() };
-    });
-    const readiness = { ...(campaign.readiness || {}) };
-    const changed = departmentTasks.find(task => task.id === taskId);
-    if(changed && Array.isArray(changed.steps)){
-      readiness[taskId] = changed.steps.map((step, index) => step.done ? index : null).filter(index => index !== null);
-    }
-    await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update({
-      departmentTasks,
-      readiness,
-      updatedAt: serverTime()
-    });
+    await safeCollection(window.MZJ_CAMPAIGN_TASKS_COLLECTION).doc(taskId).update({ ...patch, updatedAt: serverTime() });
     showToast('تم تحديث التاسك.');
   }catch(error){
     console.error('Task update error', error, patch);
@@ -675,21 +593,24 @@ function buildTaskDetailHtml(task){
   const campaign = campaignForTask(task);
   const admin = isCurrentUserAdmin();
   const steps = Array.isArray(task.steps) && task.steps.length ? task.steps : taskStepTemplate(task.departmentRole || 'other');
-  return `<div class="detail-head"><div><h2>${escapeHtml(task.creative || task.product || 'تاسك')}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div><button type="button" class="mini-btn" id="closeDashboardDetail">إغلاق</button></div>
-    <article class="task-detail-panel">
-      <div class="task-detail-info">
-        <span>المحتوى: <strong>${escapeHtml(task.contentSectionName || '—')}</strong></span>
-        <span>نوع التاسك: <strong>${escapeHtml(task.taskType || '—')}</strong></span>
-        <span>اليوزر: <strong>${escapeHtml(task.assignedToName || 'غير محدد')}</strong></span>
-        <span>القسم: <strong>${escapeHtml(task.assignedDepartmentName || task.departmentRole || '—')}</strong></span>
-        <span>النسبة: <strong>${taskProgress(task)}%</strong></span>
-      </div>
-      <div class="task-receive-row">
+  const progress = taskProgress(task);
+  return `<div class="detail-head modern-detail-head"><div><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div><button type="button" class="mini-btn" id="closeDashboardDetail">إغلاق</button></div>
+    <article class="modern-task-detail">
+      <header class="task-detail-hero">
+        <div><span>المطلوب</span><strong>${shortTaskName(task)}</strong></div>
+        <div><span>المحتوى</span><strong>${escapeHtml(task.contentSectionName || '—')}</strong></div>
+        <div><span>نوع التاسك</span><strong>${escapeHtml(task.taskType || '—')}</strong></div>
+        <div><span>المسؤول</span><strong>${taskOwnerName(task)}</strong></div>
+        <div><span>النسبة</span><strong>${progress}%</strong></div>
+      </header>
+      <div class="modern-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
+      <div class="task-receive-row clean-receive">
         <button type="button" class="mini-btn ${task.received ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received ? 'تم الاستلام' : 'تأكيد الاستلام'}</button>
       </div>
-      <div class="task-step-grid">
-        ${steps.map((step, index) => `<button type="button" class="${stepButtonClass(step)}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''} title="${stepButtonTitle(step)}"><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن</em>' : ''}</button>`).join('')}
-      </div>
+      <section class="workflow-steps">
+        ${steps.map((step, index) => `<button type="button" class="workflow-step ${step.done ? 'done' : ''}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''} title="${stepButtonTitle(step)}"><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن</em>' : ''}</button>`).join('')}
+      </section>
+      <section class="delivery-box"><button type="button" class="btn btn-primary" disabled>إرفاق / تسليم</button><small>يتم تفعيل الإرفاق في مرحلة التسليم.</small></section>
     </article>`;
 }
 function renderTaskDetail(taskId, campaignId = ''){
@@ -716,20 +637,56 @@ async function toggleTaskStep(taskId, stepIndex){
 async function toggleTaskReceived(taskId){
   const task = findTaskById(taskId);
   if(!task) return;
-  const next = !task.received;
-  await updateTaskOnFirebase(task.id, {
-    received: next,
-    receivedConfirmed: next,
-    receivedAt: next ? new Date().toISOString() : '',
-    receivedBy: next ? (getCurrentUser().uid || getCurrentUser().id || getCurrentUser().email || '') : '',
-    status: next ? 'received' : 'pending'
-  });
+  await updateTaskOnFirebase(task.id, { received: !task.received, status: !task.received ? 'received' : 'pending' });
 }
 function buildCampaignTaskDocs(campaignId, payload){
-  return buildDepartmentTasks(campaignId, payload);
+  const docs = [];
+  (payload.creatives || []).forEach((creativeRow, creativeIndex) => {
+    (creativeRow.tasks || []).forEach((task, taskIndex) => {
+      (task.userIds || []).forEach(userId => {
+        const user = users.find(item => item.id === userId) || {};
+        const dep = departmentForUser(userId);
+        const role = normalizeDepartmentRole(dep.name || user.department || task.contentSectionName);
+        docs.push({
+          campaignId,
+          campaignName: payload.campaignName || payload.name || '',
+          campaignCode: payload.campaignCode || '',
+          creative: creativeRow.creative || '',
+          product: creativeRow.product || '',
+          contentSectionId: task.contentSectionId || '',
+          contentSectionName: task.contentSectionName || '',
+          taskType: task.taskType || '',
+          assignedToUid: userId,
+          assignedToName: userName(user) || userId,
+          assignedToEmail: user.email || '',
+          assignedDepartmentId: dep.id || '',
+          assignedDepartmentName: dep.name || user.department || '',
+          departmentRole: role,
+          received: false,
+          progress: 0,
+          steps: taskStepTemplate(role),
+          status: 'pending',
+          creativeIndex,
+          taskIndex,
+          createdAt: serverTime(),
+          updatedAt: serverTime(),
+          source: 'mzj-marketing-spa'
+        });
+      });
+    });
+  });
+  return docs;
 }
 async function createCampaignTasks(campaignId, payload){
-  return Array.isArray(payload.departmentTasks) ? payload.departmentTasks.length : buildDepartmentTasks(campaignId, payload).length;
+  const docs = buildCampaignTaskDocs(campaignId, payload);
+  if(!docs.length) return 0;
+  const batch = mainDb.batch();
+  docs.slice(0, 450).forEach(item => {
+    const ref = safeCollection(window.MZJ_CAMPAIGN_TASKS_COLLECTION).doc();
+    batch.set(ref, item);
+  });
+  await batch.commit();
+  return docs.length;
 }
 
 function getFormData(form){
@@ -874,12 +831,12 @@ function collectBudgetRows(){
 async function saveCampaignToFirebase(){
   if(!mainDb){ showToast('اتصال Firebase غير متاح.'); return; }
   const request = getFormData(document.getElementById('campaignRequestForm'));
+  // تاريخ بداية/نهاية النشر موجودين داخل publishSchedule، ومش بنحفظهم كحقول مستقلة عشان مايكسرش قواعد Firestore القديمة.
   delete request.publish_start_date;
   delete request.publish_end_date;
   const codeItem = campaignCodes.find(code => code.id === document.getElementById('campaignCodeSelect')?.value);
   const campaignCode = document.getElementById('campaignCodeInput')?.value || '';
-  const tempCampaignId = `tmp-${Date.now()}`;
-  const basePayload = {
+  const payload = {
     ...request,
     campaignCode,
     campaignCodeId: codeItem?.id || '',
@@ -893,21 +850,16 @@ async function saveCampaignToFirebase(){
     campaignName: request.campaign_name || '',
     status: request.request_status || 'draft',
     source: 'mzj-marketing-spa',
-    stage: 'required',
-    readiness: {},
-    publishStages: {},
-    publishSteps: [],
     updatedAt: serverTime(),
     createdAt: serverTime()
   };
   try{
-    const docRef = safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc();
-    const departmentTasks = buildDepartmentTasks(docRef.id || tempCampaignId, basePayload);
-    const payload = { ...basePayload, id: docRef.id, departmentTasks, taskCount: departmentTasks.length };
-    await docRef.set(payload);
+    const docRef = await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).add(payload);
+    const taskCount = await createCampaignTasks(docRef.id, payload);
+    await docRef.update({ id: docRef.id, taskCount, updatedAt: serverTime() });
     showToast('تم حفظ الحملة على Firebase.');
   }catch(error){
-    console.error('Campaign save error', error, basePayload);
+    console.error('Campaign save error', error, payload);
     const msg = error?.code === 'permission-denied' ? 'تعذر حفظ الحملة: راجع قواعد Firestore.' : 'تعذر حفظ الحملة على Firebase.';
     showToast(msg);
   }
@@ -991,10 +943,14 @@ function collectionByKind(kind){ return {department: window.MZJ_DEPARTMENTS_COLL
 async function deleteDoc(kind, id){ if(!mainDb || !id) return; if(!confirm('تأكيد الحذف؟')) return; await safeCollection(collectionByKind(kind)).doc(id).delete(); }
 async function deleteCampaignWithTasks(campaignId){
   if(!mainDb || !campaignId) return;
-  if(!confirm('تأكيد حذف الحملة؟')) return;
+  if(!confirm('تأكيد حذف الحملة وكل التاسكات التابعة لها؟')) return;
   try{
-    await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaignId).delete();
-    showToast('تم حذف الحملة.');
+    const tasksSnap = await safeCollection(window.MZJ_CAMPAIGN_TASKS_COLLECTION).where('campaignId','==',campaignId).get();
+    const batch = mainDb.batch();
+    tasksSnap.docs.slice(0, 450).forEach(doc => batch.delete(doc.ref));
+    batch.delete(safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaignId));
+    await batch.commit();
+    showToast('تم حذف الحملة والتاسكات التابعة لها.');
   }catch(error){
     console.error('Delete campaign error', error);
     showToast('تعذر حذف الحملة. راجع قواعد Firestore.');
@@ -1079,17 +1035,14 @@ function setDashboardMode(mode){
   const title = dashboard.querySelector('.page-title h1');
   const desc = dashboard.querySelector('.page-title p');
   const createBtn = dashboard.querySelector('.page-head > .btn, .page-head a.btn');
-  const stats = dashboard.querySelector('.admin-stats');
   if(isAdminMode){
     if(title) title.textContent = 'لوحة التحكم';
     if(desc) desc.textContent = 'متابعة الحملات والتاسكات للأدمن.';
     if(createBtn) createBtn.classList.remove('is-hidden');
-    if(stats) stats.classList.remove('is-hidden');
   }else{
     if(title) title.textContent = 'لوحة التنفيذ';
-    if(desc) desc.textContent = 'المطلوب منك فقط حسب الحساب والتكليف المسند لك.';
+    if(desc) desc.textContent = 'المطلوب منك فقط حسب الحساب والقسم المسند لك.';
     if(createBtn) createBtn.classList.add('is-hidden');
-    if(stats) stats.classList.add('is-hidden');
   }
 }
 
@@ -1102,24 +1055,46 @@ function formatDateShort(value){
   }catch(_){ return escapeHtml(value); }
 }
 
+function shortCampaignTitle(campaign){
+  return escapeHtml(campaign.campaignName || campaign.name || campaign.campaign_code || campaign.campaignCode || 'حملة');
+}
+function shortTaskName(task){
+  return escapeHtml(task.creative || task.product || task.taskType || 'تاسك');
+}
+function receivedLabel(task){ return task.received || task.receivedConfirmed ? 'تم الاستلام' : 'لم يستلم'; }
+function receivedClass(task){ return task.received || task.receivedConfirmed ? 'is-done' : 'is-waiting'; }
+function taskOwnerName(task){ return escapeHtml(task.assignedToName || task.assigneeName || task.userName || 'بدون مسؤول'); }
+function campaignTasksSnapshot(campaign){
+  const related = tasksForCampaign(campaign);
+  const received = related.filter(task => task.received || task.receivedConfirmed).length;
+  const progress = campaignRequiredProgress(campaign);
+  const publish = campaignPublishProgress(campaign);
+  return { related, received, progress, publish, total: related.length };
+}
+
 function renderUserDashboard(){
-  setDashboardMode('user');
   const board = document.getElementById('adminDashboardBoard');
   if(!board) return;
+  setDashboardMode('user');
   const myTasks = getVisibleTasksForCurrentUser();
-  const received = myTasks.filter(task => task.received).length;
-  const done = myTasks.filter(task => taskProgress(task) >= 100).length;
   const groups = groupTasksForKanban(myTasks);
-  const taskCard = task => `<article class="kanban-task-card user-task-card" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">
-    <div class="kanban-task-main"><strong>${escapeHtml(task.creative || task.product || 'تاسك')}</strong><span>${taskProgress(task)}%</span></div>
-    <p>${escapeHtml([task.contentSectionName, task.taskType].filter(Boolean).join(' / ') || 'بدون نوع')}</p>
-    <div class="kanban-task-meta"><span>${escapeHtml(task.campaignName || task.campaignCode || 'حملة')}</span><span>${task.received ? 'تم الاستلام' : 'لم يتم الاستلام'}</span></div>
+  const received = myTasks.filter(task => task.received || task.receivedConfirmed).length;
+  const done = myTasks.filter(task => taskProgress(task) >= 100).length;
+  const taskCard = task => `<article class="exec-task-card" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">
+    <div class="exec-task-top"><span class="dept-pill">${escapeHtml(task.assignedDepartmentName || task.contentSectionName || 'قسم')}</span><span>${taskProgress(task)}%</span></div>
+    <h3>${shortTaskName(task)}</h3>
+    <p>${escapeHtml([task.campaignName || task.campaignCode, task.taskType].filter(Boolean).join(' · ') || 'تاسك تنفيذ')}</p>
+    <div class="exec-task-foot"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span><span>${taskOwnerName(task)}</span></div>
   </article>`;
-  board.innerHTML = `<section class="user-dashboard-panel user-dashboard-only">
-    <div class="user-dash-head"><div><h2>لوحة التنفيذ</h2><p>المطلوب منك فقط حسب الحساب والتكليف المسند لك.</p></div><div class="user-task-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div></div>
-    ${groups.length ? `<div class="task-kanban-board user-task-board">${groups.map(group => `<section class="task-kanban-col"><div class="kanban-col-head"><strong>${group.label}</strong><span>${group.tasks.length}</span></div><div class="kanban-col-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : '<div class="empty-state">لا توجد تاسكات مسندة لك حالياً.</div>'}
+  board.innerHTML = `<section class="user-exec-dashboard">
+    <div class="exec-hero">
+      <div><h2>لوحة التنفيذ</h2><p>المطلوب منك فقط حسب حسابك والتكليفات المسندة لك.</p></div>
+      <div class="exec-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div>
+    </div>
+    ${groups.length ? `<div class="exec-kanban">${groups.map(group => `<section class="exec-col"><div class="exec-col-head"><strong>${group.label}</strong><span>${group.tasks.length}</span></div>${group.tasks.map(taskCard).join('')}</section>`).join('')}</div>` : '<div class="empty-state soft-empty">لا توجد تكليفات مسندة لك حالياً.</div>'}
   </section>`;
 }
+
 function renderAdminDashboard(){
   const allTasks = campaigns.flatMap(campaign => tasksForCampaign(campaign));
   const count = document.getElementById('dashboardCampaignsCount'); if(count) count.textContent = campaigns.length || '—';
@@ -1128,48 +1103,65 @@ function renderAdminDashboard(){
   if(!adminBoard) return;
   if(!isCurrentUserAdmin()) { renderUserDashboard(); return; }
   setDashboardMode('admin');
-  const requiredCards = campaigns.map(campaign => {
-    const related = tasksForCampaign(campaign);
-    const received = related.filter(task => task.received).length;
-    const ready = campaignRequiredProgress(campaign);
-    const publish = campaignPublishProgress(campaign);
-    const isPublish = ready >= 100;
-    const isArchive = publish >= 100;
-    return { campaign, related, received, ready, publish, isPublish, isArchive };
-  });
-  const cardHtml = item => `<article class="dash-campaign-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
-    <div class="dash-card-top"><strong>${escapeHtml(item.campaign.campaignName || item.campaign.name || item.campaign.campaignCode || 'حملة بدون اسم')}</strong><span>${escapeHtml(item.campaign.campaignCode || 'بدون كود')}</span></div>
-    <div class="dash-progress"><span style="width:${Math.min(100, item.ready)}%"></span></div>
-    <p>${item.related.length} تاسك · تم الاستلام ${item.received}</p>
+  const items = campaigns.map(campaign => ({ campaign, ...campaignTasksSnapshot(campaign) }));
+  const requiredItems = items.filter(item => item.total && item.received < item.total);
+  const readinessItems = items.filter(item => item.total && item.progress < 100);
+  const publishItems = items.filter(item => item.progress >= 100 && item.publish < 100);
+  const archiveItems = items.filter(item => item.progress >= 100 && item.publish >= 100);
+
+  const requiredCard = item => `<article class="dash-task-receive-card">
+    <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')}</span></div>
+    <div class="receive-meter"><strong>${item.received}/${item.total}</strong><span>تم الاستلام</span></div>
+    <div class="receive-list">${item.related.slice(0,5).map(task => `<div><span>${shortTaskName(task)}</span><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b></div>`).join('')}${item.related.length>5 ? `<small>+ ${item.related.length-5} تاسكات أخرى</small>` : ''}</div>
   </article>`;
-  const publishHtml = item => `<article class="dash-campaign-card publish-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
-    <div class="dash-card-top"><strong>${escapeHtml(item.campaign.campaignName || item.campaign.name || item.campaign.campaignCode || 'حملة بدون اسم')}</strong><span>${item.publish}%</span></div>
+
+  const readinessCard = item => `<article class="dash-campaign-card dash-ready-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
+    <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${item.progress}%</span></div>
+    <p>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')} · ${item.total} تاسك</p>
+    <div class="dash-progress"><span style="width:${Math.min(100,item.progress)}%"></span></div>
+    <button type="button" class="open-details-hint">فتح التفاصيل</button>
+  </article>`;
+
+  const publishCard = item => `<article class="dash-campaign-card publish-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
+    <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${item.publish}%</span></div>
+    <p>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || '')}</p>
     <div class="publish-actions">
       <button type="button" data-stage="prep" data-campaign-id="${escapeHtml(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.prep ? 'done' : ''}">التجهيز 35%</button>
       <button type="button" data-stage="approval" data-campaign-id="${escapeHtml(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.approval ? 'done' : ''}">الاعتماد 30%</button>
       <button type="button" data-stage="publish" data-campaign-id="${escapeHtml(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.publish ? 'done' : ''}">النشر 35%</button>
     </div>
   </article>`;
+
+  const archiveCard = item => `<article class="dash-campaign-card archive-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
+    <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>جاهزة</span></div>
+    <p>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || '')}</p>
+  </article>`;
+
   adminBoard.innerHTML = `
-    <section class="admin-dash-col"><h2>TASK - المطلوب</h2><p>إجمالي التاسكات وحالة الاستلام.</p>${requiredCards.length ? requiredCards.map(cardHtml).join('') : '<div class="empty-state">لا توجد حملات.</div>'}</section>
-    <section class="admin-dash-col"><h2>جاهزية المطلوب</h2><p>تقدم تاسكات كل حملة حسب الأقسام.</p>${requiredCards.length ? requiredCards.map(item => `<article class="dash-campaign-card" data-open-campaign="${escapeHtml(item.campaign.id)}"><div class="dash-card-top"><strong>${escapeHtml(item.campaign.campaignName || item.campaign.name || 'حملة')}</strong><span>${item.ready}%</span></div><div class="dash-progress"><span style="width:${Math.min(100,item.ready)}%"></span></div></article>`).join('') : '<div class="empty-state">لا توجد حملات.</div>'}</section>
-    <section class="admin-dash-col"><h2>قسم النشر</h2><p>تظهر الحملة هنا عند اكتمال جاهزية المطلوب.</p>${requiredCards.filter(x => x.isPublish).length ? requiredCards.filter(x => x.isPublish).map(publishHtml).join('') : '<div class="empty-state">لا توجد حملات جاهزة للنشر.</div>'}</section>
-    <section class="admin-dash-col"><h2>جاهز للأرشيف</h2><p>بعد اكتمال مراحل النشر.</p>${requiredCards.filter(x => x.isArchive).length ? requiredCards.filter(x => x.isArchive).map(item => `<article class="dash-campaign-card" data-open-campaign="${escapeHtml(item.campaign.id)}"><strong>${escapeHtml(item.campaign.campaignName || item.campaign.name || 'حملة')}</strong><p>${escapeHtml(item.campaign.campaignCode || '')}</p></article>`).join('') : '<div class="empty-state">لا توجد حملات جاهزة للأرشيف.</div>'}</section>`;
+    <section class="admin-dash-col receive-col"><div class="col-title"><h2>TASK - المطلوب</h2><p>متابعة ضغط اليوزرات على تم الاستلام فقط.</p></div>${requiredItems.length ? requiredItems.map(requiredCard).join('') : '<div class="empty-state soft-empty">كل المطلوب تم استلامه حالياً.</div>'}</section>
+    <section class="admin-dash-col ready-col"><div class="col-title"><h2>جاهزية المطلوب</h2><p>اضغط على حملة لفتح التاسكات بنظام كانبان.</p></div>${readinessItems.length ? readinessItems.map(readinessCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات قيد التجهيز.</div>'}</section>
+    <section class="admin-dash-col publish-col"><div class="col-title"><h2>قسم النشر</h2><p>تظهر هنا بعد اكتمال جاهزية المطلوب.</p></div>${publishItems.length ? publishItems.map(publishCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات جاهزة للنشر.</div>'}</section>
+    <section class="admin-dash-col archive-col"><div class="col-title"><h2>قسم الأرشيف</h2><p>بعد اكتمال النشر، تصبح جاهزة للأرشفة.</p></div>${archiveItems.length ? archiveItems.map(archiveCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات مؤرشفة حالياً.</div>'}</section>`;
 }
+
 function renderCampaignDetail(campaignId){
   const campaign = campaigns.find(item => item.id === campaignId);
   const detail = document.getElementById('dashboardCampaignDetail');
   if(!detail || !campaign) return;
   const related = tasksForCampaign(campaign);
   const groups = groupTasksForKanban(related);
-  const taskCard = task => `<article class="kanban-task-card" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">
-    <div class="kanban-task-main"><strong>${escapeHtml(task.creative || task.product || 'تاسك')}</strong><span>${taskProgress(task)}%</span></div>
+  const snap = campaignTasksSnapshot(campaign);
+  const taskCard = task => `<article class="kanban-task-card compact-task" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">
+    <div class="kanban-task-main"><strong>${shortTaskName(task)}</strong><span>${taskProgress(task)}%</span></div>
     <p>${escapeHtml([task.contentSectionName, task.taskType].filter(Boolean).join(' / ') || 'بدون نوع')}</p>
-    <div class="kanban-task-meta"><span>${escapeHtml(task.assignedToName || 'غير محدد')}</span><span>${task.received ? 'تم الاستلام' : 'لم يتم الاستلام'}</span></div>
+    <div class="kanban-task-meta"><span>${taskOwnerName(task)}</span><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b></div>
   </article>`;
   detail.classList.add('show');
-  detail.innerHTML = `<div class="detail-head"><div><h2>${escapeHtml(campaign.campaignName || campaign.name || 'حملة')}</h2><p>${escapeHtml(campaign.campaignCode || '')}</p></div><button type="button" class="mini-btn" id="closeDashboardDetail">إغلاق</button></div>
-    ${groups.length ? `<div class="task-kanban-board">${groups.map(group => `<section class="task-kanban-col"><div class="kanban-col-head"><strong>${group.label}</strong><span>${group.tasks.length}</span></div><div class="kanban-col-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : '<div class="empty-state">لا توجد تاسكات للحملة.</div>'}`;
+  detail.innerHTML = `<div class="detail-head modern-detail-head"><div><h2>${shortCampaignTitle(campaign)}</h2><p>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</p></div><button type="button" class="mini-btn" id="closeDashboardDetail">إغلاق</button></div>
+    <div class="detail-summary-strip">
+      <span><b>${snap.total}</b> تاسك</span><span><b>${snap.received}</b> مستلم</span><span><b>${snap.progress}%</b> جاهزية</span><span><b>${snap.publish}%</b> نشر</span>
+    </div>
+    ${groups.length ? `<div class="task-kanban-board modern-kanban-detail">${groups.map(group => `<section class="task-kanban-col"><div class="kanban-col-head"><strong>${group.label}</strong><span>${group.tasks.length}</span></div><div class="kanban-col-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}`;
 }
 async function togglePublishStage(campaignId, stage){
   const campaign = campaigns.find(item => item.id === campaignId);
@@ -1206,7 +1198,11 @@ function loadCampaigns(){
   }, error => { console.error('Campaigns load error', error); renderCampaigns(); });
 }
 function loadCampaignTasks(){
-  campaignTasks = [];
+  if(!mainDb) return;
+  safeCollection(window.MZJ_CAMPAIGN_TASKS_COLLECTION).onSnapshot(snapshot => {
+    campaignTasks = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) }));
+    renderCampaigns();
+  }, error => { console.error('Campaign tasks load error', error); renderCampaigns(); });
 }
 
 function bootstrapData(){
