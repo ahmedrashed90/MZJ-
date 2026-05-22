@@ -305,12 +305,52 @@
       </section>
 
       <section class="view" id="settings" data-title="الإعدادات">
-        <div class="page-head"><div class="page-title"><h1>الإعدادات</h1><p>إعدادات النظام والصلاحيات.</p></div></div>
-        <div class="card"><div class="empty-state">سيتم ضبط الإعدادات بعد تحديد الصلاحيات.</div></div>
+        <div class="page-head"><div class="page-title"><h1>الإعدادات</h1><p>إدارة ألوان النظام، بيانات النظام، اليوزرات والصلاحيات.</p></div></div>
+        <div class="settings-grid">
+          <div class="card settings-card">
+            <h2>بيانات النظام</h2>
+            <form class="form" id="systemSettingsForm">
+              <label class="field"><span>اسم النظام</span><input type="text" id="settingSystemName" placeholder="نظام التسويق" /></label>
+              <label class="field"><span>الخط الأساسي</span><input type="text" id="settingFontFamily" value="Tajawal" /></label>
+              <label class="field"><span>اتجاه الواجهة</span><select id="settingDirection"><option value="rtl">RTL - عربي</option><option value="ltr">LTR - English</option></select></label>
+              <button class="btn btn-primary full" type="submit">حفظ الإعدادات</button>
+              <p class="form-message" id="systemSettingsMessage"></p>
+            </form>
+          </div>
+          <div class="card settings-card wide">
+            <h2>ألوان الثيم</h2>
+            <div class="theme-color-grid" id="themeColorGrid">
+              <label><input type="color" id="colorPrimary" value="#5A3329"><span>Primary</span></label>
+              <label><input type="color" id="colorSecondary" value="#B85E4F"><span>Secondary</span></label>
+              <label><input type="color" id="colorAccent" value="#C89F84"><span>Accent</span></label>
+              <label><input type="color" id="colorSurface" value="#FAF6F1"><span>Surface</span></label>
+              <label><input type="color" id="colorBg" value="#F3E5D6"><span>Background</span></label>
+              <label><input type="color" id="colorLine" value="#E5CBBE"><span>Line</span></label>
+              <label><input type="color" id="colorText" value="#2D1713"><span>Text</span></label>
+              <label><input type="color" id="colorMuted" value="#8E7166"><span>Muted</span></label>
+            </div>
+            <button class="btn btn-primary" type="button" id="saveThemeColorsBtn">حفظ الألوان</button>
+            <p class="form-message" id="themeSettingsMessage"></p>
+          </div>
+        </div>
+        <div class="card mt users-permissions-card">
+          <div class="card-title"><h2>اليوزرات والصلاحيات</h2><button class="btn btn-light" type="button" id="refreshUsersPermissionsBtn">تحديث</button></div>
+          <div id="usersPermissionsList" class="users-permissions-list"><div class="empty-state">جاري تحميل اليوزرات...</div></div>
+        </div>
       </section>
     </main>
   </div>
 
+
+
+  <div id="taskModal" class="task-modal" aria-hidden="true">
+    <div class="task-modal-backdrop" data-close-task-modal></div>
+    <section class="task-modal-dialog" role="dialog" aria-modal="true" aria-label="تفاصيل التاسك">
+      <button class="task-modal-close" type="button" data-close-task-modal>×</button>
+      <div id="taskModalContent"></div>
+    </section>
+  </div>
+  <input type="file" id="taskAttachmentInput" hidden />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>

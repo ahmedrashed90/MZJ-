@@ -30,6 +30,8 @@ window.MZJ_PLATFORMS_COLLECTION = "marketing_platforms";
 window.MZJ_STOCK_CARS_COLLECTION = "cars";
 window.MZJ_CAMPAIGNS_COLLECTION = "marketing_campaigns";
 window.MZJ_CAMPAIGN_TASKS_COLLECTION = "campaign_tasks";
+window.MZJ_SYSTEM_SETTINGS_COLLECTION = "system_settings";
+window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 
 const routes = ['dashboard','campaigns','create-campaign','departments','calendar','tasks','stock','reports','settings'];
 const loginView = document.getElementById('loginView');
@@ -52,6 +54,8 @@ let platforms = [];
 let campaigns = [];
 let campaignTasks = [];
 let cars = [];
+let systemSettings = {};
+let activeTaskModalMeta = null;
 
 function isLoggedIn(){ return sessionStorage.getItem('mzj_logged_in') === '1'; }
 function getRoute(){ return (location.hash || '#dashboard').replace('#',''); }
@@ -255,7 +259,7 @@ function loadUsers(){
   if(!mainDb) return;
   safeCollection(window.MZJ_USERS_COLLECTION).onSnapshot(snapshot => {
     users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, email: data.email || '', department: data.department || '', departmentId: data.departmentId || '', departmentIds: Array.isArray(data.departmentIds) ? data.departmentIds : [], role: data.role || '', pages: Array.isArray(data.pages) ? data.pages : [] }; });
-    refreshDynamicSelects(); renderDepartments();
+    refreshDynamicSelects(); renderDepartments(); renderUsersPermissions();
   }, error => console.error('Users load error', error));
 }
 function loadSimpleCollection(collectionName, target, renderer, selectRefresh = true){
@@ -576,6 +580,85 @@ function campaignForTask(task){
 }
 function stepButtonClass(step){ return step.done ? 'step-btn done' : 'step-btn'; }
 function stepButtonTitle(step){ return step.adminOnly ? 'اعتماد الأدمن فقط' : 'تنفيذ المرحلة'; }
+
+function taskContentType(task){
+  return normalizeText(task.contentSectionName || task.contentType || task.taskType || task.creative || 'أنواع المحتوى');
+}
+function taskDepartmentLabel(task){
+  const labels = {content:'قسم المحتوى', shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج', publish:'قسم النشر', other:'قسم'};
+  return labels[task.departmentRole || 'other'] || task.assignedDepartmentName || 'قسم';
+}
+function attachmentLabelForRole(role){
+  if(role === 'shooting') return 'إرفاق ملف التصوير';
+  if(role === 'content') return 'إرفاق ملف اسكريبت';
+  if(role === 'design') return 'إرفاق ملف الصور';
+  if(role === 'montage') return 'إرفاق ملف الفيديو';
+  if(role === 'publish') return 'إرفاق ملف التقرير';
+  return 'إرفاق ملف';
+}
+function getDriveUploadEndpoint(){
+  return window.MZJ_ZOHO_UPLOAD_ENDPOINT || window.MZJ_DRIVE_UPLOAD_ENDPOINT || '/api/zoho-upload';
+}
+function buildZohoFileUrl(file){
+  const id = file.fileId || file.resource_id || file.id || '';
+  return file.fileUrl || file.url || file.viewUrl || file.webViewLink || file.permalink || file.downloadUrl || (id ? `https://workdrive.zoho.sa/file/${encodeURIComponent(id)}` : '');
+}
+function taskFiles(task){ return Array.isArray(task.attachments) ? task.attachments : []; }
+function renderAttachmentTable(task){
+  const files = taskFiles(task);
+  return `<div class="task-files-box"><div class="modal-section-title"><h3>المرفقات الحالية</h3><span>${files.length}</span></div>
+    <div class="task-files-table-wrap"><table class="task-files-table"><thead><tr><th>م</th><th>الملف</th><th>تاريخ الرفع</th><th>إجراء</th></tr></thead><tbody>${files.length ? files.map((file, i) => {
+      const url = buildZohoFileUrl(file);
+      const name = escapeHtml(file.name || file.fileName || file.title || `ملف ${i+1}`);
+      return `<tr><td>${i+1}</td><td>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${name}</a>` : name}</td><td>${escapeHtml(String(file.uploadedAt || '').slice(0,16) || '—')}</td><td><button type="button" class="mini-btn danger" data-delete-task-file="${i}">حذف</button></td></tr>`;
+    }).join('') : '<tr><td colspan="4">لا توجد مرفقات حالية.</td></tr>'}</tbody></table></div></div>`;
+}
+async function uploadTaskFileToDrive(file, task){
+  const current = getCurrentUser();
+  const form = new FormData();
+  form.append('file', file);
+  form.append('action', 'uploadTaskAttachment');
+  form.append('campaignId', task.campaignId || '');
+  form.append('campaignCode', task.campaignCode || '');
+  form.append('campaignName', task.campaignName || '');
+  form.append('department', taskDepartmentLabel(task));
+  form.append('taskType', task.taskType || '');
+  form.append('uploadedBy', current.email || current.name || current.uid || '');
+  const res = await fetch(getDriveUploadEndpoint(), { method:'POST', body: form });
+  const result = await res.json().catch(() => ({}));
+  if(!res.ok || result.success === false) throw new Error(result.error || result.message || 'فشل رفع الملف على Zoho Drive.');
+  const fileId = result.fileId || result.id || result.resource_id || result.data?.id || '';
+  return {
+    fileId,
+    name: result.name || result.fileName || file.name,
+    fileName: result.fileName || result.name || file.name,
+    fileUrl: result.fileUrl || result.url || result.viewUrl || result.webViewLink || result.permalink || result.downloadUrl || (fileId ? `https://workdrive.zoho.sa/file/${encodeURIComponent(fileId)}` : ''),
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: current.email || current.name || current.uid || '',
+    departmentRole: task.departmentRole || '',
+    departmentName: task.assignedDepartmentName || taskDepartmentLabel(task)
+  };
+}
+function openTaskModal(task){
+  const modal = document.getElementById('taskModal');
+  const content = document.getElementById('taskModalContent');
+  if(!modal || !content || !task) return;
+  activeTaskModalMeta = { taskId: task.id, campaignId: task.campaignId || '' };
+  content.innerHTML = buildTaskDetailHtml(task);
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+}
+function closeTaskModal(){
+  document.getElementById('taskModal')?.classList.remove('show');
+  document.getElementById('taskModal')?.setAttribute('aria-hidden','true');
+  document.body.classList.remove('modal-open');
+}
+function refreshOpenTaskModal(){
+  if(!activeTaskModalMeta) return;
+  const task = findTaskById(activeTaskModalMeta.taskId, activeTaskModalMeta.campaignId);
+  if(task) openTaskModal(task);
+}
 async function updateTaskOnFirebase(taskId, patch){
   if(!mainDb || !taskId || taskId.startsWith('fallback-')){
     showToast('التاسك غير محفوظ على Firebase بعد. احفظ الحملة مرة أخرى.');
@@ -594,31 +677,48 @@ function buildTaskDetailHtml(task){
   const admin = isCurrentUserAdmin();
   const steps = Array.isArray(task.steps) && task.steps.length ? task.steps : taskStepTemplate(task.departmentRole || 'other');
   const progress = taskProgress(task);
-  return `<div class="detail-head modern-detail-head"><div><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div><button type="button" class="mini-btn" id="closeDashboardDetail">إغلاق</button></div>
-    <article class="modern-task-detail">
-      <header class="task-detail-hero">
-        <div><span>المطلوب</span><strong>${shortTaskName(task)}</strong></div>
-        <div><span>المحتوى</span><strong>${escapeHtml(task.contentSectionName || '—')}</strong></div>
-        <div><span>نوع التاسك</span><strong>${escapeHtml(task.taskType || '—')}</strong></div>
-        <div><span>المسؤول</span><strong>${taskOwnerName(task)}</strong></div>
-        <div><span>النسبة</span><strong>${progress}%</strong></div>
-      </header>
-      <div class="modern-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
-      <div class="task-receive-row clean-receive">
-        <button type="button" class="mini-btn ${task.received ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received ? 'تم الاستلام' : 'تأكيد الاستلام'}</button>
+  const campaignDate = campaign.campaign_date || campaign.campaignDate || campaign.createdAt || '';
+  const endDate = campaign.publishSchedule?.slice?.(-1)?.[0]?.date || campaign.campaignEndDate || campaign.endDate || '';
+  return `<div class="task-modal-head"><div><span>التاسك والمطلوب</span><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div><button type="button" class="mini-btn" data-close-task-modal>إغلاق</button></div>
+    <div class="modal-section"><div class="modal-section-title"><h3>بيانات الحملة</h3></div>
+      <div class="task-info-grid">
+        <div><span>التاريخ</span><strong>${formatDateShort(campaignDate)}</strong></div>
+        <div><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || task.campaignCode || '—')}</strong></div>
+        <div><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '—')}</strong></div>
+        <div><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || campaign.campaign_type || '—')}</strong></div>
+        <div><span>هدف الحملة</span><strong>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '—')}</strong></div>
+        <div><span>بداية الحملة</span><strong>${formatDateShort(campaign.campaign_date || campaign.startDate)}</strong></div>
+        <div><span>نهاية الحملة</span><strong>${formatDateShort(endDate)}</strong></div>
       </div>
-      <section class="workflow-steps">
-        ${steps.map((step, index) => `<button type="button" class="workflow-step ${step.done ? 'done' : ''}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''} title="${stepButtonTitle(step)}"><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن</em>' : ''}</button>`).join('')}
-      </section>
-      <section class="delivery-box"><button type="button" class="btn btn-primary" disabled>إرفاق / تسليم</button><small>يتم تفعيل الإرفاق في مرحلة التسليم.</small></section>
-    </article>`;
+    </div>
+    <div class="modal-section task-required-section">
+      <div class="modal-section-title"><h3>المطلوب</h3></div>
+      <p>${escapeHtml(task.product || task.creative || task.taskType || '—')}</p>
+    </div>
+    <div class="modal-section task-required-section">
+      <div class="modal-section-title"><h3>السيارة المختارة</h3></div>
+      <p>${escapeHtml(task.selectedCar || task.carName || task.product || '—')}</p>
+    </div>
+    <div class="modal-section task-required-section">
+      <div class="modal-section-title"><h3>نوع المحتوى</h3></div>
+      <p>${escapeHtml(taskContentType(task))}</p>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title"><h3>إجراءات التكليف</h3><span>${progress}%</span></div>
+      <div class="task-mini-meta"><span>القسم: <b>${escapeHtml(taskDepartmentLabel(task))}</b></span><span>اليوزر: <b>${taskOwnerName(task)}</b></span><span>الحالة: <b>${receivedLabel(task)}</b></span></div>
+      <button type="button" class="btn btn-light receive-action ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تأكيد الاستلام'}</button>
+      <div class="modal-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
+      <div class="modal-steps-grid">${steps.map((step, index) => `<button type="button" class="workflow-step ${step.done ? 'done' : ''}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''}><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن فقط</em>' : ''}</button>`).join('')}</div>
+    </div>
+    <div class="modal-section attachment-section">
+      <button type="button" class="btn btn-primary" data-upload-task-attachment>${attachmentLabelForRole(task.departmentRole || 'other')}</button>
+      ${renderAttachmentTable(task)}
+    </div>`;
 }
 function renderTaskDetail(taskId, campaignId = ''){
-  const detail = document.getElementById('dashboardCampaignDetail');
   const task = findTaskById(taskId, campaignId);
-  if(!detail || !task) return;
-  detail.classList.add('show');
-  detail.innerHTML = buildTaskDetailHtml(task);
+  if(!task) return;
+  openTaskModal(task);
 }
 async function toggleTaskStep(taskId, stepIndex){
   const task = findTaskById(taskId);
@@ -632,7 +732,7 @@ async function toggleTaskStep(taskId, stepIndex){
   }
   step.done = !step.done;
   const progress = Math.min(100, Math.round(steps.reduce((sum, item) => sum + (item.done ? Number(item.percent || 0) : 0), 0)));
-  await updateTaskOnFirebase(task.id, { steps, progress, status: progress >= 100 ? 'done' : 'in_progress' });
+  await updateTaskOnFirebase(task.id, { steps, progress, status: progress >= 100 ? 'done' : 'in_progress' }); refreshOpenTaskModal(); renderAdminDashboard();
 }
 async function toggleTaskReceived(taskId){
   const task = findTaskById(taskId);
@@ -1077,24 +1177,28 @@ function renderUserDashboard(){
   if(!board) return;
   setDashboardMode('user');
   const myTasks = getVisibleTasksForCurrentUser();
-  const groups = groupTasksForKanban(myTasks);
   const received = myTasks.filter(task => task.received || task.receivedConfirmed).length;
   const done = myTasks.filter(task => taskProgress(task) >= 100).length;
-  const taskCard = task => `<article class="exec-task-card" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">
-    <div class="exec-task-top"><span class="dept-pill">${escapeHtml(task.assignedDepartmentName || task.contentSectionName || 'قسم')}</span><span>${taskProgress(task)}%</span></div>
-    <h3>${shortTaskName(task)}</h3>
-    <p>${escapeHtml([task.campaignName || task.campaignCode, task.taskType].filter(Boolean).join(' · ') || 'تاسك تنفيذ')}</p>
-    <div class="exec-task-foot"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span><span>${taskOwnerName(task)}</span></div>
+  const groupMap = {};
+  myTasks.forEach(task => {
+    const key = taskContentType(task);
+    if(!groupMap[key]) groupMap[key] = [];
+    groupMap[key].push(task);
+  });
+  const groups = Object.entries(groupMap).map(([label, tasks]) => ({ label, tasks }));
+  const taskCard = task => `<article class="content-task-card">
+    <h3>${escapeHtml(task.campaignName || 'حملة')}</h3>
+    <p>${escapeHtml(task.product || task.creative || task.taskType || '—')}</p>
+    <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button><button type="button" class="btn btn-light ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تم الاستلام'}</button></div>
+    <div class="task-metric-row"><span>متوسط اكتمال التاسكات</span><b>${taskProgress(task)}%</b></div>
+    <div class="task-metric-row"><span>متوسط مساهمة الحملات</span><b>${taskProgress(task)}%</b></div>
+    <div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div>
   </article>`;
-  board.innerHTML = `<section class="user-exec-dashboard">
-    <div class="exec-hero">
-      <div><h2>لوحة التنفيذ</h2><p>المطلوب منك فقط حسب حسابك والتكليفات المسندة لك.</p></div>
-      <div class="exec-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div>
-    </div>
-    ${groups.length ? `<div class="exec-kanban">${groups.map(group => `<section class="exec-col"><div class="exec-col-head"><strong>${group.label}</strong><span>${group.tasks.length}</span></div>${group.tasks.map(taskCard).join('')}</section>`).join('')}</div>` : '<div class="empty-state soft-empty">لا توجد تكليفات مسندة لك حالياً.</div>'}
+  board.innerHTML = `<section class="user-content-dashboard">
+    <div class="user-content-head"><div><h2>أنواع المحتوى</h2><p>التاسكات المطلوبة منك حسب نوع المحتوى.</p></div><div class="exec-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div></div>
+    ${groups.length ? `<div class="content-type-board">${groups.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : '<div class="empty-state soft-empty">لا توجد تكليفات مسندة لك حالياً.</div>'}
   </section>`;
 }
-
 function renderAdminDashboard(){
   const allTasks = campaigns.flatMap(campaign => tasksForCampaign(campaign));
   const count = document.getElementById('dashboardCampaignsCount'); if(count) count.textContent = campaigns.length || '—';
@@ -1205,10 +1309,80 @@ function loadCampaignTasks(){
   }, error => { console.error('Campaign tasks load error', error); renderCampaigns(); });
 }
 
+
+function applyThemeSettings(settings = {}){
+  const colors = settings.colors || {};
+  const map = {
+    primary:'--primary', secondary:'--secondary', accent:'--accent', surface:'--surface', bg:'--bg', line:'--line', border:'--border', text:'--text', muted:'--muted'
+  };
+  Object.entries(map).forEach(([key, cssVar]) => { if(colors[key]) document.documentElement.style.setProperty(cssVar, colors[key]); }); if(colors.line) document.documentElement.style.setProperty('--border', colors.line);
+  if(settings.fontFamily) document.documentElement.style.setProperty('--font-family', settings.fontFamily);
+  if(settings.direction){ document.documentElement.dir = settings.direction; document.body.dir = settings.direction; }
+}
+function fillSettingsForm(){
+  const colors = systemSettings.colors || {};
+  const set = (id, value) => { const el = document.getElementById(id); if(el && value) el.value = value; };
+  set('settingSystemName', systemSettings.systemName || 'نظام التسويق');
+  set('settingFontFamily', systemSettings.fontFamily || 'Tajawal');
+  set('settingDirection', systemSettings.direction || 'rtl');
+  set('colorPrimary', colors.primary || '#5A3329');
+  set('colorSecondary', colors.secondary || '#B85E4F');
+  set('colorAccent', colors.accent || '#C89F84');
+  set('colorSurface', colors.surface || '#FAF6F1');
+  set('colorBg', colors.bg || '#F3E5D6');
+  set('colorLine', colors.line || '#E5CBBE');
+  set('colorText', colors.text || '#2D1713');
+  set('colorMuted', colors.muted || '#8E7166');
+}
+function renderUsersPermissions(){
+  const wrap = document.getElementById('usersPermissionsList');
+  if(!wrap) return;
+  const pageOptions = routes.filter(r => !['dashboard'].includes(r));
+  wrap.innerHTML = users.length ? users.map(user => {
+    const pages = Array.isArray(user.pages) ? user.pages : [];
+    return `<article class="permission-user-card" data-user-id="${escapeHtml(user.id)}"><div class="permission-user-main"><strong>${escapeHtml(userName(user) || 'User')}</strong><small>${escapeHtml(user.email || '')}</small><span>${escapeHtml(user.role || 'user')}</span></div><div class="permission-pages"><label><input type="checkbox" data-page-key="dashboard" checked disabled> الداش بورد</label>${pageOptions.map(page => `<label><input type="checkbox" data-page-key="${page}" ${pages.includes(page) ? 'checked' : ''}> ${pageLabel(page)}</label>`).join('')}</div><button type="button" class="btn btn-primary" data-save-user-pages="${escapeHtml(user.id)}">حفظ الصلاحيات</button></article>`;
+  }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
+}
+function pageLabel(page){
+  return {campaigns:'الحملات','create-campaign':'إنشاء حملة',departments:'الأقسام',calendar:'التقويم',tasks:'المهام',stock:'الاستوك',reports:'التقارير',settings:'الإعدادات'}[page] || page;
+}
+function loadSystemSettings(){
+  if(!mainDb) return;
+  safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).onSnapshot(doc => {
+    systemSettings = doc.exists ? (doc.data() || {}) : {};
+    applyThemeSettings(systemSettings);
+    fillSettingsForm();
+  }, error => console.error('Settings load error', error));
+}
+function bindSettings(){
+  document.getElementById('systemSettingsForm')?.addEventListener('submit', async event => {
+    event.preventDefault(); if(!mainDb) return;
+    const payload = { systemName: normalizeText(document.getElementById('settingSystemName')?.value), fontFamily: normalizeText(document.getElementById('settingFontFamily')?.value) || 'Tajawal', direction: document.getElementById('settingDirection')?.value || 'rtl', updatedAt: serverTime() };
+    await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set(payload, { merge:true });
+    showMessage('systemSettingsMessage','تم حفظ الإعدادات.');
+  });
+  document.getElementById('saveThemeColorsBtn')?.addEventListener('click', async () => {
+    if(!mainDb) return;
+    const colors = { primary:colorPrimary.value, secondary:colorSecondary.value, accent:colorAccent.value, surface:colorSurface.value, bg:colorBg.value, line:colorLine.value, text:colorText.value, muted:colorMuted.value };
+    await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({ colors, updatedAt: serverTime() }, { merge:true });
+    applyThemeSettings({ colors }); showMessage('themeSettingsMessage','تم حفظ الألوان.');
+  });
+  document.getElementById('refreshUsersPermissionsBtn')?.addEventListener('click', renderUsersPermissions);
+  document.addEventListener('click', async event => {
+    const save = event.target.closest('[data-save-user-pages]');
+    if(!save || !mainDb) return;
+    const card = save.closest('.permission-user-card');
+    const pages = [...card.querySelectorAll('input[data-page-key]:checked')].map(input => input.dataset.pageKey).filter(Boolean);
+    await safeCollection(window.MZJ_USERS_COLLECTION).doc(save.dataset.saveUserPages).update({ pages, updatedAt: serverTime() });
+    showToast('تم حفظ صلاحيات اليوزر.');
+  });
+}
+
 function bootstrapData(){
   if(bootstrapData.started) return;
   bootstrapData.started = true;
   initFirebase();
+  loadSystemSettings();
   loadUsers();
   loadDepartments();
   loadSimpleCollection(window.MZJ_CREATIVES_COLLECTION, creatives, renderCreatives);
@@ -1316,7 +1490,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('logoutBtn')?.addEventListener('click', () => { sessionStorage.removeItem('mzj_logged_in'); openLogin(); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
-  bindCampaignBuilder(); bindDepartments();
+  bindCampaignBuilder(); bindDepartments(); bindSettings();
   document.getElementById('dashboard')?.addEventListener('click', async event => {
     const stageBtn = event.target.closest('[data-stage][data-campaign-id]');
     if(stageBtn){ event.stopPropagation(); await togglePublishStage(stageBtn.dataset.campaignId, stageBtn.dataset.stage); return; }
@@ -1330,5 +1504,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if(campaignCard){ renderCampaignDetail(campaignCard.dataset.openCampaign); return; }
     if(event.target.id === 'closeDashboardDetail'){ document.getElementById('dashboardCampaignDetail')?.classList.remove('show'); }
   });
+
+  document.addEventListener('click', async event => {
+    if(event.target.closest('[data-close-task-modal]')){ closeTaskModal(); return; }
+    const modalReceivedBtn = event.target.closest('#taskModal [data-toggle-received]');
+    if(modalReceivedBtn){ await toggleTaskReceived(modalReceivedBtn.dataset.toggleReceived); return; }
+    const modalStepBtn = event.target.closest('#taskModal [data-task-step]');
+    if(modalStepBtn){ await toggleTaskStep(modalStepBtn.dataset.taskStep, modalStepBtn.dataset.stepIndex); return; }
+    const uploadBtn = event.target.closest('[data-upload-task-attachment]');
+    if(uploadBtn){ document.getElementById('taskAttachmentInput')?.click(); return; }
+    const delFile = event.target.closest('[data-delete-task-file]');
+    if(delFile && activeTaskModalMeta){
+      const task = findTaskById(activeTaskModalMeta.taskId, activeTaskModalMeta.campaignId);
+      if(!task) return;
+      const files = taskFiles(task).filter((_, i) => i !== Number(delFile.dataset.deleteTaskFile));
+      await updateTaskOnFirebase(task.id, { attachments: files });
+      refreshOpenTaskModal();
+    }
+  });
+  document.getElementById('taskAttachmentInput')?.addEventListener('change', async event => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if(!file || !activeTaskModalMeta) return;
+    const task = findTaskById(activeTaskModalMeta.taskId, activeTaskModalMeta.campaignId);
+    if(!task) return;
+    try{
+      showToast('جاري رفع الملف...');
+      const record = await uploadTaskFileToDrive(file, task);
+      await updateTaskOnFirebase(task.id, { attachments: [...taskFiles(task), record] });
+      showToast('تم رفع الملف.');
+      refreshOpenTaskModal();
+    }catch(error){ console.error(error); showToast(error.message || 'تعذر رفع الملف.'); }
+  });
+
   isLoggedIn() ? openApp() : openLogin();
 });

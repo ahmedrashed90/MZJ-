@@ -290,6 +290,10 @@ service cloud.firestore {
         "progress",
         "steps",
         "status",
+        "attachments",
+        "files",
+        "fileUrl",
+        "uploadedAt",
         "creativeIndex",
         "taskIndex",
         "source",
@@ -297,6 +301,13 @@ service cloud.firestore {
         "createdBy",
         "updatedAt",
         "updatedBy"
+      ]);
+    }
+
+
+    function systemSettingsKeysValid() {
+      return request.resource.data.keys().hasOnly([
+        "systemName", "fontFamily", "direction", "colors", "createdAt", "createdBy", "updatedAt", "updatedBy"
       ]);
     }
 
@@ -488,6 +499,14 @@ service cloud.firestore {
     match /campaign_tasks/{docId} {
       allow read: if true;
       allow create, update: if campaignTaskKeysValid();
+      allow delete: if true;
+    }
+
+
+
+    match /system_settings/{docId} {
+      allow read: if true;
+      allow create, update: if systemSettingsKeysValid();
       allow delete: if true;
     }
 
