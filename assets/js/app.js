@@ -93,7 +93,7 @@ function syncCurrentSessionUserFromUsers(){
   if(!current || !Object.keys(current).length || !users.length) return;
   const currentKeys = uniqueIdentityKeys([current]);
   const record = users.find(user => uniqueIdentityKeys([user]).some(key => currentKeys.includes(key)));
-  if(record){ setCurrentUser({ ...current, ...record, uid: current.uid || record.uid || record.id }); }
+  if(record){ setCurrentUser({ ...current, ...record, id: record.id || current.id, uid: record.uid || current.uid || record.id }); }
 }
 function isCurrentUserAdmin(){ const user = getCurrentUser(); return user.role === 'admin' || (Array.isArray(user.pages) && user.pages.includes('admin')); }
 function pageAllowed(route){
@@ -129,8 +129,13 @@ function initFirebase(){
   }catch(error){ console.error('Stock Firebase init error', error); }
 }
 
-function userName(user){ return user?.name || user?.email || user?.id || ''; }
-function namesFromIds(ids){ return (ids || []).map(id => userName(users.find(user => user.id === id)) || id).filter(Boolean); }
+function userName(user){ return user?.name || user?.displayName || user?.username || user?.email || user?.id || ''; }
+function findUserByAnyIdentity(values){
+  const keys = uniqueIdentityKeys(Array.isArray(values) ? values : [values]);
+  if(!keys.length) return null;
+  return users.find(user => uniqueIdentityKeys([user, user.id, user.uid, user.email, user.emailLower, user.name, user.displayName, user.username]).some(key => keys.includes(key))) || null;
+}
+function namesFromIds(ids){ return (ids || []).map(id => userName(findUserByAnyIdentity(id)) || id).filter(Boolean); }
 function userOptions(selectedValue = ''){
   return '<option value="">اختر اليوزر</option>' + users.map(user => `<option value="${escapeHtml(user.id)}"${selectedValue === user.id ? ' selected' : ''}>${escapeHtml(userName(user))}</option>`).join('');
 }
@@ -480,11 +485,14 @@ function normalizeDepartmentRole(name){
   return 'other';
 }
 function departmentForUser(userId){
-  const user = users.find(item => item.id === userId) || {};
+  const user = findUserByAnyIdentity(userId) || {};
   const ids = [user.departmentId, ...(Array.isArray(user.departmentIds) ? user.departmentIds : [])].filter(Boolean);
   let dep = departments.find(item => ids.includes(item.id));
   if(!dep && user.department) dep = departments.find(item => item.id === user.department || normalizeText(item.name).toLowerCase() === normalizeText(user.department).toLowerCase());
-  if(!dep) dep = departments.find(item => Array.isArray(item.userIds) && item.userIds.includes(userId));
+  if(!dep){
+    const userKeys = uniqueIdentityKeys([userId, user]);
+    dep = departments.find(item => Array.isArray(item.userIds) && item.userIds.some(id => userKeys.includes(identityClean(id))));
+  }
   return dep || { id: user.departmentId || user.department || '', name: user.department || '' };
 }
 function taskStepTemplate(role){
@@ -521,7 +529,7 @@ function fallbackTasksFromCampaign(campaign){
       const entries = ids.length ? ids.map((id, i) => ({ id, name: names[i] || id })) : names.map((name, i) => ({ id: `${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}-${i}`, name }));
       const finalEntries = entries.length ? entries : [{ id: `${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}`, name: 'غير محدد' }];
       finalEntries.forEach(entry => {
-        const user = users.find(item => item.id === entry.id) || users.find(item => userName(item) === entry.name) || {};
+        const user = findUserByAnyIdentity([entry.id, entry.name]) || {};
         const dep = departmentForUser(user.id || entry.id);
         const role = normalizeDepartmentRole(dep.name || user.department || task.contentSectionName);
         fallback.push({
@@ -541,7 +549,7 @@ function fallbackTasksFromCampaign(campaign){
           assignedToEmail: user.email || '',
           displayName: user.displayName || '',
           username: user.username || '',
-          assignedToSearch: uniqueList([userId, user.uid, user.email, user.emailLower, userName(user), user.displayName, user.username].filter(Boolean)),
+          assignedToSearch: uniqueList([entry.id, user.id, user.uid, user.email, user.emailLower, userName(user), user.name, user.displayName, user.username, entry.name].filter(Boolean)),
           assignedDepartmentId: dep.id || '',
           assignedDepartmentName: dep.name || user.department || task.contentSectionName || '',
           departmentRole: role,
@@ -610,8 +618,10 @@ function flattenIdentityValues(value){
     return [
       value.id, value.uid, value.email, value.emailLower, value.name, value.displayName, value.username,
       value.userId, value.userUid, value.userEmail, value.userName,
-      value.assigneeUid, value.assigneeEmail, value.assigneeName,
-      value.assignedToUid, value.assignedToId, value.assignedToEmail, value.assignedToName
+      value.assigneeUid, value.assigneeId, value.assigneeEmail, value.assigneeName,
+      value.assignedToUid, value.assignedToId, value.assignedToEmail, value.assignedToName,
+      value.assignedToSearch, value.searchKeys, value.displayName, value.username,
+      value.memberUids, value.memberEmails, value.memberNames, value.userIds, value.userNames
     ].flatMap(flattenIdentityValues);
   }
   return [value];
@@ -621,8 +631,7 @@ function uniqueIdentityKeys(values){
 }
 function findCurrentUserRecord(){
   const sessionUser = getCurrentUser();
-  const sessionKeys = uniqueIdentityKeys([sessionUser]);
-  return users.find(user => uniqueIdentityKeys([user]).some(key => sessionKeys.includes(key))) || sessionUser;
+  return findUserByAnyIdentity([sessionUser, sessionUser.id, sessionUser.uid, sessionUser.email, sessionUser.emailLower, sessionUser.name, sessionUser.displayName, sessionUser.username]) || sessionUser;
 }
 function currentUserMatchesTask(task){
   const sessionUser = getCurrentUser();
@@ -631,12 +640,14 @@ function currentUserMatchesTask(task){
   const taskKeys = uniqueIdentityKeys([
     task,
     task.userIds, task.userNames, task.users, task.assignees, task.assignedUsers,
-    task.assigneeIds, task.assigneeNames, task.assignedToIds, task.assignedToNames
+    task.assigneeIds, task.assigneeNames, task.assignedToIds, task.assignedToNames,
+    task.assignedToSearch, task.searchKeys, task.assignedToEmail, task.userEmail, task.assigneeEmail,
+    task.assignedToUid, task.userUid, task.assigneeUid, task.assignedToId, task.userId, task.assigneeId
   ]);
   if(userKeys.some(key => taskKeys.includes(key))) return true;
 
   const userNameKeys = uniqueIdentityKeys([matchedUser.name, matchedUser.displayName, matchedUser.username, sessionUser.name, sessionUser.displayName, sessionUser.username, matchedUser.email, sessionUser.email]);
-  const taskNameKeys = uniqueIdentityKeys([task.assignedToName, task.userName, task.assigneeName, task.userNames, task.assigneeNames, task.assignedToNames, task.product, task.selectedCar, task.creative]);
+  const taskNameKeys = uniqueIdentityKeys([task.assignedToName, task.userName, task.assigneeName, task.assignedToEmail, task.userEmail, task.assigneeEmail, task.displayName, task.username, task.userNames, task.assigneeNames, task.assignedToNames, task.product, task.selectedCar, task.creative]);
   if(userNameKeys.some(userName => taskNameKeys.some(taskName => taskName === userName || (userName.length > 4 && taskName.includes(userName)) || (taskName.length > 4 && userName.includes(taskName))))) return true;
   const userTokens = userNameKeys.flatMap(identityTokens).filter(Boolean);
   const taskText = identityClean([task.product, task.selectedCar, task.creative, task.taskType, task.assignedToName, task.assigneeName, task.userName].filter(Boolean).join(' '));
@@ -837,8 +848,9 @@ function buildCampaignTaskDocs(campaignId, payload){
   (payload.creatives || []).forEach((creativeRow, creativeIndex) => {
     (creativeRow.tasks || []).forEach((task, taskIndex) => {
       (task.userIds || []).forEach(userId => {
-        const user = users.find(item => item.id === userId) || {};
-        const dep = departmentForUser(userId);
+        const user = findUserByAnyIdentity([userId, task.userNames, task.userName, task.assignedToName]) || {};
+        const resolvedUserId = user.id || user.uid || userId;
+        const dep = departmentForUser(resolvedUserId || userId);
         const role = normalizeDepartmentRole(dep.name || user.department || task.contentSectionName);
         docs.push({
           campaignId,
@@ -851,20 +863,20 @@ function buildCampaignTaskDocs(campaignId, payload){
           contentSectionId: task.contentSectionId || '',
           contentSectionName: task.contentSectionName || '',
           taskType: task.taskType || '',
-          userId,
-          userUid: user.uid || userId,
+          userId: resolvedUserId || userId,
+          userUid: user.uid || resolvedUserId || userId,
           userName: userName(user) || userId,
           userEmail: user.email || '',
-          assigneeUid: user.uid || userId,
+          assigneeUid: user.uid || resolvedUserId || userId,
           assigneeName: userName(user) || userId,
           assigneeEmail: user.email || '',
-          assignedToUid: user.uid || userId,
-          assignedToId: userId,
+          assignedToUid: user.uid || resolvedUserId || userId,
+          assignedToId: resolvedUserId || userId,
           assignedToName: userName(user) || userId,
           assignedToEmail: user.email || '',
           displayName: user.displayName || '',
           username: user.username || '',
-          assignedToSearch: uniqueList([userId, user.uid, user.email, user.emailLower, userName(user), user.displayName, user.username].filter(Boolean)),
+          assignedToSearch: uniqueList([userId, resolvedUserId, user.id, user.uid, user.email, user.emailLower, userName(user), user.name, user.displayName, user.username].filter(Boolean)),
           assignedDepartmentId: dep.id || '',
           assignedDepartmentName: dep.name || user.department || '',
           departmentRole: role,
@@ -1102,6 +1114,7 @@ async function saveCampaignToFirebase(){
     await docRef.update({ id: docRef.id, departmentTasks, taskCount: departmentTasks.length, updatedAt: serverTime() });
     try{ await createCampaignTasks(docRef.id, payload); }catch(taskError){ console.warn('campaign_tasks optional write skipped', taskError); }
     showToast('تم حفظ الحملة على Firebase.');
+    renderAdminDashboard(); renderTasksPage();
     window.location.hash = '#campaigns';
   }catch(error){
     console.error('Campaign save error', error, payload);
@@ -1589,11 +1602,13 @@ function applyEffectiveTheme(){
     }else{
       document.body.classList.remove('has-user-dashboard-theme');
       dashboard?.classList.remove('has-custom-bg');
+      document.documentElement.style.removeProperty('--user-dashboard-bg-image');
     }
   }else{
     applyThemeSettings(systemSettings || {});
     document.body.classList.remove('has-user-dashboard-theme');
     dashboard?.classList.remove('has-custom-bg');
+    document.documentElement.style.removeProperty('--user-dashboard-bg-image');
   }
 }
 async function saveUserThemeFromFile(file){
