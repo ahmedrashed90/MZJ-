@@ -88,16 +88,23 @@ function getCurrentUser(){ try{ return JSON.parse(sessionStorage.getItem('mzj_us
 function isCurrentUserAdmin(){ const user = getCurrentUser(); return user.role === 'admin' || (Array.isArray(user.pages) && user.pages.includes('admin')); }
 function pageAllowed(route){
   if(isCurrentUserAdmin()) return true;
-  const pages = getCurrentUser().pages || getCurrentUser().pagesAccess || [];
-  return Array.isArray(pages) ? (pages.includes(route) || (!pages.length && route === 'dashboard')) : route === 'dashboard';
+  return allowedPagesForCurrentUser().includes(route);
+}
+
+function allowedPagesForCurrentUser(){
+  if(isCurrentUserAdmin()) return routes;
+  const user = getCurrentUser();
+  const raw = Array.isArray(user.pages) && user.pages.length ? user.pages : (Array.isArray(user.pagesAccess) ? user.pagesAccess : []);
+  return uniqueList(['dashboard', ...raw]);
 }
 function applyUserPermissions(){
-  const allowed = isCurrentUserAdmin() ? routes : (getCurrentUser().pages || getCurrentUser().pagesAccess || ['dashboard']);
+  const allowed = allowedPagesForCurrentUser();
   document.querySelectorAll('.nav a[data-route]').forEach(link => {
     const route = link.dataset.route;
     link.classList.toggle('is-hidden', !isCurrentUserAdmin() && !allowed.includes(route));
   });
 }
+
 
 function initFirebase(){
   if(!window.firebase || !firebase.apps) return;
@@ -276,11 +283,23 @@ function refreshDynamicSelects(){
   updateAllProductOutputs();
 }
 
+function syncCurrentSessionUserFromUsers(){
+  const sessionUser = getCurrentUser();
+  if(!sessionUser || (!sessionUser.id && !sessionUser.email && !sessionUser.uid)) return;
+  const email = identityClean(sessionUser.email);
+  const found = users.find(user => user.id === sessionUser.id || (sessionUser.uid && user.uid === sessionUser.uid) || (email && identityClean(user.email) === email));
+  if(!found) return;
+  const merged = { ...sessionUser, ...found, pages: Array.isArray(found.pages) ? found.pages : [], pagesAccess: Array.isArray(found.pagesAccess) ? found.pagesAccess : [] };
+  sessionStorage.setItem('mzj_user', JSON.stringify(merged));
+  applyUserPermissions();
+  applyEffectiveTheme();
+}
 function loadUsers(){
   if(!mainDb) return;
   safeCollection(window.MZJ_USERS_COLLECTION).onSnapshot(snapshot => {
-    users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, uid: data.uid || doc.id, name: getDocName(data) || doc.id, email: data.email || '', department: data.department || '', departmentId: data.departmentId || '', departmentIds: Array.isArray(data.departmentIds) ? data.departmentIds : [], role: data.role || '', pages: Array.isArray(data.pages) ? data.pages : [], pagesAccess: Array.isArray(data.pagesAccess) ? data.pagesAccess : [] }; });
-    refreshDynamicSelects(); renderDepartments(); renderUsersPermissions();
+    users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, uid: data.uid || doc.id, name: getDocName(data) || doc.id, email: data.email || '', department: data.department || '', departmentId: data.departmentId || '', departmentIds: Array.isArray(data.departmentIds) ? data.departmentIds : [], role: data.role || '', pages: Array.isArray(data.pages) ? data.pages : [], pagesAccess: Array.isArray(data.pagesAccess) ? data.pagesAccess : [], themeSettings: data.themeSettings || null }; });
+    syncCurrentSessionUserFromUsers();
+    refreshDynamicSelects(); renderDepartments(); renderUsersPermissions(); renderAdminDashboard(); renderTasksPage();
   }, error => console.error('Users load error', error));
 }
 function loadSimpleCollection(collectionName, target, renderer, selectRefresh = true){
@@ -569,16 +588,29 @@ function campaignPublishProgress(campaign){
   return (stages.prep ? 35 : 0) + (stages.approval ? 30 : 0) + (stages.publish ? 35 : 0);
 }
 
+function identityClean(value){
+  return normalizeText(value).toLowerCase().replace(/[ً-ٰٟ]/g,'').replace(/\s+/g,' ').trim();
+}
+function identityTokens(value){
+  return identityClean(value).split(/[\s_\-.@]+/).filter(part => part.length > 2);
+}
 function currentUserMatchesTask(task){
-  const user = getCurrentUser();
-  const clean = value => normalizeText(value).toLowerCase();
-  const keys = [user.uid, user.id, user.email, user.name, user.displayName, user.username].map(clean).filter(Boolean);
+  const sessionUser = getCurrentUser();
+  const matchedUser = users.find(user => {
+    const emailA = identityClean(user.email), emailB = identityClean(sessionUser.email);
+    return (sessionUser.id && user.id === sessionUser.id) || (sessionUser.uid && user.uid === sessionUser.uid) || (emailA && emailA === emailB);
+  }) || sessionUser;
+  const userKeys = [matchedUser.uid, matchedUser.id, matchedUser.email, matchedUser.name, matchedUser.displayName, matchedUser.username, sessionUser.uid, sessionUser.id, sessionUser.email, sessionUser.name].map(identityClean).filter(Boolean);
   const taskKeys = [
     task.assignedToUid, task.assignedToId, task.assignedToEmail, task.assignedToName,
     task.userId, task.userUid, task.userEmail, task.userName,
-    task.assigneeUid, task.assigneeEmail, task.assigneeName
-  ].map(clean).filter(Boolean);
-  return keys.some(key => taskKeys.includes(key));
+    task.assigneeUid, task.assigneeEmail, task.assigneeName,
+    task.assignedToName
+  ].map(identityClean).filter(Boolean);
+  if(userKeys.some(key => taskKeys.includes(key))) return true;
+  const userNameKeys = [matchedUser.name, matchedUser.displayName, matchedUser.username, sessionUser.name].map(identityClean).filter(Boolean);
+  const taskNameKeys = [task.assignedToName, task.userName, task.assigneeName].map(identityClean).filter(Boolean);
+  return userNameKeys.some(userName => taskNameKeys.some(taskName => taskName === userName || (userName.length > 4 && taskName.includes(userName)) || (taskName.length > 4 && userName.includes(taskName))));
 }
 function getVisibleTasksForCurrentUser(){
   const current = getCurrentUser();
@@ -1241,9 +1273,9 @@ function renderCalendarPage(){
 function renderTasksPage(){
   const board = document.getElementById('tasksBoard'); if(!board) return;
   const tasks = getVisibleTasksForCurrentUser();
-  const groups = groupTasksForKanban(tasks);
-  if(!groups.length){ board.innerHTML = '<div class="card"><div class="empty-state">لا توجد مهام حالياً.</div></div>'; return; }
-  board.innerHTML = `<div class="tasks-list-page">${groups.map(group => `<section class="tasks-list-section"><div class="tasks-page-col-head"><h2>${group.label}</h2><span>${group.tasks.length}</span></div><div class="tasks-list-stack">${group.tasks.map(task => `<article class="tasks-page-card"><strong>${shortTaskName(task)}</strong><p>${escapeHtml([task.campaignName, task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p><div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div><button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button></article>`).join('')}</div></section>`).join('')}</div>`;
+  if(!tasks.length){ board.innerHTML = '<div class="empty-state">لا توجد مهام حالياً.</div>'; return; }
+  const grouped = groupTasksForKanban(tasks);
+  board.innerHTML = `<div class="tasks-list-page">${grouped.map(group => `<section class="tasks-list-section"><div class="tasks-page-col-head"><h2>${group.label}</h2><span>${group.tasks.length}</span></div><div class="tasks-list-stack">${group.tasks.map(task => `<article class="tasks-page-card"><div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([task.campaignName, task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div><div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div><button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button></article>`).join('')}</div></section>`).join('')}</div>`;
 }
 
 function setDashboardMode(mode){
@@ -1296,6 +1328,7 @@ function renderUserDashboard(){
   const board = document.getElementById('adminDashboardBoard');
   if(!board) return;
   setDashboardMode('user');
+  applyEffectiveTheme();
   const myTasks = getVisibleTasksForCurrentUser();
   const received = myTasks.filter(task => task.received || task.receivedConfirmed).length;
   const done = myTasks.filter(task => taskProgress(task) >= 100).length;
@@ -1308,7 +1341,7 @@ function renderUserDashboard(){
   const groups = Object.entries(groupMap).map(([label, tasks]) => ({ label, tasks }));
   const taskCard = task => `<article class="content-task-card">
     <h3>${escapeHtml(task.campaignName || 'حملة')}</h3>
-    <p>${escapeHtml(task.product || task.creative || task.taskType || '—')}</p>
+    <p>${escapeHtml(task.product || task.selectedCar || task.creative || task.taskType || '—')}</p>
     <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button><button type="button" class="btn btn-light ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تم الاستلام'}</button></div>
     <div class="task-metric-row"><span>متوسط اكتمال التاسكات</span><b>${taskProgress(task)}%</b></div>
     <div class="task-metric-row"><span>متوسط مساهمة الحملات</span><b>${taskProgress(task)}%</b></div>
@@ -1316,6 +1349,7 @@ function renderUserDashboard(){
   </article>`;
   board.innerHTML = `<section class="user-content-dashboard">
     <div class="user-content-head"><div><h2>أنواع المحتوى</h2><p>التاسكات المطلوبة منك حسب نوع المحتوى.</p></div><div class="exec-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div></div>
+    <div class="user-theme-panel"><label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label><button class="mini-btn" type="button" id="clearUserThemeBtn">استرجاع الثيم الافتراضي</button></div>
     ${groups.length ? `<div class="content-type-board">${groups.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : '<div class="empty-state soft-empty">لا توجد تكليفات مسندة لك حالياً.</div>'}
   </section>`;
 }
@@ -1368,6 +1402,29 @@ function renderAdminDashboard(){
     <section class="admin-dash-col archive-col"><div class="col-title"><h2>قسم الأرشيف</h2><p>بعد اكتمال النشر، تصبح جاهزة للأرشفة.</p></div>${archiveItems.length ? archiveItems.map(archiveCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات مؤرشفة حالياً.</div>'}</section>`;
 }
 
+
+function renderCampaignInlineTasks(campaign){
+  const related = tasksForCampaign(campaign);
+  const grouped = groupTasksForKanban(related);
+  const taskItem = task => `<article class="inline-task-row">
+    <div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([taskDepartmentLabel(task), task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div>
+    <span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>
+    <b>${taskProgress(task)}%</b>
+    <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
+  </article>`;
+  return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
+}
+function toggleCampaignInlineTasks(card, campaignId){
+  const campaign = campaigns.find(item => item.id === campaignId);
+  if(!card || !campaign) return;
+  const existing = card.nextElementSibling;
+  if(existing && existing.classList.contains('campaign-inline-tasks-wrap')){ existing.remove(); return; }
+  document.querySelectorAll('.campaign-inline-tasks-wrap').forEach(el => el.remove());
+  const wrap = document.createElement('div');
+  wrap.className = 'campaign-inline-tasks-wrap';
+  wrap.innerHTML = renderCampaignInlineTasks(campaign);
+  card.insertAdjacentElement('afterend', wrap);
+}
 function renderCampaignDetail(campaignId){
   const campaign = campaigns.find(item => item.id === campaignId);
   const detail = document.getElementById('dashboardCampaignDetail');
@@ -1478,6 +1535,56 @@ function extractThemeColorsFromImage(dataUrl){
     img.src = dataUrl;
   });
 }
+
+function getCurrentUserDoc(){
+  const current = getCurrentUser();
+  return users.find(user => user.id === current.id || user.uid === current.uid || (user.email && identityClean(user.email) === identityClean(current.email))) || current;
+}
+function applyEffectiveTheme(){
+  const user = getCurrentUserDoc();
+  const userTheme = user && user.themeSettings ? user.themeSettings : null;
+  if(userTheme){
+    applyThemeSettings(userTheme);
+    if(userTheme.backgroundImageData || userTheme.backgroundImageUrl){
+      document.documentElement.style.setProperty('--user-dashboard-bg-image', `url("${userTheme.backgroundImageData || userTheme.backgroundImageUrl}")`);
+      document.body.classList.add('has-user-dashboard-theme');
+    }else{
+      document.body.classList.remove('has-user-dashboard-theme');
+    }
+  }else{
+    applyThemeSettings(systemSettings || {});
+    document.body.classList.remove('has-user-dashboard-theme');
+  }
+}
+async function saveUserThemeFromFile(file){
+  if(!mainDb || !file) return;
+  const current = getCurrentUserDoc();
+  const userId = current.id || getCurrentUser().id;
+  if(!userId){ showToast('تعذر تحديد اليوزر لحفظ الثيم.'); return; }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const imageData = reader.result;
+    const colors = await extractThemeColorsFromImage(imageData);
+    const themeSettings = { themeImageName:file.name, backgroundImageData:imageData, colors, updatedAt:new Date().toISOString() };
+    await safeCollection(window.MZJ_USERS_COLLECTION).doc(userId).update({ themeSettings, updatedAt: serverTime() });
+    const sessionUser = { ...getCurrentUser(), themeSettings };
+    sessionStorage.setItem('mzj_user', JSON.stringify(sessionUser));
+    applyEffectiveTheme();
+    showToast('تم تطبيق ثيمك الخاص.');
+  };
+  reader.readAsDataURL(file);
+}
+async function clearCurrentUserTheme(){
+  const current = getCurrentUserDoc();
+  const userId = current.id || getCurrentUser().id;
+  if(!mainDb || !userId) return;
+  await safeCollection(window.MZJ_USERS_COLLECTION).doc(userId).update({ themeSettings: firebase.firestore.FieldValue.delete(), updatedAt: serverTime() });
+  const sessionUser = { ...getCurrentUser() };
+  delete sessionUser.themeSettings;
+  sessionStorage.setItem('mzj_user', JSON.stringify(sessionUser));
+  applyEffectiveTheme();
+  renderAdminDashboard();
+}
 function renderThemeImagePreview(settings = systemSettings){
   const preview = document.getElementById('themeImagePreview'); if(!preview) return;
   if(settings.themeImageData){ preview.innerHTML = `<img src="${escapeHtml(settings.themeImageData)}" alt="صورة الثيم"><span>${escapeHtml(settings.themeImageName || 'صورة الثيم')}</span>`; }
@@ -1526,7 +1633,7 @@ function loadSystemSettings(){
   if(!mainDb) return;
   safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).onSnapshot(doc => {
     systemSettings = doc.exists ? (doc.data() || {}) : {};
-    applyThemeSettings(systemSettings);
+    applyEffectiveTheme();
     fillSettingsForm();
   }, error => console.error('Settings load error', error));
 }
@@ -1594,7 +1701,7 @@ function bootstrapData(){
   loadSimpleCollection(window.MZJ_PLATFORMS_COLLECTION, platforms, renderPlatforms);
   if(mainDb){
     safeCollection(window.MZJ_CONTENT_SECTIONS_COLLECTION).orderBy('name').onSnapshot(snapshot => {
-      contentSections = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, types: Array.isArray(data.types) ? data.types.map(normalizeText).filter(Boolean) : [] }; });
+      contentSections = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, types: Array.isArray(data.types) ? data.types.map(normalizeText).filter(Boolean) : [], userIds: Array.isArray(data.userIds) ? data.userIds : [], users: Array.isArray(data.users) ? data.users : [], memberUids: Array.isArray(data.memberUids) ? data.memberUids : [], departmentId: data.departmentId || data.department || data.contentDepartmentId || '' }; });
       renderContentSections();
     }, error => console.error(error));
   }
@@ -1707,9 +1814,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if(stepBtn){ await toggleTaskStep(stepBtn.dataset.taskStep, stepBtn.dataset.stepIndex); return; }
     const taskCard = event.target.closest('[data-open-task]');
     if(taskCard){ renderTaskDetail(taskCard.dataset.openTask, taskCard.dataset.taskCampaign || ''); return; }
+    const uploadTheme = event.target.closest('#userThemeImageInput');
+    const clearTheme = event.target.closest('#clearUserThemeBtn');
+    if(clearTheme){ await clearCurrentUserTheme(); return; }
     const campaignCard = event.target.closest('[data-open-campaign]');
-    if(campaignCard){ renderCampaignDetail(campaignCard.dataset.openCampaign); return; }
+    if(campaignCard){ toggleCampaignInlineTasks(campaignCard, campaignCard.dataset.openCampaign); return; }
     if(event.target.id === 'closeDashboardDetail'){ document.getElementById('dashboardCampaignDetail')?.classList.remove('show'); }
+  });
+
+  document.addEventListener('change', async event => {
+    if(event.target && event.target.id === 'userThemeImageInput'){
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if(file) await saveUserThemeFromFile(file);
+    }
   });
 
   document.getElementById('tasksBoard')?.addEventListener('click', event => {

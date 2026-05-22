@@ -85,7 +85,8 @@ service cloud.firestore {
         "attachmentUrl",
         "attachmentUrls",
         "updatedAt",
-        "updatedBy"
+        "updatedBy",
+        "themeSettings"
       ]);
     }
 
@@ -249,7 +250,7 @@ service cloud.firestore {
 
     function contentCategoryKeysValid() {
       return request.resource.data.keys().hasOnly([
-        "id", "name", "slug", "code", "description", "types", "contentTypes",
+        "id", "name", "slug", "code", "description", "types", "contentTypes", "userIds", "users", "memberUids", "departmentId", "department", "contentDepartmentId",
         "active", "isActive", "order", "sortOrder",
         "createdAt", "createdBy", "createdByName",
         "updatedAt", "updatedBy", "updatedByName"
