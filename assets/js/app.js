@@ -62,6 +62,7 @@ function getRoute(){ return (location.hash || '#dashboard').replace('#',''); }
 function openApp(){ loginView.classList.add('is-hidden'); appShell.classList.remove('is-hidden'); renderRoute(); bootstrapData(); }
 function openLogin(){ appShell.classList.add('is-hidden'); loginView.classList.remove('is-hidden'); }
 function renderRoute(){
+  applyEffectiveTheme();
   applyUserPermissions();
   let route = routes.includes(getRoute()) ? getRoute() : 'dashboard';
   if(!pageAllowed(route)){
@@ -85,6 +86,15 @@ function getSelectedValues(select){ return [...(select?.selectedOptions || [])].
 function serverTime(){ return firebase.firestore.FieldValue.serverTimestamp(); }
 function safeCollection(name){ return mainDb.collection(name); }
 function getCurrentUser(){ try{ return JSON.parse(sessionStorage.getItem('mzj_user') || '{}') || {}; }catch(_){ return {}; } }
+
+function setCurrentUser(user){ sessionStorage.setItem('mzj_user', JSON.stringify(user || {})); }
+function syncCurrentSessionUserFromUsers(){
+  const current = getCurrentUser();
+  if(!current || !Object.keys(current).length || !users.length) return;
+  const currentKeys = uniqueIdentityKeys([current]);
+  const record = users.find(user => uniqueIdentityKeys([user]).some(key => currentKeys.includes(key)));
+  if(record){ setCurrentUser({ ...current, ...record, uid: current.uid || record.uid || record.id }); }
+}
 function isCurrentUserAdmin(){ const user = getCurrentUser(); return user.role === 'admin' || (Array.isArray(user.pages) && user.pages.includes('admin')); }
 function pageAllowed(route){
   if(isCurrentUserAdmin()) return true;
@@ -283,21 +293,10 @@ function refreshDynamicSelects(){
   updateAllProductOutputs();
 }
 
-function syncCurrentSessionUserFromUsers(){
-  const sessionUser = getCurrentUser();
-  if(!sessionUser || (!sessionUser.id && !sessionUser.email && !sessionUser.uid)) return;
-  const email = identityClean(sessionUser.email);
-  const found = users.find(user => user.id === sessionUser.id || (sessionUser.uid && user.uid === sessionUser.uid) || (email && identityClean(user.email) === email));
-  if(!found) return;
-  const merged = { ...sessionUser, ...found, pages: Array.isArray(found.pages) ? found.pages : [], pagesAccess: Array.isArray(found.pagesAccess) ? found.pagesAccess : [] };
-  sessionStorage.setItem('mzj_user', JSON.stringify(merged));
-  applyUserPermissions();
-  applyEffectiveTheme();
-}
 function loadUsers(){
   if(!mainDb) return;
   safeCollection(window.MZJ_USERS_COLLECTION).onSnapshot(snapshot => {
-    users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, uid: data.uid || doc.id, name: getDocName(data) || doc.id, email: data.email || '', department: data.department || '', departmentId: data.departmentId || '', departmentIds: Array.isArray(data.departmentIds) ? data.departmentIds : [], role: data.role || '', pages: Array.isArray(data.pages) ? data.pages : [], pagesAccess: Array.isArray(data.pagesAccess) ? data.pagesAccess : [], themeSettings: data.themeSettings || null }; });
+    users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, uid: data.uid || doc.id, name: getDocName(data) || doc.id, displayName: data.displayName || '', username: data.username || '', email: data.email || '', emailLower: data.emailLower || String(data.email || '').toLowerCase(), department: data.department || '', departmentId: data.departmentId || '', departmentIds: Array.isArray(data.departmentIds) ? data.departmentIds : [], role: data.role || '', pages: Array.isArray(data.pages) ? data.pages : [], pagesAccess: Array.isArray(data.pagesAccess) ? data.pagesAccess : [], themeSettings: data.themeSettings || null }; });
     syncCurrentSessionUserFromUsers();
     refreshDynamicSelects(); renderDepartments(); renderUsersPermissions(); renderAdminDashboard(); renderTasksPage();
   }, error => console.error('Users load error', error));
@@ -540,6 +539,9 @@ function fallbackTasksFromCampaign(campaign){
           assignedToUid: user.id || entry.id || '',
           assignedToName: userName(user) || entry.name || 'غير محدد',
           assignedToEmail: user.email || '',
+          displayName: user.displayName || '',
+          username: user.username || '',
+          assignedToSearch: uniqueList([userId, user.uid, user.email, user.emailLower, userName(user), user.displayName, user.username].filter(Boolean)),
           assignedDepartmentId: dep.id || '',
           assignedDepartmentName: dep.name || user.department || task.contentSectionName || '',
           departmentRole: role,
@@ -589,28 +591,56 @@ function campaignPublishProgress(campaign){
 }
 
 function identityClean(value){
-  return normalizeText(value).toLowerCase().replace(/[ً-ٰٟ]/g,'').replace(/\s+/g,' ').trim();
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/[ً-ٰٟ]/g,'')
+    .replace(/[أإآا]/g,'ا')
+    .replace(/[ىي]/g,'ي')
+    .replace(/ة/g,'ه')
+    .replace(/\s+/g,' ')
+    .trim();
 }
 function identityTokens(value){
   return identityClean(value).split(/[\s_\-.@]+/).filter(part => part.length > 2);
 }
+function flattenIdentityValues(value){
+  if(value === null || value === undefined) return [];
+  if(Array.isArray(value)) return value.flatMap(flattenIdentityValues);
+  if(typeof value === 'object'){
+    return [
+      value.id, value.uid, value.email, value.emailLower, value.name, value.displayName, value.username,
+      value.userId, value.userUid, value.userEmail, value.userName,
+      value.assigneeUid, value.assigneeEmail, value.assigneeName,
+      value.assignedToUid, value.assignedToId, value.assignedToEmail, value.assignedToName
+    ].flatMap(flattenIdentityValues);
+  }
+  return [value];
+}
+function uniqueIdentityKeys(values){
+  return uniqueList(flattenIdentityValues(values).map(identityClean).filter(Boolean));
+}
+function findCurrentUserRecord(){
+  const sessionUser = getCurrentUser();
+  const sessionKeys = uniqueIdentityKeys([sessionUser]);
+  return users.find(user => uniqueIdentityKeys([user]).some(key => sessionKeys.includes(key))) || sessionUser;
+}
 function currentUserMatchesTask(task){
   const sessionUser = getCurrentUser();
-  const matchedUser = users.find(user => {
-    const emailA = identityClean(user.email), emailB = identityClean(sessionUser.email);
-    return (sessionUser.id && user.id === sessionUser.id) || (sessionUser.uid && user.uid === sessionUser.uid) || (emailA && emailA === emailB);
-  }) || sessionUser;
-  const userKeys = [matchedUser.uid, matchedUser.id, matchedUser.email, matchedUser.name, matchedUser.displayName, matchedUser.username, sessionUser.uid, sessionUser.id, sessionUser.email, sessionUser.name].map(identityClean).filter(Boolean);
-  const taskKeys = [
-    task.assignedToUid, task.assignedToId, task.assignedToEmail, task.assignedToName,
-    task.userId, task.userUid, task.userEmail, task.userName,
-    task.assigneeUid, task.assigneeEmail, task.assigneeName,
-    task.assignedToName
-  ].map(identityClean).filter(Boolean);
+  const matchedUser = findCurrentUserRecord();
+  const userKeys = uniqueIdentityKeys([matchedUser, sessionUser]);
+  const taskKeys = uniqueIdentityKeys([
+    task,
+    task.userIds, task.userNames, task.users, task.assignees, task.assignedUsers,
+    task.assigneeIds, task.assigneeNames, task.assignedToIds, task.assignedToNames
+  ]);
   if(userKeys.some(key => taskKeys.includes(key))) return true;
-  const userNameKeys = [matchedUser.name, matchedUser.displayName, matchedUser.username, sessionUser.name].map(identityClean).filter(Boolean);
-  const taskNameKeys = [task.assignedToName, task.userName, task.assigneeName].map(identityClean).filter(Boolean);
-  return userNameKeys.some(userName => taskNameKeys.some(taskName => taskName === userName || (userName.length > 4 && taskName.includes(userName)) || (taskName.length > 4 && userName.includes(taskName))));
+
+  const userNameKeys = uniqueIdentityKeys([matchedUser.name, matchedUser.displayName, matchedUser.username, sessionUser.name, sessionUser.displayName, sessionUser.username, matchedUser.email, sessionUser.email]);
+  const taskNameKeys = uniqueIdentityKeys([task.assignedToName, task.userName, task.assigneeName, task.userNames, task.assigneeNames, task.assignedToNames, task.product, task.selectedCar, task.creative]);
+  if(userNameKeys.some(userName => taskNameKeys.some(taskName => taskName === userName || (userName.length > 4 && taskName.includes(userName)) || (taskName.length > 4 && userName.includes(taskName))))) return true;
+  const userTokens = userNameKeys.flatMap(identityTokens).filter(Boolean);
+  const taskText = identityClean([task.product, task.selectedCar, task.creative, task.taskType, task.assignedToName, task.assigneeName, task.userName].filter(Boolean).join(' '));
+  return userTokens.length >= 2 && userTokens.every(token => taskText.includes(token));
 }
 function getVisibleTasksForCurrentUser(){
   const current = getCurrentUser();
@@ -832,6 +862,9 @@ function buildCampaignTaskDocs(campaignId, payload){
           assignedToId: userId,
           assignedToName: userName(user) || userId,
           assignedToEmail: user.email || '',
+          displayName: user.displayName || '',
+          username: user.username || '',
+          assignedToSearch: uniqueList([userId, user.uid, user.email, user.emailLower, userName(user), user.displayName, user.username].filter(Boolean)),
           assignedDepartmentId: dep.id || '',
           assignedDepartmentName: dep.name || user.department || '',
           departmentRole: role,
@@ -1352,6 +1385,7 @@ function renderUserDashboard(){
     <div class="user-theme-panel"><label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label><button class="mini-btn" type="button" id="clearUserThemeBtn">استرجاع الثيم الافتراضي</button></div>
     ${groups.length ? `<div class="content-type-board">${groups.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : '<div class="empty-state soft-empty">لا توجد تكليفات مسندة لك حالياً.</div>'}
   </section>`;
+  applyEffectiveTheme();
 }
 function renderAdminDashboard(){
   const allTasks = campaigns.flatMap(campaign => tasksForCampaign(campaign));
@@ -1377,7 +1411,7 @@ function renderAdminDashboard(){
     <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${item.progress}%</span></div>
     <p>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')} · ${item.total} تاسك</p>
     <div class="dash-progress"><span style="width:${Math.min(100,item.progress)}%"></span></div>
-    <button type="button" class="open-details-hint">فتح التفاصيل</button>
+    <button type="button" class="open-details-hint">عرض التاسكات</button>
   </article>`;
 
   const publishCard = item => `<article class="dash-campaign-card publish-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
@@ -1542,18 +1576,24 @@ function getCurrentUserDoc(){
 }
 function applyEffectiveTheme(){
   const user = getCurrentUserDoc();
-  const userTheme = user && user.themeSettings ? user.themeSettings : null;
+  const sessionUser = getCurrentUser();
+  const userTheme = (user && user.themeSettings) || sessionUser.themeSettings || null;
+  const dashboard = document.getElementById('dashboard');
   if(userTheme){
     applyThemeSettings(userTheme);
-    if(userTheme.backgroundImageData || userTheme.backgroundImageUrl){
-      document.documentElement.style.setProperty('--user-dashboard-bg-image', `url("${userTheme.backgroundImageData || userTheme.backgroundImageUrl}")`);
+    const image = userTheme.backgroundImageData || userTheme.backgroundImageUrl || userTheme.themeImageData || '';
+    if(image){
+      document.documentElement.style.setProperty('--user-dashboard-bg-image', `url("${image}")`);
       document.body.classList.add('has-user-dashboard-theme');
+      dashboard?.classList.add('has-custom-bg');
     }else{
       document.body.classList.remove('has-user-dashboard-theme');
+      dashboard?.classList.remove('has-custom-bg');
     }
   }else{
     applyThemeSettings(systemSettings || {});
     document.body.classList.remove('has-user-dashboard-theme');
+    dashboard?.classList.remove('has-custom-bg');
   }
 }
 async function saveUserThemeFromFile(file){
@@ -1565,11 +1605,12 @@ async function saveUserThemeFromFile(file){
   reader.onload = async () => {
     const imageData = reader.result;
     const colors = await extractThemeColorsFromImage(imageData);
-    const themeSettings = { themeImageName:file.name, backgroundImageData:imageData, colors, updatedAt:new Date().toISOString() };
+    const themeSettings = { themeImageName:file.name, themeImageData:imageData, backgroundImageData:imageData, backgroundImageUrl:'', colors, updatedAt:new Date().toISOString() };
     await safeCollection(window.MZJ_USERS_COLLECTION).doc(userId).update({ themeSettings, updatedAt: serverTime() });
     const sessionUser = { ...getCurrentUser(), themeSettings };
-    sessionStorage.setItem('mzj_user', JSON.stringify(sessionUser));
+    setCurrentUser(sessionUser);
     applyEffectiveTheme();
+    renderAdminDashboard();
     showToast('تم تطبيق ثيمك الخاص.');
   };
   reader.readAsDataURL(file);
@@ -1581,7 +1622,7 @@ async function clearCurrentUserTheme(){
   await safeCollection(window.MZJ_USERS_COLLECTION).doc(userId).update({ themeSettings: firebase.firestore.FieldValue.delete(), updatedAt: serverTime() });
   const sessionUser = { ...getCurrentUser() };
   delete sessionUser.themeSettings;
-  sessionStorage.setItem('mzj_user', JSON.stringify(sessionUser));
+  setCurrentUser(sessionUser);
   applyEffectiveTheme();
   renderAdminDashboard();
 }
@@ -1784,12 +1825,16 @@ document.addEventListener('DOMContentLoaded', () => {
         uid: authUser?.uid || userDoc.uid || userDoc.id,
         email: userDoc.email || rawEmail,
         name: userDoc.name || userDoc.displayName || userDoc.username || '',
+        displayName: userDoc.displayName || '',
+        username: userDoc.username || '',
+        emailLower: userDoc.emailLower || String(userDoc.email || rawEmail).toLowerCase(),
         role: userDoc.role || '',
         department: userDoc.department || '',
         departmentId: userDoc.departmentId || '',
         departmentIds: Array.isArray(userDoc.departmentIds) ? userDoc.departmentIds : [],
         pages: Array.isArray(userDoc.pages) ? userDoc.pages : [],
-        pagesAccess: Array.isArray(userDoc.pagesAccess) ? userDoc.pagesAccess : []
+        pagesAccess: Array.isArray(userDoc.pagesAccess) ? userDoc.pagesAccess : [],
+        themeSettings: userDoc.themeSettings || null
       }));
       showMessage('loginMessage', '');
       openApp();
