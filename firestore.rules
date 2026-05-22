@@ -263,7 +263,7 @@ service cloud.firestore {
         "structure_deadline", "request_status", "campaignCode", "campaignCodeId",
         "campaignCodePrefix", "campaignCodeShortCode", "campaignType", "creatives",
         "publishSchedule", "budgetItems", "status", "source",
-        "id", "name", "campaignName", "taskCount", "publishStages",
+        "id", "name", "campaignName", "taskCount", "publishStages", "departmentTasks", "readiness", "stage",
         "createdAt", "createdBy", "updatedAt", "updatedBy"
       ]);
     }
@@ -283,8 +283,17 @@ service cloud.firestore {
         "contentSectionName",
         "taskType",
         "assignedToUid",
+        "assignedToId",
         "assignedToName",
         "assignedToEmail",
+        "userId",
+        "userUid",
+        "userName",
+        "userEmail",
+        "assigneeUid",
+        "assigneeName",
+        "assigneeEmail",
+        "receivedConfirmed",
         "assignedDepartmentId",
         "assignedDepartmentName",
         "departmentRole",
