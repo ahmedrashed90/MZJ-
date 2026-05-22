@@ -62,10 +62,19 @@ function getRoute(){ return (location.hash || '#dashboard').replace('#',''); }
 function openApp(){ loginView.classList.add('is-hidden'); appShell.classList.remove('is-hidden'); renderRoute(); bootstrapData(); }
 function openLogin(){ appShell.classList.add('is-hidden'); loginView.classList.remove('is-hidden'); }
 function renderRoute(){
-  const route = routes.includes(getRoute()) ? getRoute() : 'dashboard';
+  applyUserPermissions();
+  let route = routes.includes(getRoute()) ? getRoute() : 'dashboard';
+  if(!pageAllowed(route)){
+    route = 'dashboard';
+    if(location.hash !== '#dashboard') location.hash = '#dashboard';
+  }
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === route));
   document.querySelectorAll('.nav a').forEach(link => link.classList.toggle('active', link.dataset.route === route));
   sidebar?.classList.remove('open'); overlay?.classList.remove('show');
+  if(route === 'dashboard') renderAdminDashboard();
+  if(route === 'calendar') renderCalendarPage();
+  if(route === 'tasks') renderTasksPage();
+  if(route === 'stock') renderStock();
 }
 function showMessage(id, text){ const el = document.getElementById(id); if(el) el.textContent = text || ''; }
 function escapeHtml(value){ return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
@@ -77,6 +86,18 @@ function serverTime(){ return firebase.firestore.FieldValue.serverTimestamp(); }
 function safeCollection(name){ return mainDb.collection(name); }
 function getCurrentUser(){ try{ return JSON.parse(sessionStorage.getItem('mzj_user') || '{}') || {}; }catch(_){ return {}; } }
 function isCurrentUserAdmin(){ const user = getCurrentUser(); return user.role === 'admin' || (Array.isArray(user.pages) && user.pages.includes('admin')); }
+function pageAllowed(route){
+  if(isCurrentUserAdmin()) return true;
+  const pages = getCurrentUser().pages || getCurrentUser().pagesAccess || [];
+  return Array.isArray(pages) ? (pages.includes(route) || (!pages.length && route === 'dashboard')) : route === 'dashboard';
+}
+function applyUserPermissions(){
+  const allowed = isCurrentUserAdmin() ? routes : (getCurrentUser().pages || getCurrentUser().pagesAccess || ['dashboard']);
+  document.querySelectorAll('.nav a[data-route]').forEach(link => {
+    const route = link.dataset.route;
+    link.classList.toggle('is-hidden', !isCurrentUserAdmin() && !allowed.includes(route));
+  });
+}
 
 function initFirebase(){
   if(!window.firebase || !firebase.apps) return;
@@ -357,7 +378,7 @@ function stockChipHtml(name, count = null, extraClass = ''){
 function renderStockError(){
   ['stockTotalCars','dashboardCarsCount','stockAvailableAfterExclude','stockAvailableForSale','stockReserved','stockUnderDelivery'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = '—'; });
   const tbody = document.getElementById('stockSummaryRows');
-  if(tbody) tbody.innerHTML = '<tr class="empty-row"><td colspan="8">تعذر تحميل بيانات الاستوك.</td></tr>';
+  if(tbody) tbody.innerHTML = '<tr class="empty-row"><td colspan="5">تعذر تحميل بيانات الاستوك.</td></tr>';
 }
 function renderStock(){
   const tbody = document.getElementById('stockSummaryRows');
@@ -369,7 +390,7 @@ function renderStock(){
   setText('stockReserved', statusCount('حجز') || '—');
   setText('stockUnderDelivery', statusCount('مباع تحت التسليم') || '—');
   if(!tbody) return;
-  if(!cars.length){ tbody.innerHTML = '<tr class="empty-row"><td colspan="8">لا توجد بيانات استوك متاحة.</td></tr>'; return; }
+  if(!cars.length){ tbody.innerHTML = '<tr class="empty-row"><td colspan="5">لا توجد بيانات استوك متاحة.</td></tr>'; return; }
 
   const groups = new Map();
   cars.forEach(car => {
@@ -402,9 +423,6 @@ function renderStock(){
       <td>${escapeHtml(group.name)}</td>
       <td>${escapeHtml(group.model)}</td>
       <td><span class="stock-count">${group.count}</span></td>
-      <td><div class="stock-chip-list">${ext.length ? ext.map(([n,c]) => stockChipHtml(n,c)).join('') : '<span class="stock-chip">—</span>'}</div></td>
-      <td><div class="stock-chip-list">${intr.length ? intr.map(([n,c]) => stockChipHtml(n,c)).join('') : '<span class="stock-chip">—</span>'}</div></td>
-      <td><div class="stock-chip-list">${statuses.length ? statuses.map(([n,c]) => stockChipHtml(n,c,'stock-status')).join('') : '<span class="stock-chip">—</span>'}</div></td>
     </tr>`;
   }).join('');
 }
@@ -507,6 +525,8 @@ function fallbackTasksFromCampaign(campaign){
           campaignCode: campaign.campaignCode || campaign.campaign_code || '',
           creative: creativeRow.creative || '',
           product: creativeRow.product || '',
+          selectedCars: creativeRow.selectedCars || [],
+          selectedCar: (creativeRow.selectedCars || []).map(car => car.label).join('، '),
           contentSectionId: task.contentSectionId || '',
           contentSectionName: task.contentSectionName || '',
           taskType: task.taskType || '',
@@ -753,6 +773,8 @@ function buildCampaignTaskDocs(campaignId, payload){
           campaignCode: payload.campaignCode || '',
           creative: creativeRow.creative || '',
           product: creativeRow.product || '',
+          selectedCars: creativeRow.selectedCars || [],
+          selectedCar: (creativeRow.selectedCars || []).map(car => car.label).join('، '),
           contentSectionId: task.contentSectionId || '',
           contentSectionName: task.contentSectionName || '',
           taskType: task.taskType || '',
@@ -817,12 +839,30 @@ function collectCampaignRows(){
     return {
       creative: row.querySelector('.js-creative-select')?.value || '',
       tasks,
-      product: row.querySelector('.js-product-output')?.value || ''
+      product: row.querySelector('.js-product-output')?.value || '',
+      selectedCars: selectedCarsFromRow(row)
     };
   }).filter(item => item.creative || item.tasks.length || item.product);
 }
 function getCampaignProducts(){
   return uniqueList([...document.querySelectorAll('.js-product-output')].map(input => normalizeText(input.value)).filter(Boolean));
+}
+
+function carDisplayName(car){
+  const key = normalizeText(pickFirstValue(car, ['uniqueSpecKey','Unique Spec Key','unique_spec_key','specKey','spec_key','uniqueKey','unique_key','sku','code','title','name','اسم السيارة','اسم'])) || car.id;
+  const name = normalizeText(pickFirstValue(car, ['carName','name','title','modelName','vehicleName','اسم السيارة','السيارة','brand','make','ماركة','الماركة']));
+  const model = normalizeText(pickFirstValue(car, ['model','year','modelYear','موديل','الموديل','سنة','السنة']));
+  return [name, key, model].filter(Boolean).join(' - ');
+}
+function carCheckboxList(selectedIds = []){
+  const list = cars.slice(0, 80);
+  return list.length ? list.map(car => `<label class="car-check-card"><input type="checkbox" class="js-car-checkbox" value="${escapeHtml(car.id)}"${selectedIds.includes(car.id) ? ' checked' : ''}><span>${escapeHtml(carDisplayName(car))}</span></label>`).join('') : '<div class="empty-state mini-empty">لا توجد سيارات متاحة من الاستوك.</div>';
+}
+function selectedCarsFromRow(row){
+  return [...(row?.querySelectorAll('.js-car-checkbox:checked') || [])].map(input => {
+    const car = cars.find(item => item.id === input.value) || { id: input.value };
+    return { id: input.value, label: carDisplayName(car) || input.value };
+  });
 }
 function getCampaignPublishOutputs(){
   const outputs = [];
@@ -958,6 +998,7 @@ async function saveCampaignToFirebase(){
     const taskCount = await createCampaignTasks(docRef.id, payload);
     await docRef.update({ id: docRef.id, taskCount, updatedAt: serverTime() });
     showToast('تم حفظ الحملة على Firebase.');
+    window.location.hash = '#campaigns';
   }catch(error){
     console.error('Campaign save error', error, payload);
     const msg = error?.code === 'permission-denied' ? 'تعذر حفظ الحملة: راجع قواعد Firestore.' : 'تعذر حفظ الحملة على Firebase.';
@@ -1001,6 +1042,7 @@ function bindCampaignBuilder(){
         <label class="creative-product-field"><span>المنتجات</span><input class="product-output js-product-output" type="text" readonly aria-label="المنتجات" /></label>
         <button class="delete-row" type="button" aria-label="حذف الصف">×</button>
       </div>
+      <div class="car-picker-block"><div class="car-picker-title">اختيار السيارات</div><div class="car-checkbox-grid">${carCheckboxList()}</div></div>
       <div class="creative-task-grid">
         ${taskBlockHtml(1)}${taskBlockHtml(2)}${taskBlockHtml(3)}${taskBlockHtml(4)}
       </div>`;
@@ -1030,7 +1072,7 @@ function bindCampaignBuilder(){
       if(userSelect) userSelect.innerHTML = multiTaskUserOptions(event.target.value, []);
       updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return;
     }
-    if(event.target.matches('.js-task-user')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
+    if(event.target.matches('.js-task-user,.js-car-checkbox')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.matches('.js-creative-select,.js-task-type')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
@@ -1126,6 +1168,44 @@ function bindDepartments(){
 
 
 
+let calendarCursor = new Date();
+function publishEntriesFromCampaigns(){
+  return campaigns.flatMap(campaign => (campaign.publishSchedule || []).filter(item => item && item.date).map(item => ({
+    ...item,
+    campaignId: campaign.id,
+    campaignName: campaign.campaignName || campaign.name || 'حملة',
+    campaignCode: campaign.campaignCode || campaign.campaign_code || ''
+  })));
+}
+function renderCalendarPage(){
+  const board = document.getElementById('calendarBoard');
+  const title = document.getElementById('calendarMonthTitle');
+  if(!board) return;
+  const year = calendarCursor.getFullYear();
+  const month = calendarCursor.getMonth();
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  if(title) title.textContent = first.toLocaleDateString('ar-SA', { month:'long', year:'numeric' });
+  const entries = publishEntriesFromCampaigns();
+  const byDate = entries.reduce((acc, entry) => { (acc[entry.date] ||= []).push(entry); return acc; }, {});
+  const cells = [];
+  for(let i = 0; i < first.getDay(); i += 1) cells.push('<article class="calendar-day empty"></article>');
+  for(let d = 1; d <= last.getDate(); d += 1){
+    const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const date = new Date(year, month, d);
+    const dayEntries = byDate[iso] || [];
+    cells.push(`<article class="calendar-day"><div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div><small>${iso}</small><div class="calendar-day-items">${dayEntries.length ? dayEntries.map(item => `<div class="calendar-publish-item"><b>${escapeHtml(item.output || 'نشر')}</b><span>${escapeHtml([item.platform, item.time, item.campaignName].filter(Boolean).join(' · '))}</span></div>`).join('') : '<em>اضغط لاختيار النشر</em>'}</div></article>`);
+  }
+  board.innerHTML = `<div class="calendar-week-head"><span>الأحد</span><span>الإثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div><div class="calendar-month-grid">${cells.join('')}</div>`;
+}
+function renderTasksPage(){
+  const board = document.getElementById('tasksBoard'); if(!board) return;
+  const tasks = getVisibleTasksForCurrentUser();
+  const groups = groupTasksForKanban(tasks);
+  if(!groups.length){ board.innerHTML = '<div class="card"><div class="empty-state">لا توجد مهام حالياً.</div></div>'; return; }
+  board.innerHTML = `<div class="tasks-kanban-page">${groups.map(group => `<section class="tasks-page-col"><div class="tasks-page-col-head"><h2>${group.label}</h2><span>${group.tasks.length}</span></div>${group.tasks.map(task => `<article class="tasks-page-card"><strong>${shortTaskName(task)}</strong><p>${escapeHtml([task.campaignName, task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p><div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div><button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button></article>`).join('')}</section>`).join('')}</div>`;
+}
+
 function setDashboardMode(mode){
   const dashboard = document.getElementById('dashboard');
   if(!dashboard) return;
@@ -1140,8 +1220,8 @@ function setDashboardMode(mode){
     if(desc) desc.textContent = 'متابعة الحملات والتاسكات للأدمن.';
     if(createBtn) createBtn.classList.remove('is-hidden');
   }else{
-    if(title) title.textContent = 'لوحة التنفيذ';
-    if(desc) desc.textContent = 'المطلوب منك فقط حسب الحساب والقسم المسند لك.';
+    if(title) title.textContent = 'الداش بورد';
+    if(desc) desc.textContent = 'أنواع المحتوى والتاسكات المسندة لك.';
     if(createBtn) createBtn.classList.add('is-hidden');
   }
 }
@@ -1253,19 +1333,17 @@ function renderCampaignDetail(campaignId){
   const detail = document.getElementById('dashboardCampaignDetail');
   if(!detail || !campaign) return;
   const related = tasksForCampaign(campaign);
-  const groups = groupTasksForKanban(related);
   const snap = campaignTasksSnapshot(campaign);
-  const taskCard = task => `<article class="kanban-task-card compact-task" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">
-    <div class="kanban-task-main"><strong>${shortTaskName(task)}</strong><span>${taskProgress(task)}%</span></div>
-    <p>${escapeHtml([task.contentSectionName, task.taskType].filter(Boolean).join(' / ') || 'بدون نوع')}</p>
-    <div class="kanban-task-meta"><span>${taskOwnerName(task)}</span><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b></div>
+  const taskItem = task => `<article class="campaign-task-list-item">
+    <div class="task-list-main"><strong>${shortTaskName(task)}</strong><p>${escapeHtml([task.contentSectionName, task.taskType, taskOwnerName(task)].filter(Boolean).join(' / ') || 'بدون بيانات')}</p></div>
+    <div class="task-list-state"><span>${taskProgress(task)}%</span><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b></div>
+    <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">تفاصيل</button>
   </article>`;
+  const grouped = groupTasksForKanban(related);
   detail.classList.add('show');
-  detail.innerHTML = `<div class="detail-head modern-detail-head"><div><h2>${shortCampaignTitle(campaign)}</h2><p>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</p></div><button type="button" class="mini-btn" id="closeDashboardDetail">إغلاق</button></div>
-    <div class="detail-summary-strip">
-      <span><b>${snap.total}</b> تاسك</span><span><b>${snap.received}</b> مستلم</span><span><b>${snap.progress}%</b> جاهزية</span><span><b>${snap.publish}%</b> نشر</span>
-    </div>
-    ${groups.length ? `<div class="task-kanban-board modern-kanban-detail">${groups.map(group => `<section class="task-kanban-col"><div class="kanban-col-head"><strong>${group.label}</strong><span>${group.tasks.length}</span></div><div class="kanban-col-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}`;
+  detail.innerHTML = `<div class="detail-head clean-detail-head"><div><h2>${shortCampaignTitle(campaign)}</h2><p>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</p></div><button type="button" class="mini-btn" id="closeDashboardDetail">إغلاق</button></div>
+    <div class="detail-summary-strip compact-summary"><span><b>${snap.total}</b> تاسك</span><span><b>${snap.received}</b> مستلم</span><span><b>${snap.progress}%</b> جاهزية</span></div>
+    ${grouped.length ? grouped.map(group => `<section class="campaign-task-group"><div class="campaign-task-group-head"><h3>${group.label}</h3><span>${group.tasks.length}</span></div><div class="campaign-task-list">${group.tasks.map(taskItem).join('')}</div></section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}`;
 }
 async function togglePublishStage(campaignId, stage){
   const campaign = campaigns.find(item => item.id === campaignId);
@@ -1310,29 +1388,47 @@ function loadCampaignTasks(){
 }
 
 
+
+const defaultThemeSettings = {
+  systemName: 'نظام التسويق',
+  fontFamily: 'Tajawal',
+  direction: 'rtl',
+  colors: { primary:'#5A3A32', secondary:'#B85E4E', accent:'#C89F84', surface:'#FAF6F1', bg:'#F3E5D6', line:'#E5CBBE', text:'#2D1713', muted:'#8E7166' }
+};
+function getThemeColorPayload(){
+  return { primary:colorPrimary.value, secondary:colorSecondary.value, accent:colorAccent.value, surface:colorSurface.value, bg:colorBg.value, line:colorLine.value, text:colorText.value, muted:colorMuted.value };
+}
+function renderThemeImagePreview(settings = systemSettings){
+  const preview = document.getElementById('themeImagePreview'); if(!preview) return;
+  if(settings.themeImageData){ preview.innerHTML = `<img src="${escapeHtml(settings.themeImageData)}" alt="صورة الثيم"><span>${escapeHtml(settings.themeImageName || 'صورة الثيم')}</span>`; }
+  else preview.textContent = 'لا توجد صورة ثيم محفوظة.';
+}
+
 function applyThemeSettings(settings = {}){
   const colors = settings.colors || {};
   const map = {
     primary:'--primary', secondary:'--secondary', accent:'--accent', surface:'--surface', bg:'--bg', line:'--line', border:'--border', text:'--text', muted:'--muted'
   };
   Object.entries(map).forEach(([key, cssVar]) => { if(colors[key]) document.documentElement.style.setProperty(cssVar, colors[key]); }); if(colors.line) document.documentElement.style.setProperty('--border', colors.line);
-  if(settings.fontFamily) document.documentElement.style.setProperty('--font-family', settings.fontFamily);
+  if(settings.fontFamily) document.documentElement.style.setProperty('--font-family', settings.fontFamily === 'system-ui' ? 'system-ui, -apple-system, Segoe UI, sans-serif' : `'${settings.fontFamily}', sans-serif`);
   if(settings.direction){ document.documentElement.dir = settings.direction; document.body.dir = settings.direction; }
 }
 function fillSettingsForm(){
-  const colors = systemSettings.colors || {};
-  const set = (id, value) => { const el = document.getElementById(id); if(el && value) el.value = value; };
-  set('settingSystemName', systemSettings.systemName || 'نظام التسويق');
-  set('settingFontFamily', systemSettings.fontFamily || 'Tajawal');
-  set('settingDirection', systemSettings.direction || 'rtl');
-  set('colorPrimary', colors.primary || '#5A3329');
-  set('colorSecondary', colors.secondary || '#B85E4F');
-  set('colorAccent', colors.accent || '#C89F84');
-  set('colorSurface', colors.surface || '#FAF6F1');
-  set('colorBg', colors.bg || '#F3E5D6');
-  set('colorLine', colors.line || '#E5CBBE');
-  set('colorText', colors.text || '#2D1713');
-  set('colorMuted', colors.muted || '#8E7166');
+  const settings = { ...defaultThemeSettings, ...(systemSettings || {}), colors: { ...defaultThemeSettings.colors, ...((systemSettings || {}).colors || {}) } };
+  if(document.getElementById('settingSystemName')) settingSystemName.value = settings.systemName || '';
+  if(document.getElementById('settingFontFamily')) settingFontFamily.value = settings.fontFamily || 'Tajawal';
+  if(document.getElementById('settingDirection')) settingDirection.value = settings.direction || 'rtl';
+  if(settings.colors){
+    if(document.getElementById('colorPrimary')) colorPrimary.value = settings.colors.primary || defaultThemeSettings.colors.primary;
+    if(document.getElementById('colorSecondary')) colorSecondary.value = settings.colors.secondary || defaultThemeSettings.colors.secondary;
+    if(document.getElementById('colorAccent')) colorAccent.value = settings.colors.accent || defaultThemeSettings.colors.accent;
+    if(document.getElementById('colorSurface')) colorSurface.value = settings.colors.surface || defaultThemeSettings.colors.surface;
+    if(document.getElementById('colorBg')) colorBg.value = settings.colors.bg || defaultThemeSettings.colors.bg;
+    if(document.getElementById('colorLine')) colorLine.value = settings.colors.line || defaultThemeSettings.colors.line;
+    if(document.getElementById('colorText')) colorText.value = settings.colors.text || defaultThemeSettings.colors.text;
+    if(document.getElementById('colorMuted')) colorMuted.value = settings.colors.muted || defaultThemeSettings.colors.muted;
+  }
+  renderThemeImagePreview(settings);
 }
 function renderUsersPermissions(){
   const wrap = document.getElementById('usersPermissionsList');
@@ -1363,9 +1459,29 @@ function bindSettings(){
   });
   document.getElementById('saveThemeColorsBtn')?.addEventListener('click', async () => {
     if(!mainDb) return;
-    const colors = { primary:colorPrimary.value, secondary:colorSecondary.value, accent:colorAccent.value, surface:colorSurface.value, bg:colorBg.value, line:colorLine.value, text:colorText.value, muted:colorMuted.value };
+    const colors = getThemeColorPayload();
     await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({ colors, updatedAt: serverTime() }, { merge:true });
     applyThemeSettings({ colors }); showMessage('themeSettingsMessage','تم حفظ الألوان.');
+  });
+  document.getElementById('resetDefaultSettingsBtn')?.addEventListener('click', async () => {
+    if(!mainDb) return;
+    await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({...defaultThemeSettings, updatedAt: serverTime()}, { merge:true });
+    showMessage('systemSettingsMessage','تم استرجاع الإعدادات الافتراضية.');
+  });
+  document.getElementById('resetDefaultThemeBtn')?.addEventListener('click', () => {
+    applyThemeSettings({ colors: defaultThemeSettings.colors });
+    systemSettings = { ...systemSettings, colors: defaultThemeSettings.colors };
+    fillSettingsForm();
+  });
+  document.getElementById('themeImageInput')?.addEventListener('change', async event => {
+    const file = event.target.files?.[0]; if(!file || !mainDb) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({ themeImageName:file.name, themeImageData:String(reader.result || ''), updatedAt: serverTime() }, { merge:true });
+      showMessage('themeSettingsMessage','تم حفظ صورة الثيم.');
+      renderThemeImagePreview({ themeImageName:file.name, themeImageData:String(reader.result || '') });
+    };
+    reader.readAsDataURL(file);
   });
   document.getElementById('refreshUsersPermissionsBtn')?.addEventListener('click', renderUsersPermissions);
   document.addEventListener('click', async event => {
@@ -1490,6 +1606,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('logoutBtn')?.addEventListener('click', () => { sessionStorage.removeItem('mzj_logged_in'); openLogin(); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
+  document.addEventListener('keydown', event => { if(event.key === 'Escape') closeTaskModal(); });
+  document.getElementById('calendarPrevMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()-1); renderCalendarPage(); });
+  document.getElementById('calendarNextMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()+1); renderCalendarPage(); });
+  document.getElementById('calendarToday')?.addEventListener('click', () => { calendarCursor = new Date(); renderCalendarPage(); });
   bindCampaignBuilder(); bindDepartments(); bindSettings();
   document.getElementById('dashboard')?.addEventListener('click', async event => {
     const stageBtn = event.target.closest('[data-stage][data-campaign-id]');
@@ -1503,6 +1623,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const campaignCard = event.target.closest('[data-open-campaign]');
     if(campaignCard){ renderCampaignDetail(campaignCard.dataset.openCampaign); return; }
     if(event.target.id === 'closeDashboardDetail'){ document.getElementById('dashboardCampaignDetail')?.classList.remove('show'); }
+  });
+
+  document.getElementById('tasksBoard')?.addEventListener('click', event => {
+    const taskCard = event.target.closest('[data-open-task]');
+    if(taskCard) renderTaskDetail(taskCard.dataset.openTask, taskCard.dataset.taskCampaign || '');
   });
 
   document.addEventListener('click', async event => {

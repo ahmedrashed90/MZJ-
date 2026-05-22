@@ -247,13 +247,23 @@
       </section>
 
       <section class="view" id="calendar" data-title="التقويم">
-        <div class="page-head"><div class="page-title"><h1>التقويم</h1><p>جدولة النشر والمهام الشهرية.</p></div></div>
-        <div class="card"><div class="empty-state">سيتم بناء التقويم بعد اعتماد الحقول النهائية.</div></div>
+        <div class="page-head"><div class="page-title"><h1>التقويم</h1><p>تقويم النشر حسب جدول النشر داخل الحملات.</p></div></div>
+        <div class="card calendar-card">
+          <div class="calendar-toolbar">
+            <strong id="calendarMonthTitle">—</strong>
+            <div class="actions">
+              <button class="btn btn-light" type="button" id="calendarPrevMonth">السابق</button>
+              <button class="btn btn-light" type="button" id="calendarToday">اليوم</button>
+              <button class="btn btn-light" type="button" id="calendarNextMonth">التالي</button>
+            </div>
+          </div>
+          <div id="calendarBoard" class="publish-calendar-page"><div class="empty-state">جاري تحميل جدول النشر...</div></div>
+        </div>
       </section>
 
       <section class="view" id="tasks" data-title="المهام">
-        <div class="page-head"><div class="page-title"><h1>المهام</h1><p>متابعة تنفيذ مهام الحملات.</p></div></div>
-        <div class="grid kanban"><div class="card"><h2>قيد التنفيذ</h2><div class="empty-state">لا توجد مهام.</div></div><div class="card"><h2>مراجعة</h2><div class="empty-state">لا توجد مهام.</div></div><div class="card"><h2>مكتمل</h2><div class="empty-state">لا توجد مهام.</div></div></div>
+        <div class="page-head"><div class="page-title"><h1>المهام</h1><p>المهام من داخل الحملات حسب صلاحيات الحساب.</p></div></div>
+        <div id="tasksBoard" class="tasks-page-board"><div class="empty-state">جاري تحميل المهام...</div></div>
       </section>
 
       <section class="view" id="stock" data-title="الاستوك">
@@ -286,13 +296,10 @@
                   <th>اسم السيارة</th>
                   <th>الموديل</th>
                   <th>العدد</th>
-                  <th>الألوان الخارجية المتاحة</th>
-                  <th>الألوان الداخلية المتاحة</th>
-                  <th>الحالات</th>
                 </tr>
               </thead>
               <tbody id="stockSummaryRows">
-                <tr class="empty-row"><td colspan="8">جاري تحميل بيانات الاستوك...</td></tr>
+                <tr class="empty-row"><td colspan="5">جاري تحميل بيانات الاستوك...</td></tr>
               </tbody>
             </table>
           </div>
@@ -311,8 +318,9 @@
             <h2>بيانات النظام</h2>
             <form class="form" id="systemSettingsForm">
               <label class="field"><span>اسم النظام</span><input type="text" id="settingSystemName" placeholder="نظام التسويق" /></label>
-              <label class="field"><span>الخط الأساسي</span><input type="text" id="settingFontFamily" value="Tajawal" /></label>
+              <label class="field"><span>الخط الأساسي</span><select id="settingFontFamily"><option value="Tajawal">Tajawal</option><option value="Cairo">Cairo</option><option value="Almarai">Almarai</option><option value="system-ui">System UI</option></select></label>
               <label class="field"><span>اتجاه الواجهة</span><select id="settingDirection"><option value="rtl">RTL - عربي</option><option value="ltr">LTR - English</option></select></label>
+              <button class="btn btn-light full" type="button" id="resetDefaultSettingsBtn">استرجاع الإعدادات الافتراضية</button>
               <button class="btn btn-primary full" type="submit">حفظ الإعدادات</button>
               <p class="form-message" id="systemSettingsMessage"></p>
             </form>
@@ -329,7 +337,14 @@
               <label><input type="color" id="colorText" value="#2D1713"><span>Text</span></label>
               <label><input type="color" id="colorMuted" value="#8E7166"><span>Muted</span></label>
             </div>
-            <button class="btn btn-primary" type="button" id="saveThemeColorsBtn">حفظ الألوان</button>
+            <div class="theme-image-box">
+              <label class="field"><span>صورة مرجع الثيم</span><input type="file" id="themeImageInput" accept="image/*" /></label>
+              <div id="themeImagePreview" class="theme-image-preview">لا توجد صورة ثيم محفوظة.</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-light" type="button" id="resetDefaultThemeBtn">ألوان افتراضية</button>
+              <button class="btn btn-primary" type="button" id="saveThemeColorsBtn">حفظ الألوان</button>
+            </div>
             <p class="form-message" id="themeSettingsMessage"></p>
           </div>
         </div>
