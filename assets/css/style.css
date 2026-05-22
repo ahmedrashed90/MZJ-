@@ -364,3 +364,12 @@ body.has-user-dashboard-theme #dashboard.user-mode{background-image:linear-gradi
 .car-picker-block.is-hidden{display:none!important}.car-checkbox-grid{max-height:270px!important;overflow:auto!important}
 @media(max-width:1350px){.content-type-board{grid-template-columns:repeat(2,minmax(0,1fr))!important}.task-info-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}.modal-steps-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:780px){.main{margin-right:0!important}.sidebar{transform:translateX(110%)!important;width:112px!important}.sidebar.open{transform:translateX(0)!important}.menu-btn{display:grid!important}.content-type-board{grid-template-columns:1fr!important}.task-info-grid,.modal-steps-grid{grid-template-columns:1fr!important}.task-modal-dialog{width:calc(100vw - 20px)!important;padding:14px!important}}
+
+
+/* Final user dashboard glass overrides */
+#dashboard.user-mode .user-content-dashboard{background:rgba(255,253,252,.48)!important;backdrop-filter:blur(14px)!important;border:1px solid rgba(255,255,255,.42)!important}
+#dashboard.user-mode .content-type-col{background:rgba(255,253,252,.52)!important;backdrop-filter:blur(12px)!important}
+#dashboard.user-mode .content-task-card{background:rgba(255,255,255,.72)!important;backdrop-filter:blur(8px)!important}
+body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard,body.has-user-dashboard-theme #dashboard.user-mode .card{background:rgba(255,253,252,.48)!important;backdrop-filter:blur(14px)!important}
+body.has-user-dashboard-theme #dashboard.user-mode .content-type-col{background:rgba(255,253,252,.50)!important}
+@media(max-width:780px){.sidebar{transform:none!important;width:112px!important}.main{margin-right:112px!important}.menu-btn{display:none!important}}

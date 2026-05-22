@@ -649,10 +649,12 @@ function findCurrentUserRecord(){
 function currentUserIdentityKeys(){
   const sessionUser = getCurrentUser();
   const matchedUser = findCurrentUserRecord() || {};
+  const authUser = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : {};
   return uniqueIdentityKeys([
-    sessionUser, matchedUser,
+    sessionUser, matchedUser, authUser,
     sessionUser.id, sessionUser.uid, sessionUser.email, sessionUser.emailLower, sessionUser.name, sessionUser.displayName, sessionUser.username,
-    matchedUser.id, matchedUser.uid, matchedUser.email, matchedUser.emailLower, matchedUser.name, matchedUser.displayName, matchedUser.username
+    matchedUser.id, matchedUser.uid, matchedUser.email, matchedUser.emailLower, matchedUser.name, matchedUser.displayName, matchedUser.username,
+    authUser.uid, authUser.email, authUser.displayName
   ]);
 }
 function taskIdentityKeys(task){
@@ -675,17 +677,19 @@ function currentUserMatchesTaskExact(task){
   if(identityIntersects(userKeys, taskKeys)) return true;
 
   const current = findCurrentUserRecord() || getCurrentUser();
-  const currentName = identityClean(current.name || current.displayName || current.username || '');
-  const currentEmail = identityClean(current.email || current.emailLower || '');
-  const currentId = identityClean(current.id || current.uid || '');
-  const explicitValues = [
+  const authUser = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : {};
+  const currentNames = uniqueIdentityKeys([current.name, current.displayName, current.username, authUser.displayName]);
+  const currentEmails = uniqueIdentityKeys([current.email, current.emailLower, authUser.email]);
+  const currentIds = uniqueIdentityKeys([current.id, current.uid, authUser.uid]);
+  const explicitValues = uniqueIdentityKeys([
     task.assignedToName, task.assigneeName, task.userName,
     task.assignedToEmail, task.assigneeEmail, task.userEmail,
-    task.assignedToId, task.assignedToUid, task.assigneeId, task.assigneeUid, task.userId, task.userUid
-  ].map(identityClean).filter(Boolean);
-  if(currentId && explicitValues.includes(currentId)) return true;
-  if(currentEmail && explicitValues.includes(currentEmail)) return true;
-  if(currentName && explicitValues.includes(currentName)) return true;
+    task.assignedToId, task.assignedToUid, task.assigneeId, task.assigneeUid, task.userId, task.userUid,
+    task.assignedToSearch
+  ]);
+  if(identityIntersects(currentIds, explicitValues)) return true;
+  if(identityIntersects(currentEmails, explicitValues)) return true;
+  if(identityIntersects(currentNames, explicitValues)) return true;
   return false;
 }
 function userDepartmentIdentityKeys(){
@@ -716,6 +720,14 @@ function getVisibleTasksForCurrentUser(){
   if(isCurrentUserAdmin()) return allTasks;
   const exact = allTasks.filter(task => currentUserMatchesTaskExact(task));
   if(exact.length) return exact;
+  const current = findCurrentUserRecord() || getCurrentUser();
+  const authUser = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : {};
+  const rawNeedles = [current.email, current.emailLower, authUser.email, current.name, current.displayName, current.username, authUser.displayName, current.id, current.uid, authUser.uid].map(v => String(v || '').trim()).filter(Boolean);
+  const loose = allTasks.filter(task => {
+    const hay = JSON.stringify({userId:task.userId,userUid:task.userUid,userEmail:task.userEmail,userName:task.userName,assignedToId:task.assignedToId,assignedToUid:task.assignedToUid,assignedToEmail:task.assignedToEmail,assignedToName:task.assignedToName,assigneeUid:task.assigneeUid,assigneeEmail:task.assigneeEmail,assigneeName:task.assigneeName,assignedToSearch:task.assignedToSearch}).toLowerCase();
+    return rawNeedles.some(n => n && hay.includes(n.toLowerCase()));
+  });
+  if(loose.length) return loose;
   return allTasks.filter(task => currentUserMatchesTaskDepartment(task));
 }
 function findTaskById(taskId, campaignId = ''){
@@ -735,7 +747,7 @@ function stepButtonClass(step){ return step.done ? 'step-btn done' : 'step-btn';
 function stepButtonTitle(step){ return step.adminOnly ? 'اعتماد الأدمن فقط' : 'تنفيذ المرحلة'; }
 
 function taskContentType(task){
-  return normalizeText(task.contentSectionName || task.contentType || task.taskType || task.creative || 'أنواع المحتوى');
+  return normalizeText(task.contentSectionName || task.assignedDepartmentName || task.contentType || task.taskType || task.creative || 'أنواع المحتوى');
 }
 function taskDepartmentLabel(task){
   const labels = {content:'قسم المحتوى', shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج', publish:'قسم النشر', other:'قسم'};
@@ -856,8 +868,8 @@ function buildTaskDetailHtml(task){
       </div>
     </div>
     <div class="modal-section task-required-section">
-      <div class="modal-section-title"><h3>المطلوب</h3></div>
-      <p>${escapeHtml(task.product || task.creative || task.taskType || '—')}</p>
+      <div class="modal-section-title"><h3>الكريتيف</h3></div>
+      <p>${escapeHtml(task.creative || '—')}</p>
     </div>
     <div class="modal-section task-required-section">
       <div class="modal-section-title"><h3>السيارة المختارة</h3></div>
@@ -1046,8 +1058,10 @@ function getCampaignPublishOutputs(){
     row.querySelectorAll('.creative-task-block').forEach(block => {
       const sectionName = readSelectText(block.querySelector('.js-task-section-select'));
       const taskName = block.querySelector('.js-task-type')?.value || '';
-      if(!sectionName && !taskName) return;
-      outputs.push([creative, sectionName, taskName].filter(Boolean).join(' - '));
+      const role = normalizeDepartmentRole(sectionName);
+      const label = [creative, sectionName, taskName].filter(Boolean).join(' - ');
+      if(!label || label.includes('اختار المحتوى')) return;
+      if(role === 'design' || role === 'montage') outputs.push(label);
     });
   });
   return uniqueList(outputs);
@@ -1070,7 +1084,7 @@ function getPublishSelections(){
     selections[date] = {
       output: card.querySelector('.js-publish-output-select')?.value || '',
       platform: card.querySelector('.js-platform-select')?.value || '',
-      time: card.querySelector('.js-publish-time')?.value || '',
+      time: '',
       note: normalizeText(card.querySelector('.js-publish-note')?.value)
     };
   });
@@ -1109,7 +1123,6 @@ function renderPublishAgenda(){
       <div class="publish-day-date">${iso}</div>
       <select class="js-publish-output-select compact-select" aria-label="اختيار النشر">${makePublishOutputOptions(outputs, currentOutput)}</select>
       <select class="js-platform-select compact-select" aria-label="المنصة">${platformOptions(prev.platform || '')}</select>
-      <input type="time" class="js-publish-time compact-input" value="${escapeHtml(prev.time || '')}" aria-label="وقت النشر" />
       <input type="text" class="js-publish-note compact-input" value="${escapeHtml(prev.note || '')}" placeholder="ملاحظة" aria-label="ملاحظات" />
     </article>`);
   });
@@ -1372,7 +1385,7 @@ function renderCalendarPage(){
     const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const date = new Date(year, month, d);
     const dayEntries = byDate[iso] || [];
-    cells.push(`<article class="calendar-day"><div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div><small>${iso}</small><div class="calendar-day-items">${dayEntries.length ? dayEntries.map(item => `<div class="calendar-publish-item"><b>${escapeHtml(item.output || 'نشر')}</b><span>${escapeHtml([item.platform, item.time, item.campaignName].filter(Boolean).join(' · '))}</span></div>`).join('') : ''}</div></article>`);
+    cells.push(`<article class="calendar-day"><div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div><small>${iso}</small><div class="calendar-day-items">${dayEntries.length ? dayEntries.map(item => `<div class="calendar-publish-item"><b>${escapeHtml(item.output || 'نشر')}</b><span>${escapeHtml([item.platform, item.campaignName].filter(Boolean).join(' · '))}</span></div>`).join('') : ''}</div></article>`);
   }
   board.innerHTML = `<div class="calendar-week-head"><span>الأحد</span><span>الإثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div><div class="calendar-month-grid">${cells.join('')}</div>`;
 }
