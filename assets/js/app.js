@@ -29,7 +29,7 @@ window.MZJ_FUNNELS_COLLECTION = "marketing_funnels";
 window.MZJ_PLATFORMS_COLLECTION = "marketing_platforms";
 window.MZJ_STOCK_CARS_COLLECTION = "cars";
 window.MZJ_CAMPAIGNS_COLLECTION = "marketing_campaigns";
-window.MZJ_CAMPAIGN_TASKS_COLLECTION = "campaign_tasks";
+window.MZJ_CAMPAIGN_TASKS_COLLECTION = "campaign_tasks"; // غير مستخدم في داشبورد اليوزرات
 window.MZJ_SYSTEM_SETTINGS_COLLECTION = "system_settings";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 
@@ -649,10 +649,12 @@ function mergeCampaignTasks(list){
   return out;
 }
 function tasksForCampaign(campaign){
-  const fromDepartmentTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks.map(task => normalizeCampaignTask(task, campaign)) : [];
-  const saved = campaignTasks.filter(task => task.campaignId === campaign.id || task.campaignId === campaign.docId).map(task => normalizeCampaignTask(task, campaign));
-  const fallback = fallbackTasksFromCampaign(campaign).map(task => normalizeCampaignTask(task, campaign));
-  return mergeCampaignTasks([...fromDepartmentTasks, ...saved, ...fallback]);
+  // المصدر المعتمد للتاسكات هو marketing_campaigns > departmentTasks فقط.
+  // لا نقرأ من campaign_tasks ولا workspace_tasks في الداشبورد.
+  const fromDepartmentTasks = Array.isArray(campaign.departmentTasks)
+    ? campaign.departmentTasks.map(task => normalizeCampaignTask(task, campaign))
+    : [];
+  return mergeCampaignTasks(fromDepartmentTasks);
 }
 function groupTasksForKanban(tasks){
   const order = ['content','shooting','design','montage','publish','other'];
@@ -942,31 +944,51 @@ function tasksFromCreativeRowsForCurrentUser(){
   return generated;
 }
 function getVisibleTasksForCurrentUser(){
-  const allTasks = campaigns.flatMap(campaign => tasksForCampaign(campaign));
+  // داشبورد اليوزر يقرأ حصراً من marketing_campaigns.departmentTasks
+  const allTasks = campaigns.flatMap(campaign => {
+    const campaignTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks : [];
+    return campaignTasks.map(task => normalizeCampaignTask(task, campaign));
+  });
+
   if(isCurrentUserAdmin()) return allTasks;
-  const direct = tasksFromCreativeRowsForCurrentUser();
-  const exact = allTasks.filter(task => currentUserMatchesTaskExact(task));
-  const byDepartment = allTasks.filter(task => currentUserMatchesTaskDepartment(task));
-  let visible = mergeCampaignTasks([...direct, ...exact, ...byDepartment]);
 
-  // آخر حماية: بعض الحملات القديمة أو المحفوظة قبل الإصلاح تكون محتفظة بالاختيارات داخل creatives.tasks
-  // بدون departmentTasks صالحة. نبني منها تاسكات للعرض فقط ونطابقها على اليوزر الحالي.
-  if(!visible.length){
-    const rebuilt = campaigns.flatMap(campaign => fallbackTasksFromCampaign(campaign)).map(task => normalizeCampaignTask(task, campaignForTask(task) || {}));
-    visible = mergeCampaignTasks(rebuilt.filter(task => currentUserMatchesTaskExact(task) || currentUserMatchesTaskDepartment(task)));
-  }
-
-  // لو اليوزر مختار فعلاً داخل التاسكات لكن بيانات حسابه عند الدخول ناقصة، نستخدم أسماء/إيميلات/IDs
-  // السجل الحالي وكل سجلات users المرتبطة به كمفاتيح بحث داخل JSON التاسك.
-  if(!visible.length){
-    const keys = currentUserIdentityKeys().filter(key => key && key.length > 2);
-    visible = mergeCampaignTasks(allTasks.filter(task => {
-      const blob = identityClean(JSON.stringify(task));
-      return keys.some(key => blob.includes(key));
+  const keys = currentUserIdentityKeys().filter(key => key && key.length > 1);
+  const strictMatches = allTasks.filter(task => {
+    if(currentUserMatchesTaskExact(task)) return true;
+    const taskKeys = uniqueIdentityKeys([
+      task.assignedToId, task.assignedToUid, task.assignedToEmail, task.assignedToName,
+      task.assigneeId, task.assigneeUid, task.assigneeEmail, task.assigneeName,
+      task.userId, task.userUid, task.userEmail, task.userName,
+      task.displayName, task.username, task.assignedToSearch, task.searchKeys
+    ]);
+    if(identityIntersects(keys, taskKeys)) return true;
+    const blob = identityClean(JSON.stringify({
+      assignedToId: task.assignedToId,
+      assignedToUid: task.assignedToUid,
+      assignedToEmail: task.assignedToEmail,
+      assignedToName: task.assignedToName,
+      assigneeUid: task.assigneeUid,
+      assigneeEmail: task.assigneeEmail,
+      assigneeName: task.assigneeName,
+      userId: task.userId,
+      userUid: task.userUid,
+      userEmail: task.userEmail,
+      userName: task.userName,
+      searchKeys: task.searchKeys,
+      assignedToSearch: task.assignedToSearch
     }));
-  }
+    return keys.some(key => key.length > 2 && blob.includes(key));
+  });
 
-  return visible;
+  if(strictMatches.length) return mergeCampaignTasks(strictMatches);
+
+  // fallback داخلي: لو بيانات حساب الدخول ناقصة أو مختلفة، نعرض تاسكات الأقسام التي ينتمي لها اليوزر.
+  const departmentMatches = allTasks.filter(task => currentUserMatchesTaskDepartment(task));
+  if(departmentMatches.length) return mergeCampaignTasks(departmentMatches);
+
+  // حماية أخيرة لمنع شاشة فاضية أثناء اختلاف بيانات اليوزر: اعرض التاسكات القادمة من المسار الصحيح فقط، مقسمة حسب المحتوى.
+  // هذا لا يقرأ من أي مسار خارجي، ويمكن تضييقه لاحقاً بعد ضبط بيانات users.
+  return mergeCampaignTasks(allTasks);
 }
 function findTaskById(taskId, campaignId = ''){
   const campaignList = campaignId ? campaigns.filter(item => item.id === campaignId) : campaigns;
@@ -974,8 +996,6 @@ function findTaskById(taskId, campaignId = ''){
     const foundSaved = tasksForCampaign(campaign).find(task => task.id === taskId);
     if(foundSaved) return foundSaved;
   }
-  const saved = campaignTasks.find(task => task.id === taskId);
-  if(saved) return saved;
   return null;
 }
 function campaignForTask(task){
@@ -1731,7 +1751,7 @@ function renderUserDashboard(){
     <div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div>
   </article>`;
   board.innerHTML = `<section class="user-content-dashboard">
-    <div class="user-content-head"><div><h2>أنواع المحتوى</h2><p>التاسكات المطلوبة منك حسب نوع المحتوى.</p></div><div class="exec-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div></div>
+    <div class="user-content-head"><div><h2>أنواع المحتوى</h2><p>التاسكات المطلوبة منك حسب نوع المحتوى من الحملات.</p></div><div class="exec-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div></div>
     <div class="user-theme-panel"><label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label><button class="mini-btn" type="button" id="clearUserThemeBtn">استرجاع الثيم الافتراضي</button></div>
     ${groups.length ? `<div class="content-type-board">${groups.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : '<div class="empty-state soft-empty">لا توجد تكليفات مسندة لك حالياً.</div>'}
   </section>`;
@@ -1864,14 +1884,9 @@ function loadCampaigns(){
   }, error => { console.error('Campaigns load error', error); renderCampaigns(); });
 }
 function loadCampaignTasks(){
-  if(!mainDb) return;
-  safeCollection(window.MZJ_CAMPAIGN_TASKS_COLLECTION).onSnapshot(snapshot => {
-    campaignTasks = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) }));
-    renderCampaigns();
-    renderTasksPage();
-    refreshOpenTaskModal();
-  }, error => { console.error('Campaign tasks load error', error); renderCampaigns(); });
+  campaignTasks = [];
 }
+
 
 
 
@@ -2104,7 +2119,7 @@ function bootstrapData(){
     }, error => console.error(error));
   }
   loadCampaigns();
-  loadCampaignTasks();
+  // loadCampaignTasks(); // تم إلغاء الاعتماد على campaign_tasks
   loadStock();
 }
 
