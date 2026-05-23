@@ -285,7 +285,15 @@
               <h2>حصر السيارات المتاحة</h2>
               <p>يعرض السيارات المجمعة حسب المواصفة والألوان، مع حالة التصوير والاستخدام.</p>
             </div>
-            <label class="field stock-filter-field"><span>فلتر الاستوك</span><select id="stockFilterMode"><option value="all">كل السيارات</option><option value="not-photographed">لسه مش متصورة</option><option value="unused">غير مستخدمة في أي نوع محتوى</option><option value="not-photographed-unused">مش متصورة وغير مستخدمة</option></select></label>
+            <div class="stock-filter-area">
+              <select id="stockFilterMode" class="stock-filter-hidden" aria-label="فلتر الاستوك">
+                <option value="all">كل السيارات</option>
+                <option value="not-photographed">لسه مش متصورة</option>
+                <option value="unused">غير مستخدمة في أي نوع محتوى</option>
+                <option value="not-photographed-unused">مش متصورة وغير مستخدمة</option>
+              </select>
+              <div id="stockFilterCards" class="stock-filter-cards" aria-label="فلاتر الاستوك"></div>
+            </div>
           </div>
           <div class="stock-table-wrap">
             <table class="stock-table" aria-label="حصر الاستوك">

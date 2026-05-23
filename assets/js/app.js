@@ -436,16 +436,32 @@ function stockGroupUsage(group){
   return hits;
 }
 async function saveStockShotStatus(groupKey, value){
-  if(!mainDb) return showToast('قاعدة البيانات غير متاحة.');
+  if(!mainDb){ showToast('قاعدة البيانات غير متاحة.'); return; }
   const docId = stockGroupDocId(groupKey);
-  await safeCollection(window.MZJ_STOCK_META_COLLECTION).doc(docId).set({
-    groupKey,
+  const previous = stockCarMeta[docId] || {};
+  const payload = {
+    groupKey: normalizeText(groupKey),
+    docKey: docId,
     photographed: value === 'yes',
-    photographedValue: value || '',
+    photographedValue: value === 'yes' ? 'yes' : 'no',
     updatedAt: serverTime(),
     updatedBy: getCurrentUserIdentity().email || getCurrentUserIdentity().name || ''
-  }, { merge: true });
-  showToast('تم حفظ حالة التصوير.');
+  };
+  // تحديث فوري في الواجهة حتى لا يرجع الاختيار قبل وصول Firestore
+  stockCarMeta[docId] = { ...previous, ...payload, updatedAt: new Date().toISOString() };
+  renderStock();
+  try{
+    await safeCollection(window.MZJ_STOCK_META_COLLECTION).doc(docId).set(payload, { merge: true });
+    showToast('تم حفظ حالة التصوير.');
+  }catch(error){
+    stockCarMeta[docId] = previous;
+    renderStock();
+    console.error('Stock shot save error', error);
+    const msg = String(error?.message || error || '');
+    if(msg.toLowerCase().includes('permission')) showToast('تعذر حفظ حالة التصوير. راجع قواعد Firebase لمسار marketing_stock_cars.');
+    else showToast('تعذر حفظ حالة التصوير.');
+    throw error;
+  }
 }
 
 function loadStock(){
@@ -525,7 +541,6 @@ function filterStockRows(rows, mode = stockFilterMode){
 }
 function stockRowsCount(rows){ return rows.reduce((sum, group) => sum + (Number(group.count) || 0), 0); }
 function updateStockFilterLabels(select, rows){
-  if(!select) return;
   const counts = {
     all: stockRowsCount(filterStockRows(rows, 'all')),
     'not-photographed': stockRowsCount(filterStockRows(rows, 'not-photographed')),
@@ -538,7 +553,20 @@ function updateStockFilterLabels(select, rows){
     unused: 'غير مستخدمة في أي نوع محتوى',
     'not-photographed-unused': 'مش متصورة وغير مستخدمة'
   };
-  [...select.options].forEach(option => { option.textContent = `${labels[option.value] || option.textContent.split('(')[0].trim()} (${counts[option.value] || 0})`; });
+  if(select){
+    [...select.options].forEach(option => { option.textContent = `${labels[option.value] || option.textContent.split('(')[0].trim()} (${counts[option.value] || 0})`; });
+  }
+  renderStockFilterCards(counts, labels);
+}
+function renderStockFilterCards(counts, labels){
+  const wrap = document.getElementById('stockFilterCards');
+  if(!wrap) return;
+  const order = ['all','not-photographed','unused','not-photographed-unused'];
+  wrap.innerHTML = order.map(key => `
+    <button class="stock-filter-card ${stockFilterMode === key ? 'active' : ''}" type="button" data-stock-filter-card="${escapeHtml(key)}">
+      <span>${escapeHtml(labels[key])}</span>
+      <b>${escapeHtml(counts[key] ?? 0)}</b>
+    </button>`).join('');
 }
 function renderStock(){
   const tbody = document.getElementById('stockSummaryRows');
@@ -1819,6 +1847,14 @@ function bindDepartments(){
   document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignCodes(); renderCampaignTypes(); renderContentSections(); });
   document.getElementById('refreshStockBtn')?.addEventListener('click', renderStock);
   document.getElementById('stockFilterMode')?.addEventListener('change', event => { stockFilterMode = event.target.value || 'all'; renderStock(); });
+  document.addEventListener('click', event => {
+    const card = event.target.closest('[data-stock-filter-card]');
+    if(!card) return;
+    stockFilterMode = card.dataset.stockFilterCard || 'all';
+    const select = document.getElementById('stockFilterMode');
+    if(select) select.value = stockFilterMode;
+    renderStock();
+  });
   document.addEventListener('change', async event => {
     const select = event.target.closest('[data-stock-shot]');
     if(!select) return;
