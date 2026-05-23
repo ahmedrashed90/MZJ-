@@ -1406,6 +1406,7 @@ function openTaskModal(task){
   modal.classList.add('show');
   modal.setAttribute('aria-hidden','false');
   document.body.classList.add('modal-open');
+  setTimeout(() => ensureStructureSheetLoaded(task.id), 50);
 }
 function closeTaskModal(){
   document.getElementById('taskModal')?.classList.remove('show');
@@ -1490,10 +1491,23 @@ async function parseStructureFile(file){
   return result.parsedRows || [];
 }
 
+async function dataUrlToArrayBuffer(dataUrl){
+  const res = await fetch(dataUrl);
+  return await res.arrayBuffer();
+}
+async function parseStructureDataUrl(dataUrl){
+  if(!window.XLSX || !dataUrl) return { parsedRows: [], sheetTables: [] };
+  const buffer = await dataUrlToArrayBuffer(dataUrl);
+  return parseStructureWorkbookBuffer(buffer);
+}
 async function parseStructureWorkbook(file){
   if(!window.XLSX) return { parsedRows: [], sheetTables: [] };
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array' });
+  return parseStructureWorkbookBuffer(buffer);
+}
+async function parseStructureWorkbookBuffer(buffer){
+  if(!window.XLSX) return { parsedRows: [], sheetTables: [] };
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false });
   const sheetTables = workbook.SheetNames.map(sheetName => {
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' })
       .map(row => row.map(cell => normalizeText(cell)));
@@ -1544,7 +1558,12 @@ function structureCellKey(sheetName, rowIndex, colIndex){
 
 function renderStructureWorkbookTable(task, structure, admin){
   const sheets = Array.isArray(structure.sheetTables) ? structure.sheetTables : [];
-  if(!sheets.length) return '';
+  if(!sheets.length){
+    if(structure.fileData){
+      return `<div class="structure-workbook-view missing-sheet-preview"><h4>الشيت كامل</h4><div class="empty-state mini-empty">الملف مرفوع، لكن عرض الشيت لم يكتمل بعد.</div><button class="btn btn-light" type="button" data-reload-structure-sheet="${escapeHtml(task.id)}">عرض الشيت كامل من الملف المرفوع</button></div>`;
+    }
+    return '';
+  }
   const notes = Array.isArray(structure.notes) ? structure.notes : [];
   const marks = Array.isArray(structure.marks) ? structure.marks : [];
   return `<div class="structure-workbook-view"><h4>الشيت كامل - اضغط مرة على أي خلية للتعليم بالأصفر، واضغط مرتين لإضافة ملاحظة</h4>${sheets.map(sheet => {
@@ -1850,13 +1869,41 @@ async function uploadStructureFileForTask(file, taskId){
   if(!task) return showToast('تعذر العثور على التاسك.');
   showToast('جاري قراءة الهيكل...');
   const fileData = await fileToDataUrl(file);
-  const parsed = await parseStructureWorkbook(file);
+  let parsed = await parseStructureWorkbook(file);
+  if(!(parsed.sheetTables || []).length && fileData){
+    parsed = await parseStructureDataUrl(fileData);
+  }
   const parsedRows = parsed.parsedRows || [];
   const sheetTables = parsed.sheetTables || [];
   const prev = taskStructure(task);
   const status = prev.status === 'needs_changes' ? 'revised' : 'pending_review';
   await updateTaskOnFirebase(task.id, { structure: { ...prev, status, fileName: file.name, fileSize: file.size, fileData, parsedRows, sheetTables, uploadedAt: new Date().toISOString(), uploadedBy: getCurrentUser().email || getCurrentUser().name || '' } });
-  showToast(sheetTables.length ? 'تم رفع الهيكل وعرض الشيت كامل.' : 'تم رفع الهيكل، ولم يتم قراءة الشيت تلقائيًا.');
+  showToast(sheetTables.length ? 'تم رفع الهيكل وعرض الشيت كامل.' : 'تم رفع الهيكل، اضغط عرض الشيت كامل من الملف المرفوع.');
+}
+async function reloadStructureSheetFromStoredFile(taskId, silent = false){
+  const task = findTaskById(taskId);
+  if(!task) return;
+  const structure = taskStructure(task);
+  if(!structure.fileData) return;
+  try{
+    if(!silent) showToast('جاري عرض الشيت من الملف المرفوع...');
+    const parsed = await parseStructureDataUrl(structure.fileData);
+    const sheetTables = parsed.sheetTables || [];
+    const parsedRows = parsed.parsedRows || [];
+    if(!sheetTables.length){ if(!silent) showToast('تعذر قراءة الشيت من الملف المرفوع.'); return; }
+    await updateTaskOnFirebase(task.id, { structure: { ...structure, sheetTables, parsedRows, reparsedAt: new Date().toISOString() } });
+    if(!silent) showToast('تم عرض الشيت كامل.');
+  }catch(error){
+    console.error('Structure reparse error', error);
+    if(!silent) showToast('تعذر عرض الشيت من الملف المرفوع.');
+  }
+}
+function ensureStructureSheetLoaded(taskId){
+  const task = findTaskById(taskId);
+  const structure = taskStructure(task);
+  if(structure.fileData && !(Array.isArray(structure.sheetTables) && structure.sheetTables.length)){
+    reloadStructureSheetFromStoredFile(taskId, true);
+  }
 }
 async function toggleStructureCellMark(taskId, sheetName, rowIndex, colIndex){
   const task = findTaskById(taskId);
@@ -3292,7 +3339,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const removeFile = event.target.closest('[data-remove-results-file]');
     if(removeFile){ await removeCampaignResultFile(removeFile.dataset.removeResultsFile); return; }
     const uploadStructureBtn = event.target.closest('[data-upload-structure]');
-    if(uploadStructureBtn){ const input = document.getElementById('structureFileInput'); if(input){ input.dataset.taskId = uploadStructureBtn.dataset.uploadStructure; input.click(); } return; }
+    if(uploadStructureBtn){ const input = document.getElementById('structureFileInput'); if(input){ input.dataset.taskId = uploadStructureBtn.dataset.uploadStructure; input.value = ''; input.click(); } return; }
+    const reloadStructureBtn = event.target.closest('[data-reload-structure-sheet]');
+    if(reloadStructureBtn){ await reloadStructureSheetFromStoredFile(reloadStructureBtn.dataset.reloadStructureSheet || ''); return; }
     const structureCell = event.target.closest('[data-structure-cell]');
     if(structureCell){ await toggleStructureCellMark(structureCell.dataset.structureCell, structureCell.dataset.sheetName || '', structureCell.dataset.rowIndex || 0, structureCell.dataset.colIndex || 0); return; }
     const structureApprove = event.target.closest('[data-structure-approve]');
