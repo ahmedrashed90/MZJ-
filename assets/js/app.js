@@ -1541,6 +1541,7 @@ function isCampaignContentSheetName(sheetName){
   const name = normalizeText(sheetName).replace(/[ةه]/g, 'ه').replace(/[ىي]/g, 'ي');
   return (name.includes('محتوي') || name.includes('محتوى')) && (name.includes('الحمله') || name.includes('الحملة'));
 }
+
 function normalizeStructureSheetRows(rawRows){
   const rows = (rawRows || [])
     .map(row => (row || []).map(cell => normalizeText(cell)))
@@ -1554,19 +1555,109 @@ function normalizeStructureSheetRows(rawRows){
   const compactRows = rows.map(row => usedCols.map(col => normalizeText(row[col] || '')));
   return { rows: compactRows, maxCols: usedCols.length };
 }
+function cellRef(rowIndex, colIndex){
+  return XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
+}
+function sheetCellText(sheet, rowIndex, colIndex){
+  const cell = sheet[cellRef(rowIndex, colIndex)];
+  if(!cell) return '';
+  if(cell.w != null) return normalizeText(cell.w);
+  if(cell.v != null) return normalizeText(cell.v);
+  return '';
+}
+function getSheetRange(sheet){
+  try{ return XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1'); }
+  catch(error){ return { s:{r:0,c:0}, e:{r:0,c:0} }; }
+}
+function mergeForAnchor(merges, r, c){
+  return (merges || []).find(m => m.s && m.e && m.s.r === r && m.s.c === c) || null;
+}
+function insideMergeButNotAnchor(merges, r, c){
+  return (merges || []).some(m => m.s && m.e && r >= m.s.r && r <= m.e.r && c >= m.s.c && c <= m.e.c && !(m.s.r === r && m.s.c === c));
+}
+function mergeAnchorForCell(merges, r, c){
+  return (merges || []).find(m => m.s && m.e && r >= m.s.r && r <= m.e.r && c >= m.s.c && c <= m.e.c) || null;
+}
+function mergedCellValue(sheet, merges, r, c){
+  const direct = sheetCellText(sheet, r, c);
+  if(direct) return direct;
+  const merge = mergeAnchorForCell(merges, r, c);
+  if(merge) return sheetCellText(sheet, merge.s.r, merge.s.c);
+  return '';
+}
+function structureCellClass(value, rowSpan, colSpan){
+  const clean = normalizeText(value).toLowerCase();
+  const cls = [];
+  if(rowSpan > 1 || colSpan > 1) cls.push('excel-merged-cell');
+  if(clean.includes('content execution direction') || clean.includes('آلية تنفيذ المحتوى')) cls.push('excel-section-title execution-title');
+  if(clean.includes('writing rules') || clean.includes('قواعد كتابة المحتوى')) cls.push('excel-section-title writing-title');
+  if(clean.includes('campaign logic')) cls.push('excel-section-side campaign-logic-side');
+  if(clean.includes('awareness')) cls.push('excel-section-side awareness-side');
+  if(rowSpan > 3 && (clean.includes('campaign logic') || clean.includes('awareness') || clean.includes('قواعد') || clean.includes('محتوى حملات'))) cls.push('excel-vertical-side');
+  return cls.join(' ');
+}
+function buildMergedStructureSheet(sheet, sheetName){
+  const range = getSheetRange(sheet);
+  const merges = sheet['!merges'] || [];
+  const originalRows = [];
+  const originalCols = [];
+  for(let r = range.s.r; r <= range.e.r; r += 1){
+    let rowHasData = false;
+    for(let c = range.s.c; c <= range.e.c; c += 1){
+      if(mergedCellValue(sheet, merges, r, c)){ rowHasData = true; break; }
+    }
+    if(rowHasData) originalRows.push(r);
+  }
+  for(let c = range.s.c; c <= range.e.c; c += 1){
+    let colHasData = false;
+    for(let r = range.s.r; r <= range.e.r; r += 1){
+      if(mergedCellValue(sheet, merges, r, c)){ colHasData = true; break; }
+    }
+    if(colHasData) originalCols.push(c);
+  }
+  const rowMap = new Map(originalRows.map((r,i)=>[r,i]));
+  const colMap = new Map(originalCols.map((c,i)=>[c,i]));
+  const rows = originalRows.map((r) => {
+    const cells = [];
+    originalCols.forEach((c) => {
+      if(insideMergeButNotAnchor(merges, r, c)){
+        const parent = mergeAnchorForCell(merges, r, c);
+        if(parent && rowMap.has(parent.s.r) && colMap.has(parent.s.c)){
+          cells.push({ skip:true, sourceRow:r, sourceCol:c });
+        }else{
+          cells.push({ value:'', sourceRow:r, sourceCol:c });
+        }
+        return;
+      }
+      const merge = mergeForAnchor(merges, r, c);
+      let rowSpan = 1;
+      let colSpan = 1;
+      if(merge){
+        const visibleRows = originalRows.filter(rr => rr >= merge.s.r && rr <= merge.e.r);
+        const visibleCols = originalCols.filter(cc => cc >= merge.s.c && cc <= merge.e.c);
+        rowSpan = Math.max(1, visibleRows.length);
+        colSpan = Math.max(1, visibleCols.length);
+      }
+      const value = sheetCellText(sheet, r, c);
+      cells.push({ value, rowSpan, colSpan, sourceRow:r, sourceCol:c, className: structureCellClass(value, rowSpan, colSpan) });
+    });
+    return cells;
+  });
+  return { sheetName:'محتوى الحملة', sourceSheetName:sheetName, mode:'merged', rows, maxCols:originalCols.length };
+}
+function tableRowsFromMergedSheet(sheetTable){
+  if(sheetTable?.mode !== 'merged') return Array.isArray(sheetTable?.rows) ? sheetTable.rows : [];
+  return (sheetTable.rows || []).map(row => (row || []).filter(c => !c.skip).map(c => normalizeText(c.value || '')));
+}
 async function parseStructureWorkbookBuffer(buffer){
   if(!window.XLSX) return { parsedRows: [], sheetTables: [] };
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false });
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false, cellStyles: true });
   const contentSheetNames = workbook.SheetNames.filter(isCampaignContentSheetName);
   const selectedSheetNames = contentSheetNames.length ? contentSheetNames : workbook.SheetNames.slice(0, 1);
-  const sheetTables = selectedSheetNames.map(sheetName => {
-    const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
-    const cleaned = normalizeStructureSheetRows(rawRows);
-    return { sheetName: 'محتوى الحملة', rows: cleaned.rows, maxCols: cleaned.maxCols, sourceSheetName: sheetName };
-  }).filter(sheet => sheet.rows.length);
+  const sheetTables = selectedSheetNames.map(sheetName => buildMergedStructureSheet(workbook.Sheets[sheetName], sheetName)).filter(sheet => (sheet.rows || []).length);
   const parsedRows = [];
   sheetTables.forEach(sheet => {
-    const rows = sheet.rows || [];
+    const rows = tableRowsFromMergedSheet(sheet);
     let start = -1;
     for(let i = 0; i < rows.length; i += 1){
       const line = rows[i].map(v => normalizeText(v)).join(' | ');
@@ -1606,30 +1697,51 @@ function structureCellKey(sheetName, rowIndex, colIndex){
   return `${sheetName || 'Sheet'}::${Number(rowIndex) || 0}::${Number(colIndex) || 0}`;
 }
 
+
 function renderStructureWorkbookTable(task, structure, admin){
   const sheets = structureSheetTables(structure);
   if(!sheets.length){
     if(structure.fileData){
-      return `<div class="structure-workbook-view missing-sheet-preview"><h4>الشيت كامل</h4><div class="empty-state mini-empty">الملف مرفوع، لكن عرض الشيت لم يكتمل بعد.</div><button class="btn btn-light" type="button" data-reload-structure-sheet="${escapeHtml(task.id)}">عرض الشيت كامل من الملف المرفوع</button></div>`;
+      return `<div class="structure-workbook-view missing-sheet-preview"><h4>محتوى الحملة</h4><div class="empty-state mini-empty">الملف مرفوع، لكن عرض الشيت لم يكتمل بعد.</div><button class="btn btn-light" type="button" data-reload-structure-sheet="${escapeHtml(task.id)}">عرض الشيت من الملف المرفوع</button></div>`;
     }
     return '';
   }
   const notes = Array.isArray(structure.notes) ? structure.notes : [];
   const marks = Array.isArray(structure.marks) ? structure.marks : [];
   return `<div class="structure-workbook-view"><h4>محتوى الحملة - اضغط مرة على أي خلية للتعليم بالأصفر، واضغط مرتين لإضافة ملاحظة</h4>${sheets.map(sheet => {
-    const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
-    const maxCols = Math.max(Number(sheet.maxCols) || 0, ...rows.map(row => row.length));
-    const body = rows.map((row, rowIndex) => {
-      const cells = Array.from({length:maxCols}).map((_, colIndex) => {
-        const key = structureCellKey(sheet.sheetName, rowIndex, colIndex);
-        const cellNotes = notes.filter(n => n.cellKey === key);
-        const hasMark = marks.includes(key) || cellNotes.length > 0;
-        const val = normalizeText(row[colIndex] || '');
-        return `<td class="${hasMark ? 'marked-cell' : ''}" ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${rowIndex}" data-col-index="${colIndex}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
+    let body = '';
+    if(sheet.mode === 'merged'){
+      const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
+      body = rows.map((row, rowIndex) => {
+        const cells = (row || []).map((cell, colIndex) => {
+          if(cell?.skip) return '';
+          const sourceRow = Number(cell?.sourceRow ?? rowIndex);
+          const sourceCol = Number(cell?.sourceCol ?? colIndex);
+          const key = structureCellKey(sheet.sheetName, sourceRow, sourceCol);
+          const cellNotes = notes.filter(n => n.cellKey === key);
+          const hasMark = marks.includes(key) || cellNotes.length > 0;
+          const val = normalizeText(cell?.value || '');
+          const attrs = `${cell?.rowSpan > 1 ? ` rowspan="${Number(cell.rowSpan)}"` : ''}${cell?.colSpan > 1 ? ` colspan="${Number(cell.colSpan)}"` : ''}`;
+          const cls = `${cell?.className || ''} ${hasMark ? 'marked-cell' : ''}`.trim();
+          return `<td class="${escapeHtml(cls)}"${attrs} ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${sourceRow}" data-col-index="${sourceCol}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
       }).join('');
-      return `<tr>${cells}</tr>`;
-    }).join('');
-    return `<div class="structure-sheet-block"><div class="structure-sheet-title">${escapeHtml(sheet.sheetName || 'محتوى الحملة')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table"><tbody>${body}</tbody></table></div></div>`;
+    }else{
+      const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
+      const maxCols = Math.max(Number(sheet.maxCols) || 0, ...rows.map(row => row.length));
+      body = rows.map((row, rowIndex) => {
+        const cells = Array.from({length:maxCols}).map((_, colIndex) => {
+          const key = structureCellKey(sheet.sheetName, rowIndex, colIndex);
+          const cellNotes = notes.filter(n => n.cellKey === key);
+          const hasMark = marks.includes(key) || cellNotes.length > 0;
+          const val = normalizeText(row[colIndex] || '');
+          return `<td class="${hasMark ? 'marked-cell' : ''}" ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${rowIndex}" data-col-index="${colIndex}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+    }
+    return `<div class="structure-sheet-block"><div class="structure-sheet-title">${escapeHtml(sheet.sheetName || 'محتوى الحملة')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure"><tbody>${body}</tbody></table></div></div>`;
   }).join('')}</div>`;
 }
 
@@ -1663,9 +1775,9 @@ function renderStructureSection(task){
       ${structure.fileData ? `<a class="btn btn-light" href="${escapeHtml(structure.fileData)}" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل الملف المرفوع</a>` : ''}
     </div>
     ${notesHtml}
-    ${admin && rows.length ? `<div class="structure-admin-tools"><button class="btn btn-primary" type="button" data-structure-approve="${escapeHtml(task.id)}">اعتماد الهيكل</button></div>` : ''}
-    ${renderStructureWorkbookTable(task, structure, admin)}
-    ${admin && (status === 'approved' || status === 'distributed') ? structureAssigneeTable(task) : ''}
+    ${admin && rows.length && status !== 'approved' && status !== 'distributed' ? `<div class="structure-admin-tools"><button class="btn btn-primary" type="button" data-structure-approve="${escapeHtml(task.id)}">اعتماد الهيكل</button></div>` : ''}
+    ${status === 'approved' || status === 'distributed' ? '' : renderStructureWorkbookTable(task, structure, admin)}
+    ${admin && (status === 'approved' || status === 'distributed') ? `<div class="structure-approved-distribution"><div class="structure-approved-message">تم اعتماد الهيكل. ابدأ توزيع تاسكات الهيكل على اليوزرات.</div>${structureAssigneeTable(task)}</div>` : ''}
   </div>`;
 }
 
@@ -2000,7 +2112,8 @@ async function setStructureStatus(taskId, status){
   const task = findTaskById(taskId);
   if(!task) return;
   const structure = taskStructure(task);
-  await updateTaskOnFirebase(task.id, { structure: { ...structure, status, reviewedAt: new Date().toISOString(), reviewedBy: getCurrentUser().email || getCurrentUser().name || '' } });
+  await updateTaskOnFirebase(task.id, { structure: encodeStructureWorkbookForFirestore({ ...structure, status, reviewedAt: new Date().toISOString(), reviewedBy: getCurrentUser().email || getCurrentUser().name || '' }) });
+  if(status === 'approved') showToast('تم اعتماد الهيكل. ابدأ توزيع تاسكات الهيكل.');
 }
 
 function getFormData(form){
