@@ -35,6 +35,31 @@ window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars";
 
 const routes = ['dashboard','campaigns','create-campaign','departments','calendar','tasks','stock','reports','settings'];
+const pageAliases = {
+  database: 'reports',
+  report: 'reports',
+  reports: 'reports',
+  admin: 'settings',
+  users: 'settings',
+  permissions: 'settings',
+  dashboard: 'dashboard',
+  campaigns: 'campaigns',
+  'create-campaign': 'create-campaign',
+  create_campaign: 'create-campaign',
+  departments: 'departments',
+  content: 'departments',
+  calendar: 'calendar',
+  tasks: 'tasks',
+  stock: 'stock',
+  settings: 'settings'
+};
+function normalizePageKey(page){
+  const key = String(page || '').trim();
+  return pageAliases[key] || key;
+}
+function normalizePagesList(list){
+  return uniqueList((Array.isArray(list) ? list : []).map(normalizePageKey)).filter(page => routes.includes(page));
+}
 const loginView = document.getElementById('loginView');
 const appShell = document.getElementById('appShell');
 const sidebar = document.getElementById('sidebar');
@@ -98,9 +123,13 @@ function syncCurrentSessionUserFromUsers(){
   if(!current || !Object.keys(current).length || !users.length) return;
   const currentKeys = uniqueIdentityKeys([current]);
   const record = users.find(user => uniqueIdentityKeys([user]).some(key => currentKeys.includes(key)));
-  if(record){ setCurrentUser({ ...current, ...record, id: record.id || current.id, uid: record.uid || current.uid || record.id }); }
+  if(record){
+    const pages = normalizePagesList([...(Array.isArray(record.pages) ? record.pages : []), ...(Array.isArray(record.pagesAccess) ? record.pagesAccess : [])]);
+    setCurrentUser({ ...current, ...record, id: record.id || current.id, uid: record.uid || current.uid || record.id, pages, pagesAccess: pages });
+  }
 }
-function isCurrentUserAdmin(){ const user = getCurrentUser(); return user.role === 'admin' || (Array.isArray(user.pages) && user.pages.includes('admin')); }
+function isCurrentUserAdmin(){ const user = getCurrentUser(); return user.role === 'admin' || user.role === 'super_admin' || isAdminEmailUser(user); }
+function isAdminEmailUser(user){ return ['hossamzayan10@gmail.com','an9036663@gmail.com','mr.ahmed_rashed@outlook.sa'].includes(String(user?.email || '').toLowerCase()); }
 function pageAllowed(route){
   if(isCurrentUserAdmin()) return true;
   return allowedPagesForCurrentUser().includes(route);
@@ -109,8 +138,8 @@ function pageAllowed(route){
 function allowedPagesForCurrentUser(){
   if(isCurrentUserAdmin()) return routes;
   const user = getCurrentUser();
-  const raw = Array.isArray(user.pages) && user.pages.length ? user.pages : (Array.isArray(user.pagesAccess) ? user.pagesAccess : []);
-  return uniqueList(['dashboard', ...raw]);
+  const raw = [...(Array.isArray(user.pages) ? user.pages : []), ...(Array.isArray(user.pagesAccess) ? user.pagesAccess : [])];
+  return uniqueList(['dashboard', ...normalizePagesList(raw)]);
 }
 function applyUserPermissions(){
   const allowed = allowedPagesForCurrentUser();
@@ -317,9 +346,13 @@ function refreshDynamicSelects(){
 function loadUsers(){
   if(!mainDb) return;
   safeCollection(window.MZJ_USERS_COLLECTION).onSnapshot(snapshot => {
-    users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, uid: data.uid || doc.id, name: getDocName(data) || doc.id, displayName: data.displayName || '', username: data.username || '', email: data.email || '', emailLower: data.emailLower || String(data.email || '').toLowerCase(), department: data.department || '', departmentId: data.departmentId || '', departmentIds: Array.isArray(data.departmentIds) ? data.departmentIds : [], role: data.role || '', pages: Array.isArray(data.pages) ? data.pages : [], pagesAccess: Array.isArray(data.pagesAccess) ? data.pagesAccess : [], themeSettings: data.themeSettings || null }; });
+    users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, uid: data.uid || doc.id, name: getDocName(data) || doc.id, displayName: data.displayName || '', username: data.username || '', email: data.email || '', emailLower: data.emailLower || String(data.email || '').toLowerCase(), department: data.department || '', departmentId: data.departmentId || '', departmentIds: Array.isArray(data.departmentIds) ? data.departmentIds : [], role: data.role || '', pages: normalizePagesList([...(Array.isArray(data.pages) ? data.pages : []), ...(Array.isArray(data.pagesAccess) ? data.pagesAccess : [])]), pagesAccess: normalizePagesList([...(Array.isArray(data.pages) ? data.pages : []), ...(Array.isArray(data.pagesAccess) ? data.pagesAccess : [])]), themeSettings: data.themeSettings || null }; });
+    const before = JSON.stringify(getCurrentUser() || {});
     syncCurrentSessionUserFromUsers();
     refreshDynamicSelects(); renderDepartments(); renderUsersPermissions(); renderAdminDashboard(); renderTasksPage();
+    applyUserPermissions();
+    const after = JSON.stringify(getCurrentUser() || {});
+    if(before !== after || !pageAllowed(getRoute())) renderRoute();
   }, error => console.error('Users load error', error));
 }
 function loadSimpleCollection(collectionName, target, renderer, selectRefresh = true){
@@ -435,19 +468,29 @@ function stockGroupUsage(group){
   });
   return hits;
 }
+function stockGroupByKey(groupKey){
+  return stockGroups().find(group => group.key === groupKey) || null;
+}
 async function saveStockShotStatus(groupKey, value){
   if(!mainDb){ showToast('قاعدة البيانات غير متاحة.'); return; }
+  const group = stockGroupByKey(groupKey);
   const docId = stockGroupDocId(groupKey);
   const previous = stockCarMeta[docId] || {};
+  const current = getCurrentUserIdentity();
   const payload = {
     groupKey: normalizeText(groupKey),
     docKey: docId,
+    carName: normalizeText(group?.carName || ''),
+    statement: normalizeText(group?.statement || ''),
+    exteriorColor: normalizeText(group?.exteriorColor || ''),
+    interiorColor: normalizeText(group?.interiorColor || ''),
+    carIds: Array.isArray(group?.carIds) ? group.carIds : [],
+    count: Number(group?.count || 0),
     photographed: value === 'yes',
     photographedValue: value === 'yes' ? 'yes' : 'no',
     updatedAt: serverTime(),
-    updatedBy: getCurrentUserIdentity().email || getCurrentUserIdentity().name || ''
+    updatedBy: current.email || current.name || current.uid || ''
   };
-  // تحديث فوري في الواجهة حتى لا يرجع الاختيار قبل وصول Firestore
   stockCarMeta[docId] = { ...previous, ...payload, updatedAt: new Date().toISOString() };
   renderStock();
   try{
@@ -458,7 +501,7 @@ async function saveStockShotStatus(groupKey, value){
     renderStock();
     console.error('Stock shot save error', error);
     const msg = String(error?.message || error || '');
-    if(msg.toLowerCase().includes('permission')) showToast('تعذر حفظ حالة التصوير. راجع قواعد Firebase لمسار marketing_stock_cars.');
+    if(msg.toLowerCase().includes('permission')) showToast('تعذر حفظ حالة التصوير. ارفع ملف firestore.rules المرفق للسماح بمسار marketing_stock_cars.');
     else showToast('تعذر حفظ حالة التصوير.');
     throw error;
   }
@@ -1203,21 +1246,43 @@ function renderAttachmentTable(task){
       return `<tr><td>${i+1}</td><td>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${name}</a>` : name}</td><td>${escapeHtml(String(file.uploadedAt || '').slice(0,16) || '—')}</td><td><button type="button" class="mini-btn danger" data-delete-task-file="${i}">حذف</button></td></tr>`;
     }).join('') : '<tr><td colspan="4">لا توجد مرفقات حالية.</td></tr>'}</tbody></table></div></div>`;
 }
+function fileToDataUrl(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('تعذر قراءة الملف.'));
+    reader.readAsDataURL(file);
+  });
+}
+function dataUrlBase64(dataUrl){ return String(dataUrl || '').split(',')[1] || ''; }
 async function uploadTaskFileToDrive(file, task){
   const current = getCurrentUser();
-  const form = new FormData();
-  form.append('file', file);
-  form.append('action', 'uploadTaskAttachment');
-  form.append('campaignId', task.campaignId || '');
-  form.append('campaignCode', task.campaignCode || '');
-  form.append('campaignName', task.campaignName || '');
-  form.append('department', taskDepartmentLabel(task));
-  form.append('taskType', task.taskType || '');
-  form.append('uploadedBy', current.email || current.name || current.uid || '');
-  const res = await fetch(getDriveUploadEndpoint(), { method:'POST', body: form });
-  const result = await res.json().catch(() => ({}));
-  if(!res.ok || result.success === false) throw new Error(result.error || result.message || 'فشل رفع الملف على Zoho Drive.');
-  const fileId = result.fileId || result.id || result.resource_id || result.data?.id || '';
+  const dataUrl = await fileToDataUrl(file);
+  const payload = {
+    action: 'uploadTaskAttachment',
+    fileName: file.name,
+    name: file.name,
+    mimeType: file.type || 'application/octet-stream',
+    fileType: file.type || 'application/octet-stream',
+    size: file.size || 0,
+    fileData: dataUrl,
+    base64: dataUrlBase64(dataUrl),
+    campaignId: task.campaignId || '',
+    campaignCode: task.campaignCode || '',
+    campaignName: task.campaignName || '',
+    department: taskDepartmentLabel(task),
+    departmentName: task.assignedDepartmentName || taskDepartmentLabel(task),
+    taskType: task.taskType || '',
+    taskId: task.id || '',
+    uploadedBy: current.email || current.name || current.uid || ''
+  };
+  const res = await fetch(getDriveUploadEndpoint(), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const text = await res.text();
+  let result = {};
+  try{ result = text ? JSON.parse(text) : {}; }
+  catch(_){ throw new Error('تعذر رفع الملف: رد السيرفر ليس JSON. تأكد من إعداد Zoho API.'); }
+  if(!res.ok || result.success === false || result.ok === false) throw new Error(result.error || result.message || 'فشل رفع الملف على Zoho Drive.');
+  const fileId = result.fileId || result.id || result.resource_id || result.data?.id || result.data?.fileId || '';
   return {
     fileId,
     name: result.name || result.fileName || file.name,
@@ -2549,7 +2614,7 @@ function renderUsersPermissions(){
   if(!wrap) return;
   const pageOptions = routes.filter(r => !['dashboard'].includes(r));
   wrap.innerHTML = users.length ? users.map(user => {
-    const pages = Array.isArray(user.pages) ? user.pages : (Array.isArray(user.pagesAccess) ? user.pagesAccess : []);
+    const pages = normalizePagesList([...(Array.isArray(user.pages) ? user.pages : []), ...(Array.isArray(user.pagesAccess) ? user.pagesAccess : [])]);
     return `<article class="permission-user-card" data-user-id="${escapeHtml(user.id)}"><div class="permission-user-main"><strong>${escapeHtml(userName(user) || 'User')}</strong><small>${escapeHtml(user.email || '')}</small><span>${escapeHtml(user.role || 'user')}</span></div><div class="permission-pages"><label><input type="checkbox" data-page-key="dashboard" checked disabled> الداش بورد</label>${pageOptions.map(page => `<label><input type="checkbox" data-page-key="${page}" ${pages.includes(page) ? 'checked' : ''}> ${pageLabel(page)}</label>`).join('')}</div><button type="button" class="btn btn-primary" data-save-user-pages="${escapeHtml(user.id)}">حفظ الصلاحيات</button></article>`;
   }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
 }
@@ -2641,8 +2706,13 @@ function bindSettings(){
     const save = event.target.closest('[data-save-user-pages]');
     if(!save || !mainDb) return;
     const card = save.closest('.permission-user-card');
-    const pages = [...card.querySelectorAll('input[data-page-key]:checked')].map(input => input.dataset.pageKey).filter(Boolean);
+    const pages = normalizePagesList(['dashboard', ...[...card.querySelectorAll('input[data-page-key]:checked')].map(input => input.dataset.pageKey).filter(Boolean)]);
     await safeCollection(window.MZJ_USERS_COLLECTION).doc(save.dataset.saveUserPages).update({ pages, pagesAccess: pages, updatedAt: serverTime() });
+    const idx = users.findIndex(u => u.id === save.dataset.saveUserPages);
+    if(idx >= 0){ users[idx] = { ...users[idx], pages, pagesAccess: pages }; }
+    const currentKeys = uniqueIdentityKeys([getCurrentUser()]);
+    const editedKeys = idx >= 0 ? uniqueIdentityKeys([users[idx]]) : [identityClean(save.dataset.saveUserPages)];
+    if(identityIntersects(currentKeys, editedKeys)){ syncCurrentSessionUserFromUsers(); applyUserPermissions(); renderRoute(); }
     showToast('تم حفظ صلاحيات اليوزر.');
   });
 }
@@ -2754,8 +2824,8 @@ document.addEventListener('DOMContentLoaded', () => {
         department: userDoc.department || '',
         departmentId: userDoc.departmentId || '',
         departmentIds: Array.isArray(userDoc.departmentIds) ? userDoc.departmentIds : [],
-        pages: Array.isArray(userDoc.pages) ? userDoc.pages : [],
-        pagesAccess: Array.isArray(userDoc.pagesAccess) ? userDoc.pagesAccess : [],
+        pages: normalizePagesList([...(Array.isArray(userDoc.pages) ? userDoc.pages : []), ...(Array.isArray(userDoc.pagesAccess) ? userDoc.pagesAccess : [])]),
+        pagesAccess: normalizePagesList([...(Array.isArray(userDoc.pages) ? userDoc.pages : []), ...(Array.isArray(userDoc.pagesAccess) ? userDoc.pagesAccess : [])]),
         themeSettings: userDoc.themeSettings || null
       }));
       showMessage('loginMessage', '');
