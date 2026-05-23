@@ -649,12 +649,12 @@ function findCurrentUserRecord(){
 function currentUserIdentityKeys(){
   const sessionUser = getCurrentUser();
   const matchedUser = findCurrentUserRecord() || {};
-  const authUser = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : {};
+  const authUser = mainAuth?.currentUser || null;
   return uniqueIdentityKeys([
-    sessionUser, matchedUser, authUser,
+    sessionUser, matchedUser,
     sessionUser.id, sessionUser.uid, sessionUser.email, sessionUser.emailLower, sessionUser.name, sessionUser.displayName, sessionUser.username,
     matchedUser.id, matchedUser.uid, matchedUser.email, matchedUser.emailLower, matchedUser.name, matchedUser.displayName, matchedUser.username,
-    authUser.uid, authUser.email, authUser.displayName
+    authUser?.uid, authUser?.email, authUser?.displayName
   ]);
 }
 function taskIdentityKeys(task){
@@ -677,19 +677,27 @@ function currentUserMatchesTaskExact(task){
   if(identityIntersects(userKeys, taskKeys)) return true;
 
   const current = findCurrentUserRecord() || getCurrentUser();
-  const authUser = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : {};
-  const currentNames = uniqueIdentityKeys([current.name, current.displayName, current.username, authUser.displayName]);
-  const currentEmails = uniqueIdentityKeys([current.email, current.emailLower, authUser.email]);
-  const currentIds = uniqueIdentityKeys([current.id, current.uid, authUser.uid]);
-  const explicitValues = uniqueIdentityKeys([
+  const authUser = mainAuth?.currentUser || null;
+  const currentName = identityClean(current.name || current.displayName || current.username || authUser?.displayName || '');
+  const currentEmail = identityClean(current.email || current.emailLower || authUser?.email || '');
+  const currentId = identityClean(current.id || current.uid || authUser?.uid || '');
+  const explicitValues = [
     task.assignedToName, task.assigneeName, task.userName,
     task.assignedToEmail, task.assigneeEmail, task.userEmail,
     task.assignedToId, task.assignedToUid, task.assigneeId, task.assigneeUid, task.userId, task.userUid,
-    task.assignedToSearch
-  ]);
-  if(identityIntersects(currentIds, explicitValues)) return true;
-  if(identityIntersects(currentEmails, explicitValues)) return true;
-  if(identityIntersects(currentNames, explicitValues)) return true;
+    task.assignedToSearch,
+    ...(Array.isArray(task.userIds) ? task.userIds : []),
+    ...(Array.isArray(task.userNames) ? task.userNames : []),
+    ...(Array.isArray(task.assignedToIds) ? task.assignedToIds : []),
+    ...(Array.isArray(task.assignedToNames) ? task.assignedToNames : []),
+    ...(Array.isArray(task.assigneeIds) ? task.assigneeIds : []),
+    ...(Array.isArray(task.assigneeNames) ? task.assigneeNames : [])
+  ].map(identityClean).filter(Boolean);
+  if(currentId && explicitValues.includes(currentId)) return true;
+  if(currentEmail && explicitValues.includes(currentEmail)) return true;
+  if(currentName && explicitValues.includes(currentName)) return true;
+  const signals = [currentId, currentEmail, currentName].filter(v => v && v.length > 3);
+  if(signals.some(signal => explicitValues.some(value => value.includes(signal) || signal.includes(value)))) return true;
   return false;
 }
 function userDepartmentIdentityKeys(){
@@ -701,7 +709,17 @@ function userDepartmentIdentityKeys(){
     const depKeys = uniqueIdentityKeys(depUsers);
     return identityIntersects(currentKeys, depKeys) || direct.some(value => identityClean(value) && (identityClean(value) === identityClean(dep.id) || identityClean(value) === identityClean(dep.name) || identityClean(value) === identityClean(dep.slug)));
   });
-  return uniqueIdentityKeys([...direct, ...deps.flatMap(dep => [dep.id, dep.name, dep.slug, normalizeDepartmentRole(dep.name || dep.slug)])]);
+  const sections = contentSections.filter(section => {
+    const sectionUsers = [section.userIds, section.users, section.members, section.memberUids, section.memberEmails, section.memberNames].flatMap(flattenIdentityValues);
+    const sectionKeys = uniqueIdentityKeys(sectionUsers);
+    const sectionDepartment = [section.departmentId, section.department, section.contentDepartmentId].flatMap(flattenIdentityValues);
+    return identityIntersects(currentKeys, sectionKeys) || sectionDepartment.some(value => direct.some(d => identityClean(d) && identityClean(d) === identityClean(value)));
+  });
+  return uniqueIdentityKeys([
+    ...direct,
+    ...deps.flatMap(dep => [dep.id, dep.name, dep.slug, normalizeDepartmentRole(dep.name || dep.slug)]),
+    ...sections.flatMap(section => [section.id, section.name, section.slug, normalizeDepartmentRole(section.name || section.slug)])
+  ]);
 }
 function currentUserMatchesTaskDepartment(task){
   const depKeys = userDepartmentIdentityKeys();
@@ -720,15 +738,9 @@ function getVisibleTasksForCurrentUser(){
   if(isCurrentUserAdmin()) return allTasks;
   const exact = allTasks.filter(task => currentUserMatchesTaskExact(task));
   if(exact.length) return exact;
-  const current = findCurrentUserRecord() || getCurrentUser();
-  const authUser = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : {};
-  const rawNeedles = [current.email, current.emailLower, authUser.email, current.name, current.displayName, current.username, authUser.displayName, current.id, current.uid, authUser.uid].map(v => String(v || '').trim()).filter(Boolean);
-  const loose = allTasks.filter(task => {
-    const hay = JSON.stringify({userId:task.userId,userUid:task.userUid,userEmail:task.userEmail,userName:task.userName,assignedToId:task.assignedToId,assignedToUid:task.assignedToUid,assignedToEmail:task.assignedToEmail,assignedToName:task.assignedToName,assigneeUid:task.assigneeUid,assigneeEmail:task.assigneeEmail,assigneeName:task.assigneeName,assignedToSearch:task.assignedToSearch}).toLowerCase();
-    return rawNeedles.some(n => n && hay.includes(n.toLowerCase()));
-  });
-  if(loose.length) return loose;
-  return allTasks.filter(task => currentUserMatchesTaskDepartment(task));
+  const byDepartment = allTasks.filter(task => currentUserMatchesTaskDepartment(task));
+  if(byDepartment.length) return byDepartment;
+  return [];
 }
 function findTaskById(taskId, campaignId = ''){
   const campaignList = campaignId ? campaigns.filter(item => item.id === campaignId) : campaigns;
@@ -747,7 +759,9 @@ function stepButtonClass(step){ return step.done ? 'step-btn done' : 'step-btn';
 function stepButtonTitle(step){ return step.adminOnly ? 'اعتماد الأدمن فقط' : 'تنفيذ المرحلة'; }
 
 function taskContentType(task){
-  return normalizeText(task.contentSectionName || task.assignedDepartmentName || task.contentType || task.taskType || task.creative || 'أنواع المحتوى');
+  const name = normalizeText(task.contentSectionName || task.assignedDepartmentName || task.contentType || '');
+  if(name) return name.replace(/^قسم\s+/,'');
+  return 'أنواع المحتوى';
 }
 function taskDepartmentLabel(task){
   const labels = {content:'قسم المحتوى', shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج', publish:'قسم النشر', other:'قسم'};
@@ -869,11 +883,11 @@ function buildTaskDetailHtml(task){
     </div>
     <div class="modal-section task-required-section">
       <div class="modal-section-title"><h3>الكريتيف</h3></div>
-      <p>${escapeHtml(task.creative || '—')}</p>
+      <p>${escapeHtml(task.creative || task.product || '—')}</p>
     </div>
     <div class="modal-section task-required-section">
       <div class="modal-section-title"><h3>السيارة المختارة</h3></div>
-      <p>${escapeHtml(task.selectedCar || task.carName || task.product || '—')}</p>
+      <p>${escapeHtml(task.selectedCar || task.carName || '')}</p>
     </div>
     <div class="modal-section task-required-section">
       <div class="modal-section-title"><h3>نوع المحتوى</h3></div>
@@ -1054,14 +1068,14 @@ function selectedCarsFromRow(row){
 function getCampaignPublishOutputs(){
   const outputs = [];
   document.querySelectorAll('#creativeRows .creative-row-card').forEach(row => {
-    const creative = row.querySelector('.js-creative-select')?.value || '';
+    const creative = normalizeText(row.querySelector('.js-creative-select')?.value || '');
     row.querySelectorAll('.creative-task-block').forEach(block => {
-      const sectionName = readSelectText(block.querySelector('.js-task-section-select'));
-      const taskName = block.querySelector('.js-task-type')?.value || '';
+      const sectionName = normalizeText(readSelectText(block.querySelector('.js-task-section-select')));
+      const taskName = normalizeText(block.querySelector('.js-task-type')?.value || '');
       const role = normalizeDepartmentRole(sectionName);
-      const label = [creative, sectionName, taskName].filter(Boolean).join(' - ');
-      if(!label || label.includes('اختار المحتوى')) return;
-      if(role === 'design' || role === 'montage') outputs.push(label);
+      if(!['design','montage'].includes(role)) return;
+      const output = [creative, sectionName, taskName].filter(Boolean).join(' - ');
+      if(output && !output.includes('اختار المحتوى')) outputs.push(output);
     });
   });
   return uniqueList(outputs);
@@ -1137,7 +1151,7 @@ function collectPublishRows(){
     platform: card.querySelector('.js-platform-select')?.value || '',
     time: card.querySelector('.js-publish-time')?.value || '',
     note: normalizeText(card.querySelector('.js-publish-note')?.value)
-  })).filter(item => item.date || item.output || item.platform || item.time || item.note);
+  })).filter(item => item.date || item.output || item.platform || item.note);
 }
 function collectBudgetRows(){
   return [...document.querySelectorAll('.budget-item-card')].map((card, index) => ({
@@ -1385,7 +1399,7 @@ function renderCalendarPage(){
     const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const date = new Date(year, month, d);
     const dayEntries = byDate[iso] || [];
-    cells.push(`<article class="calendar-day"><div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div><small>${iso}</small><div class="calendar-day-items">${dayEntries.length ? dayEntries.map(item => `<div class="calendar-publish-item"><b>${escapeHtml(item.output || 'نشر')}</b><span>${escapeHtml([item.platform, item.campaignName].filter(Boolean).join(' · '))}</span></div>`).join('') : ''}</div></article>`);
+    cells.push(`<article class="calendar-day"><div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div><small>${iso}</small><div class="calendar-day-items">${dayEntries.length ? dayEntries.map(item => `<div class="calendar-publish-item"><b>${escapeHtml(item.output || 'نشر')}</b><span>${escapeHtml([item.platform, item.time, item.campaignName].filter(Boolean).join(' · '))}</span></div>`).join('') : ''}</div></article>`);
   }
   board.innerHTML = `<div class="calendar-week-head"><span>الأحد</span><span>الإثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div><div class="calendar-month-grid">${cells.join('')}</div>`;
 }
@@ -1579,7 +1593,7 @@ function renderCampaignCards(containerId, limit = 6){
         <p>${escapeHtml(campaign.campaignCode || 'بدون كود')} · ${escapeHtml(campaign.campaignType || 'بدون نوع')}</p>
       </div>
       <div class="campaign-card-meta">
-        <span class="chip">${escapeHtml(campaign.status || 'draft')}</span>
+        ${campaign.status && campaign.status !== 'draft' ? `<span class="chip">${escapeHtml(campaign.status)}</span>` : ''}
         <small>${formatDateShort(campaign.createdAt || campaign.campaign_date)}</small>
         <button class="mini-btn danger" type="button" data-delete-campaign="${escapeHtml(campaign.id)}">حذف</button>
       </div>
@@ -1830,7 +1844,7 @@ function bootstrapData(){
   loadSimpleCollection(window.MZJ_PLATFORMS_COLLECTION, platforms, renderPlatforms);
   if(mainDb){
     safeCollection(window.MZJ_CONTENT_SECTIONS_COLLECTION).orderBy('name').onSnapshot(snapshot => {
-      contentSections = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, types: Array.isArray(data.types) ? data.types.map(normalizeText).filter(Boolean) : [], userIds: Array.isArray(data.userIds) ? data.userIds : [], users: Array.isArray(data.users) ? data.users : [], memberUids: Array.isArray(data.memberUids) ? data.memberUids : [], departmentId: data.departmentId || data.department || data.contentDepartmentId || '' }; });
+      contentSections = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, slug: data.slug || '', types: Array.isArray(data.types) ? data.types.map(normalizeText).filter(Boolean) : [], userIds: Array.isArray(data.userIds) ? data.userIds : [], users: Array.isArray(data.users) ? data.users : [], members: Array.isArray(data.members) ? data.members : [], memberUids: Array.isArray(data.memberUids) ? data.memberUids : [], memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails : [], memberNames: Array.isArray(data.memberNames) ? data.memberNames : [], departmentId: data.departmentId || data.department || data.contentDepartmentId || '' }; });
       renderContentSections();
     }, error => console.error(error));
   }

@@ -366,10 +366,43 @@ body.has-user-dashboard-theme #dashboard.user-mode{background-image:linear-gradi
 @media(max-width:780px){.main{margin-right:0!important}.sidebar{transform:translateX(110%)!important;width:112px!important}.sidebar.open{transform:translateX(0)!important}.menu-btn{display:grid!important}.content-type-board{grid-template-columns:1fr!important}.task-info-grid,.modal-steps-grid{grid-template-columns:1fr!important}.task-modal-dialog{width:calc(100vw - 20px)!important;padding:14px!important}}
 
 
-/* Final user dashboard glass overrides */
-#dashboard.user-mode .user-content-dashboard{background:rgba(255,253,252,.48)!important;backdrop-filter:blur(14px)!important;border:1px solid rgba(255,255,255,.42)!important}
-#dashboard.user-mode .content-type-col{background:rgba(255,253,252,.52)!important;backdrop-filter:blur(12px)!important}
-#dashboard.user-mode .content-task-card{background:rgba(255,255,255,.72)!important;backdrop-filter:blur(8px)!important}
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard,body.has-user-dashboard-theme #dashboard.user-mode .card{background:rgba(255,253,252,.48)!important;backdrop-filter:blur(14px)!important}
-body.has-user-dashboard-theme #dashboard.user-mode .content-type-col{background:rgba(255,253,252,.50)!important}
-@media(max-width:780px){.sidebar{transform:none!important;width:112px!important}.main{margin-right:112px!important}.menu-btn{display:none!important}}
+/* === Fixes: clearer personal dashboard background + compact transparent cards === */
+body.has-user-dashboard-theme #dashboard.user-mode{
+  background-image:linear-gradient(180deg,rgba(255,250,246,.38),rgba(255,250,246,.22)),var(--user-dashboard-bg-image)!important;
+  background-size:cover!important;
+  background-position:center!important;
+  background-attachment:fixed!important;
+}
+body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard{
+  background:rgba(255,253,252,.46)!important;
+  backdrop-filter:blur(12px)!important;
+  -webkit-backdrop-filter:blur(12px)!important;
+  border-color:rgba(255,255,255,.45)!important;
+}
+body.has-user-dashboard-theme #dashboard.user-mode .content-type-col{
+  background:rgba(255,253,252,.58)!important;
+  backdrop-filter:blur(10px)!important;
+  -webkit-backdrop-filter:blur(10px)!important;
+}
+body.has-user-dashboard-theme #dashboard.user-mode .content-task-card{
+  background:rgba(255,255,255,.72)!important;
+  backdrop-filter:blur(8px)!important;
+  -webkit-backdrop-filter:blur(8px)!important;
+}
+body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
+  background:rgba(255,255,255,.42)!important;
+  backdrop-filter:blur(8px)!important;
+}
+
+/* Sidebar fixed, narrow, with names always visible */
+.sidebar{width:112px!important;padding:14px 8px!important;overflow:hidden!important;transform:none!important;transition:none!important}
+.sidebar:hover{width:112px!important;box-shadow:none!important}
+.sidebar:hover .brand img,.brand img{width:72px!important}
+.sidebar:hover .nav a,.nav a{justify-content:center!important;flex-direction:column!important;padding:8px 5px!important;gap:4px!important}
+.nav a span:not(.icon){opacity:1!important;max-width:92px!important;display:block!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:normal!important}
+.main{margin-right:112px!important}
+
+/* Make user content dashboard 4 columns on wide screens */
+.content-type-board{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+@media(max-width:1350px){.content-type-board{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:780px){.content-type-board{grid-template-columns:1fr!important}.main{margin-right:0!important}}
