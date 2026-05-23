@@ -599,3 +599,15 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .result-file-line,.db-link-row,.link-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
 .campaign-edit-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
 @media(max-width:900px){.task-brief-row,.campaign-edit-grid{grid-template-columns:1fr}.db-task-row{grid-template-columns:1fr}}
+
+
+/* v19 database + task modal readability */
+.task-modal.show{display:grid!important;place-items:center!important}
+.task-modal-dialog{width:min(1280px,calc(100vw - 32px))!important;max-height:calc(100vh - 28px)!important;padding:28px!important;font-size:15.5px!important;line-height:1.75!important}
+.task-modal-head h2{font-size:30px!important;line-height:1.25!important}
+.task-modal-head span{font-size:14px!important}.task-modal-head p{font-size:14px!important}
+.modal-section{padding:18px!important;border-radius:20px!important}.modal-section-title h3{font-size:20px!important}.modal-section-title span{font-size:13px!important}
+.task-info-grid span{font-size:12px!important}.task-info-grid strong{font-size:14px!important}.brief-box span{font-size:13px!important}.brief-box strong{font-size:16px!important}.task-mini-meta span{font-size:13px!important}.workflow-step span{font-size:15px!important}.workflow-step strong{font-size:13px!important}.workflow-step em{font-size:12px!important}.task-files-table th,.task-files-table td{font-size:13.5px!important}
+.database-table td.db-department-cell{white-space:normal!important;vertical-align:top;min-width:230px;padding:8px!important}
+.db-department-stack{display:grid;gap:8px;min-width:220px}.db-department-mini{display:grid;gap:3px;background:rgba(255,255,255,.68);border:1px solid var(--line);border-radius:12px;padding:8px;line-height:1.55}.db-department-mini span{display:block;font-size:.78rem;color:var(--muted);white-space:normal}.db-department-mini b{color:var(--text);font-weight:900}.muted-db-cell{color:var(--muted);font-weight:900}
+@media(max-width:780px){.task-modal-dialog{width:calc(100vw - 12px)!important;padding:16px!important;font-size:14px!important}.task-modal-head h2{font-size:23px!important}}

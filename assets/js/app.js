@@ -1161,12 +1161,25 @@ async function toggleTaskStep(taskId, stepIndex){
   }
   step.done = !step.done;
   const progress = Math.min(100, Math.round(steps.reduce((sum, item) => sum + (item.done ? Number(item.percent || 0) : 0), 0)));
-  await updateTaskOnFirebase(task.id, { steps, progress, status: progress >= 100 ? 'done' : 'in_progress' }); refreshOpenTaskModal(); renderAdminDashboard();
+  await updateTaskOnFirebase(task.id, {
+    steps,
+    progress,
+    status: progress >= 100 ? 'done' : 'in_progress',
+    deliveredAt: progress >= 100 ? (task.deliveredAt || new Date().toISOString()) : '',
+    completedAt: progress >= 100 ? (task.completedAt || new Date().toISOString()) : ''
+  }); refreshOpenTaskModal(); renderAdminDashboard();
 }
 async function toggleTaskReceived(taskId){
   const task = findTaskById(taskId);
   if(!task) return;
-  await updateTaskOnFirebase(task.id, { received: !task.received, receivedConfirmed: !task.received, status: !task.received ? 'received' : 'pending' }); refreshOpenTaskModal(); renderAdminDashboard(); renderTasksPage();
+  const nextReceived = !(task.received || task.receivedConfirmed);
+  await updateTaskOnFirebase(task.id, {
+    received: nextReceived,
+    receivedConfirmed: nextReceived,
+    receivedAt: nextReceived ? new Date().toISOString() : '',
+    receivedBy: nextReceived ? (getCurrentUser().email || getCurrentUser().name || getCurrentUser().uid || '') : '',
+    status: nextReceived ? 'received' : 'pending'
+  }); refreshOpenTaskModal(); renderAdminDashboard(); renderTasksPage();
 }
 function buildCampaignTaskDocs(campaignId, payload){
   const docs = [];
@@ -1862,6 +1875,67 @@ function campaignTasksByContent(campaign){
     return acc;
   }, {});
 }
+function taskRawDateValue(value){
+  if(!value) return '';
+  if(value.toDate) return value.toDate();
+  return value;
+}
+function taskDateFromKeys(source, keys){
+  for(const key of keys){
+    const value = source && source[key];
+    if(value) return value;
+  }
+  return '';
+}
+function parseDateForDelay(value){
+  if(!value) return null;
+  try{
+    const raw = taskRawDateValue(value);
+    const date = raw instanceof Date ? raw : new Date(raw);
+    if(Number.isNaN(date.getTime())) return null;
+    return date;
+  }catch(_){ return null; }
+}
+function diffDays(deliveryDate, requiredDate){
+  const delivered = parseDateForDelay(deliveryDate);
+  const required = parseDateForDelay(requiredDate);
+  if(!delivered || !required) return '';
+  const oneDay = 24 * 60 * 60 * 1000;
+  return Math.ceil((delivered.setHours(0,0,0,0) - required.setHours(0,0,0,0)) / oneDay);
+}
+function taskRequiredDate(task, campaign){
+  return taskDateFromKeys(task, ['requiredDate','dueDate','deadline','deliveryDeadline','targetDate','publishDate']) ||
+    taskDateFromKeys(campaign, ['structure_deadline','campaignEndDate','endDate','publishEndDate','requiredDate']) ||
+    campaignEndDate(campaign) || '';
+}
+function taskReceivedDate(task){
+  return taskDateFromKeys(task, ['receivedAt','receivedDate','receivedOn']);
+}
+function taskDeliveredDate(task){
+  return taskDateFromKeys(task, ['deliveredAt','deliveryAt','completedAt','finishedAt','submittedAt']) || (taskProgress(task) >= 100 ? taskDateFromKeys(task, ['updatedAt']) : '');
+}
+function taskMatchesDatabaseDepartment(task, role, words){
+  const text = identityClean([task.contentSectionName, task.assignedDepartmentName, task.departmentRole, taskContentType(task)].filter(Boolean).join(' '));
+  if(role && (task.departmentRole === role || normalizeDepartmentRole(text) === role)) return true;
+  return (words || []).some(word => text.includes(identityClean(word)));
+}
+function databaseDepartmentCell(campaign, role, words){
+  const list = tasksForCampaign(campaign).filter(task => taskMatchesDatabaseDepartment(task, role, words));
+  if(!list.length) return '<span class="muted-db-cell">—</span>';
+  return `<div class="db-department-stack">${list.map(task => {
+    const requiredDate = taskRequiredDate(task, campaign);
+    const deliveredDate = taskDeliveredDate(task);
+    const delay = diffDays(deliveredDate, requiredDate);
+    const delayText = delay === '' ? '—' : `${delay} يوم`;
+    return `<div class="db-department-mini">
+      <span>اسم المسئول / <b>${taskOwnerName(task)}</b></span>
+      <span>تاريخ الاستلام / <b>${formatDateShort(taskReceivedDate(task))}</b></span>
+      <span>التاريخ المطلوب / <b>${formatDateShort(requiredDate)}</b></span>
+      <span>تاريخ التسليم / <b>${formatDateShort(deliveredDate)}</b></span>
+      <span>وقت التأخير / <b>${escapeHtml(delayText)}</b></span>
+    </div>`;
+  }).join('')}</div>`;
+}
 function roleCountForCampaign(campaign, role){
   return tasksForCampaign(campaign).filter(task => normalizeDepartmentRole(taskContentType(task) || task.assignedDepartmentName || '') === role || task.departmentRole === role).length;
 }
@@ -1880,11 +1954,11 @@ function renderDatabasePage(){
       <td>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '')}</td>
       <td>${formatDateShort(campaign.campaign_date || campaign.startDate || '')}</td>
       <td>${formatDateShort(campaignEndDate(campaign))}</td>
-      <td>${roleCountForCampaign(campaign,'shooting')}</td>
-      <td>${roleCountForCampaign(campaign,'content')}</td>
-      <td>${roleCountForCampaign(campaign,'design')}</td>
-      <td>${roleCountForCampaign(campaign,'montage')}</td>
-      <td>${roleCountForCampaign(campaign,'publish')}</td>
+      <td class="db-department-cell">${databaseDepartmentCell(campaign,'shooting',['التصوير','تصوير','الايديت'])}</td>
+      <td class="db-department-cell">${databaseDepartmentCell(campaign,'content',['المحتوى','المحتوي','كتابة'])}</td>
+      <td class="db-department-cell">${databaseDepartmentCell(campaign,'design',['التصميم','تصميم'])}</td>
+      <td class="db-department-cell">${databaseDepartmentCell(campaign,'montage',['المونتاج','مونتاج'])}</td>
+      <td class="db-department-cell">${databaseDepartmentCell(campaign,'publish',['النشر','نشر'])}</td>
       <td><button type="button" class="mini-btn" data-view-campaign-data="${escapeHtml(campaign.id)}">عرض البيانات</button></td>
       <td class="db-actions"><button type="button" class="mini-btn danger" data-delete-campaign="${escapeHtml(campaign.id)}">مسح</button><button type="button" class="mini-btn" data-archive-campaign="${escapeHtml(campaign.id)}">أرشيف</button></td>
     </tr>`;
