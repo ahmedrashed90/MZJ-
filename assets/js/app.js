@@ -1546,16 +1546,17 @@ function renderStructureWorkbookTable(task, structure, admin){
   const sheets = Array.isArray(structure.sheetTables) ? structure.sheetTables : [];
   if(!sheets.length) return '';
   const notes = Array.isArray(structure.notes) ? structure.notes : [];
-  return `<div class="structure-workbook-view"><h4>عرض الهيكل الكامل</h4>${sheets.map(sheet => {
+  const marks = Array.isArray(structure.marks) ? structure.marks : [];
+  return `<div class="structure-workbook-view"><h4>الشيت كامل - اضغط مرة على أي خلية للتعليم بالأصفر، واضغط مرتين لإضافة ملاحظة</h4>${sheets.map(sheet => {
     const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
-    const maxCols = Math.min(Math.max(Number(sheet.maxCols) || 0, ...rows.map(row => row.length)), 18);
+    const maxCols = Math.max(Number(sheet.maxCols) || 0, ...rows.map(row => row.length));
     const body = rows.map((row, rowIndex) => {
       const cells = Array.from({length:maxCols}).map((_, colIndex) => {
         const key = structureCellKey(sheet.sheetName, rowIndex, colIndex);
         const cellNotes = notes.filter(n => n.cellKey === key);
-        const hasNote = cellNotes.length > 0;
+        const hasMark = marks.includes(key) || cellNotes.length > 0;
         const val = normalizeText(row[colIndex] || '');
-        return `<td class="${hasNote ? 'marked-cell' : ''}" ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${rowIndex}" data-col-index="${colIndex}"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
+        return `<td class="${hasMark ? 'marked-cell' : ''}" ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${rowIndex}" data-col-index="${colIndex}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
       }).join('');
       return `<tr>${cells}</tr>`;
     }).join('');
@@ -1593,9 +1594,8 @@ function renderStructureSection(task){
       ${structure.fileData ? `<a class="btn btn-light" href="${escapeHtml(structure.fileData)}" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل الملف المرفوع</a>` : ''}
     </div>
     ${notesHtml}
-    ${admin && rows.length ? `<div class="structure-admin-tools"><button class="btn btn-light" type="button" data-structure-request-changes="${escapeHtml(task.id)}">طلب تعديل</button><button class="btn btn-primary" type="button" data-structure-approve="${escapeHtml(task.id)}">اعتماد الهيكل</button><button class="btn btn-light" type="button" data-structure-note="${escapeHtml(task.id)}">إضافة ملاحظة</button></div>` : ''}
+    ${admin && rows.length ? `<div class="structure-admin-tools"><button class="btn btn-primary" type="button" data-structure-approve="${escapeHtml(task.id)}">اعتماد الهيكل</button></div>` : ''}
     ${renderStructureWorkbookTable(task, structure, admin)}
-    <div class="structure-execution-preview"><h4>آلية تنفيذ المحتوى</h4>${structureRowsTable(rows, notes)}</div>
     ${admin && (status === 'approved' || status === 'distributed') ? structureAssigneeTable(task) : ''}
   </div>`;
 }
@@ -1858,6 +1858,16 @@ async function uploadStructureFileForTask(file, taskId){
   await updateTaskOnFirebase(task.id, { structure: { ...prev, status, fileName: file.name, fileSize: file.size, fileData, parsedRows, sheetTables, uploadedAt: new Date().toISOString(), uploadedBy: getCurrentUser().email || getCurrentUser().name || '' } });
   showToast(sheetTables.length ? 'تم رفع الهيكل وعرض الشيت كامل.' : 'تم رفع الهيكل، ولم يتم قراءة الشيت تلقائيًا.');
 }
+async function toggleStructureCellMark(taskId, sheetName, rowIndex, colIndex){
+  const task = findTaskById(taskId);
+  if(!task) return;
+  const structure = taskStructure(task);
+  const cellKey = structureCellKey(sheetName, rowIndex, colIndex);
+  const currentMarks = Array.isArray(structure.marks) ? structure.marks : [];
+  const marks = currentMarks.includes(cellKey) ? currentMarks.filter(item => item !== cellKey) : [...currentMarks, cellKey];
+  await updateTaskOnFirebase(task.id, { structure: { ...structure, status: marks.length ? 'needs_changes' : (structure.status || 'pending_review'), marks, reviewedAt: new Date().toISOString() } });
+}
+
 async function addStructureCellNote(taskId, sheetName, rowIndex, colIndex){
   const task = findTaskById(taskId);
   if(!task) return;
@@ -1869,7 +1879,9 @@ async function addStructureCellNote(taskId, sheetName, rowIndex, colIndex){
   if(!note) return;
   const cellKey = structureCellKey(sheetName, rowIndex, colIndex);
   const notes = [...(Array.isArray(structure.notes) ? structure.notes : []), { id: `note-${Date.now()}`, cellKey, sheetName, rowIndex:Number(rowIndex), colIndex:Number(colIndex), field: cellValue || `صف ${Number(rowIndex)+1} / عمود ${Number(colIndex)+1}`, note, createdAt: new Date().toISOString(), createdBy: getCurrentUser().email || getCurrentUser().name || '' }];
-  await updateTaskOnFirebase(task.id, { structure: { ...structure, status: 'needs_changes', notes, reviewedAt: new Date().toISOString() } });
+  const currentMarks = Array.isArray(structure.marks) ? structure.marks : [];
+  const marks = currentMarks.includes(cellKey) ? currentMarks : [...currentMarks, cellKey];
+  await updateTaskOnFirebase(task.id, { structure: { ...structure, status: 'needs_changes', notes, marks, reviewedAt: new Date().toISOString() } });
   showToast('تم إضافة الملاحظة وتعليم الخلية.');
 }
 
@@ -2182,6 +2194,15 @@ function bindCampaignBuilder(){
     const budgetDel = event.target.closest('.delete-budget-row');
     if(budgetDel){ budgetDel.closest('.budget-item-card')?.remove(); if(budgetRows && !budgetRows.querySelector('.budget-item-card')) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; }
   });
+  document.addEventListener('dblclick', async event => {
+    const structureCell = event.target.closest('[data-structure-cell]');
+    if(structureCell){
+      event.preventDefault();
+      event.stopPropagation();
+      await addStructureCellNote(structureCell.dataset.structureCell, structureCell.dataset.sheetName || '', structureCell.dataset.rowIndex || 0, structureCell.dataset.colIndex || 0);
+    }
+  });
+
   document.addEventListener('change', event => {
     if(event.target.matches('.js-enable-cars')){ const row = event.target.closest('.creative-row-card'); row?.querySelector('.car-picker-block')?.classList.toggle('is-hidden', !event.target.checked); if(!event.target.checked){ row?.querySelectorAll('.js-car-checkbox:checked').forEach(cb => cb.checked = false); updateProductOutput(row); } return; }
     if(event.target.matches('.js-task-section-select')){
@@ -3273,13 +3294,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadStructureBtn = event.target.closest('[data-upload-structure]');
     if(uploadStructureBtn){ const input = document.getElementById('structureFileInput'); if(input){ input.dataset.taskId = uploadStructureBtn.dataset.uploadStructure; input.click(); } return; }
     const structureCell = event.target.closest('[data-structure-cell]');
-    if(structureCell){ await addStructureCellNote(structureCell.dataset.structureCell, structureCell.dataset.sheetName || '', structureCell.dataset.rowIndex || 0, structureCell.dataset.colIndex || 0); return; }
-    const structureNote = event.target.closest('[data-structure-note]');
-    if(structureNote){ await addStructureNote(structureNote.dataset.structureNote); return; }
+    if(structureCell){ await toggleStructureCellMark(structureCell.dataset.structureCell, structureCell.dataset.sheetName || '', structureCell.dataset.rowIndex || 0, structureCell.dataset.colIndex || 0); return; }
     const structureApprove = event.target.closest('[data-structure-approve]');
     if(structureApprove){ await setStructureStatus(structureApprove.dataset.structureApprove, 'approved'); return; }
-    const structureChanges = event.target.closest('[data-structure-request-changes]');
-    if(structureChanges){ await setStructureStatus(structureChanges.dataset.structureRequestChanges, 'needs_changes'); return; }
     const structureSave = event.target.closest('[data-save-structure-assignees]');
     if(structureSave){ await saveStructureDistribution(structureSave.dataset.saveStructureAssignees); return; }
     if(event.target.closest('[data-close-task-modal]')){ closeTaskModal(); return; }
@@ -3296,6 +3313,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const files = taskFiles(task).filter((_, i) => i !== Number(delFile.dataset.deleteTaskFile));
       await updateTaskOnFirebase(task.id, { attachments: files });
       refreshOpenTaskModal();
+    }
+  });
+
+  document.addEventListener('dblclick', async event => {
+    const structureCell = event.target.closest('[data-structure-cell]');
+    if(structureCell){
+      event.preventDefault();
+      event.stopPropagation();
+      await addStructureCellNote(structureCell.dataset.structureCell, structureCell.dataset.sheetName || '', structureCell.dataset.rowIndex || 0, structureCell.dataset.colIndex || 0);
     }
   });
 

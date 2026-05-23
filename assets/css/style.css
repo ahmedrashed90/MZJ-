@@ -852,3 +852,16 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .structure-execution-preview{margin-top:12px;display:grid;gap:8px}
 @media(max-width:1400px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(4,minmax(90px,1fr))!important}}
 @media(max-width:900px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(2,minmax(90px,1fr))!important}}
+
+
+/* v33: full sheet structure review by direct cell marking */
+.structure-workbook-view{margin-top:14px!important}
+.structure-workbook-view h4{font-size:15px!important;color:var(--primary)!important;font-weight:900!important;margin:0 0 8px!important}
+.structure-table-wrap.full-sheet{max-height:620px!important;overflow:auto!important;background:#fff!important;border:1px solid var(--border)!important;border-radius:14px!important}
+.full-structure-table{min-width:max-content!important;width:max-content!important;border-collapse:collapse!important}
+.full-structure-table td{min-width:130px!important;max-width:360px!important;padding:9px 10px!important;font-size:12px!important;line-height:1.55!important;white-space:pre-wrap!important;word-break:break-word!important;cursor:pointer!important}
+.full-structure-table td:hover{box-shadow:inset 0 0 0 2px rgba(90,51,41,.22)!important;background:#fffaf3!important}
+.full-structure-table td.marked-cell{background:#fff2a6!important;box-shadow:inset 0 0 0 2px #d7b933!important}
+.cell-note-badge{display:block;margin-top:6px;background:#fff7c8;border:1px solid #d8bd49;border-radius:8px;padding:4px 6px;color:#4b2a20;font-weight:900;font-size:11px}
+.structure-execution-preview{display:none!important}
+.structure-admin-tools{justify-content:flex-start!important;margin:8px 0 12px!important}
