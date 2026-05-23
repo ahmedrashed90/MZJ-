@@ -544,3 +544,36 @@ body.has-user-dashboard-theme #dashboard .content-type-title,
 body.has-user-dashboard-theme #dashboard .exec-stats{
   text-shadow:0 1px 10px rgba(255,255,255,.55) !important;
 }
+
+/* === v17 user dashboard: remove big glass container, keep only cards === */
+body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard,
+body.has-user-dashboard-theme #dashboard.user-mode .user-dashboard-panel,
+body.has-user-dashboard-theme #dashboard.user-mode .workspace-card.user-content-dashboard{
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 0 !important;
+}
+body.has-user-dashboard-theme #dashboard.user-mode .content-type-board{
+  position: relative !important;
+  z-index: 2 !important;
+}
+body.has-user-dashboard-theme #dashboard.user-mode .content-type-col{
+  background: rgba(255,255,255,.46) !important;
+  border: 1px solid rgba(255,255,255,.52) !important;
+  box-shadow: 0 18px 44px rgba(45,23,19,.13) !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+}
+body.has-user-dashboard-theme #dashboard.user-mode .content-task-card{
+  background: rgba(255,255,255,.66) !important;
+  border-color: rgba(255,255,255,.62) !important;
+  box-shadow: 0 12px 26px rgba(45,23,19,.10) !important;
+}
+body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
+  background: rgba(255,255,255,.28) !important;
+  border-color: rgba(255,255,255,.35) !important;
+  box-shadow: none !important;
+}
