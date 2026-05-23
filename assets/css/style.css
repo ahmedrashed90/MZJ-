@@ -936,3 +936,11 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .structure-table.compact-excel-section .excel-vertical-side{writing-mode:horizontal-tb; font-size:14px;}
 .structure-table.compact-excel-section td:empty{display:none;}
 .structure-table-wrap.full-sheet{max-height:520px;}
+
+/* Structure sheet fixes: no duplicated black section title, inline notes instead of browser prompt */
+.structure-sheet-block.compact-structure-section .structure-sheet-title{display:none!important;}
+.inline-structure-note-editor{position:relative;z-index:5;margin-top:8px;background:#fffaf6;border:1px solid #d7b93a;border-radius:10px;padding:8px;box-shadow:0 8px 22px rgba(0,0,0,.16);min-width:220px;color:#2b1611;direction:rtl;text-align:right;}
+.inline-note-title{font-size:11px;font-weight:900;margin-bottom:6px;color:#4b2a20;white-space:normal;}
+.inline-note-input{width:100%;min-height:70px;resize:vertical;border:1px solid var(--border);border-radius:8px;padding:7px;background:#fff;color:#1f1714;font-family:inherit;font-size:12px;}
+.inline-note-actions{display:flex;gap:6px;justify-content:flex-start;margin-top:6px;}
+.inline-note-actions .mini-btn{height:28px;padding:0 10px;border-radius:8px;}

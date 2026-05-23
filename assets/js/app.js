@@ -1785,13 +1785,13 @@ function renderStructureWorkbookTable(task, structure, admin){
           const sourceRow = Number(cell.sourceRow);
           const sourceCol = Number(cell.sourceCol);
           const key = structureCellKey(sheet.sheetName, sourceRow, sourceCol);
-          const hasMark = marks.some(m => m.key === key);
-          const cellNotes = notes.filter(n => n.key === key);
+          const hasMark = marks.some(m => (typeof m === 'string' ? m : m?.key) === key);
+          const cellNotes = notes.filter(n => (n.key || n.cellKey) === key);
           const attrs = `${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}`;
           const cls = [cell.className || '', hasMark ? 'marked-cell' : '', cellNotes.length ? 'has-cell-note' : ''].filter(Boolean).join(' ');
           return `<td class="${escapeHtml(cls)}"${attrs} ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${sourceRow}" data-col-index="${sourceCol}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
         }).join('')}</tr>`).join('');
-        return `<div class="structure-sheet-block compact-structure-section"><div class="structure-sheet-title">${escapeHtml(section.title || 'محتوى الحملة')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure compact-excel-section"><tbody>${body}</tbody></table></div></div>`;
+        return `<div class="structure-sheet-block compact-structure-section"><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure compact-excel-section"><tbody>${body}</tbody></table></div></div>`;
       }).join('');
     }
     const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
@@ -1799,8 +1799,8 @@ function renderStructureWorkbookTable(task, structure, admin){
     const body = rows.map((row, rowIndex) => `<tr>${Array.from({length:maxCols}).map((_, colIndex) => {
       const val = normalizeText(row[colIndex] || '');
       const key = structureCellKey(sheet.sheetName, rowIndex, colIndex);
-      const hasMark = marks.some(m => m.key === key);
-      const cellNotes = notes.filter(n => n.key === key);
+      const hasMark = marks.some(m => (typeof m === 'string' ? m : m?.key) === key);
+      const cellNotes = notes.filter(n => (n.key || n.cellKey) === key);
       return `<td class="${hasMark ? 'marked-cell' : ''}" ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${rowIndex}" data-col-index="${colIndex}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
     }).join('')}</tr>`).join('');
     return `<div class="structure-sheet-block"><div class="structure-sheet-title">${escapeHtml(sheet.sheetName || 'محتوى الحملة')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure"><tbody>${body}</tbody></table></div></div>`;
@@ -2139,21 +2139,65 @@ async function toggleStructureCellMark(taskId, sheetName, rowIndex, colIndex){
   await updateTaskOnFirebase(task.id, { structure: { ...structure, status: marks.length ? 'needs_changes' : (structure.status || 'pending_review'), marks, reviewedAt: new Date().toISOString() } });
 }
 
-async function addStructureCellNote(taskId, sheetName, rowIndex, colIndex){
-  const task = findTaskById(taskId);
-  if(!task) return;
-  const structure = taskStructure(task);
+function structureCellValueFromStoredTable(structure, sheetName, rowIndex, colIndex){
   const sheets = structureSheetTables(structure);
   const sheet = sheets.find(item => item.sheetName === sheetName);
-  const cellValue = normalizeText(sheet?.rows?.[Number(rowIndex)]?.[Number(colIndex)] || '');
-  const note = prompt(`اكتب ملاحظة على الخلية${cellValue ? `: ${cellValue}` : ''}`);
-  if(!note) return;
+  const rowNo = Number(rowIndex);
+  const colNo = Number(colIndex);
+  if(!sheet) return '';
+  if(sheet.mode === 'merged'){
+    for(const row of (sheet.rows || [])){
+      for(const cell of (row || [])){
+        if(cell && !cell.skip && Number(cell.sourceRow) === rowNo && Number(cell.sourceCol) === colNo){
+          return normalizeText(cell.value || '');
+        }
+      }
+    }
+    return '';
+  }
+  return normalizeText(sheet?.rows?.[rowNo]?.[colNo] || '');
+}
+
+function closeStructureCellNoteEditors(){
+  document.querySelectorAll('.inline-structure-note-editor').forEach(editor => editor.remove());
+}
+
+function openStructureCellNoteEditor(cellEl){
+  if(!cellEl) return;
+  closeStructureCellNoteEditors();
+  const taskId = cellEl.dataset.structureCell || '';
+  const sheetName = cellEl.dataset.sheetName || '';
+  const rowIndex = cellEl.dataset.rowIndex || 0;
+  const colIndex = cellEl.dataset.colIndex || 0;
+  const task = findTaskById(taskId);
+  const cellValue = task ? structureCellValueFromStoredTable(taskStructure(task), sheetName, rowIndex, colIndex) : '';
+  const editor = document.createElement('div');
+  editor.className = 'inline-structure-note-editor';
+  editor.innerHTML = `<div class="inline-note-title">ملاحظة على الخلية${cellValue ? `: ${escapeHtml(cellValue)}` : ''}</div><textarea class="inline-note-input" rows="3" placeholder="اكتب الملاحظة هنا"></textarea><div class="inline-note-actions"><button type="button" class="mini-btn structure-note-save">حفظ</button><button type="button" class="mini-btn structure-note-cancel">إلغاء</button></div>`;
+  cellEl.appendChild(editor);
+  const input = editor.querySelector('textarea');
+  setTimeout(() => input?.focus(), 20);
+}
+
+async function saveStructureCellNote(taskId, sheetName, rowIndex, colIndex, note){
+  const task = findTaskById(taskId);
+  if(!task) return;
+  const cleanNote = normalizeText(note || '');
+  if(!cleanNote) return;
+  const structure = taskStructure(task);
+  const cellValue = structureCellValueFromStoredTable(structure, sheetName, rowIndex, colIndex);
   const cellKey = structureCellKey(sheetName, rowIndex, colIndex);
-  const notes = [...(Array.isArray(structure.notes) ? structure.notes : []), { id: `note-${Date.now()}`, cellKey, sheetName, rowIndex:Number(rowIndex), colIndex:Number(colIndex), field: cellValue || `صف ${Number(rowIndex)+1} / عمود ${Number(colIndex)+1}`, note, createdAt: new Date().toISOString(), createdBy: getCurrentUser().email || getCurrentUser().name || '' }];
+  const notes = [...(Array.isArray(structure.notes) ? structure.notes : []), { id: `note-${Date.now()}`, key: cellKey, cellKey, sheetName, rowIndex:Number(rowIndex), colIndex:Number(colIndex), field: cellValue || `صف ${Number(rowIndex)+1} / عمود ${Number(colIndex)+1}`, note: cleanNote, createdAt: new Date().toISOString(), createdBy: getCurrentUser().email || getCurrentUser().name || '' }];
   const currentMarks = Array.isArray(structure.marks) ? structure.marks : [];
-  const marks = currentMarks.includes(cellKey) ? currentMarks : [...currentMarks, cellKey];
+  const marks = currentMarks.some(m => (typeof m === 'string' ? m : m?.key) === cellKey) ? currentMarks : [...currentMarks, cellKey];
   await updateTaskOnFirebase(task.id, { structure: { ...structure, status: 'needs_changes', notes, marks, reviewedAt: new Date().toISOString() } });
   showToast('تم إضافة الملاحظة وتعليم الخلية.');
+}
+
+async function addStructureCellNote(taskId, sheetName, rowIndex, colIndex, noteText = ''){
+  if(noteText) return saveStructureCellNote(taskId, sheetName, rowIndex, colIndex, noteText);
+  const cellEl = document.querySelector(`[data-structure-cell="${CSS.escape(String(taskId))}"][data-sheet-name="${CSS.escape(String(sheetName))}"][data-row-index="${CSS.escape(String(rowIndex))}"][data-col-index="${CSS.escape(String(colIndex))}"]`);
+  openStructureCellNoteEditor(cellEl);
 }
 
 async function addStructureNote(taskId){
@@ -2471,7 +2515,7 @@ function bindCampaignBuilder(){
     if(structureCell){
       event.preventDefault();
       event.stopPropagation();
-      await addStructureCellNote(structureCell.dataset.structureCell, structureCell.dataset.sheetName || '', structureCell.dataset.rowIndex || 0, structureCell.dataset.colIndex || 0);
+      openStructureCellNoteEditor(structureCell);
     }
   });
 
@@ -3567,6 +3611,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if(uploadStructureBtn){ const input = document.getElementById('structureFileInput'); if(input){ input.dataset.taskId = uploadStructureBtn.dataset.uploadStructure; input.value = ''; input.click(); } return; }
     const reloadStructureBtn = event.target.closest('[data-reload-structure-sheet]');
     if(reloadStructureBtn){ await reloadStructureSheetFromStoredFile(reloadStructureBtn.dataset.reloadStructureSheet || ''); return; }
+    const noteSave = event.target.closest('.structure-note-save');
+    if(noteSave){
+      event.preventDefault();
+      event.stopPropagation();
+      const cell = noteSave.closest('[data-structure-cell]');
+      const note = cell?.querySelector('.inline-note-input')?.value || '';
+      if(cell) await saveStructureCellNote(cell.dataset.structureCell, cell.dataset.sheetName || '', cell.dataset.rowIndex || 0, cell.dataset.colIndex || 0, note);
+      return;
+    }
+    const noteCancel = event.target.closest('.structure-note-cancel');
+    if(noteCancel){ event.preventDefault(); event.stopPropagation(); closeStructureCellNoteEditors(); return; }
+    if(event.target.closest('.inline-structure-note-editor')){ event.stopPropagation(); return; }
     const structureCell = event.target.closest('[data-structure-cell]');
     if(structureCell){ await toggleStructureCellMark(structureCell.dataset.structureCell, structureCell.dataset.sheetName || '', structureCell.dataset.rowIndex || 0, structureCell.dataset.colIndex || 0); return; }
     const structureApprove = event.target.closest('[data-structure-approve]');
@@ -3595,7 +3651,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(structureCell){
       event.preventDefault();
       event.stopPropagation();
-      await addStructureCellNote(structureCell.dataset.structureCell, structureCell.dataset.sheetName || '', structureCell.dataset.rowIndex || 0, structureCell.dataset.colIndex || 0);
+      openStructureCellNoteEditor(structureCell);
     }
   });
 
