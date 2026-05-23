@@ -710,3 +710,8 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .stock-shot-select{min-width:86px;text-align:center;cursor:pointer}
 @media(max-width:1180px){.stock-filter-cards{grid-template-columns:repeat(2,minmax(140px,1fr))}}
 @media(max-width:620px){.stock-filter-cards{grid-template-columns:1fr}.stock-filter-area{min-width:0;width:100%}}
+
+/* v27 fixes */
+.topbar-user{font-weight:900;color:var(--primary);background:rgba(255,255,255,.72);border:1px solid var(--border);border-radius:999px;padding:9px 14px;white-space:nowrap}
+.permission-user-card .mini-field{display:grid;gap:6px;min-width:150px;font-weight:800;color:var(--primary)}
+.permission-user-card .mini-field select{border:1px solid var(--border);border-radius:12px;background:#fff;padding:9px 10px;font-weight:800;color:var(--text)}

@@ -89,8 +89,17 @@ function isLoggedIn(){ return sessionStorage.getItem('mzj_logged_in') === '1'; }
 function getRoute(){ return (location.hash || '#dashboard').replace('#',''); }
 function openApp(){ loginView.classList.add('is-hidden'); appShell.classList.remove('is-hidden'); renderRoute(); bootstrapData(); }
 function openLogin(){ appShell.classList.add('is-hidden'); loginView.classList.remove('is-hidden'); }
+
+function updateTopbarUser(){
+  const target = document.getElementById('topbarUserName');
+  if(!target) return;
+  const user = getCurrentUserIdentity();
+  target.textContent = user.name || user.email || 'مستخدم';
+}
+
 function renderRoute(){
   applyEffectiveTheme();
+  updateTopbarUser();
   applyUserPermissions();
   let route = routes.includes(getRoute()) ? getRoute() : 'dashboard';
   if(!pageAllowed(route)){
@@ -116,6 +125,17 @@ function getSelectedValues(select){ return [...(select?.selectedOptions || [])].
 function serverTime(){ return firebase.firestore.FieldValue.serverTimestamp(); }
 function safeCollection(name){ return mainDb.collection(name); }
 function getCurrentUser(){ try{ return JSON.parse(sessionStorage.getItem('mzj_user') || '{}') || {}; }catch(_){ return {}; } }
+function getCurrentUserIdentity(){
+  const user = getCurrentUser() || {};
+  const authUser = mainAuth?.currentUser || null;
+  return {
+    id: user.id || user.uid || authUser?.uid || '',
+    uid: user.uid || user.id || authUser?.uid || '',
+    name: user.name || user.displayName || user.username || authUser?.displayName || '',
+    email: user.email || authUser?.email || sessionStorage.getItem('mzj_login_email') || '',
+    role: user.role || 'user'
+  };
+}
 
 function setCurrentUser(user){ sessionStorage.setItem('mzj_user', JSON.stringify(user || {})); }
 function syncCurrentSessionUserFromUsers(){
@@ -435,12 +455,22 @@ function stockGroupDocId(groupKey){
   return 'stock_' + Math.abs(hash).toString(36) + '_' + source.replace(/[^\u0600-\u06FF\w-]+/g,'_').slice(0,60);
 }
 function stockMetaForKey(groupKey){ return stockCarMeta[stockGroupDocId(groupKey)] || {}; }
+function readLocalStockMeta(){
+  try{ return JSON.parse(localStorage.getItem('mzj_stock_meta_cache') || '{}') || {}; }catch(_){ return {}; }
+}
+function writeLocalStockMeta(docId, data){
+  try{
+    const current = readLocalStockMeta();
+    current[docId] = { ...(current[docId] || {}), ...(data || {}) };
+    localStorage.setItem('mzj_stock_meta_cache', JSON.stringify(current));
+  }catch(_){}
+}
 function loadStockMeta(){
   if(!mainDb) return;
   let collectionMeta = {};
   let settingsMeta = {};
   const applyMeta = () => {
-    stockCarMeta = { ...settingsMeta, ...collectionMeta };
+    stockCarMeta = { ...readLocalStockMeta(), ...settingsMeta, ...collectionMeta };
     renderStock();
   };
   safeCollection(window.MZJ_STOCK_META_COLLECTION).onSnapshot(snapshot => {
@@ -504,7 +534,9 @@ async function saveStockShotStatus(groupKey, value){
     updatedAtIso: nowIso,
     updatedBy: current.email || current.name || current.uid || ''
   };
-  stockCarMeta[docId] = { ...previous, ...payload, updatedAt: nowIso };
+  const optimistic = { ...previous, ...payload, updatedAt: nowIso };
+  stockCarMeta[docId] = optimistic;
+  writeLocalStockMeta(docId, optimistic);
   renderStock();
   try{
     await safeCollection(window.MZJ_STOCK_META_COLLECTION).doc(docId).set(payload, { merge: true });
@@ -513,23 +545,31 @@ async function saveStockShotStatus(groupKey, value){
   }catch(primaryError){
     console.error('Stock shot save primary error', primaryError);
     try{
-      const fallbackPayload = { ...payload, updatedAt: nowIso, savedIn: 'system_settings_fallback' };
+      const simplePayload = {
+        groupKey: payload.groupKey, docKey: payload.docKey, carName: payload.carName, statement: payload.statement,
+        exteriorColor: payload.exteriorColor, interiorColor: payload.interiorColor, carIds: payload.carIds || [], count: payload.count || 0,
+        photographed: payload.photographed, photographedValue: payload.photographedValue, updatedAt: nowIso, updatedAtIso: nowIso,
+        updatedBy: current.email || current.name || current.uid || '', savedIn: 'system_settings_fallback'
+      };
       await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({
-        stockCarStatusMap: { [docId]: fallbackPayload },
+        stockCarStatusMap: { [docId]: simplePayload },
         updatedAt: serverTime(),
         updatedBy: current.email || current.name || current.uid || ''
       }, { merge: true });
-      stockCarMeta[docId] = { ...previous, ...fallbackPayload };
+      stockCarMeta[docId] = { ...previous, ...simplePayload };
+      writeLocalStockMeta(docId, stockCarMeta[docId]);
       renderStock();
       showToast('تم حفظ حالة التصوير.');
       return;
     }catch(fallbackError){
-      stockCarMeta[docId] = previous;
-      renderStock();
       console.error('Stock shot save fallback error', fallbackError);
+      // نحافظ على التغيير ظاهرياً في المتصفح، لكن نوضح أن Firebase رفض الحفظ.
+      stockCarMeta[docId] = optimistic;
+      writeLocalStockMeta(docId, optimistic);
+      renderStock();
       const msg = String(fallbackError?.message || primaryError?.message || fallbackError || primaryError || '');
-      if(msg.toLowerCase().includes('permission')) showToast('تعذر حفظ حالة التصوير: صلاحيات Firebase لا تسمح بالحفظ. ارفع firestore.rules المرفق.');
-      else showToast('تعذر حفظ حالة التصوير: ' + msg.slice(0, 120));
+      if(msg.toLowerCase().includes('permission')) showToast('تم حفظها مؤقتاً على الجهاز، لكن Firebase رفض الحفظ. ارفع firestore.rules المرفق.');
+      else showToast('تم حفظها مؤقتاً على الجهاز، وتعذر حفظها في Firebase: ' + msg.slice(0, 90));
     }
   }
 }
@@ -1301,7 +1341,16 @@ async function uploadTaskFileToDrive(file, task){
     departmentName: task.assignedDepartmentName || taskDepartmentLabel(task),
     taskType: task.taskType || '',
     taskId: task.id || '',
-    uploadedBy: current.email || current.name || current.uid || ''
+    uploadedBy: current.email || current.name || current.uid || '',
+    directUpload: true,
+    flatUpload: true,
+    createFolder: false,
+    folderMode: 'root',
+    parentFolderName: 'MZJ Uploads',
+    targetFolderName: 'MZJ Uploads',
+    targetFileName: file.name,
+    desiredFileName: file.name,
+    keepOriginalFileName: true
   };
   const res = await fetch(getDriveUploadEndpoint(), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
   const text = await res.text();
@@ -2642,7 +2691,8 @@ function renderUsersPermissions(){
   const pageOptions = routes.filter(r => !['dashboard'].includes(r));
   wrap.innerHTML = users.length ? users.map(user => {
     const pages = normalizePagesList([...(Array.isArray(user.pages) ? user.pages : []), ...(Array.isArray(user.pagesAccess) ? user.pagesAccess : [])]);
-    return `<article class="permission-user-card" data-user-id="${escapeHtml(user.id)}"><div class="permission-user-main"><strong>${escapeHtml(userName(user) || 'User')}</strong><small>${escapeHtml(user.email || '')}</small><span>${escapeHtml(user.role || 'user')}</span></div><div class="permission-pages"><label><input type="checkbox" data-page-key="dashboard" checked disabled> الداش بورد</label>${pageOptions.map(page => `<label><input type="checkbox" data-page-key="${page}" ${pages.includes(page) ? 'checked' : ''}> ${pageLabel(page)}</label>`).join('')}</div><button type="button" class="btn btn-primary" data-save-user-pages="${escapeHtml(user.id)}">حفظ الصلاحيات</button></article>`;
+    const role = normalizeText(user.role || 'user') || 'user';
+    return `<article class="permission-user-card" data-user-id="${escapeHtml(user.id)}"><div class="permission-user-main"><strong>${escapeHtml(userName(user) || 'User')}</strong><small>${escapeHtml(user.email || '')}</small><label class="mini-field"><span>نوع الحساب</span><select data-user-role><option value="user" ${role !== 'admin' ? 'selected' : ''}>يوزر عادي</option><option value="admin" ${role === 'admin' ? 'selected' : ''}>أدمن</option></select></label></div><div class="permission-pages"><label><input type="checkbox" data-page-key="dashboard" checked disabled> الداش بورد</label>${pageOptions.map(page => `<label><input type="checkbox" data-page-key="${page}" ${pages.includes(page) ? 'checked' : ''}> ${pageLabel(page)}</label>`).join('')}</div><button type="button" class="btn btn-primary" data-save-user-pages="${escapeHtml(user.id)}">حفظ الصلاحيات</button></article>`;
   }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
 }
 function pageLabel(page){
@@ -2734,9 +2784,10 @@ function bindSettings(){
     if(!save || !mainDb) return;
     const card = save.closest('.permission-user-card');
     const pages = normalizePagesList(['dashboard', ...[...card.querySelectorAll('input[data-page-key]:checked')].map(input => input.dataset.pageKey).filter(Boolean)]);
-    await safeCollection(window.MZJ_USERS_COLLECTION).doc(save.dataset.saveUserPages).update({ pages, pagesAccess: pages, updatedAt: serverTime() });
+    const role = card.querySelector('[data-user-role]')?.value || 'user';
+    await safeCollection(window.MZJ_USERS_COLLECTION).doc(save.dataset.saveUserPages).update({ pages, pagesAccess: pages, role, updatedAt: serverTime() });
     const idx = users.findIndex(u => u.id === save.dataset.saveUserPages);
-    if(idx >= 0){ users[idx] = { ...users[idx], pages, pagesAccess: pages }; }
+    if(idx >= 0){ users[idx] = { ...users[idx], pages, pagesAccess: pages, role }; }
     const currentKeys = uniqueIdentityKeys([getCurrentUser()]);
     const editedKeys = idx >= 0 ? uniqueIdentityKeys([users[idx]]) : [identityClean(save.dataset.saveUserPages)];
     if(identityIntersects(currentKeys, editedKeys)){ syncCurrentSessionUserFromUsers(); applyUserPermissions(); renderRoute(); }
