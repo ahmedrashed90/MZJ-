@@ -1058,3 +1058,36 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
   pointer-events:none!important;
   user-select:none!important;
 }
+
+
+/* v45 - show campaign structure exactly like Excel: titles inside the sheet only */
+.structure-section-display-title{display:none!important;}
+.structure-sheet-block.excel-original-sheet{margin:12px 0 18px!important;border:0!important;background:transparent!important;box-shadow:none!important;}
+.structure-sheet-block.excel-original-sheet .structure-table-wrap.full-sheet{border-radius:14px!important;max-height:620px!important;overflow:auto!important;background:#fff!important;}
+.full-structure-table.excel-like-structure td.excel-section-title,
+.full-structure-table.excel-like-structure td.logic-title,
+.full-structure-table.excel-like-structure td.writing-title,
+.full-structure-table.excel-like-structure td.execution-title{
+  background:#111!important;
+  color:#fff!important;
+  border-color:#111!important;
+  font-weight:950!important;
+  text-align:center!important;
+  cursor:default!important;
+}
+.full-structure-table.excel-like-structure td.protected-structure-title{
+  pointer-events:none!important;
+  user-select:none!important;
+}
+.full-structure-table.excel-like-structure td.excel-section-side,
+.full-structure-table.excel-like-structure td.excel-vertical-side{
+  background:#d9d9d9!important;
+  color:#111!important;
+  font-weight:900!important;
+}
+.full-structure-table.excel-like-structure td{
+  border:1px solid #111!important;
+  padding:7px 9px!important;
+  line-height:1.55!important;
+  font-size:12px!important;
+}

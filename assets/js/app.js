@@ -1827,24 +1827,22 @@ function renderStructureWorkbookTable(task, structure, admin){
   const marks = Array.isArray(structure.marks) ? structure.marks : [];
   return `<div class="structure-workbook-view"><div class="structure-help-bar"><strong>محتوى الحملة</strong><span>ضغطة واحدة للتعليم، دبل كليك يفتح مربع كتابة ملاحظة</span></div>${sheets.map(sheet => {
     if(sheet.mode === 'merged'){
-      const sections = splitStructureRowsIntoSections(Array.isArray(sheet.rows) ? sheet.rows : []);
-      return sections.map(section => {
-        const sectionRows = compactStructureSectionRows(section.rows);
-        const body = sectionRows.map((row) => `<tr>${row.map(cell => {
-          const val = normalizeText(cell.value || '');
-          const sourceRow = Number(cell.sourceRow);
-          const sourceCol = Number(cell.sourceCol);
-          const key = structureCellKey(sheet.sheetName, sourceRow, sourceCol);
-          const hasMark = marks.some(m => (typeof m === 'string' ? m : m?.key) === key);
-          const cellNotes = notes.filter(n => (n.key || n.cellKey) === key);
-          const attrs = `${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}`;
-          const protectedTitle = isProtectedStructureTitleText(val);
-          const cls = [cell.className || '', protectedTitle ? 'protected-structure-title' : '', hasMark ? 'marked-cell' : '', cellNotes.length ? 'has-cell-note' : ''].filter(Boolean).join(' ');
-          const cellActions = admin && !protectedTitle ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${sourceRow}" data-col-index="${sourceCol}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : 'title="عنوان ثابت غير قابل للتعديل"';
-          return `<td class="${escapeHtml(cls)}"${attrs} ${cellActions}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
-        }).join('')}</tr>`).join('');
-        return `<div class="structure-sheet-block compact-structure-section structure-section-${escapeHtml(section.type || 'logic')}"><div class="structure-section-display-title ${escapeHtml(section.type || 'logic')}-title">${escapeHtml(section.title || 'Campaign Logic')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure compact-excel-section"><tbody>${body}</tbody></table></div></div>`;
-      }).join('');
+      const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
+      const body = rows.map((row) => `<tr>${(row || []).map(cell => {
+        if(cell && cell.skip) return '';
+        const val = normalizeText(cell?.value || '');
+        const sourceRow = Number(cell?.sourceRow || 0);
+        const sourceCol = Number(cell?.sourceCol || 0);
+        const key = structureCellKey(sheet.sheetName, sourceRow, sourceCol);
+        const hasMark = marks.some(m => (typeof m === 'string' ? m : m?.key) === key);
+        const cellNotes = notes.filter(n => (n.key || n.cellKey) === key);
+        const attrs = `${Number(cell?.rowSpan) > 1 ? ` rowspan="${Number(cell.rowSpan)}"` : ''}${Number(cell?.colSpan) > 1 ? ` colspan="${Number(cell.colSpan)}"` : ''}`;
+        const protectedTitle = isProtectedStructureTitleText(val);
+        const cls = [cell?.className || '', protectedTitle ? 'protected-structure-title' : '', hasMark ? 'marked-cell' : '', cellNotes.length ? 'has-cell-note' : ''].filter(Boolean).join(' ');
+        const cellActions = admin && !protectedTitle ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${sourceRow}" data-col-index="${sourceCol}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : (protectedTitle ? 'title="عنوان ثابت غير قابل للتعديل"' : '');
+        return `<td class="${escapeHtml(cls)}"${attrs} ${cellActions}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
+      }).join('')}</tr>`).join('');
+      return `<div class="structure-sheet-block excel-original-sheet"><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure"><tbody>${body}</tbody></table></div></div>`;
     }
     const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
     const maxCols = Math.max(Number(sheet.maxCols) || 0, ...rows.map(row => row.length));
