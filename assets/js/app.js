@@ -548,43 +548,68 @@ function taskProgress(task){
 function fallbackTasksFromCampaign(campaign){
   const fallback = [];
   (campaign.creatives || []).forEach((creativeRow, creativeIndex) => {
+    const rowCars = Array.isArray(creativeRow.selectedCars) ? creativeRow.selectedCars.filter(car => car && (car.id || car.label || car.name)) : [];
     (creativeRow.tasks || []).forEach((task, taskIndex) => {
       const ids = Array.isArray(task.userIds) ? task.userIds : [];
       const names = Array.isArray(task.userNames) ? task.userNames : [];
-      const entries = ids.length ? ids.map((id, i) => ({ id, name: names[i] || id })) : names.map((name, i) => ({ id: `${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}-${i}`, name }));
-      const finalEntries = entries.length ? entries : [{ id: `${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}`, name: 'غير محدد' }];
-      finalEntries.forEach(entry => {
-        const user = findUserByAnyIdentity([entry.id, entry.name]) || {};
-        const dep = departmentForUser(user.id || entry.id);
-        const role = normalizeDepartmentRole(dep.name || user.department || task.contentSectionName);
-        fallback.push({
-          id: `fallback-${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}-${entry.id}`,
-          campaignId: campaign.id,
-          campaignName: campaign.campaignName || campaign.name || campaign.campaign_name || '',
-          campaignCode: campaign.campaignCode || campaign.campaign_code || '',
-          creative: creativeRow.creative || '',
-          product: creativeRow.product || '',
-          selectedCars: creativeRow.selectedCars || [],
-          selectedCar: (creativeRow.selectedCars || []).map(car => car.label).join('، '),
-          contentSectionId: task.contentSectionId || '',
-          contentSectionName: task.contentSectionName || '',
-          taskType: task.taskType || '',
-          assignedToUid: user.id || entry.id || '',
-          assignedToName: userName(user) || entry.name || 'غير محدد',
-          assignedToEmail: user.email || '',
-          displayName: user.displayName || '',
-          username: user.username || '',
-          assignedToSearch: uniqueList([entry.id, user.id, user.uid, user.email, user.emailLower, userName(user), user.name, user.displayName, user.username, entry.name].filter(Boolean)),
-          assignedDepartmentId: dep.id || '',
-          assignedDepartmentName: dep.name || user.department || task.contentSectionName || '',
-          departmentRole: role,
-          received: false,
-          progress: 0,
-          steps: taskStepTemplate(role),
-          status: 'pending',
-          creativeIndex,
-          taskIndex,
-          source: 'campaign-creatives-fallback'
+      const emails = Array.isArray(task.userEmails) ? task.userEmails : [];
+      const maxUsers = Math.max(ids.length, names.length, emails.length);
+      const entries = Array.from({length: maxUsers}, (_, i) => ({ id: ids[i] || '', name: names[i] || '', email: emails[i] || '' }))
+        .filter(item => normalizeText(item.id || item.name || item.email));
+      const finalEntries = entries.length ? entries : [{ id: `${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}`, name: 'غير محدد', email: '' }];
+      finalEntries.forEach((entry, assigneeIndex) => {
+        const user = findUserByAnyIdentity([entry.id, entry.name, entry.email]) || {};
+        const dep = departmentForUser(user.id || user.uid || entry.id || entry.name);
+        const sectionName = canonicalContentLabel(task.contentSectionName || dep.name || user.department || '');
+        const role = normalizeDepartmentRole(sectionName);
+        const qty = Math.max(1, Math.min(50, Number(task.quantity || 1)));
+        const units = rowCars.length ? rowCars.map((car, i) => ({ copyIndex: i + 1, car })) : Array.from({length: qty}, (_, i) => ({ copyIndex: i + 1, car: null }));
+        units.forEach(unit => {
+          const selectedCarLabel = unit.car ? normalizeText(unit.car.label || unit.car.name || unit.car.id) : '';
+          const resolvedUserId = user.id || user.uid || entry.id || entry.name || '';
+          const resolvedUserName = userName(user) || entry.name || entry.id || 'غير محدد';
+          const searchKeys = uniqueList([entry.id, entry.name, entry.email, resolvedUserId, user.id, user.uid, user.email, user.emailLower, resolvedUserName, user.name, user.displayName, user.username].filter(Boolean));
+          fallback.push({
+            id: `fallback-${campaign.id || 'campaign'}-${creativeIndex}-${taskIndex}-${assigneeIndex}-${unit.copyIndex}`,
+            campaignId: campaign.id,
+            campaignName: campaign.campaignName || campaign.name || campaign.campaign_name || '',
+            campaignCode: campaign.campaignCode || campaign.campaign_code || '',
+            creative: creativeRow.creative || '',
+            product: creativeRow.product || creativeRow.creative || '',
+            selectedCars: unit.car ? [unit.car] : [],
+            selectedCar: selectedCarLabel,
+            contentSectionId: task.contentSectionId || '',
+            contentSectionName: sectionName || task.contentSectionName || '',
+            taskType: task.taskType || '',
+            taskQuantity: units.length,
+            taskCopyIndex: unit.copyIndex,
+            userId: resolvedUserId,
+            userUid: user.uid || resolvedUserId,
+            userName: resolvedUserName,
+            userEmail: user.email || entry.email || '',
+            assigneeUid: user.uid || resolvedUserId,
+            assigneeName: resolvedUserName,
+            assigneeEmail: user.email || entry.email || '',
+            assignedToId: resolvedUserId,
+            assignedToUid: user.uid || resolvedUserId,
+            assignedToName: resolvedUserName,
+            assignedToEmail: user.email || entry.email || '',
+            displayName: user.displayName || resolvedUserName,
+            username: user.username || '',
+            assignedToSearch: searchKeys,
+            searchKeys,
+            assignedDepartmentId: task.contentSectionId || dep.id || '',
+            assignedDepartmentName: sectionName || dep.name || user.department || task.contentSectionName || '',
+            departmentRole: role,
+            received: false,
+            progress: 0,
+            steps: taskStepTemplate(role),
+            status: 'pending',
+            creativeIndex,
+            assigneeIndex,
+            taskIndex: `${taskIndex}-${assigneeIndex + 1}-${unit.copyIndex}`,
+            source: 'campaign-creatives-fallback'
+          });
         });
       });
     });
@@ -797,14 +822,108 @@ function currentUserMatchesTaskDepartment(task){
 function currentUserMatchesTask(task){
   return currentUserMatchesTaskExact(task) || currentUserMatchesTaskDepartment(task);
 }
+
+function canonicalContentLabel(value){
+  const raw = normalizeText(value || '').replace(/^قسم\s+/, '').trim();
+  const key = identityClean(raw);
+  if(!raw) return 'أنواع المحتوى';
+  if(key.includes('التصوير') && key.includes('ايديت')) return 'التصوير + الايديت';
+  if(key === 'تصوير' || key === 'التصوير' || key.includes('قسم التصوير')) return 'التصوير';
+  if(key.includes('تصميم')) return 'التصميم';
+  if(key.includes('مونتاج')) return 'المونتاج';
+  if(key.includes('نشر')) return 'النشر';
+  if(key.includes('محتو')) return 'المحتوي';
+  if(key.includes('اعلان')) return 'اداره الاعلانات';
+  if(key.includes('مدير') && key.includes('تسويق')) return 'مدير التسويق';
+  return raw;
+}
+function currentUserMatchesSelectedAssignee(id, name, email=''){
+  const currentKeys = currentUserIdentityKeys();
+  const values = uniqueIdentityKeys([id, name, email]);
+  if(identityIntersects(currentKeys, values)) return true;
+  const current = findCurrentUserRecord() || getCurrentUser();
+  const currentName = identityClean(current.name || current.displayName || current.username || '');
+  const currentEmail = identityClean(current.email || current.emailLower || '');
+  const currentId = identityClean(current.id || current.uid || '');
+  return values.some(v => v && (v === currentName || v === currentEmail || v === currentId || (currentName && (v.includes(currentName) || currentName.includes(v)))));
+}
+function tasksFromCreativeRowsForCurrentUser(){
+  if(isCurrentUserAdmin()) return [];
+  const generated = [];
+  campaigns.forEach(campaign => {
+    (campaign.creatives || []).forEach((creativeRow, creativeIndex) => {
+      const rowCars = Array.isArray(creativeRow.selectedCars) ? creativeRow.selectedCars.filter(car => car && (car.id || car.label || car.name)) : [];
+      (creativeRow.tasks || []).forEach((task, taskIndex) => {
+        const ids = Array.isArray(task.userIds) ? task.userIds : [];
+        const names = Array.isArray(task.userNames) ? task.userNames : [];
+        const emails = Array.isArray(task.userEmails) ? task.userEmails : [];
+        const maxUsers = Math.max(ids.length, names.length, emails.length);
+        const assignees = Array.from({length: maxUsers}, (_, i) => ({ id: ids[i] || '', name: names[i] || '', email: emails[i] || '' }))
+          .filter(item => normalizeText(item.id || item.name || item.email));
+        assignees.forEach((assignee, assigneeIndex) => {
+          const user = findUserByAnyIdentity([assignee.id, assignee.name, assignee.email]) || {};
+          if(!currentUserMatchesSelectedAssignee(user.id || user.uid || assignee.id, userName(user) || assignee.name, user.email || assignee.email)) return;
+          const resolvedUserId = user.id || user.uid || assignee.id || assignee.name;
+          const resolvedUserName = userName(user) || assignee.name || assignee.id || 'غير محدد';
+          const sectionName = canonicalContentLabel(task.contentSectionName || task.contentSection || task.contentType || '');
+          const role = normalizeDepartmentRole(sectionName);
+          const qty = Math.max(1, Math.min(50, Number(task.quantity || 1)));
+          const units = rowCars.length ? rowCars.map((car, i) => ({ copyIndex: i + 1, car })) : Array.from({length: qty}, (_, i) => ({ copyIndex: i + 1, car: null }));
+          units.forEach(unit => {
+            const selectedCarLabel = unit.car ? normalizeText(unit.car.label || unit.car.name || unit.car.id) : '';
+            generated.push(normalizeCampaignTask({
+              id: `direct-${campaign.id || campaign.docId || 'campaign'}-${creativeIndex}-${taskIndex}-${assigneeIndex}-${unit.copyIndex}`,
+              campaignId: campaign.id || campaign.docId,
+              campaignName: campaign.campaignName || campaign.name || campaign.campaign_name || '',
+              campaignCode: campaign.campaignCode || campaign.campaign_code || '',
+              creative: creativeRow.creative || '',
+              product: creativeRow.product || creativeRow.creative || '',
+              selectedCars: unit.car ? [unit.car] : [],
+              selectedCar: selectedCarLabel,
+              contentSectionId: task.contentSectionId || '',
+              contentSectionName: sectionName,
+              taskType: task.taskType || '',
+              taskQuantity: units.length,
+              taskCopyIndex: unit.copyIndex,
+              userId: resolvedUserId,
+              userUid: user.uid || resolvedUserId,
+              userName: resolvedUserName,
+              userEmail: user.email || assignee.email || '',
+              assigneeUid: user.uid || resolvedUserId,
+              assigneeName: resolvedUserName,
+              assigneeEmail: user.email || assignee.email || '',
+              assignedToUid: user.uid || resolvedUserId,
+              assignedToId: resolvedUserId,
+              assignedToName: resolvedUserName,
+              assignedToEmail: user.email || assignee.email || '',
+              assignedToSearch: uniqueList([resolvedUserId, user.id, user.uid, user.email, assignee.email, resolvedUserName, assignee.name].filter(Boolean)),
+              searchKeys: uniqueList([resolvedUserId, user.id, user.uid, user.email, assignee.email, resolvedUserName, assignee.name].filter(Boolean)),
+              assignedDepartmentId: task.contentSectionId || '',
+              assignedDepartmentName: sectionName,
+              departmentRole: role,
+              received: false,
+              progress: 0,
+              steps: taskStepTemplate(role),
+              status: 'pending',
+              creativeIndex,
+              assigneeIndex,
+              taskIndex: `${taskIndex}-${assigneeIndex + 1}-${unit.copyIndex}`,
+              source: 'direct-creatives-user'
+            }, campaign));
+          });
+        });
+      });
+    });
+  });
+  return generated;
+}
 function getVisibleTasksForCurrentUser(){
   const allTasks = campaigns.flatMap(campaign => tasksForCampaign(campaign));
   if(isCurrentUserAdmin()) return allTasks;
+  const direct = tasksFromCreativeRowsForCurrentUser();
   const exact = allTasks.filter(task => currentUserMatchesTaskExact(task));
-  if(exact.length) return exact;
   const byDepartment = allTasks.filter(task => currentUserMatchesTaskDepartment(task));
-  if(byDepartment.length) return byDepartment;
-  return [];
+  return mergeCampaignTasks([...direct, ...exact, ...byDepartment]);
 }
 function findTaskById(taskId, campaignId = ''){
   const campaignList = campaignId ? campaigns.filter(item => item.id === campaignId) : campaigns;
@@ -823,9 +942,7 @@ function stepButtonClass(step){ return step.done ? 'step-btn done' : 'step-btn';
 function stepButtonTitle(step){ return step.adminOnly ? 'اعتماد الأدمن فقط' : 'تنفيذ المرحلة'; }
 
 function taskContentType(task){
-  const name = normalizeText(task.contentSectionName || task.assignedDepartmentName || task.contentType || '');
-  if(name) return name.replace(/^قسم\s+/,'');
-  return 'أنواع المحتوى';
+  return canonicalContentLabel(task.contentSectionName || task.assignedDepartmentName || task.contentType || '');
 }
 function taskDepartmentLabel(task){
   const labels = {content:'قسم المحتوى', shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج', publish:'قسم النشر', other:'قسم'};
@@ -1007,7 +1124,7 @@ function buildCampaignTaskDocs(campaignId, payload){
         const resolvedUserId = user.id || user.uid || assignee.id || assignee.name;
         const resolvedUserName = userName(user) || assignee.name || assignee.id || 'غير محدد';
         const dep = departmentForUser(resolvedUserId || assignee.name);
-        const sectionName = normalizeText(task.contentSectionName || dep.name || user.department || '');
+        const sectionName = canonicalContentLabel(task.contentSectionName || dep.name || user.department || '');
         const role = normalizeDepartmentRole(sectionName || dep.name || user.department);
         const qty = Math.max(1, Math.min(50, Number(task.quantity || 1)));
         const rowCars = Array.isArray(creativeRow.selectedCars) ? creativeRow.selectedCars.filter(car => car && (car.id || car.label)) : [];
