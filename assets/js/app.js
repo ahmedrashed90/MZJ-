@@ -32,6 +32,7 @@ window.MZJ_CAMPAIGNS_COLLECTION = "marketing_campaigns";
 window.MZJ_CAMPAIGN_TASKS_COLLECTION = "campaign_tasks"; // غير مستخدم في داشبورد اليوزرات
 window.MZJ_SYSTEM_SETTINGS_COLLECTION = "system_settings";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
+window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars";
 
 const routes = ['dashboard','campaigns','create-campaign','departments','calendar','tasks','stock','reports','settings'];
 const loginView = document.getElementById('loginView');
@@ -54,6 +55,8 @@ let platforms = [];
 let campaigns = [];
 let campaignTasks = [];
 let cars = [];
+let stockCarMeta = {};
+let stockFilterMode = "all";
 let systemSettings = {};
 let activeTaskModalMeta = null;
 
@@ -391,6 +394,60 @@ function getField(obj, keys){ for(const key of keys){ if(obj && obj[key] !== und
 function normalizeMaybeArray(value){ if(Array.isArray(value)) return value.map(normalizeText).filter(Boolean); return normalizeText(value) ? [normalizeText(value)] : []; }
 function countValues(values){ const map = new Map(); values.forEach(value => map.set(value, (map.get(value) || 0) + 1)); return [...map.entries()].sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ar')); }
 function renderChips(containerId, entries){ const el = document.getElementById(containerId); if(!el) return; el.innerHTML = entries.length ? entries.map(([name,count]) => `<span class="chip">${escapeHtml(name)} <small>${count}</small></span>`).join('') : '<div class="empty-state">لا توجد بيانات متاحة.</div>'; }
+
+function stockGroupDocId(groupKey){
+  const source = normalizeText(groupKey || 'stock-item');
+  let hash = 0;
+  for(let i=0;i<source.length;i++){ hash = ((hash << 5) - hash) + source.charCodeAt(i); hash |= 0; }
+  return 'stock_' + Math.abs(hash).toString(36) + '_' + source.replace(/[^\u0600-\u06FF\w-]+/g,'_').slice(0,60);
+}
+function stockMetaForKey(groupKey){ return stockCarMeta[stockGroupDocId(groupKey)] || {}; }
+function loadStockMeta(){
+  if(!mainDb) return;
+  safeCollection(window.MZJ_STOCK_META_COLLECTION).onSnapshot(snapshot => {
+    stockCarMeta = {};
+    snapshot.docs.forEach(doc => { stockCarMeta[doc.id] = { id: doc.id, ...(doc.data() || {}) }; });
+    renderStock();
+  }, error => console.error('Stock meta load error', error));
+}
+function campaignTaskCars(){
+  const used = [];
+  campaigns.forEach(campaign => {
+    (campaign.departmentTasks || []).forEach(task => {
+      if(task.selectedCar) used.push({ label: normalizeText(task.selectedCar), campaign, task });
+      (task.selectedCars || []).forEach(car => used.push({ id: normalizeText(car.id), label: normalizeText(car.label || car.name || car.carName), campaign, task }));
+    });
+    (campaign.creatives || []).forEach(creative => {
+      (creative.selectedCars || []).forEach(car => used.push({ id: normalizeText(car.id), label: normalizeText(car.label || car.name || car.carName), campaign, task: null }));
+    });
+  });
+  return used;
+}
+function stockGroupUsage(group){
+  const used = campaignTaskCars();
+  const ids = new Set((group.carIds || []).map(normalizeText).filter(Boolean));
+  const keyParts = [group.carName, group.statement, group.exteriorColor, group.interiorColor].map(normalizeText).filter(Boolean);
+  const hits = used.filter(item => {
+    const idHit = item.id && ids.has(item.id);
+    const label = normalizeText(item.label);
+    const labelHit = label && keyParts.every(part => label.includes(part) || part === '—');
+    return idHit || labelHit;
+  });
+  return hits;
+}
+async function saveStockShotStatus(groupKey, value){
+  if(!mainDb) return showToast('قاعدة البيانات غير متاحة.');
+  const docId = stockGroupDocId(groupKey);
+  await safeCollection(window.MZJ_STOCK_META_COLLECTION).doc(docId).set({
+    groupKey,
+    photographed: value === 'yes',
+    photographedValue: value || '',
+    updatedAt: serverTime(),
+    updatedBy: getCurrentUserIdentity().email || getCurrentUserIdentity().name || ''
+  }, { merge: true });
+  showToast('تم حفظ حالة التصوير.');
+}
+
 function loadStock(){
   if(!stockDb) return;
   stockDb.collection(window.MZJ_STOCK_CARS_COLLECTION).onSnapshot(snapshot => {
@@ -427,7 +484,24 @@ function stockChipHtml(name, count = null, extraClass = ''){
 function renderStockError(){
   ['stockTotalCars','dashboardCarsCount','stockAvailableAfterExclude','stockAvailableForSale','stockReserved','stockUnderDelivery'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = '—'; });
   const tbody = document.getElementById('stockSummaryRows');
-  if(tbody) tbody.innerHTML = '<tr class="empty-row"><td colspan="5">تعذر تحميل بيانات الاستوك.</td></tr>';
+  if(tbody) tbody.innerHTML = '<tr class="empty-row"><td colspan="8">تعذر تحميل بيانات الاستوك.</td></tr>';
+}
+function buildStockGroups(){
+  const visibleCars = cars.filter(car => !isExcludedStockStatus(stockStatusOf(car)));
+  const groups = new Map();
+  visibleCars.forEach(car => {
+    const carName = normalizeText(car.carName || '—') || '—';
+    const statement = normalizeText(car.statement || '—') || '—';
+    const exteriorColor = normalizeText(car.exteriorColor || '—') || '—';
+    const interiorColor = normalizeText(car.interiorColor || '—') || '—';
+    const key = [carName, statement, exteriorColor, interiorColor].join(' | ');
+    if(!groups.has(key)) groups.set(key, { key, carName, statement, exteriorColor, interiorColor, count: 0, carIds: [], cars: [] });
+    const group = groups.get(key);
+    group.count += 1;
+    group.cars.push(car);
+    group.carIds.push(normalizeText(car.id || car.vin || car.plate || ''));
+  });
+  return [...groups.values()].sort((a,b) => b.count - a.count || a.key.localeCompare(b.key, 'ar'));
 }
 function renderStock(){
   const tbody = document.getElementById('stockSummaryRows');
@@ -440,29 +514,35 @@ function renderStock(){
   setText('stockReserved', '—');
   setText('stockUnderDelivery', '—');
   if(!tbody) return;
-  if(!visibleCars.length){ tbody.innerHTML = '<tr class="empty-row"><td colspan="7">لا توجد بيانات استوك متاحة.</td></tr>'; return; }
+  if(!visibleCars.length){ tbody.innerHTML = '<tr class="empty-row"><td colspan="8">لا توجد بيانات استوك متاحة.</td></tr>'; return; }
 
-  const groups = new Map();
-  visibleCars.forEach(car => {
-    const carName = normalizeText(car.carName || '—') || '—';
-    const statement = normalizeText(car.statement || '—') || '—';
-    const exteriorColor = normalizeText(car.exteriorColor || '—') || '—';
-    const interiorColor = normalizeText(car.interiorColor || '—') || '—';
-    const key = [carName, statement, exteriorColor, interiorColor].join(' | ');
-    if(!groups.has(key)) groups.set(key, { key, carName, statement, exteriorColor, interiorColor, count: 0 });
-    groups.get(key).count += 1;
+  const filterSelect = document.getElementById('stockFilterMode');
+  stockFilterMode = filterSelect?.value || stockFilterMode || 'all';
+  let rows = buildStockGroups().map(group => {
+    const meta = stockMetaForKey(group.key);
+    const usage = stockGroupUsage(group);
+    return { ...group, meta, usage, isUsed: usage.length > 0, isPhotographed: meta.photographed === true || meta.photographedValue === 'yes' };
   });
+  if(stockFilterMode === 'not-photographed') rows = rows.filter(group => !group.isPhotographed);
+  if(stockFilterMode === 'unused') rows = rows.filter(group => !group.isUsed);
+  if(stockFilterMode === 'not-photographed-unused') rows = rows.filter(group => !group.isPhotographed && !group.isUsed);
 
-  const rows = [...groups.values()].sort((a,b) => b.count - a.count || a.key.localeCompare(b.key, 'ar'));
-  tbody.innerHTML = rows.map((group, index) => `<tr>
+  if(!rows.length){ tbody.innerHTML = '<tr class="empty-row"><td colspan="8">لا توجد سيارات مطابقة للفلتر الحالي.</td></tr>'; return; }
+  tbody.innerHTML = rows.map((group, index) => {
+    const photographedValue = group.isPhotographed ? 'yes' : (group.meta.photographedValue || 'no');
+    const usageText = group.isUsed ? `مستخدمة في ${group.usage.length} تاسك` : 'غير مستخدمة';
+    const campaignsText = uniqueList(group.usage.map(hit => hit.campaign?.campaignName || hit.campaign?.name || hit.campaign?.campaignCode).filter(Boolean)).join('، ');
+    return `<tr data-stock-group="${escapeHtml(group.key)}">
       <td>${index + 1}</td>
-      <td class="stock-key">${escapeHtml(group.carName)}${group.statement ? `<small>${escapeHtml(group.statement)}</small>` : ''}</td>
-      <td>${escapeHtml(group.carName)}</td>
-      <td>${escapeHtml(group.statement)}</td>
-      <td>${escapeHtml(group.exteriorColor)}</td>
-      <td>${escapeHtml(group.interiorColor)}</td>
+      <td class="stock-key">${escapeHtml(group.carName)}<small>${escapeHtml(group.statement)}</small></td>
+      <td>${escapeHtml(group.exteriorColor || '—')}</td>
+      <td>${escapeHtml(group.interiorColor || '—')}</td>
       <td><span class="stock-count">${group.count}</span></td>
-    </tr>`).join('');
+      <td><select class="stock-shot-select" data-stock-shot="${escapeHtml(group.key)}"><option value="no"${photographedValue !== 'yes' ? ' selected' : ''}>لا</option><option value="yes"${photographedValue === 'yes' ? ' selected' : ''}>نعم</option></select></td>
+      <td><span class="stock-use-badge ${group.isUsed ? 'is-used' : 'is-unused'}">${escapeHtml(usageText)}</span></td>
+      <td><button class="mini-btn" type="button" data-stock-usage="${escapeHtml(group.key)}" data-usage-text="${escapeHtml(campaignsText || usageText)}">استخدام السيارة</button></td>
+    </tr>`;
+  }).join('');
 }
 function clearEmptyRow(container){ container?.querySelector('.empty-row, .empty-state')?.remove(); }
 function restoreEmptyRow(container, colSpan, text){
@@ -1671,6 +1751,18 @@ function bindDepartments(){
   document.getElementById('cancelContentSectionEdit')?.addEventListener('click', () => { document.getElementById('contentSectionForm')?.reset(); resetForm(['contentSectionEditId']); });
   document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignCodes(); renderCampaignTypes(); renderContentSections(); });
   document.getElementById('refreshStockBtn')?.addEventListener('click', renderStock);
+  document.getElementById('stockFilterMode')?.addEventListener('change', event => { stockFilterMode = event.target.value || 'all'; renderStock(); });
+  document.addEventListener('change', async event => {
+    const select = event.target.closest('[data-stock-shot]');
+    if(!select) return;
+    try{ await saveStockShotStatus(select.dataset.stockShot, select.value); }catch(error){ console.error(error); showToast('تعذر حفظ حالة التصوير.'); }
+  });
+  document.addEventListener('click', event => {
+    const btn = event.target.closest('[data-stock-usage]');
+    if(!btn) return;
+    const text = btn.dataset.usageText || 'غير مستخدمة';
+    showToast(text);
+  });
 }
 
 
@@ -2472,6 +2564,7 @@ function bootstrapData(){
   loadCampaigns();
   // loadCampaignTasks(); // تم إلغاء الاعتماد على campaign_tasks
   loadStock();
+  loadStockMeta();
 }
 
 document.addEventListener('DOMContentLoaded', () => {

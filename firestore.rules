@@ -517,6 +517,11 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    match /marketing_stock_cars/{docId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
 
     match /campaign_tasks/{docId} {
       allow read: if true;

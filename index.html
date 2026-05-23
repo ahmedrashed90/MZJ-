@@ -268,7 +268,7 @@
 
       <section class="view" id="stock" data-title="الاستوك">
         <div class="page-head">
-          <div class="page-title"><h1>الاستوك</h1><p>قراءة فقط من مسار السيارات، مع استبعاد المؤرشف والمباع.</p></div>
+          <div class="page-title"><h1>الاستوك</h1><p>قراءة فقط من قاعدة الاستوك، وحفظ حالة التصوير داخل MZJ-Marketing.</p></div>
           <button class="btn btn-light" type="button" id="refreshStockBtn">تحديث</button>
         </div>
         <div class="grid stats stock-stats stock-stats-clean">
@@ -283,9 +283,9 @@
           <div class="card-title stock-title-row">
             <div>
               <h2>حصر السيارات المتاحة</h2>
-              <p>تجميع قراءة فقط حسب اسم السيارة + المواصفة + اللون الخارجي + اللون الداخلي.</p>
+              <p>يعرض Unique Spec Key والألوان والعدد، مع حالة التصوير والاستخدام.</p>
             </div>
-            <small>unique spec key</small>
+            <label class="field stock-filter-field"><span>فلتر الاستوك</span><select id="stockFilterMode"><option value="all">كل السيارات</option><option value="not-photographed">لسه مش متصورة</option><option value="unused">غير مستخدمة في أي نوع محتوى</option><option value="not-photographed-unused">مش متصورة وغير مستخدمة</option></select></label>
           </div>
           <div class="stock-table-wrap">
             <table class="stock-table" aria-label="حصر الاستوك">
@@ -293,15 +293,16 @@
                 <tr>
                   <th>م</th>
                   <th>Unique Spec Key</th>
-                  <th>اسم السيارة</th>
-                  <th>المواصفة</th>
                   <th>اللون الخارجي</th>
                   <th>اللون الداخلي</th>
                   <th>العدد</th>
+                  <th>تم التصوير</th>
+                  <th>الاستخدام</th>
+                  <th>إجراء</th>
                 </tr>
               </thead>
               <tbody id="stockSummaryRows">
-                <tr class="empty-row"><td colspan="7">جاري تحميل بيانات الاستوك...</td></tr>
+                <tr class="empty-row"><td colspan="8">جاري تحميل بيانات الاستوك...</td></tr>
               </tbody>
             </table>
           </div>
