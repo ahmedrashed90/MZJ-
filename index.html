@@ -50,7 +50,7 @@
         <a href="#calendar" data-route="calendar"><span class="icon">▦</span><span>التقويم</span></a>
         <a href="#tasks" data-route="tasks"><span class="icon">☑</span><span>المهام</span></a>
         <a href="#stock" data-route="stock"><span class="icon">▧</span><span>الاستوك</span></a>
-        <a href="#reports" data-route="reports"><span class="icon">▥</span><span>التقارير</span></a>
+        <a href="#reports" data-route="reports"><span class="icon">▥</span><span>قاعدة البيانات</span></a>
         <a href="#settings" data-route="settings"><span class="icon">⚙</span><span>الإعدادات</span></a>
       </nav>
     </aside>
@@ -308,9 +308,20 @@
         </div>
       </section>
 
-      <section class="view" id="reports" data-title="التقارير">
-        <div class="page-head"><div class="page-title"><h1>التقارير</h1><p>تقارير الأداء بعد ربط البيانات.</p></div></div>
-        <div class="card"><div class="empty-state">لا توجد بيانات تقارير حالياً.</div></div>
+      <section class="view" id="reports" data-title="قاعدة البيانات">
+        <div class="page-head"><div class="page-title"><h1>قاعدة البيانات</h1><p>جدول بيانات الحملات وملفات النتائج وروابط المنصات والأرشفة.</p></div></div>
+        <div class="card database-card">
+          <div class="database-table-wrap">
+            <table class="database-table" aria-label="جدول بيانات الحملة">
+              <thead>
+                <tr>
+                  <th>م</th><th>التاريخ</th><th>كود الحملة</th><th>اسم الحملة</th><th>نوع الحملة</th><th>الهدف من الحملة</th><th>تاريخ بداية الحملة</th><th>تاريخ نهاية الحملة</th><th>قسم التصوير</th><th>قسم المحتوى</th><th>قسم التصميم</th><th>قسم المونتاج</th><th>قسم النشر</th><th>عرض البيانات</th><th>إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="databaseCampaignRows"><tr><td colspan="15">جاري تحميل بيانات الحملات...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <section class="view" id="settings" data-title="الإعدادات">
@@ -367,6 +378,15 @@
       <div id="taskModalContent"></div>
     </section>
   </div>
+
+  <div id="campaignModal" class="task-modal" aria-hidden="true">
+    <div class="task-modal-backdrop" data-close-campaign-modal></div>
+    <section class="task-modal-dialog campaign-modal-dialog" role="dialog" aria-modal="true" aria-label="تفاصيل الحملة">
+      <button class="task-modal-close" type="button" data-close-campaign-modal>×</button>
+      <div id="campaignModalContent"></div>
+    </section>
+  </div>
+  <input type="file" id="campaignResultFileInput" hidden />
   <input type="file" id="taskAttachmentInput" hidden />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>

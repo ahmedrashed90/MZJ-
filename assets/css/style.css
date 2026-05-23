@@ -577,3 +577,25 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
   border-color: rgba(255,255,255,.35) !important;
   box-shadow: none !important;
 }
+
+/* v18 campaign/database/task modal refinements */
+.task-brief-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px!important;margin-block:10px!important}
+.task-brief-row .brief-box{border:1px solid var(--line);border-radius:18px;padding:12px;background:rgba(255,255,255,.45);min-height:72px}
+.task-brief-row .brief-box span{display:block;color:var(--muted);font-weight:800;font-size:.8rem;margin-bottom:6px}
+.task-brief-row .brief-box strong{display:block;color:var(--text);font-size:.92rem;line-height:1.6}
+.task-modal-dialog{max-height:92vh;overflow:auto}
+.campaign-modal-dialog{width:min(1180px,94vw)}
+.campaign-card-item{cursor:pointer}
+.campaign-card-item:hover{transform:translateY(-1px);box-shadow:0 18px 38px rgba(90,58,50,.10)}
+.database-table-wrap{overflow:auto;max-width:100%}
+.database-table,.compact-table table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:rgba(255,255,255,.55)}
+.database-table th,.database-table td,.compact-table th,.compact-table td{border-bottom:1px solid var(--line);padding:10px 8px;text-align:right;white-space:nowrap;font-size:.82rem}
+.database-table th,.compact-table th{background:var(--primary);color:#fff;font-weight:900}
+.database-table tr:last-child td,.compact-table tr:last-child td{border-bottom:0}
+.db-actions{display:flex;gap:6px;align-items:center}
+.db-task-group{border:1px solid var(--line);border-radius:16px;padding:10px;margin-bottom:10px;background:rgba(255,255,255,.42)}
+.db-task-group h4{display:flex;justify-content:space-between;align-items:center;margin:0 0 8px;font-size:.95rem}
+.db-task-row{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:8px;align-items:center;border-top:1px dashed var(--line);padding:8px 0;font-size:.82rem}
+.result-file-line,.db-link-row,.link-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.campaign-edit-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+@media(max-width:900px){.task-brief-row,.campaign-edit-grid{grid-template-columns:1fr}.db-task-row{grid-template-columns:1fr}}
