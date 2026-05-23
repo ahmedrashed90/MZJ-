@@ -972,3 +972,52 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .inline-note-actions .mini-btn{height:34px!important;padding:0 14px!important;border-radius:11px!important;font-weight:900!important;}
 .inline-note-actions .structure-note-save{background:#2b1611!important;color:#fff!important;border-color:#2b1611!important;}
 @media(max-width:760px){.task-modal.structure-fullscreen-modal .task-modal-dialog{padding:10px!important}.structure-help-bar{align-items:flex-start;flex-direction:column}.structure-table-wrap.full-sheet{max-height:calc(100vh - 300px)!important}}
+
+/* v42 - normal task popup, fixed colored structure titles, protected titles */
+.task-modal.structure-fullscreen-modal .task-modal-dialog{
+  width:min(1120px,calc(100vw - 28px))!important;
+  height:auto!important;
+  max-width:1120px!important;
+  max-height:calc(100vh - 36px)!important;
+  border-radius:22px!important;
+  padding:18px!important;
+}
+.structure-table-wrap.full-sheet{
+  max-height:560px!important;
+  border-radius:16px!important;
+}
+.full-structure-table.excel-like-structure td.excel-section-title,
+.structure-table.compact-excel-section .excel-section-title{
+  color:#2b1611!important;
+  background:#f5e2c8!important;
+  border-color:rgba(91,48,38,.18)!important;
+  font-weight:950!important;
+  cursor:default!important;
+}
+.full-structure-table.excel-like-structure td.logic-title,
+.structure-table.compact-excel-section .logic-title{
+  background:#d9ead3!important;
+  color:#1f3b1f!important;
+}
+.full-structure-table.excel-like-structure td.writing-title,
+.structure-table.compact-excel-section .writing-title{
+  background:#dbeafe!important;
+  color:#17345f!important;
+}
+.full-structure-table.excel-like-structure td.execution-title,
+.structure-table.compact-excel-section .execution-title{
+  background:#fdecc8!important;
+  color:#5a3513!important;
+}
+.full-structure-table.excel-like-structure td.protected-structure-title:hover,
+.structure-table.compact-excel-section td.protected-structure-title:hover{
+  box-shadow:none!important;
+  filter:none!important;
+}
+.full-structure-table.excel-like-structure td.protected-structure-title.marked-cell,
+.structure-table.compact-excel-section td.protected-structure-title.marked-cell{
+  box-shadow:none!important;
+}
+.structure-table.compact-excel-section td{
+  border-color:rgba(91,48,38,.14)!important;
+}

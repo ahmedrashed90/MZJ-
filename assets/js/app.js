@@ -1402,10 +1402,9 @@ function openTaskModal(task){
   const content = document.getElementById('taskModalContent');
   if(!modal || !content || !task) return;
   const structure = taskStructure(task);
-  const hasStructure = isCampaignStructureTask(task) || !!structure.fileData || structureSheetTables(structure).length > 0;
   activeTaskModalMeta = { taskId: task.id, campaignId: task.campaignId || '' };
   content.innerHTML = buildTaskDetailHtml(task);
-  modal.classList.toggle('structure-fullscreen-modal', hasStructure);
+  modal.classList.remove('structure-fullscreen-modal');
   modal.classList.add('show');
   modal.setAttribute('aria-hidden','false');
   document.body.classList.add('modal-open');
@@ -1595,11 +1594,11 @@ function structureCellClass(value, rowSpan, colSpan){
   const clean = normalizeText(value).toLowerCase();
   const cls = [];
   if(rowSpan > 1 || colSpan > 1) cls.push('excel-merged-cell');
-  if(clean.includes('content execution direction') || clean.includes('آلية تنفيذ المحتوى')) cls.push('excel-section-title execution-title');
-  if(clean.includes('writing rules') || clean.includes('قواعد كتابة المحتوى')) cls.push('excel-section-title writing-title');
-  if(clean.includes('campaign logic')) cls.push('excel-section-side campaign-logic-side');
+  if(clean.includes('campaign logic')) cls.push('excel-section-title logic-title protected-structure-title');
+  if(clean.includes('content execution direction') || clean.includes('آلية تنفيذ المحتوى')) cls.push('excel-section-title execution-title protected-structure-title');
+  if(clean.includes('writing rules') || clean.includes('قواعد كتابة المحتوى')) cls.push('excel-section-title writing-title protected-structure-title');
   if(clean.includes('awareness')) cls.push('excel-section-side awareness-side');
-  if(rowSpan > 3 && (clean.includes('campaign logic') || clean.includes('awareness') || clean.includes('قواعد') || clean.includes('محتوى حملات'))) cls.push('excel-vertical-side');
+  if(rowSpan > 3 && (clean.includes('awareness') || clean.includes('قواعد') || clean.includes('محتوى حملات'))) cls.push('excel-vertical-side');
   return cls.join(' ');
 }
 function buildMergedStructureSheet(sheet, sheetName){
@@ -1714,13 +1713,21 @@ function structureCellKey(sheetName, rowIndex, colIndex){
   return `${sheetName || 'Sheet'}::${Number(rowIndex) || 0}::${Number(colIndex) || 0}`;
 }
 
+function isProtectedStructureTitleText(value){
+  const clean = normalizeText(value).toLowerCase();
+  return clean.includes('campaign logic')
+    || clean.includes('writing rules')
+    || clean.includes('قواعد كتابة المحتوى')
+    || clean.includes('content execution direction')
+    || clean.includes('آلية تنفيذ المحتوى');
+}
+
 
 function structureRowValues(row){
   return (row || []).filter(cell => cell && !cell.skip).map(cell => normalizeText(cell.value || '')).filter(Boolean);
 }
 function isStructureSectionTitleText(value){
-  const clean = normalizeText(value).toLowerCase();
-  return clean.includes('content execution direction') || clean.includes('آلية تنفيذ المحتوى') || clean.includes('writing rules') || clean.includes('قواعد كتابة المحتوى');
+  return isProtectedStructureTitleText(value);
 }
 function splitStructureRowsIntoSections(rows){
   const source = Array.isArray(rows) ? rows : [];
@@ -1794,8 +1801,10 @@ function renderStructureWorkbookTable(task, structure, admin){
           const hasMark = marks.some(m => (typeof m === 'string' ? m : m?.key) === key);
           const cellNotes = notes.filter(n => (n.key || n.cellKey) === key);
           const attrs = `${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}`;
-          const cls = [cell.className || '', hasMark ? 'marked-cell' : '', cellNotes.length ? 'has-cell-note' : ''].filter(Boolean).join(' ');
-          return `<td class="${escapeHtml(cls)}"${attrs} ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${sourceRow}" data-col-index="${sourceCol}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
+          const protectedTitle = isProtectedStructureTitleText(val);
+          const cls = [cell.className || '', protectedTitle ? 'protected-structure-title' : '', hasMark ? 'marked-cell' : '', cellNotes.length ? 'has-cell-note' : ''].filter(Boolean).join(' ');
+          const cellActions = admin && !protectedTitle ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${sourceRow}" data-col-index="${sourceCol}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : 'title="عنوان ثابت غير قابل للتعديل"';
+          return `<td class="${escapeHtml(cls)}"${attrs} ${cellActions}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
         }).join('')}</tr>`).join('');
         return `<div class="structure-sheet-block compact-structure-section"><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure compact-excel-section"><tbody>${body}</tbody></table></div></div>`;
       }).join('');
@@ -1807,7 +1816,10 @@ function renderStructureWorkbookTable(task, structure, admin){
       const key = structureCellKey(sheet.sheetName, rowIndex, colIndex);
       const hasMark = marks.some(m => (typeof m === 'string' ? m : m?.key) === key);
       const cellNotes = notes.filter(n => (n.key || n.cellKey) === key);
-      return `<td class="${hasMark ? 'marked-cell' : ''}" ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${rowIndex}" data-col-index="${colIndex}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
+      const protectedTitle = isProtectedStructureTitleText(val);
+      const cls = [protectedTitle ? 'protected-structure-title excel-section-title' : '', hasMark ? 'marked-cell' : ''].filter(Boolean).join(' ');
+      const cellActions = admin && !protectedTitle ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${rowIndex}" data-col-index="${colIndex}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : (protectedTitle ? 'title="عنوان ثابت غير قابل للتعديل"' : '');
+      return `<td class="${escapeHtml(cls)}" ${cellActions}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
     }).join('')}</tr>`).join('');
     return `<div class="structure-sheet-block"><div class="structure-sheet-title">${escapeHtml(sheet.sheetName || 'محتوى الحملة')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure"><tbody>${body}</tbody></table></div></div>`;
   }).join('')}</div>`;
@@ -2527,6 +2539,7 @@ function bindCampaignBuilder(){
   document.addEventListener('dblclick', async event => {
     const structureCell = event.target.closest('[data-structure-cell]');
     if(structureCell){
+      if(structureCell.classList.contains('protected-structure-title')) return;
       event.preventDefault();
       event.stopPropagation();
       openStructureCellNoteEditor(structureCell);
@@ -3641,7 +3654,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if(noteCancel){ event.preventDefault(); event.stopPropagation(); closeStructureCellNoteEditors(); return; }
     if(event.target.closest('.inline-structure-note-editor')){ event.stopPropagation(); return; }
     const structureCell = event.target.closest('[data-structure-cell]');
-    if(structureCell){ await toggleStructureCellMark(structureCell.dataset.structureCell, structureCell.dataset.sheetName || '', structureCell.dataset.rowIndex || 0, structureCell.dataset.colIndex || 0); return; }
+    if(structureCell){
+      if(structureCell.classList.contains('protected-structure-title')) return;
+      await toggleStructureCellMark(structureCell.dataset.structureCell, structureCell.dataset.sheetName || '', structureCell.dataset.rowIndex || 0, structureCell.dataset.colIndex || 0);
+      return;
+    }
     const structureApprove = event.target.closest('[data-structure-approve]');
     if(structureApprove){ await setStructureStatus(structureApprove.dataset.structureApprove, 'approved'); return; }
     const structureSave = event.target.closest('[data-save-structure-assignees]');
@@ -3666,6 +3683,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('dblclick', async event => {
     const structureCell = event.target.closest('[data-structure-cell]');
     if(structureCell){
+      if(structureCell.classList.contains('protected-structure-title')) return;
       event.preventDefault();
       event.stopPropagation();
       openStructureCellNoteEditor(structureCell);
