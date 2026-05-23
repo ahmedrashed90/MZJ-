@@ -291,6 +291,22 @@ function departmentOptions(selectedValue = ''){
 function creativeOptions(selectedValue = ''){
   return '<option value="">اختر الكريتيف</option>' + creatives.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
 }
+
+function creativeCheckboxList(selected = []){
+  const chosen = Array.isArray(selected) ? selected.map(String) : String(selected || '').split('|').map(x => x.trim()).filter(Boolean);
+  if(!creatives.length) return '<div class="multi-empty">لا توجد كريتيفات</div>';
+  return creatives.map(item => `<label class="creative-check-card"><input type="checkbox" class="js-creative-check" value="${escapeHtml(item.name)}"${chosen.includes(item.name) ? ' checked' : ''}> <span>${escapeHtml(item.name)}</span></label>`).join('');
+}
+function selectedCreativeNames(row){
+  const fromChecks = [...(row?.querySelectorAll('.js-creative-check:checked') || [])].map(input => normalizeText(input.value)).filter(Boolean);
+  if(fromChecks.length) return uniqueList(fromChecks);
+  const legacy = normalizeText(row?.querySelector('.js-creative-select')?.value || '');
+  return legacy ? [legacy] : [];
+}
+function creativeProductLabel(creative, row){
+  const userNames = [...(row?.querySelectorAll('.js-task-user') || [])].flatMap(control => selectedOptionTexts(control));
+  return creative && userNames.length ? `${creative} - ${uniqueList(userNames).join(' - ')}` : creative || '';
+}
 function taskTypeOptions(selectedValue = ''){
   return '<option value="">اختر نوع التاسك</option>' + taskTypes.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
 }
@@ -328,7 +344,7 @@ function formatCampaignCodeLabel(item){
 function refreshDynamicSelects(){
   document.querySelectorAll('.js-department-select').forEach(select => { const value = select.value; select.innerHTML = departmentOptions(value); });
   document.querySelectorAll('.js-content-section-select,.js-task-section-select').forEach(select => { const value = select.value; select.innerHTML = contentSectionOptions(value); });
-  document.querySelectorAll('.js-creative-select').forEach(select => { const value = select.value; select.innerHTML = creativeOptions(value); });
+  document.querySelectorAll('.creative-checkbox-grid').forEach(box => { const row = box.closest('.creative-row-card'); const selected = selectedCreativeNames(row); box.innerHTML = creativeCheckboxList(selected); });
   document.querySelectorAll('.js-task-type').forEach(select => {
     const value = select.value;
     const block = select.closest('.creative-task-block');
@@ -757,10 +773,13 @@ function taskBlockHtml(index){
 }
 
 function updateProductOutput(row){
-  const creative = row?.querySelector('.js-creative-select')?.value || '';
+  const creativesList = selectedCreativeNames(row);
   const userNames = [...(row?.querySelectorAll('.js-task-user') || [])].flatMap(control => selectedOptionTexts(control));
   const output = row?.querySelector('.js-product-output');
-  if(output) output.value = creative && userNames.length ? `${creative} - ${uniqueList(userNames).join(' - ')}` : '';
+  if(output){
+    const usersText = uniqueList(userNames).join(' - ');
+    output.value = creativesList.length ? creativesList.map(cr => usersText ? `${cr} - ${usersText}` : cr).join(' | ') : '';
+  }
 }
 function updateAllProductOutputs(){ document.querySelectorAll('#creativeRows .creative-row-card').forEach(updateProductOutput); }
 function generateCampaignCode(){
@@ -1614,7 +1633,7 @@ function readSelectText(select){
 }
 
 function collectCampaignRows(){
-  return [...document.querySelectorAll('#creativeRows .creative-row-card')].map(row => {
+  return [...document.querySelectorAll('#creativeRows .creative-row-card')].flatMap(row => {
     const tasks = [...row.querySelectorAll('.creative-task-block')].map(block => {
       const section = block.querySelector('.js-task-section-select');
       const task = block.querySelector('.js-task-type');
@@ -1630,13 +1649,17 @@ function collectCampaignRows(){
         userNames: selectedOptionTexts(userControl)
       };
     }).filter(item => item.contentSectionId || item.taskType || item.userIds.length);
-    return {
-      creative: row.querySelector('.js-creative-select')?.value || '',
+    const selectedCreatives = selectedCreativeNames(row);
+    const cars = selectedCarsFromRow(row);
+    if(!selectedCreatives.length && !tasks.length && !cars.length) return [];
+    const creativesToSave = selectedCreatives.length ? selectedCreatives : [''];
+    return creativesToSave.map(creative => ({
+      creative,
       tasks,
-      product: row.querySelector('.js-product-output')?.value || '',
-      selectedCars: selectedCarsFromRow(row)
-    };
-  }).filter(item => item.creative || item.tasks.length || item.product);
+      product: creativeProductLabel(creative, row),
+      selectedCars: cars
+    })).filter(item => item.creative || item.tasks.length || item.product || item.selectedCars.length);
+  });
 }
 function getCampaignProducts(){
   return uniqueList([...document.querySelectorAll('.js-product-output')].map(input => normalizeText(input.value)).filter(Boolean));
@@ -1675,14 +1698,16 @@ function selectedCarsFromRow(row){
 function getCampaignPublishOutputs(){
   const outputs = [];
   document.querySelectorAll('#creativeRows .creative-row-card').forEach(row => {
-    const creative = normalizeText(row.querySelector('.js-creative-select')?.value || '');
+    const creativeList = selectedCreativeNames(row);
     row.querySelectorAll('.creative-task-block').forEach(block => {
       const sectionName = normalizeText(readSelectText(block.querySelector('.js-task-section-select')));
       const taskName = normalizeText(block.querySelector('.js-task-type')?.value || '');
       const role = normalizeDepartmentRole(sectionName);
       if(!['design','montage'].includes(role)) return;
-      const output = [creative, sectionName, taskName].filter(Boolean).join(' - ');
-      if(output && !output.includes('اختار المحتوى')) outputs.push(output);
+      (creativeList.length ? creativeList : ['']).forEach(creative => {
+        const output = [creative, sectionName, taskName].filter(Boolean).join(' - ');
+        if(output && !output.includes('اختار المحتوى')) outputs.push(output);
+      });
     });
   });
   return uniqueList(outputs);
@@ -1859,7 +1884,7 @@ function bindCampaignBuilder(){
     card.className = 'creative-row-card';
     card.innerHTML = `
       <div class="creative-row-head">
-        <label class="creative-main-select"><span>الكريتيف</span><select class="js-creative-select">${creativeOptions()}</select></label>
+        <div class="creative-main-select creative-checkbox-picker"><span>الكريتيف</span><div class="creative-checkbox-grid">${creativeCheckboxList()}</div></div>
         <label class="creative-product-field"><span>المنتجات</span><input class="product-output js-product-output" type="text" readonly aria-label="المنتجات" /></label>
         <button class="delete-row" type="button" aria-label="حذف الصف">×</button>
       </div>
@@ -1894,10 +1919,10 @@ function bindCampaignBuilder(){
       if(userSelect) userSelect.innerHTML = multiTaskUserOptions(event.target.value, []);
       updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return;
     }
-    if(event.target.matches('.js-task-user,.js-car-checkbox')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
+    if(event.target.matches('.js-task-user,.js-car-checkbox,.js-creative-check')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.matches('.js-platform-checkbox')){ return; }
-    if(event.target.matches('.js-creative-select,.js-task-type,.js-task-quantity,.js-task-required-date')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
+    if(event.target.matches('.js-creative-select,.js-creative-check,.js-task-type,.js-task-quantity,.js-task-required-date')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
   document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<div class="empty-state">ابدأ بإضافة صف كريتيف للحملة.</div>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; generateCampaignCode(); });
   document.getElementById('saveCampaignDraft')?.addEventListener('click', saveCampaignToFirebase);
