@@ -1995,53 +1995,64 @@ function applyEffectiveTheme(){
   const effectiveTheme = userTheme || systemSettings || {};
   applyThemeSettings(effectiveTheme);
 
-  const dashboard = document.getElementById('dashboard');
   const image = themeBackgroundImage(effectiveTheme);
   if(image){
-    document.documentElement.style.setProperty('--user-dashboard-bg-image', `url("${String(image).replace(/"/g, '\\"')}")`);
+    document.documentElement.style.setProperty('--user-dashboard-bg-image', `url("${String(image).replace(/"/g, '\"')}")`);
     document.body.classList.add('has-user-dashboard-theme');
-    dashboard?.classList.add('has-custom-bg');
   }else{
     document.body.classList.remove('has-user-dashboard-theme');
-    dashboard?.classList.remove('has-custom-bg');
     document.documentElement.style.removeProperty('--user-dashboard-bg-image');
+  }
+  const dashboard = document.getElementById('dashboard');
+  if(dashboard){
+    dashboard.classList.toggle('has-custom-bg', !!image);
   }
 }
 async function saveUserThemeFromFile(file){
   if(!mainDb || !file) return;
-  const current = getCurrentUserDoc();
-  const userId = current.id || getCurrentUser().id;
+  const currentSession = getCurrentUser() || {};
+  const current = getCurrentUserDoc() || currentSession;
+  const userId = current.id || current.uid || currentSession.id || currentSession.uid;
   if(!userId){ showToast('تعذر تحديد اليوزر لحفظ الثيم.'); return; }
   try{
     const imageData = await readThemeImageFile(file);
     const colors = await extractThemeColorsFromImage(imageData);
-    const themeSettings = { themeImageName:file.name, themeImageData:imageData, backgroundImageData:imageData, backgroundImageUrl:'', colors, updatedAt:new Date().toISOString() };
-    await safeCollection(window.MZJ_USERS_COLLECTION).doc(userId).update({ themeSettings, updatedAt: serverTime() });
-    const sessionUser = { ...getCurrentUser(), themeSettings };
-    setCurrentUser(sessionUser);
-    const found = users.find(u => u.id === userId || u.uid === userId);
+    const themeSettings = { themeImageName:file.name || 'theme-image', themeImageData:imageData, backgroundImageData:imageData, backgroundImageUrl:'', colors, updatedAt:new Date().toISOString() };
+    await safeCollection(window.MZJ_USERS_COLLECTION).doc(userId).set({ themeSettings, updatedAt: serverTime() }, { merge:true });
+    const nextSession = { ...currentSession, id: currentSession.id || userId, uid: currentSession.uid || userId, themeSettings };
+    setCurrentUser(nextSession);
+    const found = users.find(u => u.id === userId || u.uid === userId || identityClean(u.email) === identityClean(nextSession.email));
     if(found) found.themeSettings = themeSettings;
     applyEffectiveTheme();
     renderAdminDashboard();
     showToast('تم تطبيق ثيمك الخاص.');
   }catch(error){
     console.error('User theme save error', error);
-    showToast(error.message || 'تعذر حفظ صورة الثيم.');
+    showToast(error.message || 'تعذر حفظ صورة الثيم. راجع قواعد Firebase.');
+  }finally{
+    const input = document.getElementById('userThemeImageInput');
+    if(input) input.value = '';
   }
 }
 async function clearCurrentUserTheme(){
-  const current = getCurrentUserDoc();
-  const userId = current.id || getCurrentUser().id;
+  const currentSession = getCurrentUser() || {};
+  const current = getCurrentUserDoc() || currentSession;
+  const userId = current.id || current.uid || currentSession.id || currentSession.uid;
   if(!mainDb || !userId) return;
-  await safeCollection(window.MZJ_USERS_COLLECTION).doc(userId).update({ themeSettings: firebase.firestore.FieldValue.delete(), updatedAt: serverTime() });
-  const sessionUser = { ...getCurrentUser() };
-  delete sessionUser.themeSettings;
-  setCurrentUser(sessionUser);
-  const found = users.find(u => u.id === userId || u.uid === userId);
-  if(found) found.themeSettings = null;
-  applyEffectiveTheme();
-  renderAdminDashboard();
-  showToast('تم استرجاع الثيم الافتراضي.');
+  try{
+    await safeCollection(window.MZJ_USERS_COLLECTION).doc(userId).set({ themeSettings: firebase.firestore.FieldValue.delete(), updatedAt: serverTime() }, { merge:true });
+    const nextSession = { ...currentSession };
+    delete nextSession.themeSettings;
+    setCurrentUser(nextSession);
+    const found = users.find(u => u.id === userId || u.uid === userId || identityClean(u.email) === identityClean(nextSession.email));
+    if(found) found.themeSettings = null;
+    applyEffectiveTheme();
+    renderAdminDashboard();
+    showToast('تم مسح الخلفية واسترجاع الثيم الافتراضي.');
+  }catch(error){
+    console.error('Clear user theme error', error);
+    showToast(error.message || 'تعذر مسح الثيم. راجع قواعد Firebase.');
+  }
 }
 function renderThemeImagePreview(settings = systemSettings){
   const preview = document.getElementById('themeImagePreview'); if(!preview) return;
@@ -2151,7 +2162,7 @@ function bindSettings(){
     try{
       const imageData = await readThemeImageFile(file);
       const colors = await extractThemeColorsFromImage(imageData);
-      const payload = { themeImageName:file.name, themeImageData:imageData, backgroundImageData:imageData, backgroundImageUrl:'', colors, updatedAt: serverTime() };
+      const payload = { themeImageName:file.name || 'theme-image', themeImageData:imageData, backgroundImageData:imageData, backgroundImageUrl:'', colors, updatedAt: serverTime() };
       await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set(payload, { merge:true });
       systemSettings = { ...systemSettings, ...payload };
       applyEffectiveTheme();
@@ -2161,7 +2172,10 @@ function bindSettings(){
       renderThemeImagePreview(payload);
     }catch(error){
       console.error('System theme image error', error);
-      showMessage('themeSettingsMessage', error.message || 'تعذر حفظ صورة الثيم.');
+      showMessage('themeSettingsMessage', error.message || 'تعذر حفظ صورة الثيم. راجع قواعد Firebase.');
+    }finally{
+      const input = document.getElementById('themeImageInput');
+      if(input) input.value = '';
     }
   });
   document.getElementById('refreshUsersPermissionsBtn')?.addEventListener('click', renderUsersPermissions);

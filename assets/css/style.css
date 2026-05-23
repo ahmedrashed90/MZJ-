@@ -490,3 +490,57 @@ body.has-user-dashboard-theme #dashboard .soft-empty{
   opacity: 0;
   pointer-events: none;
 }
+
+
+/* === v16 dashboard theme visibility and glass fix === */
+body.has-user-dashboard-theme #dashboard,
+body.has-user-dashboard-theme #dashboard.user-mode,
+body.has-user-dashboard-theme #dashboard.admin-mode{
+  background-image:linear-gradient(180deg, rgba(255,250,246,.08), rgba(255,250,246,.12)), var(--user-dashboard-bg-image) !important;
+  background-size:cover !important;
+  background-position:center center !important;
+  background-repeat:no-repeat !important;
+  background-attachment:fixed !important;
+  border-radius:0 !important;
+  padding:22px !important;
+  min-height:calc(100vh - 80px) !important;
+}
+body.has-user-dashboard-theme #dashboard .user-content-dashboard,
+body.has-user-dashboard-theme #dashboard .admin-dashboard-board,
+body.has-user-dashboard-theme #dashboard .card{
+  background:rgba(255,255,255,.18) !important;
+  border-color:rgba(255,255,255,.34) !important;
+  box-shadow:0 18px 50px rgba(45,23,19,.10) !important;
+  backdrop-filter:blur(3px) !important;
+  -webkit-backdrop-filter:blur(3px) !important;
+}
+body.has-user-dashboard-theme #dashboard .content-type-col{
+  background:rgba(255,255,255,.30) !important;
+  border-color:rgba(255,255,255,.42) !important;
+  backdrop-filter:blur(4px) !important;
+  -webkit-backdrop-filter:blur(4px) !important;
+}
+body.has-user-dashboard-theme #dashboard .content-task-card,
+body.has-user-dashboard-theme #dashboard .soft-empty{
+  background:rgba(255,255,255,.50) !important;
+  border-color:rgba(255,255,255,.48) !important;
+  backdrop-filter:blur(5px) !important;
+  -webkit-backdrop-filter:blur(5px) !important;
+}
+body.has-user-dashboard-theme #dashboard .user-theme-panel{
+  position:relative !important;
+  z-index:30 !important;
+  margin:0 0 16px !important;
+}
+body.has-user-dashboard-theme #dashboard .user-theme-upload,
+body.has-user-dashboard-theme #dashboard #clearUserThemeBtn{
+  background:rgba(255,255,255,.62) !important;
+  border-color:rgba(255,255,255,.65) !important;
+  backdrop-filter:blur(5px) !important;
+  -webkit-backdrop-filter:blur(5px) !important;
+}
+body.has-user-dashboard-theme #dashboard .page-title,
+body.has-user-dashboard-theme #dashboard .content-type-title,
+body.has-user-dashboard-theme #dashboard .exec-stats{
+  text-shadow:0 1px 10px rgba(255,255,255,.55) !important;
+}

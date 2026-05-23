@@ -106,6 +106,7 @@ service cloud.firestore {
         "uid",
         "id",
         "email",
+        "emailLower",
         "name",
         "displayName",
         "username",
@@ -334,7 +335,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if true;
       allow create: if adminUserKeysValid();
-      allow update: if adminUserKeysValid();
+      allow update: if adminUserKeysValid() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["themeSettings", "updatedAt"]);
       allow delete: if true;
     }
 
