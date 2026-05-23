@@ -1420,29 +1420,35 @@ function refreshOpenTaskModal(){
   const task = findTaskById(activeTaskModalMeta.taskId, activeTaskModalMeta.campaignId);
   if(task) openTaskModal(task);
 }
-async function updateTaskOnFirebase(taskId, patch){
-  if(!mainDb || !taskId){ showToast('اتصال Firebase غير متاح.'); return; }
-  const campaign = campaigns.find(c => Array.isArray(c.departmentTasks) && c.departmentTasks.some(t => (t.id || '') === taskId));
-  if(campaign){
-    const nextTasks = (campaign.departmentTasks || []).map(task => (task.id || '') === taskId ? { ...task, ...patch, updatedAt: new Date().toISOString() } : task);
+async function updateTaskOnFirebase(taskId, patch, options = {}){
+  if(!mainDb || !taskId){ showToast('اتصال Firebase غير متاح.'); return null; }
+  const campaignIndex = campaigns.findIndex(c => Array.isArray(c.departmentTasks) && c.departmentTasks.some(t => (t.id || '') === taskId));
+  if(campaignIndex >= 0){
+    const campaign = campaigns[campaignIndex];
+    let updatedTask = null;
+    const nextTasks = (campaign.departmentTasks || []).map(task => {
+      if((task.id || '') !== taskId) return task;
+      updatedTask = { ...task, ...patch, updatedAt: new Date().toISOString() };
+      return updatedTask;
+    });
     try{
       await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update({ departmentTasks: nextTasks, updatedAt: serverTime() });
-      showToast('تم تحديث التاسك.');
-      return;
+      // تحديث النسخة المحلية فوراً عشان الـ Popup يعرض التغيير بدون انتظار onSnapshot.
+      campaigns[campaignIndex] = { ...campaign, departmentTasks: nextTasks, updatedAt: new Date().toISOString() };
+      if(!options.silent) showToast('تم تحديث التاسك.');
+      if(activeTaskModalMeta && activeTaskModalMeta.taskId === taskId){
+        setTimeout(refreshOpenTaskModal, 30);
+      }
+      return updatedTask;
     }catch(error){
       console.error('Campaign task array update error', error, patch);
       showToast('تعذر تحديث التاسك داخل الحملة.');
-      return;
+      throw error;
     }
   }
-  if(taskId.startsWith('fallback-')){ showToast('التاسك غير محفوظ على Firebase بعد. احفظ الحملة مرة أخرى.'); return; }
-  try{
-    await safeCollection(window.MZJ_CAMPAIGN_TASKS_COLLECTION).doc(taskId).update({ ...patch, updatedAt: serverTime() });
-    showToast('تم تحديث التاسك.');
-  }catch(error){
-    console.error('Task update error', error, patch);
-    showToast('تعذر تحديث التاسك على Firebase.');
-  }
+  if(taskId.startsWith('fallback-')){ showToast('التاسك غير محفوظ على Firebase بعد. احفظ الحملة مرة أخرى.'); return null; }
+  showToast('تعذر تحديث التاسك: لم يتم العثور عليه داخل marketing_campaigns.');
+  return null;
 }
 
 function daysUntilRequiredText(requiredDate){
