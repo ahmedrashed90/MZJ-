@@ -595,12 +595,39 @@ function normalizeCampaignTask(task, campaign){
   const role = task.departmentRole || normalizeDepartmentRole(task.assignedDepartmentName || task.departmentName || task.contentSectionName || '');
   return { ...task, id: task.id || `${campaign.id}-${task.creativeIndex || 0}-${task.taskIndex || 0}-${task.assignedToUid || task.assigneeUid || task.userId || Math.random().toString(36).slice(2)}`, campaignId: task.campaignId || campaign.id, campaignName: task.campaignName || campaign.campaignName || campaign.name || '', campaignCode: task.campaignCode || campaign.campaignCode || campaign.campaign_code || '', departmentRole: role, steps: Array.isArray(task.steps) && task.steps.length ? task.steps : taskStepTemplate(role) };
 }
+function taskSignature(task){
+  const userKey = identityClean(task.userId || task.userUid || task.assignedToId || task.assignedToUid || task.assigneeUid || task.userEmail || task.assignedToEmail || task.userName || task.assignedToName || '');
+  const sectionKey = identityClean(task.contentSectionId || task.contentSectionName || task.assignedDepartmentId || task.assignedDepartmentName || task.departmentRole || '');
+  const carKey = identityClean(task.selectedCar || (Array.isArray(task.selectedCars) ? task.selectedCars.map(car => car?.id || car?.label || '').join('|') : ''));
+  return [
+    task.campaignId || '',
+    task.creativeIndex ?? '',
+    task.taskIndex ?? '',
+    task.taskCopyIndex ?? '',
+    identityClean(task.creative || ''),
+    sectionKey,
+    identityClean(task.taskType || ''),
+    userKey,
+    carKey
+  ].join('::');
+}
+function mergeCampaignTasks(list){
+  const seen = new Set();
+  const out = [];
+  list.forEach(task => {
+    if(!task) return;
+    const sig = taskSignature(task);
+    if(seen.has(sig)) return;
+    seen.add(sig);
+    out.push(task);
+  });
+  return out;
+}
 function tasksForCampaign(campaign){
-  if(Array.isArray(campaign.departmentTasks) && campaign.departmentTasks.length){
-    return campaign.departmentTasks.map(task => normalizeCampaignTask(task, campaign));
-  }
-  const saved = campaignTasks.filter(task => task.campaignId === campaign.id || task.campaignId === campaign.docId);
-  return saved.length ? saved : fallbackTasksFromCampaign(campaign);
+  const fromDepartmentTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks.map(task => normalizeCampaignTask(task, campaign)) : [];
+  const saved = campaignTasks.filter(task => task.campaignId === campaign.id || task.campaignId === campaign.docId).map(task => normalizeCampaignTask(task, campaign));
+  const fallback = fallbackTasksFromCampaign(campaign).map(task => normalizeCampaignTask(task, campaign));
+  return mergeCampaignTasks([...fromDepartmentTasks, ...saved, ...fallback]);
 }
 function groupTasksForKanban(tasks){
   const order = ['content','shooting','design','montage','publish','other'];
