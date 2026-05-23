@@ -716,33 +716,54 @@ function currentUserMatchesTaskExact(task){
   }catch(_){ }
   return false;
 }
+function roleAliases(role){
+  const map = {
+    shooting: ['shooting','photography','photo','قسم التصوير','التصوير','تصوير','التصوير + الايديت'],
+    content: ['content','copy','writer','قسم المحتوى','المحتوى','محتوى','المحتوي'],
+    design: ['design','graphic','قسم التصميم','التصميم','تصميم'],
+    montage: ['montage','edit','video','قسم المونتاج','المونتاج','مونتاج'],
+    publish: ['publish','social','قسم النشر','النشر','نشر']
+  };
+  return map[role] || [role];
+}
 function userDepartmentIdentityKeys(){
   const current = findCurrentUserRecord() || getCurrentUser();
   const currentKeys = currentUserIdentityKeys();
-  const direct = [current.department, current.departmentId, ...(Array.isArray(current.departmentIds) ? current.departmentIds : [])];
+  const direct = [current.department, current.departmentId, current.departmentName, ...(Array.isArray(current.departmentIds) ? current.departmentIds : [])].filter(Boolean);
+  const directRoles = uniqueList(direct.map(value => normalizeDepartmentRole(value)).filter(role => role && role !== 'other'));
   const deps = departments.filter(dep => {
     const depUsers = [dep.userIds, dep.users, dep.members, dep.memberUids, dep.memberEmails, dep.memberNames].flatMap(flattenIdentityValues);
     const depKeys = uniqueIdentityKeys(depUsers);
-    return identityIntersects(currentKeys, depKeys) || direct.some(value => identityClean(value) && (identityClean(value) === identityClean(dep.id) || identityClean(value) === identityClean(dep.name) || identityClean(value) === identityClean(dep.slug)));
+    const depRole = normalizeDepartmentRole(dep.name || dep.slug || dep.id || '');
+    return identityIntersects(currentKeys, depKeys) || direct.some(value => identityClean(value) && (identityClean(value) === identityClean(dep.id) || identityClean(value) === identityClean(dep.name) || identityClean(value) === identityClean(dep.slug))) || directRoles.includes(depRole);
   });
   const sections = contentSections.filter(section => {
     const sectionUsers = [section.userIds, section.users, section.members, section.memberUids, section.memberEmails, section.memberNames].flatMap(flattenIdentityValues);
     const sectionKeys = uniqueIdentityKeys(sectionUsers);
     const sectionDepartment = [section.departmentId, section.department, section.contentDepartmentId].flatMap(flattenIdentityValues);
-    return identityIntersects(currentKeys, sectionKeys) || sectionDepartment.some(value => direct.some(d => identityClean(d) && identityClean(d) === identityClean(value)));
+    const sectionRole = normalizeDepartmentRole(section.name || section.slug || section.id || '');
+    return identityIntersects(currentKeys, sectionKeys) || sectionDepartment.some(value => direct.some(d => identityClean(d) && identityClean(d) === identityClean(value))) || directRoles.includes(sectionRole);
   });
+  const roles = uniqueList([
+    ...directRoles,
+    ...deps.map(dep => normalizeDepartmentRole(dep.name || dep.slug || dep.id || '')).filter(role => role !== 'other'),
+    ...sections.map(section => normalizeDepartmentRole(section.name || section.slug || section.id || '')).filter(role => role !== 'other')
+  ]);
   return uniqueIdentityKeys([
     ...direct,
-    ...deps.flatMap(dep => [dep.id, dep.name, dep.slug, normalizeDepartmentRole(dep.name || dep.slug)]),
-    ...sections.flatMap(section => [section.id, section.name, section.slug, normalizeDepartmentRole(section.name || section.slug)])
+    ...roles,
+    ...roles.flatMap(roleAliases),
+    ...deps.flatMap(dep => [dep.id, dep.name, dep.slug, normalizeDepartmentRole(dep.name || dep.slug || dep.id || '')]),
+    ...sections.flatMap(section => [section.id, section.name, section.slug, normalizeDepartmentRole(section.name || section.slug || section.id || '')])
   ]);
 }
 function currentUserMatchesTaskDepartment(task){
   const depKeys = userDepartmentIdentityKeys();
   if(!depKeys.length) return false;
+  const taskRole = normalizeDepartmentRole(task.contentSectionName || task.assignedDepartmentName || task.departmentName || task.departmentRole || '');
   const taskDepKeys = uniqueIdentityKeys([
     task.contentSectionId, task.contentSectionName, task.assignedDepartmentId, task.assignedDepartmentName,
-    task.departmentId, task.departmentName, task.departmentRole, normalizeDepartmentRole(task.contentSectionName || task.assignedDepartmentName || '')
+    task.departmentId, task.departmentName, task.departmentRole, taskRole, ...roleAliases(taskRole)
   ]);
   return identityIntersects(depKeys, taskDepKeys);
 }
