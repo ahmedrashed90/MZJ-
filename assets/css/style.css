@@ -452,3 +452,41 @@ body.has-user-dashboard-theme #dashboard .content-task-card{
   background:rgba(255,255,255,.76)!important;
   backdrop-filter:blur(6px)!important;
 }
+
+/* Dashboard theme background fix */
+body.has-user-dashboard-theme #dashboard{
+  background-image: linear-gradient(180deg, rgba(255,250,246,.30), rgba(255,250,246,.42)), var(--user-dashboard-bg-image) !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+  border-radius: 28px !important;
+  min-height: calc(100vh - 90px) !important;
+}
+body.has-user-dashboard-theme #dashboard.user-mode,
+body.has-user-dashboard-theme #dashboard.admin-mode{
+  background-image: linear-gradient(180deg, rgba(255,250,246,.30), rgba(255,250,246,.42)), var(--user-dashboard-bg-image) !important;
+}
+body.has-user-dashboard-theme #dashboard .card,
+body.has-user-dashboard-theme #dashboard .user-content-dashboard,
+body.has-user-dashboard-theme #dashboard .admin-dashboard-board,
+body.has-user-dashboard-theme #dashboard .content-type-col{
+  background: rgba(255,253,252,.60) !important;
+  backdrop-filter: blur(8px) !important;
+}
+body.has-user-dashboard-theme #dashboard .content-task-card,
+body.has-user-dashboard-theme #dashboard .soft-empty{
+  background: rgba(255,253,252,.68) !important;
+  backdrop-filter: blur(7px) !important;
+}
+.user-theme-panel{
+  position: relative;
+  z-index: 20;
+}
+.user-theme-upload input[type="file"]{
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

@@ -1954,23 +1954,21 @@ function readThemeImageFile(file){
       const img = new Image();
       img.onload = () => {
         try{
-          const maxSide = 1800;
-          const scale = Math.min(1, maxSide / Math.max(img.width || maxSide, img.height || maxSide));
-          const w = Math.max(1, Math.round((img.width || maxSide) * scale));
-          const h = Math.max(1, Math.round((img.height || maxSide) * scale));
           const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
           const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          let dataUrl = canvas.toDataURL('image/jpeg', 0.86);
-          if(dataUrl.length > 900000) dataUrl = canvas.toDataURL('image/jpeg', 0.72);
-          if(dataUrl.length > 900000){
-            const maxSmall = 1200;
-            const smallScale = Math.min(1, maxSmall / Math.max(img.width || maxSmall, img.height || maxSmall));
-            canvas.width = Math.max(1, Math.round((img.width || maxSmall) * smallScale));
-            canvas.height = Math.max(1, Math.round((img.height || maxSmall) * smallScale));
-            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-            dataUrl = canvas.toDataURL('image/jpeg', 0.68);
+          let maxSide = 1500;
+          let quality = 0.82;
+          let dataUrl = '';
+          for(let attempt = 0; attempt < 9; attempt += 1){
+            const scale = Math.min(1, maxSide / Math.max(img.width || maxSide, img.height || maxSide));
+            canvas.width = Math.max(1, Math.round((img.width || maxSide) * scale));
+            canvas.height = Math.max(1, Math.round((img.height || maxSide) * scale));
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+            if(dataUrl.length <= 520000) break;
+            maxSide = Math.max(520, Math.round(maxSide * 0.78));
+            quality = Math.max(0.46, quality - 0.07);
           }
           resolve(dataUrl || original);
         }catch(err){ resolve(original); }
@@ -2039,8 +2037,11 @@ async function clearCurrentUserTheme(){
   const sessionUser = { ...getCurrentUser() };
   delete sessionUser.themeSettings;
   setCurrentUser(sessionUser);
+  const found = users.find(u => u.id === userId || u.uid === userId);
+  if(found) found.themeSettings = null;
   applyEffectiveTheme();
   renderAdminDashboard();
+  showToast('تم استرجاع الثيم الافتراضي.');
 }
 function renderThemeImagePreview(settings = systemSettings){
   const preview = document.getElementById('themeImagePreview'); if(!preview) return;
@@ -2109,16 +2110,44 @@ function bindSettings(){
   });
   document.getElementById('resetDefaultSettingsBtn')?.addEventListener('click', async () => {
     if(!mainDb) return;
-    await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({...defaultThemeSettings, updatedAt: serverTime()}, { merge:true });
-    showMessage('systemSettingsMessage','تم استرجاع الإعدادات الافتراضية.');
-  });
-  document.getElementById('resetDefaultThemeBtn')?.addEventListener('click', () => {
-    applyThemeSettings({ colors: defaultThemeSettings.colors });
-    systemSettings = { ...systemSettings, colors: defaultThemeSettings.colors };
+    await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({
+      ...defaultThemeSettings,
+      themeImageName: firebase.firestore.FieldValue.delete(),
+      themeImageData: firebase.firestore.FieldValue.delete(),
+      backgroundImageData: firebase.firestore.FieldValue.delete(),
+      backgroundImageUrl: firebase.firestore.FieldValue.delete(),
+      updatedAt: serverTime()
+    }, { merge:true });
+    systemSettings = { ...defaultThemeSettings };
+    applyEffectiveTheme();
     fillSettingsForm();
+    renderAdminDashboard();
+    showMessage('systemSettingsMessage','تم استرجاع الإعدادات الافتراضية ومسح صورة الخلفية.');
+  });
+  document.getElementById('resetDefaultThemeBtn')?.addEventListener('click', async () => {
+    if(!mainDb) return;
+    await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({
+      colors: defaultThemeSettings.colors,
+      themeImageName: firebase.firestore.FieldValue.delete(),
+      themeImageData: firebase.firestore.FieldValue.delete(),
+      backgroundImageData: firebase.firestore.FieldValue.delete(),
+      backgroundImageUrl: firebase.firestore.FieldValue.delete(),
+      updatedAt: serverTime()
+    }, { merge:true });
+    systemSettings = { ...systemSettings, colors: defaultThemeSettings.colors };
+    delete systemSettings.themeImageName;
+    delete systemSettings.themeImageData;
+    delete systemSettings.backgroundImageData;
+    delete systemSettings.backgroundImageUrl;
+    applyEffectiveTheme();
+    fillSettingsForm();
+    renderThemeImagePreview({});
+    showMessage('themeSettingsMessage','تم استرجاع الثيم الافتراضي ومسح الخلفية.');
   });
   document.getElementById('themeImageInput')?.addEventListener('change', async event => {
-    const file = event.target.files?.[0]; if(!file || !mainDb) return;
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if(!file || !mainDb) return;
     try{
       const imageData = await readThemeImageFile(file);
       const colors = await extractThemeColorsFromImage(imageData);
@@ -2127,6 +2156,7 @@ function bindSettings(){
       systemSettings = { ...systemSettings, ...payload };
       applyEffectiveTheme();
       fillSettingsForm();
+      renderAdminDashboard();
       showMessage('themeSettingsMessage','تم حفظ صورة الثيم وتطبيقها كخلفية للداش بورد.');
       renderThemeImagePreview(payload);
     }catch(error){
