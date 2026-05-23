@@ -1537,15 +1537,33 @@ async function parseStructureWorkbook(file){
   const buffer = await file.arrayBuffer();
   return parseStructureWorkbookBuffer(buffer);
 }
+function isCampaignContentSheetName(sheetName){
+  const name = normalizeText(sheetName).replace(/[ةه]/g, 'ه').replace(/[ىي]/g, 'ي');
+  return (name.includes('محتوي') || name.includes('محتوى')) && (name.includes('الحمله') || name.includes('الحملة'));
+}
+function normalizeStructureSheetRows(rawRows){
+  const rows = (rawRows || [])
+    .map(row => (row || []).map(cell => normalizeText(cell)))
+    .filter(row => row.some(cell => normalizeText(cell)));
+  if(!rows.length) return { rows: [], maxCols: 0 };
+  const maxLen = Math.max(0, ...rows.map(row => row.length));
+  const usedCols = [];
+  for(let col = 0; col < maxLen; col += 1){
+    if(rows.some(row => normalizeText(row[col] || ''))) usedCols.push(col);
+  }
+  const compactRows = rows.map(row => usedCols.map(col => normalizeText(row[col] || '')));
+  return { rows: compactRows, maxCols: usedCols.length };
+}
 async function parseStructureWorkbookBuffer(buffer){
   if(!window.XLSX) return { parsedRows: [], sheetTables: [] };
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: false });
-  const sheetTables = workbook.SheetNames.map(sheetName => {
-    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' })
-      .map(row => row.map(cell => normalizeText(cell)));
-    const maxCols = Math.max(0, ...rows.map(row => row.length));
-    return { sheetName, rows, maxCols };
-  });
+  const contentSheetNames = workbook.SheetNames.filter(isCampaignContentSheetName);
+  const selectedSheetNames = contentSheetNames.length ? contentSheetNames : workbook.SheetNames.slice(0, 1);
+  const sheetTables = selectedSheetNames.map(sheetName => {
+    const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
+    const cleaned = normalizeStructureSheetRows(rawRows);
+    return { sheetName: 'محتوى الحملة', rows: cleaned.rows, maxCols: cleaned.maxCols, sourceSheetName: sheetName };
+  }).filter(sheet => sheet.rows.length);
   const parsedRows = [];
   sheetTables.forEach(sheet => {
     const rows = sheet.rows || [];
@@ -1598,7 +1616,7 @@ function renderStructureWorkbookTable(task, structure, admin){
   }
   const notes = Array.isArray(structure.notes) ? structure.notes : [];
   const marks = Array.isArray(structure.marks) ? structure.marks : [];
-  return `<div class="structure-workbook-view"><h4>الشيت كامل - اضغط مرة على أي خلية للتعليم بالأصفر، واضغط مرتين لإضافة ملاحظة</h4>${sheets.map(sheet => {
+  return `<div class="structure-workbook-view"><h4>محتوى الحملة - اضغط مرة على أي خلية للتعليم بالأصفر، واضغط مرتين لإضافة ملاحظة</h4>${sheets.map(sheet => {
     const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
     const maxCols = Math.max(Number(sheet.maxCols) || 0, ...rows.map(row => row.length));
     const body = rows.map((row, rowIndex) => {
@@ -1611,7 +1629,7 @@ function renderStructureWorkbookTable(task, structure, admin){
       }).join('');
       return `<tr>${cells}</tr>`;
     }).join('');
-    return `<div class="structure-sheet-block"><div class="structure-sheet-title">${escapeHtml(sheet.sheetName)}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table"><tbody>${body}</tbody></table></div></div>`;
+    return `<div class="structure-sheet-block"><div class="structure-sheet-title">${escapeHtml(sheet.sheetName || 'محتوى الحملة')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table"><tbody>${body}</tbody></table></div></div>`;
   }).join('')}</div>`;
 }
 
