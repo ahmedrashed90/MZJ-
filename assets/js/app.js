@@ -697,19 +697,23 @@ function currentUserMatchesTaskExact(task){
     task.assignedToName, task.assigneeName, task.userName,
     task.assignedToEmail, task.assigneeEmail, task.userEmail,
     task.assignedToId, task.assignedToUid, task.assigneeId, task.assigneeUid, task.userId, task.userUid,
-    task.assignedToSearch,
+    task.assignedToSearch, task.searchKeys, task.displayName, task.username,
     ...(Array.isArray(task.userIds) ? task.userIds : []),
     ...(Array.isArray(task.userNames) ? task.userNames : []),
     ...(Array.isArray(task.assignedToIds) ? task.assignedToIds : []),
     ...(Array.isArray(task.assignedToNames) ? task.assignedToNames : []),
     ...(Array.isArray(task.assigneeIds) ? task.assigneeIds : []),
     ...(Array.isArray(task.assigneeNames) ? task.assigneeNames : [])
-  ].map(identityClean).filter(Boolean);
+  ].flatMap(flattenIdentityValues).map(identityClean).filter(Boolean);
   if(currentId && explicitValues.includes(currentId)) return true;
   if(currentEmail && explicitValues.includes(currentEmail)) return true;
   if(currentName && explicitValues.includes(currentName)) return true;
-  const signals = [currentId, currentEmail, currentName].filter(v => v && v.length > 3);
+  const signals = [currentId, currentEmail, currentName, ...userKeys].filter(v => v && v.length > 3);
   if(signals.some(signal => explicitValues.some(value => value.includes(signal) || signal.includes(value)))) return true;
+  try{
+    const taskBlob = identityClean(JSON.stringify(task));
+    if(signals.some(signal => taskBlob.includes(signal))) return true;
+  }catch(_){ }
   return false;
 }
 function userDepartmentIdentityKeys(){
@@ -945,10 +949,16 @@ function buildCampaignTaskDocs(campaignId, payload){
   const docs = [];
   (payload.creatives || []).forEach((creativeRow, creativeIndex) => {
     (creativeRow.tasks || []).forEach((task, taskIndex) => {
-      (task.userIds || []).forEach(userId => {
-        const user = findUserByAnyIdentity([userId, task.userNames, task.userName, task.assignedToName]) || {};
-        const resolvedUserId = user.id || user.uid || userId;
-        const dep = departmentForUser(resolvedUserId || userId);
+      const ids = Array.isArray(task.userIds) ? task.userIds : [];
+      const names = Array.isArray(task.userNames) ? task.userNames : [];
+      const maxUsers = Math.max(ids.length, names.length);
+      const assignees = Array.from({ length: maxUsers }, (_, i) => ({ id: ids[i] || '', name: names[i] || '' }))
+        .filter(item => normalizeText(item.id || item.name));
+      assignees.forEach((assignee, assigneeIndex) => {
+        const user = findUserByAnyIdentity([assignee.id, assignee.name]) || {};
+        const resolvedUserId = user.id || user.uid || assignee.id || assignee.name;
+        const resolvedUserName = userName(user) || assignee.name || assignee.id || 'غير محدد';
+        const dep = departmentForUser(resolvedUserId || assignee.name);
         const sectionName = normalizeText(task.contentSectionName || dep.name || user.department || '');
         const role = normalizeDepartmentRole(sectionName || dep.name || user.department);
         const qty = Math.max(1, Math.min(50, Number(task.quantity || 1)));
@@ -956,6 +966,10 @@ function buildCampaignTaskDocs(campaignId, payload){
         const taskUnits = rowCars.length ? rowCars.map((car, i) => ({ copyIndex: i, car })) : Array.from({ length: qty }, (_, i) => ({ copyIndex: i, car: null }));
         taskUnits.forEach(unit => {
           const selectedCarLabel = unit.car ? normalizeText(unit.car.label || unit.car.name || unit.car.id) : '';
+          const searchKeys = uniqueList([
+            assignee.id, assignee.name, resolvedUserId, user.id, user.uid, user.email, user.emailLower,
+            resolvedUserName, user.name, user.displayName, user.username
+          ].filter(Boolean));
           docs.push({
             campaignId,
             campaignName: payload.campaignName || payload.name || '',
@@ -969,20 +983,21 @@ function buildCampaignTaskDocs(campaignId, payload){
             taskType: task.taskType || '',
             taskQuantity: taskUnits.length,
             taskCopyIndex: unit.copyIndex + 1,
-            userId: resolvedUserId || userId,
-            userUid: user.uid || resolvedUserId || userId,
-            userName: userName(user) || userId,
+            userId: resolvedUserId,
+            userUid: user.uid || resolvedUserId,
+            userName: resolvedUserName,
             userEmail: user.email || '',
-            assigneeUid: user.uid || resolvedUserId || userId,
-            assigneeName: userName(user) || userId,
+            assigneeUid: user.uid || resolvedUserId,
+            assigneeName: resolvedUserName,
             assigneeEmail: user.email || '',
-            assignedToUid: user.uid || resolvedUserId || userId,
-            assignedToId: resolvedUserId || userId,
-            assignedToName: userName(user) || userId,
+            assignedToUid: user.uid || resolvedUserId,
+            assignedToId: resolvedUserId,
+            assignedToName: resolvedUserName,
             assignedToEmail: user.email || '',
-            displayName: user.displayName || '',
+            displayName: user.displayName || resolvedUserName,
             username: user.username || '',
-            assignedToSearch: uniqueList([userId, resolvedUserId, user.id, user.uid, user.email, user.emailLower, userName(user), user.name, user.displayName, user.username].filter(Boolean)),
+            assignedToSearch: searchKeys,
+            searchKeys,
             assignedDepartmentId: task.contentSectionId || dep.id || '',
             assignedDepartmentName: sectionName || dep.name || user.department || '',
             departmentRole: role,
@@ -991,7 +1006,8 @@ function buildCampaignTaskDocs(campaignId, payload){
             steps: taskStepTemplate(role),
             status: 'pending',
             creativeIndex,
-            taskIndex: `${taskIndex}-${unit.copyIndex + 1}`,
+            assigneeIndex,
+            taskIndex: `${taskIndex}-${assigneeIndex + 1}-${unit.copyIndex + 1}`,
             createdAt: serverTime(),
             updatedAt: serverTime(),
             source: 'mzj-marketing-spa'
