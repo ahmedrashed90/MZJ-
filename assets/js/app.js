@@ -706,19 +706,42 @@ function flattenIdentityValues(value){
 function uniqueIdentityKeys(values){
   return uniqueList(flattenIdentityValues(values).map(identityClean).filter(Boolean));
 }
+function baseCurrentUserIdentityValues(){
+  const sessionUser = getCurrentUser() || {};
+  const authUser = mainAuth?.currentUser || null;
+  return [
+    sessionUser,
+    sessionUser.id, sessionUser.uid, sessionUser.email, sessionUser.emailLower, sessionUser.name, sessionUser.displayName, sessionUser.username,
+    authUser?.uid, authUser?.email, authUser?.displayName,
+    sessionStorage.getItem('mzj_login_email') || ''
+  ];
+}
+function currentUserRelatedRecords(){
+  const baseKeys = uniqueIdentityKeys(baseCurrentUserIdentityValues());
+  if(!baseKeys.length || !Array.isArray(users) || !users.length) return [];
+  return users.filter(user => {
+    const userKeys = uniqueIdentityKeys([user, user.id, user.uid, user.email, user.emailLower, user.name, user.displayName, user.username]);
+    if(identityIntersects(baseKeys, userKeys)) return true;
+    const email = identityClean(user.email || user.emailLower || '');
+    const name = identityClean(user.name || user.displayName || user.username || '');
+    return baseKeys.some(key => (email && (key === email || key.includes(email) || email.includes(key))) || (name && key.length > 2 && (key === name || key.includes(name) || name.includes(key))));
+  });
+}
 function findCurrentUserRecord(){
   const sessionUser = getCurrentUser();
-  return findUserByAnyIdentity([sessionUser, sessionUser.id, sessionUser.uid, sessionUser.email, sessionUser.emailLower, sessionUser.name, sessionUser.displayName, sessionUser.username]) || sessionUser;
+  const related = currentUserRelatedRecords();
+  return related[0] || findUserByAnyIdentity(baseCurrentUserIdentityValues()) || sessionUser;
 }
 function currentUserIdentityKeys(){
   const sessionUser = getCurrentUser();
-  const matchedUser = findCurrentUserRecord() || {};
   const authUser = mainAuth?.currentUser || null;
+  const related = currentUserRelatedRecords();
   return uniqueIdentityKeys([
-    sessionUser, matchedUser,
-    sessionUser.id, sessionUser.uid, sessionUser.email, sessionUser.emailLower, sessionUser.name, sessionUser.displayName, sessionUser.username,
-    matchedUser.id, matchedUser.uid, matchedUser.email, matchedUser.emailLower, matchedUser.name, matchedUser.displayName, matchedUser.username,
-    authUser?.uid, authUser?.email, authUser?.displayName
+    ...baseCurrentUserIdentityValues(),
+    ...related,
+    ...related.flatMap(user => [user.id, user.uid, user.email, user.emailLower, user.name, user.displayName, user.username]),
+    authUser?.uid, authUser?.email, authUser?.displayName,
+    sessionUser.themeSettings ? '' : ''
   ]);
 }
 function taskIdentityKeys(task){
@@ -862,7 +885,8 @@ function tasksFromCreativeRowsForCurrentUser(){
           .filter(item => normalizeText(item.id || item.name || item.email));
         assignees.forEach((assignee, assigneeIndex) => {
           const user = findUserByAnyIdentity([assignee.id, assignee.name, assignee.email]) || {};
-          if(!currentUserMatchesSelectedAssignee(user.id || user.uid || assignee.id, userName(user) || assignee.name, user.email || assignee.email)) return;
+          const selectedMatchesCurrent = currentUserMatchesSelectedAssignee(assignee.id, assignee.name, assignee.email) || currentUserMatchesSelectedAssignee(user.id || user.uid || assignee.id, userName(user) || assignee.name, user.email || assignee.email);
+          if(!selectedMatchesCurrent) return;
           const resolvedUserId = user.id || user.uid || assignee.id || assignee.name;
           const resolvedUserName = userName(user) || assignee.name || assignee.id || 'غير محدد';
           const sectionName = canonicalContentLabel(task.contentSectionName || task.contentSection || task.contentType || '');
@@ -923,7 +947,26 @@ function getVisibleTasksForCurrentUser(){
   const direct = tasksFromCreativeRowsForCurrentUser();
   const exact = allTasks.filter(task => currentUserMatchesTaskExact(task));
   const byDepartment = allTasks.filter(task => currentUserMatchesTaskDepartment(task));
-  return mergeCampaignTasks([...direct, ...exact, ...byDepartment]);
+  let visible = mergeCampaignTasks([...direct, ...exact, ...byDepartment]);
+
+  // آخر حماية: بعض الحملات القديمة أو المحفوظة قبل الإصلاح تكون محتفظة بالاختيارات داخل creatives.tasks
+  // بدون departmentTasks صالحة. نبني منها تاسكات للعرض فقط ونطابقها على اليوزر الحالي.
+  if(!visible.length){
+    const rebuilt = campaigns.flatMap(campaign => fallbackTasksFromCampaign(campaign)).map(task => normalizeCampaignTask(task, campaignForTask(task) || {}));
+    visible = mergeCampaignTasks(rebuilt.filter(task => currentUserMatchesTaskExact(task) || currentUserMatchesTaskDepartment(task)));
+  }
+
+  // لو اليوزر مختار فعلاً داخل التاسكات لكن بيانات حسابه عند الدخول ناقصة، نستخدم أسماء/إيميلات/IDs
+  // السجل الحالي وكل سجلات users المرتبطة به كمفاتيح بحث داخل JSON التاسك.
+  if(!visible.length){
+    const keys = currentUserIdentityKeys().filter(key => key && key.length > 2);
+    visible = mergeCampaignTasks(allTasks.filter(task => {
+      const blob = identityClean(JSON.stringify(task));
+      return keys.some(key => blob.includes(key));
+    }));
+  }
+
+  return visible;
 }
 function findTaskById(taskId, campaignId = ''){
   const campaignList = campaignId ? campaigns.filter(item => item.id === campaignId) : campaigns;
@@ -2075,6 +2118,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const rawEmail = normalizeText(document.getElementById('loginEmail')?.value);
     const email = rawEmail.toLowerCase();
+    sessionStorage.setItem('mzj_login_email', email);
     const password = document.getElementById('loginPassword')?.value || '';
 
     if(!rawEmail || !password){
@@ -2157,7 +2201,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showMessage('loginMessage', 'تعذر تسجيل الدخول. راجع إعدادات Firebase أو صلاحيات users.');
     }
   });
-  document.getElementById('logoutBtn')?.addEventListener('click', () => { sessionStorage.removeItem('mzj_logged_in'); openLogin(); });
+  document.getElementById('logoutBtn')?.addEventListener('click', () => { sessionStorage.removeItem('mzj_logged_in'); sessionStorage.removeItem('mzj_login_email'); openLogin(); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
   document.addEventListener('keydown', event => { if(event.key === 'Escape') closeTaskModal(); });
   document.getElementById('calendarPrevMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()-1); renderCalendarPage(); });
