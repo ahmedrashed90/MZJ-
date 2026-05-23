@@ -798,3 +798,57 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 @media(max-width:1100px){.compact-creative-row .creative-task-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.compact-creative-row .car-checkbox-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.compact-creative-row .creative-row-head{grid-template-columns:1fr!important}.structure-assign-row{grid-template-columns:1fr!important}}
 
 .structure-task-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.structure-task-grid>div{border:1px solid var(--border);border-radius:12px;background:#fff;padding:9px}.structure-task-grid span{display:block;color:var(--muted);font-weight:900;font-size:12px}.structure-task-grid strong{display:block;color:var(--text);font-size:14px;line-height:1.5}
+
+/* v32: two-line creative picker and full campaign structure review */
+.compact-creative-row .creative-two-line-head{
+  display:grid!important;
+  grid-template-columns:1fr 30px!important;
+  gap:8px!important;
+  align-items:start!important;
+}
+.compact-creative-row .creative-two-line-head .creative-checkbox-picker{
+  width:100%!important;
+}
+.compact-creative-row .creative-two-line-head .creative-checkbox-grid{
+  display:grid!important;
+  grid-template-columns:repeat(6,minmax(92px,1fr))!important;
+  grid-auto-rows:28px!important;
+  max-height:64px!important;
+  overflow:auto!important;
+  gap:5px!important;
+  padding:5px!important;
+}
+.compact-creative-row .creative-two-line-head .creative-check-card{
+  justify-content:space-between!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:28px!important;
+  padding:4px 7px!important;
+  font-size:10px!important;
+  border-radius:999px!important;
+}
+.compact-creative-row .product-under-creatives{
+  display:grid!important;
+  width:100%!important;
+  margin-top:2px!important;
+}
+.compact-creative-row .product-under-creatives input{
+  width:100%!important;
+  height:31px!important;
+  border-radius:10px!important;
+  font-size:11px!important;
+}
+.structure-workbook-view{margin-top:12px;display:grid;gap:12px}
+.structure-workbook-view h4,.structure-execution-preview h4{margin:0;color:var(--primary);font-size:15px;font-weight:900}
+.structure-sheet-block{border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.78);overflow:hidden}
+.structure-sheet-title{padding:8px 10px;font-weight:900;color:var(--primary);background:#f4e5db;border-bottom:1px solid var(--border)}
+.structure-table-wrap.full-sheet{max-height:360px;overflow:auto;border:0;border-radius:0;background:#fff}
+.full-structure-table{min-width:980px;table-layout:auto}
+.full-structure-table td{min-width:120px;max-width:280px;white-space:pre-wrap;word-break:break-word;cursor:pointer;position:relative;background:#fff}
+.full-structure-table tr:first-child td,.full-structure-table tr:nth-child(2) td{font-weight:900;color:var(--primary);background:#fff8f2}
+.full-structure-table td.marked-cell{background:#fff3a8!important;box-shadow:inset 0 0 0 2px #e6c748}
+.cell-note-badge{margin-top:4px;background:#ffe570;border:1px solid #d7b93a;border-radius:8px;padding:3px 5px;font-size:10px;font-weight:900;color:#4a341a}
+.structure-execution-preview{margin-top:12px;display:grid;gap:8px}
+@media(max-width:1400px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(4,minmax(90px,1fr))!important}}
+@media(max-width:900px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(2,minmax(90px,1fr))!important}}
