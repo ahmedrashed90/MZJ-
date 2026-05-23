@@ -437,11 +437,22 @@ function stockGroupDocId(groupKey){
 function stockMetaForKey(groupKey){ return stockCarMeta[stockGroupDocId(groupKey)] || {}; }
 function loadStockMeta(){
   if(!mainDb) return;
-  safeCollection(window.MZJ_STOCK_META_COLLECTION).onSnapshot(snapshot => {
-    stockCarMeta = {};
-    snapshot.docs.forEach(doc => { stockCarMeta[doc.id] = { id: doc.id, ...(doc.data() || {}) }; });
+  let collectionMeta = {};
+  let settingsMeta = {};
+  const applyMeta = () => {
+    stockCarMeta = { ...settingsMeta, ...collectionMeta };
     renderStock();
-  }, error => console.error('Stock meta load error', error));
+  };
+  safeCollection(window.MZJ_STOCK_META_COLLECTION).onSnapshot(snapshot => {
+    collectionMeta = {};
+    snapshot.docs.forEach(doc => { collectionMeta[doc.id] = { id: doc.id, ...(doc.data() || {}) }; });
+    applyMeta();
+  }, error => { console.error('Stock meta collection load error', error); applyMeta(); });
+  safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).onSnapshot(doc => {
+    const data = doc.exists ? (doc.data() || {}) : {};
+    settingsMeta = data.stockCarStatusMap || data.stockCarMeta || {};
+    applyMeta();
+  }, error => { console.error('Stock meta settings load error', error); applyMeta(); });
 }
 function campaignTaskCars(){
   const used = [];
@@ -477,6 +488,7 @@ async function saveStockShotStatus(groupKey, value){
   const docId = stockGroupDocId(groupKey);
   const previous = stockCarMeta[docId] || {};
   const current = getCurrentUserIdentity();
+  const nowIso = new Date().toISOString();
   const payload = {
     groupKey: normalizeText(groupKey),
     docKey: docId,
@@ -484,26 +496,41 @@ async function saveStockShotStatus(groupKey, value){
     statement: normalizeText(group?.statement || ''),
     exteriorColor: normalizeText(group?.exteriorColor || ''),
     interiorColor: normalizeText(group?.interiorColor || ''),
-    carIds: Array.isArray(group?.carIds) ? group.carIds : [],
+    carIds: Array.isArray(group?.carIds) ? group.carIds.map(normalizeText).filter(Boolean) : [],
     count: Number(group?.count || 0),
     photographed: value === 'yes',
     photographedValue: value === 'yes' ? 'yes' : 'no',
     updatedAt: serverTime(),
+    updatedAtIso: nowIso,
     updatedBy: current.email || current.name || current.uid || ''
   };
-  stockCarMeta[docId] = { ...previous, ...payload, updatedAt: new Date().toISOString() };
+  stockCarMeta[docId] = { ...previous, ...payload, updatedAt: nowIso };
   renderStock();
   try{
     await safeCollection(window.MZJ_STOCK_META_COLLECTION).doc(docId).set(payload, { merge: true });
     showToast('تم حفظ حالة التصوير.');
-  }catch(error){
-    stockCarMeta[docId] = previous;
-    renderStock();
-    console.error('Stock shot save error', error);
-    const msg = String(error?.message || error || '');
-    if(msg.toLowerCase().includes('permission')) showToast('تعذر حفظ حالة التصوير. ارفع ملف firestore.rules المرفق للسماح بمسار marketing_stock_cars.');
-    else showToast('تعذر حفظ حالة التصوير.');
-    throw error;
+    return;
+  }catch(primaryError){
+    console.error('Stock shot save primary error', primaryError);
+    try{
+      const fallbackPayload = { ...payload, updatedAt: nowIso, savedIn: 'system_settings_fallback' };
+      await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({
+        stockCarStatusMap: { [docId]: fallbackPayload },
+        updatedAt: serverTime(),
+        updatedBy: current.email || current.name || current.uid || ''
+      }, { merge: true });
+      stockCarMeta[docId] = { ...previous, ...fallbackPayload };
+      renderStock();
+      showToast('تم حفظ حالة التصوير.');
+      return;
+    }catch(fallbackError){
+      stockCarMeta[docId] = previous;
+      renderStock();
+      console.error('Stock shot save fallback error', fallbackError);
+      const msg = String(fallbackError?.message || primaryError?.message || fallbackError || primaryError || '');
+      if(msg.toLowerCase().includes('permission')) showToast('تعذر حفظ حالة التصوير: صلاحيات Firebase لا تسمح بالحفظ. ارفع firestore.rules المرفق.');
+      else showToast('تعذر حفظ حالة التصوير: ' + msg.slice(0, 120));
+    }
   }
 }
 
@@ -1923,7 +1950,7 @@ function bindDepartments(){
   document.addEventListener('change', async event => {
     const select = event.target.closest('[data-stock-shot]');
     if(!select) return;
-    try{ await saveStockShotStatus(select.dataset.stockShot, select.value); }catch(error){ console.error(error); showToast('تعذر حفظ حالة التصوير.'); }
+    await saveStockShotStatus(select.dataset.stockShot, select.value);
   });
   document.addEventListener('click', event => {
     const btn = event.target.closest('[data-stock-usage]');
