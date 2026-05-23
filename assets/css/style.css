@@ -1021,3 +1021,40 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .structure-table.compact-excel-section td{
   border-color:rgba(91,48,38,.14)!important;
 }
+
+/* v43 - canonical colored section headers, no repeated title rows inside the sheet */
+.structure-section-display-title{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-height:42px!important;
+  padding:10px 14px!important;
+  border:1px solid rgba(91,48,38,.14)!important;
+  border-bottom:0!important;
+  border-radius:18px 18px 0 0!important;
+  font-weight:950!important;
+  font-size:14px!important;
+  text-align:center!important;
+  cursor:default!important;
+  user-select:none!important;
+}
+.structure-section-display-title.logic-title{
+  background:#d9ead3!important;
+  color:#1f3b1f!important;
+}
+.structure-section-display-title.writing-title{
+  background:#dbeafe!important;
+  color:#17345f!important;
+}
+.structure-section-display-title.execution-title{
+  background:#fdecc8!important;
+  color:#5a3513!important;
+}
+.structure-sheet-block.compact-structure-section .structure-table-wrap.full-sheet{
+  border-radius:0 0 18px 18px!important;
+}
+.structure-table.compact-excel-section td.protected-structure-title,
+.full-structure-table.excel-like-structure td.protected-structure-title{
+  pointer-events:none!important;
+  user-select:none!important;
+}

@@ -1729,6 +1729,18 @@ function structureRowValues(row){
 function isStructureSectionTitleText(value){
   return isProtectedStructureTitleText(value);
 }
+function structureSectionTypeFromRows(rows){
+  const text = (rows || []).map(row => structureRowValues(row).join(' ')).join(' ').toLowerCase();
+  if(text.includes('writing rules') || text.includes('قواعد كتابة المحتوى')) return 'writing';
+  if(text.includes('content execution direction') || text.includes('آلية تنفيذ المحتوى')) return 'execution';
+  if(text.includes('campaign logic')) return 'logic';
+  return 'logic';
+}
+function structureSectionTitleByType(type){
+  if(type === 'writing') return 'Writing Rules - قواعد كتابة المحتوى';
+  if(type === 'execution') return 'Content Execution Direction - آلية تنفيذ المحتوى';
+  return 'Campaign Logic';
+}
 function splitStructureRowsIntoSections(rows){
   const source = Array.isArray(rows) ? rows : [];
   if(!source.length) return [];
@@ -1741,8 +1753,10 @@ function splitStructureRowsIntoSections(rows){
   return starts.map((start, i) => {
     const end = (starts[i + 1] || source.length) - 1;
     const sectionRows = source.slice(start, end + 1);
-    const title = structureRowValues(sectionRows[0]).find(Boolean) || 'محتوى الحملة';
-    return { start, end, rows: sectionRows, title };
+    const type = structureSectionTypeFromRows(sectionRows);
+    const title = structureSectionTitleByType(type);
+    const rowsWithoutRepeatedTitle = sectionRows.filter(row => !(row || []).some(cell => cell && !cell.skip && isStructureSectionTitleText(cell.value || '')));
+    return { start, end, rows: rowsWithoutRepeatedTitle.length ? rowsWithoutRepeatedTitle : sectionRows, title, type };
   }).filter(section => section.rows.some(row => structureRowValues(row).length));
 }
 function compactStructureSectionRows(sectionRows){
@@ -1806,7 +1820,7 @@ function renderStructureWorkbookTable(task, structure, admin){
           const cellActions = admin && !protectedTitle ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${sourceRow}" data-col-index="${sourceCol}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : 'title="عنوان ثابت غير قابل للتعديل"';
           return `<td class="${escapeHtml(cls)}"${attrs} ${cellActions}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
         }).join('')}</tr>`).join('');
-        return `<div class="structure-sheet-block compact-structure-section"><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure compact-excel-section"><tbody>${body}</tbody></table></div></div>`;
+        return `<div class="structure-sheet-block compact-structure-section structure-section-${escapeHtml(section.type || 'logic')}"><div class="structure-section-display-title ${escapeHtml(section.type || 'logic')}-title">${escapeHtml(section.title || 'Campaign Logic')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure compact-excel-section"><tbody>${body}</tbody></table></div></div>`;
       }).join('');
     }
     const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
