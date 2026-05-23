@@ -924,3 +924,15 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
   font-size:16px!important;
   text-align:right!important;
 }
+
+/* v40 - clean campaign structure sheet display */
+.structure-workbook-view{gap:12px;}
+.structure-sheet-block.compact-structure-section{margin:10px 0 18px; border:1px solid rgba(91,48,38,.20); border-radius:14px; overflow:hidden; background:rgba(255,255,255,.70);}
+.structure-sheet-block.compact-structure-section .structure-sheet-title{background:#2b1611;color:#fff;font-weight:900;text-align:center;padding:10px 12px;font-size:14px;}
+.structure-table.compact-excel-section{table-layout:auto; width:100%; min-width:720px;}
+.structure-table.compact-excel-section td{min-width:120px; padding:10px 12px; vertical-align:middle; line-height:1.8; font-weight:700;}
+.structure-table.compact-excel-section .excel-section-title{background:#111!important;color:#fff!important;font-weight:900;text-align:center;font-size:14px;}
+.structure-table.compact-excel-section .excel-section-side{background:#bfbfbf!important;color:#111!important;font-weight:900;text-align:center;}
+.structure-table.compact-excel-section .excel-vertical-side{writing-mode:horizontal-tb; font-size:14px;}
+.structure-table.compact-excel-section td:empty{display:none;}
+.structure-table-wrap.full-sheet{max-height:520px;}

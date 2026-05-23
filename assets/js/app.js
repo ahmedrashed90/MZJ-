@@ -1639,7 +1639,18 @@ function buildMergedStructureSheet(sheet, sheetName){
         colSpan = Math.max(1, visibleCols.length);
       }
       const value = sheetCellText(sheet, r, c);
-      cells.push({ value, rowSpan, colSpan, sourceRow:r, sourceCol:c, className: structureCellClass(value, rowSpan, colSpan) });
+      cells.push({
+        value,
+        rowSpan,
+        colSpan,
+        sourceRow:r,
+        sourceCol:c,
+        mergeStartRow: merge ? merge.s.r : r,
+        mergeEndRow: merge ? merge.e.r : r,
+        mergeStartCol: merge ? merge.s.c : c,
+        mergeEndCol: merge ? merge.e.c : c,
+        className: structureCellClass(value, rowSpan, colSpan)
+      });
     });
     return cells;
   });
@@ -1698,6 +1709,62 @@ function structureCellKey(sheetName, rowIndex, colIndex){
 }
 
 
+function structureRowValues(row){
+  return (row || []).filter(cell => cell && !cell.skip).map(cell => normalizeText(cell.value || '')).filter(Boolean);
+}
+function isStructureSectionTitleText(value){
+  const clean = normalizeText(value).toLowerCase();
+  return clean.includes('content execution direction') || clean.includes('آلية تنفيذ المحتوى') || clean.includes('writing rules') || clean.includes('قواعد كتابة المحتوى');
+}
+function splitStructureRowsIntoSections(rows){
+  const source = Array.isArray(rows) ? rows : [];
+  if(!source.length) return [];
+  const starts = [0];
+  source.forEach((row, index) => {
+    if(index === 0) return;
+    const hasTitle = (row || []).some(cell => cell && !cell.skip && isStructureSectionTitleText(cell.value || ''));
+    if(hasTitle) starts.push(index);
+  });
+  return starts.map((start, i) => {
+    const end = (starts[i + 1] || source.length) - 1;
+    const sectionRows = source.slice(start, end + 1);
+    const title = structureRowValues(sectionRows[0]).find(Boolean) || 'محتوى الحملة';
+    return { start, end, rows: sectionRows, title };
+  }).filter(section => section.rows.some(row => structureRowValues(row).length));
+}
+function compactStructureSectionRows(sectionRows){
+  const rows = Array.isArray(sectionRows) ? sectionRows : [];
+  const included = new Set();
+  rows.forEach((row) => {
+    (row || []).forEach(cell => {
+      if(!cell || cell.skip) return;
+      const val = normalizeText(cell.value || '');
+      if(!val) return;
+      included.add(Number(cell.sourceCol));
+      const isWideTitle = isStructureSectionTitleText(val) || /حمله|حملة/i.test(val);
+      if(!isWideTitle && Number(cell.mergeEndCol) > Number(cell.mergeStartCol)){
+        for(let c = Number(cell.mergeStartCol); c <= Number(cell.mergeEndCol); c += 1) included.add(c);
+      }
+    });
+  });
+  if(!included.size){
+    rows.forEach(row => (row || []).forEach(cell => { if(cell && !cell.skip) included.add(Number(cell.sourceCol)); }));
+  }
+  const includedCols = [...included].filter(n => Number.isFinite(n)).sort((a,b)=>a-b);
+  const colSet = new Set(includedCols);
+  const visibleSourceRows = rows.map(row => (row || [])[0]?.sourceRow).filter(n => Number.isFinite(Number(n))).map(Number);
+  const rowSet = new Set(visibleSourceRows);
+  return rows.map(row => (row || []).filter(cell => cell && !cell.skip && colSet.has(Number(cell.sourceCol))).map(cell => {
+    const startCol = Number(cell.mergeStartCol ?? cell.sourceCol);
+    const endCol = Number(cell.mergeEndCol ?? cell.sourceCol);
+    const startRow = Number(cell.mergeStartRow ?? cell.sourceRow);
+    const endRow = Number(cell.mergeEndRow ?? cell.sourceRow);
+    const colSpan = Math.max(1, includedCols.filter(c => c >= startCol && c <= endCol).length || 1);
+    const rowSpan = Math.max(1, visibleSourceRows.filter(r => r >= startRow && r <= endRow).length || 1);
+    const value = normalizeText(cell.value || '');
+    return { ...cell, value, colSpan, rowSpan, className: structureCellClass(value, rowSpan, colSpan) };
+  })).filter(row => row.some(cell => normalizeText(cell.value || '')) || row.length > 1);
+}
 function renderStructureWorkbookTable(task, structure, admin){
   const sheets = structureSheetTables(structure);
   if(!sheets.length){
@@ -1709,38 +1776,33 @@ function renderStructureWorkbookTable(task, structure, admin){
   const notes = Array.isArray(structure.notes) ? structure.notes : [];
   const marks = Array.isArray(structure.marks) ? structure.marks : [];
   return `<div class="structure-workbook-view"><h4>محتوى الحملة - اضغط مرة على أي خلية للتعليم بالأصفر، واضغط مرتين لإضافة ملاحظة</h4>${sheets.map(sheet => {
-    let body = '';
     if(sheet.mode === 'merged'){
-      const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
-      body = rows.map((row, rowIndex) => {
-        const cells = (row || []).map((cell, colIndex) => {
-          if(cell?.skip) return '';
-          const sourceRow = Number(cell?.sourceRow ?? rowIndex);
-          const sourceCol = Number(cell?.sourceCol ?? colIndex);
+      const sections = splitStructureRowsIntoSections(Array.isArray(sheet.rows) ? sheet.rows : []);
+      return sections.map(section => {
+        const sectionRows = compactStructureSectionRows(section.rows);
+        const body = sectionRows.map((row) => `<tr>${row.map(cell => {
+          const val = normalizeText(cell.value || '');
+          const sourceRow = Number(cell.sourceRow);
+          const sourceCol = Number(cell.sourceCol);
           const key = structureCellKey(sheet.sheetName, sourceRow, sourceCol);
-          const cellNotes = notes.filter(n => n.cellKey === key);
-          const hasMark = marks.includes(key) || cellNotes.length > 0;
-          const val = normalizeText(cell?.value || '');
-          const attrs = `${cell?.rowSpan > 1 ? ` rowspan="${Number(cell.rowSpan)}"` : ''}${cell?.colSpan > 1 ? ` colspan="${Number(cell.colSpan)}"` : ''}`;
-          const cls = `${cell?.className || ''} ${hasMark ? 'marked-cell' : ''}`.trim();
+          const hasMark = marks.some(m => m.key === key);
+          const cellNotes = notes.filter(n => n.key === key);
+          const attrs = `${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}`;
+          const cls = [cell.className || '', hasMark ? 'marked-cell' : '', cellNotes.length ? 'has-cell-note' : ''].filter(Boolean).join(' ');
           return `<td class="${escapeHtml(cls)}"${attrs} ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${sourceRow}" data-col-index="${sourceCol}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
-        }).join('');
-        return `<tr>${cells}</tr>`;
-      }).join('');
-    }else{
-      const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
-      const maxCols = Math.max(Number(sheet.maxCols) || 0, ...rows.map(row => row.length));
-      body = rows.map((row, rowIndex) => {
-        const cells = Array.from({length:maxCols}).map((_, colIndex) => {
-          const key = structureCellKey(sheet.sheetName, rowIndex, colIndex);
-          const cellNotes = notes.filter(n => n.cellKey === key);
-          const hasMark = marks.includes(key) || cellNotes.length > 0;
-          const val = normalizeText(row[colIndex] || '');
-          return `<td class="${hasMark ? 'marked-cell' : ''}" ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${rowIndex}" data-col-index="${colIndex}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
-        }).join('');
-        return `<tr>${cells}</tr>`;
+        }).join('')}</tr>`).join('');
+        return `<div class="structure-sheet-block compact-structure-section"><div class="structure-sheet-title">${escapeHtml(section.title || 'محتوى الحملة')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure compact-excel-section"><tbody>${body}</tbody></table></div></div>`;
       }).join('');
     }
+    const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
+    const maxCols = Math.max(Number(sheet.maxCols) || 0, ...rows.map(row => row.length));
+    const body = rows.map((row, rowIndex) => `<tr>${Array.from({length:maxCols}).map((_, colIndex) => {
+      const val = normalizeText(row[colIndex] || '');
+      const key = structureCellKey(sheet.sheetName, rowIndex, colIndex);
+      const hasMark = marks.some(m => m.key === key);
+      const cellNotes = notes.filter(n => n.key === key);
+      return `<td class="${hasMark ? 'marked-cell' : ''}" ${admin ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${rowIndex}" data-col-index="${colIndex}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : ''}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
+    }).join('')}</tr>`).join('');
     return `<div class="structure-sheet-block"><div class="structure-sheet-title">${escapeHtml(sheet.sheetName || 'محتوى الحملة')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure"><tbody>${body}</tbody></table></div></div>`;
   }).join('')}</div>`;
 }
