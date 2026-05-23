@@ -413,3 +413,42 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .platform-check-card{display:flex!important;align-items:center;gap:5px;font-size:9.5px;font-weight:800;color:var(--text);padding:3px 4px;border:1px solid rgba(92,58,47,.12);border-radius:8px;background:rgba(255,255,255,.72)}
 .platform-check-card input{width:12px;height:12px;accent-color:var(--primary)}
 @media(max-width:1180px){.publish-platform-checks{grid-template-columns:1fr;max-height:58px}.platform-check-card{font-size:9px;padding:2px 3px}}
+
+/* v14 theme background visibility and global dashboard background */
+body.has-user-dashboard-theme #dashboard{
+  background-image:linear-gradient(180deg,rgba(255,250,246,.20),rgba(255,250,246,.12)),var(--user-dashboard-bg-image)!important;
+  background-size:cover!important;
+  background-position:center!important;
+  background-attachment:fixed!important;
+  border-radius:28px!important;
+  padding:24px!important;
+  min-height:calc(100vh - 130px)!important;
+}
+body.has-user-dashboard-theme #dashboard .user-content-dashboard,
+body.has-user-dashboard-theme #dashboard .admin-dashboard-board,
+body.has-user-dashboard-theme #dashboard .card{
+  background:rgba(255,253,252,.34)!important;
+  backdrop-filter:blur(8px)!important;
+  -webkit-backdrop-filter:blur(8px)!important;
+  border-color:rgba(255,255,255,.50)!important;
+}
+body.has-user-dashboard-theme #dashboard .content-type-col{
+  background:rgba(255,253,252,.44)!important;
+  backdrop-filter:blur(7px)!important;
+  -webkit-backdrop-filter:blur(7px)!important;
+}
+body.has-user-dashboard-theme #dashboard .content-task-card{
+  background:rgba(255,255,255,.62)!important;
+  backdrop-filter:blur(6px)!important;
+  -webkit-backdrop-filter:blur(6px)!important;
+}
+.user-theme-panel{
+  order:-1;
+  justify-content:flex-start!important;
+  margin:0 0 18px!important;
+}
+.user-theme-upload,
+#clearUserThemeBtn{
+  background:rgba(255,255,255,.76)!important;
+  backdrop-filter:blur(6px)!important;
+}

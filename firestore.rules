@@ -327,7 +327,7 @@ service cloud.firestore {
 
     function systemSettingsKeysValid() {
       return request.resource.data.keys().hasOnly([
-        "systemName", "fontFamily", "direction", "colors", "themeImageName", "themeImageData", "createdAt", "createdBy", "updatedAt", "updatedBy"
+        "systemName", "fontFamily", "direction", "colors", "themeImageName", "themeImageData", "backgroundImageData", "backgroundImageUrl", "createdAt", "createdBy", "updatedAt", "updatedBy"
       ]);
     }
 

@@ -72,6 +72,7 @@ function renderRoute(){
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === route));
   document.querySelectorAll('.nav a').forEach(link => link.classList.toggle('active', link.dataset.route === route));
   sidebar?.classList.remove('open'); overlay?.classList.remove('show');
+  if(route === 'create-campaign') ensureDefaultCampaignDate();
   if(route === 'dashboard') renderAdminDashboard();
   if(route === 'calendar') renderCalendarPage();
   if(route === 'tasks') renderTasksPage();
@@ -1247,16 +1248,10 @@ function buildCampaignTaskDocs(campaignId, payload){
   return docs;
 }
 async function createCampaignTasks(campaignId, payload){
-  const docs = buildCampaignTaskDocs(campaignId, payload);
-  if(!docs.length) return 0;
-  const batch = mainDb.batch();
-  docs.slice(0, 450).forEach(item => {
-    const ref = safeCollection(window.MZJ_CAMPAIGN_TASKS_COLLECTION).doc();
-    batch.set(ref, item);
-  });
-  await batch.commit();
-  return docs.length;
+  // تم إلغاء استخدام مسار campaign_tasks. المصدر الوحيد للتاسكات هو marketing_campaigns.departmentTasks.
+  return 0;
 }
+
 
 function buildDepartmentTasks(campaignId, payload){
   return buildCampaignTaskDocs(campaignId, payload).map((task, index) => {
@@ -1356,6 +1351,15 @@ function dateRange(start, end){
   return days;
 }
 function formatInputDate(date){ return date.toISOString().slice(0,10); }
+function todayInputDate(){
+  const d = new Date();
+  const offset = d.getTimezoneOffset();
+  return new Date(d.getTime() - offset * 60000).toISOString().slice(0,10);
+}
+function ensureDefaultCampaignDate(){
+  const input = document.querySelector('#campaignRequestForm input[name="campaign_date"]');
+  if(input && !input.value) input.value = todayInputDate();
+}
 function dayName(date){ return date.toLocaleDateString('ar-SA', { weekday: 'long' }); }
 function getPublishSelections(){
   const selections = {};
@@ -1468,7 +1472,6 @@ async function saveCampaignToFirebase(){
     const docRef = await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).add(payload);
     const departmentTasks = buildDepartmentTasks(docRef.id, payload);
     await docRef.update({ id: docRef.id, departmentTasks, taskCount: departmentTasks.length, updatedAt: serverTime() });
-    try{ await createCampaignTasks(docRef.id, payload); }catch(taskError){ console.warn('campaign_tasks optional write skipped', taskError); }
     showToast('تم حفظ الحملة على Firebase.');
     renderAdminDashboard(); renderTasksPage();
     window.location.hash = '#campaigns';
@@ -1940,29 +1943,67 @@ function extractThemeColorsFromImage(dataUrl){
   });
 }
 
+function readThemeImageFile(file){
+  return new Promise((resolve, reject) => {
+    if(!file) return reject(new Error('لا توجد صورة.'));
+    if(!String(file.type || '').startsWith('image/')) return reject(new Error('الملف المختار ليس صورة.'));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('تعذر قراءة الصورة.'));
+    reader.onload = () => {
+      const original = String(reader.result || '');
+      const img = new Image();
+      img.onload = () => {
+        try{
+          const maxSide = 1800;
+          const scale = Math.min(1, maxSide / Math.max(img.width || maxSide, img.height || maxSide));
+          const w = Math.max(1, Math.round((img.width || maxSide) * scale));
+          const h = Math.max(1, Math.round((img.height || maxSide) * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          let dataUrl = canvas.toDataURL('image/jpeg', 0.86);
+          if(dataUrl.length > 900000) dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+          if(dataUrl.length > 900000){
+            const maxSmall = 1200;
+            const smallScale = Math.min(1, maxSmall / Math.max(img.width || maxSmall, img.height || maxSmall));
+            canvas.width = Math.max(1, Math.round((img.width || maxSmall) * smallScale));
+            canvas.height = Math.max(1, Math.round((img.height || maxSmall) * smallScale));
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            dataUrl = canvas.toDataURL('image/jpeg', 0.68);
+          }
+          resolve(dataUrl || original);
+        }catch(err){ resolve(original); }
+      };
+      img.onerror = () => resolve(original);
+      img.src = original;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function getCurrentUserDoc(){
   const current = getCurrentUser();
   return users.find(user => user.id === current.id || user.uid === current.uid || (user.email && identityClean(user.email) === identityClean(current.email))) || current;
 }
+function themeBackgroundImage(settings){
+  if(!settings) return '';
+  return settings.backgroundImageData || settings.backgroundImageUrl || settings.themeImageData || '';
+}
 function applyEffectiveTheme(){
   const user = getCurrentUserDoc();
-  const sessionUser = getCurrentUser();
+  const sessionUser = getCurrentUser() || {};
   const userTheme = (user && user.themeSettings) || sessionUser.themeSettings || null;
+  const effectiveTheme = userTheme || systemSettings || {};
+  applyThemeSettings(effectiveTheme);
+
   const dashboard = document.getElementById('dashboard');
-  if(userTheme){
-    applyThemeSettings(userTheme);
-    const image = userTheme.backgroundImageData || userTheme.backgroundImageUrl || userTheme.themeImageData || '';
-    if(image){
-      document.documentElement.style.setProperty('--user-dashboard-bg-image', `url("${image}")`);
-      document.body.classList.add('has-user-dashboard-theme');
-      dashboard?.classList.add('has-custom-bg');
-    }else{
-      document.body.classList.remove('has-user-dashboard-theme');
-      dashboard?.classList.remove('has-custom-bg');
-      document.documentElement.style.removeProperty('--user-dashboard-bg-image');
-    }
+  const image = themeBackgroundImage(effectiveTheme);
+  if(image){
+    document.documentElement.style.setProperty('--user-dashboard-bg-image', `url("${String(image).replace(/"/g, '\\"')}")`);
+    document.body.classList.add('has-user-dashboard-theme');
+    dashboard?.classList.add('has-custom-bg');
   }else{
-    applyThemeSettings(systemSettings || {});
     document.body.classList.remove('has-user-dashboard-theme');
     dashboard?.classList.remove('has-custom-bg');
     document.documentElement.style.removeProperty('--user-dashboard-bg-image');
@@ -1973,19 +2014,22 @@ async function saveUserThemeFromFile(file){
   const current = getCurrentUserDoc();
   const userId = current.id || getCurrentUser().id;
   if(!userId){ showToast('تعذر تحديد اليوزر لحفظ الثيم.'); return; }
-  const reader = new FileReader();
-  reader.onload = async () => {
-    const imageData = reader.result;
+  try{
+    const imageData = await readThemeImageFile(file);
     const colors = await extractThemeColorsFromImage(imageData);
     const themeSettings = { themeImageName:file.name, themeImageData:imageData, backgroundImageData:imageData, backgroundImageUrl:'', colors, updatedAt:new Date().toISOString() };
     await safeCollection(window.MZJ_USERS_COLLECTION).doc(userId).update({ themeSettings, updatedAt: serverTime() });
     const sessionUser = { ...getCurrentUser(), themeSettings };
     setCurrentUser(sessionUser);
+    const found = users.find(u => u.id === userId || u.uid === userId);
+    if(found) found.themeSettings = themeSettings;
     applyEffectiveTheme();
     renderAdminDashboard();
     showToast('تم تطبيق ثيمك الخاص.');
-  };
-  reader.readAsDataURL(file);
+  }catch(error){
+    console.error('User theme save error', error);
+    showToast(error.message || 'تعذر حفظ صورة الثيم.');
+  }
 }
 async function clearCurrentUserTheme(){
   const current = getCurrentUserDoc();
@@ -2075,18 +2119,20 @@ function bindSettings(){
   });
   document.getElementById('themeImageInput')?.addEventListener('change', async event => {
     const file = event.target.files?.[0]; if(!file || !mainDb) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const imageData = String(reader.result || '');
+    try{
+      const imageData = await readThemeImageFile(file);
       const colors = await extractThemeColorsFromImage(imageData);
-      await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({ themeImageName:file.name, themeImageData:imageData, colors, updatedAt: serverTime() }, { merge:true });
-      systemSettings = { ...systemSettings, themeImageName:file.name, themeImageData:imageData, colors };
-      applyThemeSettings({ colors });
+      const payload = { themeImageName:file.name, themeImageData:imageData, backgroundImageData:imageData, backgroundImageUrl:'', colors, updatedAt: serverTime() };
+      await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set(payload, { merge:true });
+      systemSettings = { ...systemSettings, ...payload };
+      applyEffectiveTheme();
       fillSettingsForm();
-      showMessage('themeSettingsMessage','تم استخراج ألوان الثيم من الصورة وحفظها.');
-      renderThemeImagePreview({ themeImageName:file.name, themeImageData:imageData });
-    };
-    reader.readAsDataURL(file);
+      showMessage('themeSettingsMessage','تم حفظ صورة الثيم وتطبيقها كخلفية للداش بورد.');
+      renderThemeImagePreview(payload);
+    }catch(error){
+      console.error('System theme image error', error);
+      showMessage('themeSettingsMessage', error.message || 'تعذر حفظ صورة الثيم.');
+    }
   });
   document.getElementById('refreshUsersPermissionsBtn')?.addEventListener('click', renderUsersPermissions);
   document.addEventListener('click', async event => {
