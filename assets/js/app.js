@@ -149,7 +149,7 @@ function syncCurrentSessionUserFromUsers(){
   }
 }
 function isCurrentUserAdmin(){ const user = getCurrentUser(); return user.role === 'admin' || user.role === 'super_admin' || isAdminEmailUser(user); }
-function isAdminEmailUser(user){ return ['hossamzayan10@gmail.com','an9036663@gmail.com','mr.ahmed_rashed@outlook.sa'].includes(String(user?.email || '').toLowerCase()); }
+function isAdminEmailUser(user){ return ['hossamzayan10@gmail.com','mr.ahmed_rashed@outlook.sa'].includes(String(user?.email || '').toLowerCase()); }
 function pageAllowed(route){
   if(isCurrentUserAdmin()) return true;
   return allowedPagesForCurrentUser().includes(route);
@@ -1064,7 +1064,7 @@ function currentUserMatchesTaskExact(task){
   const current = findCurrentUserRecord() || getCurrentUser();
   const authUser = mainAuth?.currentUser || null;
   const currentName = identityClean(current.name || current.displayName || current.username || authUser?.displayName || '');
-  const currentEmail = identityClean(current.email || current.emailLower || authUser?.email || '');
+  const currentEmail = identityClean(current.email || current.emailLower || sessionStorage.getItem('mzj_login_email') || authUser?.email || '');
   const currentId = identityClean(current.id || current.uid || authUser?.uid || '');
   const explicitValues = [
     task.assignedToName, task.assigneeName, task.userName,
@@ -1240,7 +1240,8 @@ function tasksFromCreativeRowsForCurrentUser(){
   return generated;
 }
 function getVisibleTasksForCurrentUser(){
-  // داشبورد اليوزر يقرأ حصراً من marketing_campaigns.departmentTasks
+  // المصدر الوحيد لداشبورد اليوزر: marketing_campaigns > departmentTasks
+  // لا يتم قراءة campaign_tasks هنا نهائياً.
   const allTasks = campaigns.flatMap(campaign => {
     const campaignTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks : [];
     return campaignTasks.map(task => normalizeCampaignTask(task, campaign));
@@ -1376,7 +1377,13 @@ async function uploadTaskFileToDrive(file, task){
   let result = {};
   try{ result = text ? JSON.parse(text) : {}; }
   catch(_){ throw new Error('تعذر رفع الملف: رد السيرفر ليس JSON. تأكد من إعداد Zoho API.'); }
-  if(!res.ok || result.success === false || result.ok === false) throw new Error(result.error || result.message || 'فشل رفع الملف على Zoho Drive.');
+  if(!res.ok || result.success === false || result.ok === false){
+    const rawErr = result.error || result.message || result.title || result.raw || '';
+    if(String(rawErr).includes('Authorization') || String(rawErr).includes('401') || res.status === 401 || res.status === 502){
+      throw new Error('فشل رفع الملف على Zoho Drive: اعتماد Zoho غير صالح أو Web App غير مصرح. راجع إعدادات Zoho/التوكن.');
+    }
+    throw new Error(rawErr || 'فشل رفع الملف على Zoho Drive.');
+  }
   const fileId = result.fileId || result.id || result.resource_id || result.data?.id || result.data?.fileId || '';
   return {
     fileId,
@@ -2837,6 +2844,7 @@ function bootstrapData(){
     safeCollection(window.MZJ_CONTENT_SECTIONS_COLLECTION).orderBy('name').onSnapshot(snapshot => {
       contentSections = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, slug: data.slug || '', types: Array.isArray(data.types) ? data.types.map(normalizeText).filter(Boolean) : [], userIds: Array.isArray(data.userIds) ? data.userIds : [], users: Array.isArray(data.users) ? data.users : [], members: Array.isArray(data.members) ? data.members : [], memberUids: Array.isArray(data.memberUids) ? data.memberUids : [], memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails : [], memberNames: Array.isArray(data.memberNames) ? data.memberNames : [], departmentId: data.departmentId || data.department || data.contentDepartmentId || '' }; });
       renderContentSections();
+      if(getRoute() === 'dashboard') renderAdminDashboard();
     }, error => console.error(error));
   }
   loadCampaigns();

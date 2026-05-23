@@ -46,11 +46,19 @@ export default async function handler(req, res) {
 
   try {
     const payload = await readJsonPayload(req);
+    if (process.env.MZJ_ZOHO_AUTH_TOKEN && !payload.authToken) {
+      payload.authToken = process.env.MZJ_ZOHO_AUTH_TOKEN;
+      payload.token = process.env.MZJ_ZOHO_AUTH_TOKEN;
+    }
     if (!payload || !payload.fileName || !(payload.base64 || payload.fileData)) {
       return res.status(400).json({ ok: false, success: false, error: 'Missing file payload. Send JSON with fileName and base64/fileData.' });
     }
 
-    const webAppUrl = process.env.MZJ_DRIVE_UPLOAD_WEB_APP_URL || DEFAULT_WEB_APP_URL;
+    let webAppUrl = process.env.MZJ_DRIVE_UPLOAD_WEB_APP_URL || DEFAULT_WEB_APP_URL;
+    if (process.env.MZJ_ZOHO_AUTH_TOKEN && !webAppUrl.includes('token=')) {
+      const joiner = webAppUrl.includes('?') ? '&' : '?';
+      webAppUrl += joiner + 'token=' + encodeURIComponent(process.env.MZJ_ZOHO_AUTH_TOKEN);
+    }
     const upstream = await fetch(webAppUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
