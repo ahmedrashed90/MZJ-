@@ -1401,16 +1401,22 @@ function openTaskModal(task){
   const modal = document.getElementById('taskModal');
   const content = document.getElementById('taskModalContent');
   if(!modal || !content || !task) return;
+  const structure = taskStructure(task);
+  const hasStructure = isCampaignStructureTask(task) || !!structure.fileData || structureSheetTables(structure).length > 0;
   activeTaskModalMeta = { taskId: task.id, campaignId: task.campaignId || '' };
   content.innerHTML = buildTaskDetailHtml(task);
+  modal.classList.toggle('structure-fullscreen-modal', hasStructure);
   modal.classList.add('show');
   modal.setAttribute('aria-hidden','false');
   document.body.classList.add('modal-open');
   setTimeout(() => ensureStructureSheetLoaded(task.id), 50);
 }
 function closeTaskModal(){
-  document.getElementById('taskModal')?.classList.remove('show');
-  document.getElementById('taskModal')?.setAttribute('aria-hidden','true');
+  closeStructureCellNoteEditors();
+  const modal = document.getElementById('taskModal');
+  modal?.classList.remove('show');
+  modal?.classList.remove('structure-fullscreen-modal');
+  modal?.setAttribute('aria-hidden','true');
   document.body.classList.remove('modal-open');
   activeTaskModalMeta = null;
 }
@@ -1775,7 +1781,7 @@ function renderStructureWorkbookTable(task, structure, admin){
   }
   const notes = Array.isArray(structure.notes) ? structure.notes : [];
   const marks = Array.isArray(structure.marks) ? structure.marks : [];
-  return `<div class="structure-workbook-view"><h4>محتوى الحملة - اضغط مرة على أي خلية للتعليم بالأصفر، واضغط مرتين لإضافة ملاحظة</h4>${sheets.map(sheet => {
+  return `<div class="structure-workbook-view"><div class="structure-help-bar"><strong>محتوى الحملة</strong><span>ضغطة واحدة للتعليم، دبل كليك يفتح مربع كتابة ملاحظة</span></div>${sheets.map(sheet => {
     if(sheet.mode === 'merged'){
       const sections = splitStructureRowsIntoSections(Array.isArray(sheet.rows) ? sheet.rows : []);
       return sections.map(section => {
@@ -2159,7 +2165,7 @@ function structureCellValueFromStoredTable(structure, sheetName, rowIndex, colIn
 }
 
 function closeStructureCellNoteEditors(){
-  document.querySelectorAll('.inline-structure-note-editor').forEach(editor => editor.remove());
+  document.querySelectorAll('.inline-structure-note-editor,.structure-note-backdrop').forEach(editor => editor.remove());
 }
 
 function openStructureCellNoteEditor(cellEl){
@@ -2171,10 +2177,18 @@ function openStructureCellNoteEditor(cellEl){
   const colIndex = cellEl.dataset.colIndex || 0;
   const task = findTaskById(taskId);
   const cellValue = task ? structureCellValueFromStoredTable(taskStructure(task), sheetName, rowIndex, colIndex) : '';
+  const backdrop = document.createElement('div');
+  backdrop.className = 'structure-note-backdrop';
+  backdrop.dataset.closeStructureNote = '1';
   const editor = document.createElement('div');
-  editor.className = 'inline-structure-note-editor';
-  editor.innerHTML = `<div class="inline-note-title">ملاحظة على الخلية${cellValue ? `: ${escapeHtml(cellValue)}` : ''}</div><textarea class="inline-note-input" rows="3" placeholder="اكتب الملاحظة هنا"></textarea><div class="inline-note-actions"><button type="button" class="mini-btn structure-note-save">حفظ</button><button type="button" class="mini-btn structure-note-cancel">إلغاء</button></div>`;
-  cellEl.appendChild(editor);
+  editor.className = 'inline-structure-note-editor structure-note-box';
+  editor.dataset.structureCell = taskId;
+  editor.dataset.sheetName = sheetName;
+  editor.dataset.rowIndex = rowIndex;
+  editor.dataset.colIndex = colIndex;
+  editor.innerHTML = `<div class="inline-note-title"><b>اكتب ملاحظة على الخلية</b>${cellValue ? `<small>${escapeHtml(cellValue)}</small>` : ''}</div><textarea class="inline-note-input" rows="5" placeholder="اكتب الملاحظة هنا"></textarea><div class="inline-note-actions"><button type="button" class="mini-btn structure-note-save">حفظ الملاحظة</button><button type="button" class="mini-btn structure-note-cancel">إلغاء</button></div>`;
+  document.body.appendChild(backdrop);
+  document.body.appendChild(editor);
   const input = editor.querySelector('textarea');
   setTimeout(() => input?.focus(), 20);
 }
@@ -3615,12 +3629,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if(noteSave){
       event.preventDefault();
       event.stopPropagation();
+      const editor = noteSave.closest('.inline-structure-note-editor');
       const cell = noteSave.closest('[data-structure-cell]');
-      const note = cell?.querySelector('.inline-note-input')?.value || '';
-      if(cell) await saveStructureCellNote(cell.dataset.structureCell, cell.dataset.sheetName || '', cell.dataset.rowIndex || 0, cell.dataset.colIndex || 0, note);
+      const source = editor || cell;
+      const note = source?.querySelector('.inline-note-input')?.value || '';
+      if(source) await saveStructureCellNote(source.dataset.structureCell, source.dataset.sheetName || '', source.dataset.rowIndex || 0, source.dataset.colIndex || 0, note);
+      closeStructureCellNoteEditors();
       return;
     }
-    const noteCancel = event.target.closest('.structure-note-cancel');
+    const noteCancel = event.target.closest('.structure-note-cancel,[data-close-structure-note]');
     if(noteCancel){ event.preventDefault(); event.stopPropagation(); closeStructureCellNoteEditors(); return; }
     if(event.target.closest('.inline-structure-note-editor')){ event.stopPropagation(); return; }
     const structureCell = event.target.closest('[data-structure-cell]');
