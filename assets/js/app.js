@@ -1460,7 +1460,9 @@ function daysUntilRequiredText(requiredDate){
 function isCampaignStructureTask(task){
   const section = identityClean(task.contentSectionName || task.assignedDepartmentName || '');
   const type = identityClean(task.taskType || '');
-  return (section.includes('المحتوي') || section.includes('المحتوى') || section.includes('content')) && type.includes(identityClean('كتابة محتوى حملة'));
+  const isContentSection = section.includes('المحتوي') || section.includes('المحتوى') || section.includes('content');
+  const isCampaignWriting = type.includes(identityClean('كتابة محتوى حملة')) || type.includes(identityClean('كتابة محتوى')) || type.includes('content writing');
+  return isContentSection && isCampaignWriting;
 }
 function taskStructure(task){
   return (task && typeof task.structure === 'object' && task.structure) ? task.structure : {};
@@ -1548,9 +1550,10 @@ function renderStructureSection(task){
   const notesHtml = notes.length ? `<div class="structure-notes-list"><h4>ملاحظات الأدمن</h4>${notes.map(note => `<div class="structure-note"><b>${escapeHtml(note.field || 'ملاحظة')}</b><p>${escapeHtml(note.note || '')}</p></div>`).join('')}</div>` : '';
   return `<div class="modal-section structure-section"><div class="modal-section-title"><h3>هيكل الحملة</h3><span>${escapeHtml(structureStatusLabel(status))}</span></div>
     <div class="structure-actions">
-      ${canUpload ? `<button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">إرفاق الهيكل</button>` : ''}
+      <a class="btn btn-light" href="assets/templates/%D9%87%D9%8A%D9%83%D9%84%20%D8%A7%D9%84%D8%AD%D9%85%D9%84%D9%87.xlsx" download="هيكل الحمله.xlsx">تحميل قالب الهيكل</a>
+      ${canUpload ? `<button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">إرفاق هيكل الحملة Excel</button>` : ''}
       ${structure.fileName ? `<span class="structure-file-name">${escapeHtml(structure.fileName)}</span>` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
-      ${structure.fileData ? `<a class="btn btn-light" href="${escapeHtml(structure.fileData)}" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل الملف</a>` : ''}
+      ${structure.fileData ? `<a class="btn btn-light" href="${escapeHtml(structure.fileData)}" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل الملف المرفوع</a>` : ''}
     </div>
     ${notesHtml}
     ${admin && rows.length ? `<div class="structure-admin-tools"><button class="btn btn-light" type="button" data-structure-request-changes="${escapeHtml(task.id)}">طلب تعديل</button><button class="btn btn-primary" type="button" data-structure-approve="${escapeHtml(task.id)}">اعتماد الهيكل</button><button class="btn btn-light" type="button" data-structure-note="${escapeHtml(task.id)}">إضافة ملاحظة</button></div>` : ''}
@@ -1580,8 +1583,9 @@ function buildTaskDetailHtml(task){
         <div><span>نهاية الحملة</span><strong>${formatDateShort(endDate)}</strong></div>
       </div>
     </div>
-    <div class="modal-section task-brief-row">
+    <div class="modal-section task-brief-row task-brief-row-four">
       <div class="brief-box"><span>نوع المحتوى</span><strong>${escapeHtml(taskContentType(task) || '—')}</strong></div>
+      <div class="brief-box"><span>نوع التاسك</span><strong>${escapeHtml(task.taskType || '—')}</strong></div>
       <div class="brief-box"><span>الكريتيف</span><strong>${escapeHtml(task.creative || task.product || '—')}</strong></div>
       <div class="brief-box"><span>السيارة المختارة</span><strong>${escapeHtml(task.selectedCar || task.carName || '')}</strong></div>
     </div>
