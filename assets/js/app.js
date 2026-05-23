@@ -1765,9 +1765,16 @@ function splitStructureRowsIntoSections(rows){
     // Keep campaign-code rows and side label rows exactly as sheet data, but remove only the title strip row.
     const rowsWithoutTitleStrip = sectionRows.filter((row, rowIndexWithinSection) => {
       const actualIndex = prefixStart + rowIndexWithinSection;
+      const values = structureRowValues(row);
+      const onlySectionTitle = values.length && values.every(value => isStructureSectionTitleText(value));
+      if(onlySectionTitle) return false;
       if(actualIndex !== titleIndex) return true;
       return !(row || []).some(cell => cell && !cell.skip && isStructureSectionTitleText(cell.value || ''));
-    });
+    }).map(row => (row || []).filter(cell => {
+      if(!cell || cell.skip) return true;
+      const value = normalizeText(cell.value || '');
+      return !isStructureSectionTitleText(value);
+    })).filter(row => row.some(cell => cell && !cell.skip && normalizeText(cell.value || '')));
     return { start:prefixStart, end:nextTitleIndex - 1, rows:rowsWithoutTitleStrip.length ? rowsWithoutTitleStrip : sectionRows, title, type };
   }).filter(section => section.rows.some(row => structureRowValues(row).length));
 
