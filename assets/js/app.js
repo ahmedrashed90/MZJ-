@@ -1426,11 +1426,13 @@ async function updateTaskOnFirebase(taskId, patch, options = {}){
   if(campaignIndex >= 0){
     const campaign = campaigns[campaignIndex];
     let updatedTask = null;
-    const nextTasks = (campaign.departmentTasks || []).map(task => {
+    const nextTasksRaw = (campaign.departmentTasks || []).map(task => {
       if((task.id || '') !== taskId) return task;
       updatedTask = { ...task, ...patch, updatedAt: new Date().toISOString() };
       return updatedTask;
     });
+    const nextTasks = nextTasksRaw.map(sanitizeTaskForFirestore);
+    if(updatedTask) updatedTask = sanitizeTaskForFirestore(updatedTask);
     try{
       await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update({ departmentTasks: nextTasks, updatedAt: serverTime() });
       // تحديث النسخة المحلية فوراً عشان الـ Popup يعرض التغيير بدون انتظار onSnapshot.
@@ -1473,6 +1475,30 @@ function isCampaignStructureTask(task){
 }
 function taskStructure(task){
   return (task && typeof task.structure === 'object' && task.structure) ? task.structure : {};
+}
+function safeJsonParse(value, fallback){
+  if(!value || typeof value !== 'string') return fallback;
+  try{ return JSON.parse(value); }catch(error){ return fallback; }
+}
+function structureSheetTables(structure){
+  if(Array.isArray(structure?.sheetTables)) return structure.sheetTables;
+  return safeJsonParse(structure?.sheetTablesJson, []);
+}
+function encodeStructureWorkbookForFirestore(structure){
+  const next = { ...(structure || {}) };
+  if(Array.isArray(next.sheetTables)){
+    next.sheetTablesJson = JSON.stringify(next.sheetTables);
+    delete next.sheetTables;
+  }
+  return next;
+}
+function sanitizeTaskForFirestore(task){
+  if(!task || typeof task !== 'object') return task;
+  const next = { ...task };
+  if(next.structure && typeof next.structure === 'object'){
+    next.structure = encodeStructureWorkbookForFirestore(next.structure);
+  }
+  return next;
 }
 function structureStatusLabel(status){
   const map = {
@@ -1563,7 +1589,7 @@ function structureCellKey(sheetName, rowIndex, colIndex){
 }
 
 function renderStructureWorkbookTable(task, structure, admin){
-  const sheets = Array.isArray(structure.sheetTables) ? structure.sheetTables : [];
+  const sheets = structureSheetTables(structure);
   if(!sheets.length){
     if(structure.fileData){
       return `<div class="structure-workbook-view missing-sheet-preview"><h4>الشيت كامل</h4><div class="empty-state mini-empty">الملف مرفوع، لكن عرض الشيت لم يكتمل بعد.</div><button class="btn btn-light" type="button" data-reload-structure-sheet="${escapeHtml(task.id)}">عرض الشيت كامل من الملف المرفوع</button></div>`;
@@ -1883,7 +1909,7 @@ async function uploadStructureFileForTask(file, taskId){
   const sheetTables = parsed.sheetTables || [];
   const prev = taskStructure(task);
   const status = prev.status === 'needs_changes' ? 'revised' : 'pending_review';
-  await updateTaskOnFirebase(task.id, { structure: { ...prev, status, fileName: file.name, fileSize: file.size, fileData, parsedRows, sheetTables, uploadedAt: new Date().toISOString(), uploadedBy: getCurrentUser().email || getCurrentUser().name || '' } });
+  await updateTaskOnFirebase(task.id, { structure: encodeStructureWorkbookForFirestore({ ...prev, status, fileName: file.name, fileSize: file.size, fileData, parsedRows, sheetTables, uploadedAt: new Date().toISOString(), uploadedBy: getCurrentUser().email || getCurrentUser().name || '' }) });
   showToast(sheetTables.length ? 'تم رفع الهيكل وعرض الشيت كامل.' : 'تم رفع الهيكل، اضغط عرض الشيت كامل من الملف المرفوع.');
 }
 async function reloadStructureSheetFromStoredFile(taskId, silent = false){
@@ -1897,7 +1923,7 @@ async function reloadStructureSheetFromStoredFile(taskId, silent = false){
     const sheetTables = parsed.sheetTables || [];
     const parsedRows = parsed.parsedRows || [];
     if(!sheetTables.length){ if(!silent) showToast('تعذر قراءة الشيت من الملف المرفوع.'); return; }
-    await updateTaskOnFirebase(task.id, { structure: { ...structure, sheetTables, parsedRows, reparsedAt: new Date().toISOString() } });
+    await updateTaskOnFirebase(task.id, { structure: encodeStructureWorkbookForFirestore({ ...structure, sheetTables, parsedRows, reparsedAt: new Date().toISOString() }) });
     if(!silent) showToast('تم عرض الشيت كامل.');
   }catch(error){
     console.error('Structure reparse error', error);
@@ -1907,7 +1933,7 @@ async function reloadStructureSheetFromStoredFile(taskId, silent = false){
 function ensureStructureSheetLoaded(taskId){
   const task = findTaskById(taskId);
   const structure = taskStructure(task);
-  if(structure.fileData && !(Array.isArray(structure.sheetTables) && structure.sheetTables.length)){
+  if(structure.fileData && !structureSheetTables(structure).length){
     reloadStructureSheetFromStoredFile(taskId, true);
   }
 }
@@ -1925,7 +1951,7 @@ async function addStructureCellNote(taskId, sheetName, rowIndex, colIndex){
   const task = findTaskById(taskId);
   if(!task) return;
   const structure = taskStructure(task);
-  const sheets = Array.isArray(structure.sheetTables) ? structure.sheetTables : [];
+  const sheets = structureSheetTables(structure);
   const sheet = sheets.find(item => item.sheetName === sheetName);
   const cellValue = normalizeText(sheet?.rows?.[Number(rowIndex)]?.[Number(colIndex)] || '');
   const note = prompt(`اكتب ملاحظة على الخلية${cellValue ? `: ${cellValue}` : ''}`);
