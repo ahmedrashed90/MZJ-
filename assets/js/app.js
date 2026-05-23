@@ -246,6 +246,13 @@ function campaignTypeOptions(selectedValue = ''){
 function platformOptions(selectedValue = ''){
   return '<option value="">اختر المنصة</option>' + platforms.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
 }
+function platformCheckboxList(selected = []){
+  const chosen = Array.isArray(selected) ? selected.map(String) : String(selected || '').split('،').map(x => x.trim()).filter(Boolean);
+  return platforms.length ? platforms.map(item => `<label class="platform-check-card"><input type="checkbox" class="js-platform-checkbox" value="${escapeHtml(item.name)}"${chosen.includes(item.name) ? ' checked' : ''}> <span>${escapeHtml(item.name)}</span></label>`).join('') : '<div class="multi-empty">لا توجد منصات</div>';
+}
+function selectedPlatformValues(card){
+  return [...(card?.querySelectorAll('.js-platform-checkbox:checked') || [])].map(input => input.value).filter(Boolean);
+}
 function funnelOptions(selectedValue = ''){
   return '<option value="">اختر Funnel</option>' + funnels.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
 }
@@ -288,7 +295,11 @@ function refreshDynamicSelects(){
   });
   document.querySelectorAll('.js-campaign-code-select').forEach(select => { const value = select.value; select.innerHTML = campaignCodeOptions(value); });
   document.querySelectorAll('.js-campaign-type-select').forEach(select => { const value = select.value; select.innerHTML = campaignTypeOptions(value); });
-  document.querySelectorAll('.js-platform-select').forEach(select => { const value = select.value; select.innerHTML = platformOptions(value); });
+  document.querySelectorAll('.publish-platform-checks').forEach(box => {
+    const card = box.closest('.publish-day-card');
+    const selected = selectedPlatformValues(card);
+    box.innerHTML = platformCheckboxList(selected);
+  });
   document.querySelectorAll('.js-funnel-select').forEach(select => { const value = select.value; select.innerHTML = funnelOptions(value); });
   document.querySelectorAll('.js-product-select').forEach(select => { const value = select.value; select.innerHTML = productOptions(value); });
   document.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
@@ -463,6 +474,7 @@ function taskBlockHtml(index){
   return `<div class="creative-task-block" data-task-index="${index}">
     <label><span>اختار المحتوى</span><select class="js-task-section-select">${contentSectionOptions()}</select></label>
     <label><span>نوع التاسك</span><select class="js-task-type"><option value="">اختر نوع التاسك</option></select></label>
+    <label class="task-qty-field"><span>العدد</span><input class="js-task-quantity" type="number" min="1" value="1" aria-label="عدد التاسكات" /></label>
     <label><span>اليوزر</span><select class="js-task-user" multiple>${multiTaskUserOptions('', [])}</select></label>
   </div>`;
 }
@@ -882,16 +894,16 @@ function buildTaskDetailHtml(task){
       </div>
     </div>
     <div class="modal-section task-required-section">
+      <div class="modal-section-title"><h3>نوع المحتوى</h3></div>
+      <p>${escapeHtml(taskContentType(task))}</p>
+    </div>
+    <div class="modal-section task-required-section">
       <div class="modal-section-title"><h3>الكريتيف</h3></div>
       <p>${escapeHtml(task.creative || task.product || '—')}</p>
     </div>
     <div class="modal-section task-required-section">
       <div class="modal-section-title"><h3>السيارة المختارة</h3></div>
       <p>${escapeHtml(task.selectedCar || task.carName || '')}</p>
-    </div>
-    <div class="modal-section task-required-section">
-      <div class="modal-section-title"><h3>نوع المحتوى</h3></div>
-      <p>${escapeHtml(taskContentType(task))}</p>
     </div>
     <div class="modal-section">
       <div class="modal-section-title"><h3>إجراءات التكليف</h3><span>${progress}%</span></div>
@@ -938,44 +950,49 @@ function buildCampaignTaskDocs(campaignId, payload){
         const resolvedUserId = user.id || user.uid || userId;
         const dep = departmentForUser(resolvedUserId || userId);
         const role = normalizeDepartmentRole(dep.name || user.department || task.contentSectionName);
-        docs.push({
-          campaignId,
-          campaignName: payload.campaignName || payload.name || '',
-          campaignCode: payload.campaignCode || '',
-          creative: creativeRow.creative || '',
-          product: creativeRow.product || '',
-          selectedCars: creativeRow.selectedCars || [],
-          selectedCar: (creativeRow.selectedCars || []).map(car => car.label).join('، '),
-          contentSectionId: task.contentSectionId || '',
-          contentSectionName: task.contentSectionName || '',
-          taskType: task.taskType || '',
-          userId: resolvedUserId || userId,
-          userUid: user.uid || resolvedUserId || userId,
-          userName: userName(user) || userId,
-          userEmail: user.email || '',
-          assigneeUid: user.uid || resolvedUserId || userId,
-          assigneeName: userName(user) || userId,
-          assigneeEmail: user.email || '',
-          assignedToUid: user.uid || resolvedUserId || userId,
-          assignedToId: resolvedUserId || userId,
-          assignedToName: userName(user) || userId,
-          assignedToEmail: user.email || '',
-          displayName: user.displayName || '',
-          username: user.username || '',
-          assignedToSearch: uniqueList([userId, resolvedUserId, user.id, user.uid, user.email, user.emailLower, userName(user), user.name, user.displayName, user.username].filter(Boolean)),
-          assignedDepartmentId: dep.id || '',
-          assignedDepartmentName: dep.name || user.department || '',
-          departmentRole: role,
-          received: false,
-          progress: 0,
-          steps: taskStepTemplate(role),
-          status: 'pending',
-          creativeIndex,
-          taskIndex,
-          createdAt: serverTime(),
-          updatedAt: serverTime(),
-          source: 'mzj-marketing-spa'
-        });
+        const qty = Math.max(1, Math.min(50, Number(task.quantity || 1)));
+        for(let copyIndex = 0; copyIndex < qty; copyIndex += 1){
+          docs.push({
+            campaignId,
+            campaignName: payload.campaignName || payload.name || '',
+            campaignCode: payload.campaignCode || '',
+            creative: creativeRow.creative || '',
+            product: creativeRow.product || '',
+            selectedCars: creativeRow.selectedCars || [],
+            selectedCar: (creativeRow.selectedCars || []).map(car => car.label).join('، '),
+            contentSectionId: task.contentSectionId || '',
+            contentSectionName: task.contentSectionName || '',
+            taskType: task.taskType || '',
+            taskQuantity: qty,
+            taskCopyIndex: copyIndex + 1,
+            userId: resolvedUserId || userId,
+            userUid: user.uid || resolvedUserId || userId,
+            userName: userName(user) || userId,
+            userEmail: user.email || '',
+            assigneeUid: user.uid || resolvedUserId || userId,
+            assigneeName: userName(user) || userId,
+            assigneeEmail: user.email || '',
+            assignedToUid: user.uid || resolvedUserId || userId,
+            assignedToId: resolvedUserId || userId,
+            assignedToName: userName(user) || userId,
+            assignedToEmail: user.email || '',
+            displayName: user.displayName || '',
+            username: user.username || '',
+            assignedToSearch: uniqueList([userId, resolvedUserId, user.id, user.uid, user.email, user.emailLower, userName(user), user.name, user.displayName, user.username].filter(Boolean)),
+            assignedDepartmentId: dep.id || '',
+            assignedDepartmentName: dep.name || user.department || '',
+            departmentRole: role,
+            received: false,
+            progress: 0,
+            steps: taskStepTemplate(role),
+            status: 'pending',
+            creativeIndex,
+            taskIndex: `${taskIndex}-${copyIndex + 1}`,
+            createdAt: serverTime(),
+            updatedAt: serverTime(),
+            source: 'mzj-marketing-spa'
+          });
+        }
       });
     });
   });
@@ -1026,10 +1043,12 @@ function collectCampaignRows(){
       const section = block.querySelector('.js-task-section-select');
       const task = block.querySelector('.js-task-type');
       const userControl = block.querySelector('.js-task-user');
+      const qty = Math.max(1, Math.min(50, Number(block.querySelector('.js-task-quantity')?.value || 1)));
       return {
         contentSectionId: section?.value || '',
         contentSectionName: readSelectText(section),
         taskType: task?.value || '',
+        quantity: qty,
         userIds: selectedOptionValues(userControl),
         userNames: selectedOptionTexts(userControl)
       };
@@ -1097,7 +1116,8 @@ function getPublishSelections(){
     if(!date) return;
     selections[date] = {
       output: card.querySelector('.js-publish-output-select')?.value || '',
-      platform: card.querySelector('.js-platform-select')?.value || '',
+      platforms: selectedPlatformValues(card),
+      platform: selectedPlatformValues(card).join('، '),
       time: '',
       note: normalizeText(card.querySelector('.js-publish-note')?.value)
     };
@@ -1136,7 +1156,7 @@ function renderPublishAgenda(){
       <div class="publish-day-number">${date.getDate()}</div>
       <div class="publish-day-date">${iso}</div>
       <select class="js-publish-output-select compact-select" aria-label="اختيار النشر">${makePublishOutputOptions(outputs, currentOutput)}</select>
-      <select class="js-platform-select compact-select" aria-label="المنصة">${platformOptions(prev.platform || '')}</select>
+      <div class="publish-platform-checks" aria-label="المنصات">${platformCheckboxList(prev.platforms || prev.platform || [])}</div>
       <input type="text" class="js-publish-note compact-input" value="${escapeHtml(prev.note || '')}" placeholder="ملاحظة" aria-label="ملاحظات" />
     </article>`);
   });
@@ -1148,8 +1168,9 @@ function collectPublishRows(){
     date: card.dataset.date || '',
     day: card.querySelector('.publish-day-head strong')?.textContent || '',
     output: card.querySelector('.js-publish-output-select')?.value || '',
-    platform: card.querySelector('.js-platform-select')?.value || '',
-    time: card.querySelector('.js-publish-time')?.value || '',
+    platforms: selectedPlatformValues(card),
+    platform: selectedPlatformValues(card).join('، '),
+    time: '',
     note: normalizeText(card.querySelector('.js-publish-note')?.value)
   })).filter(item => item.date || item.output || item.platform || item.note);
 }
@@ -1279,7 +1300,8 @@ function bindCampaignBuilder(){
     }
     if(event.target.matches('.js-task-user,.js-car-checkbox')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
-    if(event.target.matches('.js-creative-select,.js-task-type')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
+    if(event.target.matches('.js-platform-checkbox')){ return; }
+    if(event.target.matches('.js-creative-select,.js-task-type,.js-task-quantity')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
   document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<div class="empty-state">ابدأ بإضافة صف كريتيف للحملة.</div>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; generateCampaignCode(); });
   document.getElementById('saveCampaignDraft')?.addEventListener('click', saveCampaignToFirebase);

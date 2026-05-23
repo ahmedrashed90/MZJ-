@@ -406,3 +406,10 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .content-type-board{grid-template-columns:repeat(4,minmax(0,1fr))!important}
 @media(max-width:1350px){.content-type-board{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:780px){.content-type-board{grid-template-columns:1fr!important}.main{margin-right:0!important}}
+
+/* v6 task quantity and publish platforms */
+.creative-task-block .task-qty-field input{width:100%;height:32px;border:1px solid var(--border);border-radius:9px;background:#fffaf6;color:var(--text);outline:none;padding:5px 7px;font-size:10.5px;font-weight:800;text-align:center}
+.publish-platform-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;max-height:74px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:5px;background:#fffaf6}
+.platform-check-card{display:flex!important;align-items:center;gap:5px;font-size:9.5px;font-weight:800;color:var(--text);padding:3px 4px;border:1px solid rgba(92,58,47,.12);border-radius:8px;background:rgba(255,255,255,.72)}
+.platform-check-card input{width:12px;height:12px;accent-color:var(--primary)}
+@media(max-width:1180px){.publish-platform-checks{grid-template-columns:1fr;max-height:58px}.platform-check-card{font-size:9px;padding:2px 3px}}
