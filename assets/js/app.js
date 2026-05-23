@@ -477,6 +477,7 @@ function taskBlockHtml(index){
     <label><span>اختار المحتوى</span><select class="js-task-section-select">${contentSectionOptions()}</select></label>
     <label><span>نوع التاسك</span><select class="js-task-type"><option value="">اختر نوع التاسك</option></select></label>
     <label class="task-qty-field"><span>العدد</span><input class="js-task-quantity" type="number" min="1" value="1" aria-label="عدد التاسكات" /></label>
+    <label><span>التاريخ المطلوب</span><input class="js-task-required-date" type="date" aria-label="التاريخ المطلوب" /></label>
     <label><span>اليوزر</span><select class="js-task-user" multiple>${multiTaskUserOptions('', [])}</select></label>
   </div>`;
 }
@@ -1078,9 +1079,11 @@ function closeTaskModal(){
   document.getElementById('taskModal')?.classList.remove('show');
   document.getElementById('taskModal')?.setAttribute('aria-hidden','true');
   document.body.classList.remove('modal-open');
+  activeTaskModalMeta = null;
 }
 function refreshOpenTaskModal(){
-  if(!activeTaskModalMeta) return;
+  const modal = document.getElementById('taskModal');
+  if(!activeTaskModalMeta || !modal?.classList.contains('show')) return;
   const task = findTaskById(activeTaskModalMeta.taskId, activeTaskModalMeta.campaignId);
   if(task) openTaskModal(task);
 }
@@ -1108,6 +1111,19 @@ async function updateTaskOnFirebase(taskId, patch){
     showToast('تعذر تحديث التاسك على Firebase.');
   }
 }
+
+function daysUntilRequiredText(requiredDate){
+  const date = parseDateForDelay(requiredDate);
+  if(!date) return 'غير محدد';
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  date.setHours(0,0,0,0);
+  const diff = Math.ceil((date - today) / (24 * 60 * 60 * 1000));
+  if(diff > 0) return `متبقي ${diff} يوم`;
+  if(diff === 0) return 'اليوم هو التاريخ المطلوب';
+  return `متأخر ${Math.abs(diff)} يوم`;
+}
+
 function buildTaskDetailHtml(task){
   const campaign = campaignForTask(task);
   const admin = isCurrentUserAdmin();
@@ -1115,9 +1131,11 @@ function buildTaskDetailHtml(task){
   const progress = taskProgress(task);
   const campaignDate = campaign.campaign_date || campaign.campaignDate || campaign.createdAt || '';
   const endDate = campaign.publishSchedule?.slice?.(-1)?.[0]?.date || campaign.campaignEndDate || campaign.endDate || '';
+  const requiredDate = taskRequiredDate(task, campaign);
+  const requiredLeft = daysUntilRequiredText(requiredDate);
   return `<div class="task-modal-head"><div><span>التاسك والمطلوب</span><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div><button type="button" class="mini-btn" data-close-task-modal>إغلاق</button></div>
-    <div class="modal-section"><div class="modal-section-title"><h3>بيانات الحملة</h3></div>
-      <div class="task-info-grid">
+    <div class="modal-section campaign-data-line"><div class="modal-section-title"><h3>بيانات الحملة</h3></div>
+      <div class="task-info-grid compact-one-line">
         <div><span>التاريخ</span><strong>${formatDateShort(campaignDate)}</strong></div>
         <div><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || task.campaignCode || '—')}</strong></div>
         <div><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '—')}</strong></div>
@@ -1132,10 +1150,11 @@ function buildTaskDetailHtml(task){
       <div class="brief-box"><span>الكريتيف</span><strong>${escapeHtml(task.creative || task.product || '—')}</strong></div>
       <div class="brief-box"><span>السيارة المختارة</span><strong>${escapeHtml(task.selectedCar || task.carName || '')}</strong></div>
     </div>
-    <div class="modal-section">
+    <div class="modal-section task-actions-section">
       <div class="modal-section-title"><h3>إجراءات التكليف</h3><span>${progress}%</span></div>
+      <div class="task-deadline-row"><span>التاريخ المطلوب: <b>${formatDateShort(requiredDate)}</b></span><strong>${escapeHtml(requiredLeft)}</strong></div>
       <div class="task-mini-meta"><span>القسم: <b>${escapeHtml(taskDepartmentLabel(task))}</b></span><span>اليوزر: <b>${taskOwnerName(task)}</b></span><span>الحالة: <b>${receivedLabel(task)}</b></span></div>
-      <button type="button" class="btn btn-light receive-action ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تأكيد الاستلام'}</button>
+      <div class="receive-action-row"><button type="button" class="btn btn-light receive-action ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تأكيد الاستلام'}</button></div>
       <div class="modal-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
       <div class="modal-steps-grid">${steps.map((step, index) => `<button type="button" class="workflow-step ${step.done ? 'done' : ''}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''}><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن فقط</em>' : ''}</button>`).join('')}</div>
     </div>
@@ -1217,6 +1236,8 @@ function buildCampaignTaskDocs(campaignId, payload){
             contentSectionId: task.contentSectionId || '',
             contentSectionName: sectionName,
             taskType: task.taskType || '',
+            requiredDate: task.requiredDate || '',
+            dueDate: task.requiredDate || '',
             taskQuantity: taskUnits.length,
             taskCopyIndex: unit.copyIndex + 1,
             userId: resolvedUserId,
@@ -1299,6 +1320,7 @@ function collectCampaignRows(){
         contentSectionName: readSelectText(section),
         taskType: task?.value || '',
         quantity: qty,
+        requiredDate: block.querySelector('.js-task-required-date')?.value || '',
         userIds: selectedOptionValues(userControl),
         userNames: selectedOptionTexts(userControl)
       };
@@ -1559,7 +1581,7 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-task-user,.js-car-checkbox')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.matches('.js-platform-checkbox')){ return; }
-    if(event.target.matches('.js-creative-select,.js-task-type,.js-task-quantity')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
+    if(event.target.matches('.js-creative-select,.js-task-type,.js-task-quantity,.js-task-required-date')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
   document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<div class="empty-state">ابدأ بإضافة صف كريتيف للحملة.</div>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; generateCampaignCode(); });
   document.getElementById('saveCampaignDraft')?.addEventListener('click', saveCampaignToFirebase);
@@ -2019,7 +2041,7 @@ function openCampaignEditModal(campaignId){
   content.innerHTML = `<div class="task-modal-head"><div><span>تعديل الحملة</span><h2>${escapeHtml(campaign.campaignName || campaign.name || 'حملة')}</h2><p>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</p></div><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div>
     <div class="modal-section"><div class="modal-section-title"><h3>بيانات الحملة</h3></div><div class="campaign-edit-grid"><label class="field"><span>اسم الحملة</span><input id="editCampaignName" value="${escapeHtml(campaign.campaignName || campaign.name || '')}"></label><label class="field"><span>نوع الحملة</span><input id="editCampaignType" value="${escapeHtml(campaign.campaignType || campaign.campaign_type || '')}"></label><label class="field"><span>هدف الحملة</span><input id="editCampaignGoal" value="${escapeHtml(campaign.campaign_goal || '')}"></label><label class="field"><span>تاريخ الحملة</span><input type="date" id="editCampaignDate" value="${escapeHtml(campaign.campaign_date || '')}"></label></div><button type="button" class="btn btn-primary" data-save-campaign-edit="${escapeHtml(campaign.id)}">حفظ تعديلات الحملة</button></div>
     <div class="modal-section"><div class="modal-section-title"><h3>التاسكات الحالية</h3></div>${taskRows}</div>
-    <div class="modal-section"><div class="modal-section-title"><h3>إضافة تاسك</h3></div><div class="campaign-edit-grid"><label class="field"><span>اختار المحتوى</span><select id="editAddSection">${contentSectionOptions()}</select></label><label class="field"><span>نوع التاسك</span><select id="editAddTaskType"><option value="">اختر نوع التاسك</option></select></label><label class="field"><span>العدد</span><input type="number" id="editAddQty" min="1" value="1"></label><label class="field"><span>اليوزر</span><select id="editAddUsers" multiple size="4">${multiUserOptions()}</select></label></div><button type="button" class="btn btn-light" data-add-task-to-campaign="${escapeHtml(campaign.id)}">+ إضافة تاسك للحملة</button></div>`;
+    <div class="modal-section"><div class="modal-section-title"><h3>إضافة تاسك</h3></div><div class="campaign-edit-grid"><label class="field"><span>اختار المحتوى</span><select id="editAddSection">${contentSectionOptions()}</select></label><label class="field"><span>نوع التاسك</span><select id="editAddTaskType"><option value="">اختر نوع التاسك</option></select></label><label class="field"><span>العدد</span><input type="number" id="editAddQty" min="1" value="1"></label><label class="field"><span>التاريخ المطلوب</span><input type="date" id="editAddRequiredDate"></label><label class="field"><span>اليوزر</span><select id="editAddUsers" multiple size="4">${multiUserOptions()}</select></label></div><button type="button" class="btn btn-light" data-add-task-to-campaign="${escapeHtml(campaign.id)}">+ إضافة تاسك للحملة</button></div>`;
   modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open');
 }
 async function saveCampaignEdit(campaignId){
@@ -2028,20 +2050,21 @@ async function saveCampaignEdit(campaignId){
   await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaignId).update(patch);
   showToast('تم حفظ تعديلات الحملة.');
 }
-function buildManualTask(campaign, sectionId, taskType, userId, copyIndex, qty){
+function buildManualTask(campaign, sectionId, taskType, userId, copyIndex, qty, requiredDate = ''){
   const section = contentSections.find(item => item.id === sectionId) || {};
   const user = findUserByAnyIdentity(userId) || users.find(item => item.id === userId) || {};
   const sectionName = canonicalContentLabel(section.name || '');
   const role = normalizeDepartmentRole(sectionName);
   const ownerName = userName(user) || userId || 'غير محدد';
   const keys = uniqueList([user.id, user.uid, user.email, user.emailLower, ownerName, user.name, user.displayName, user.username].filter(Boolean));
-  return { id:`${campaign.id}-task-${Date.now()}-${copyIndex}-${Math.random().toString(36).slice(2,7)}`, campaignId: campaign.id, campaignName: campaign.campaignName || campaign.name || '', campaignCode: campaign.campaignCode || campaign.campaign_code || '', creative:'', product:'', selectedCars:[], selectedCar:'', contentSectionId: sectionId, contentSectionName: sectionName, taskType, taskQuantity: qty, taskCopyIndex: copyIndex, userId:user.id || user.uid || userId, userUid:user.uid || user.id || userId, userName:ownerName, userEmail:user.email || '', assigneeUid:user.uid || user.id || userId, assigneeName:ownerName, assigneeEmail:user.email || '', assignedToUid:user.uid || user.id || userId, assignedToId:user.id || user.uid || userId, assignedToName:ownerName, assignedToEmail:user.email || '', assignedToSearch:keys, searchKeys:keys, assignedDepartmentId:sectionId, assignedDepartmentName:sectionName, departmentRole:role, received:false, receivedConfirmed:false, progress:0, status:'pending', steps:taskStepTemplate(role), attachments:[], source:'manual-campaign-edit' };
+  return { id:`${campaign.id}-task-${Date.now()}-${copyIndex}-${Math.random().toString(36).slice(2,7)}`, campaignId: campaign.id, campaignName: campaign.campaignName || campaign.name || '', campaignCode: campaign.campaignCode || campaign.campaign_code || '', creative:'', product:'', selectedCars:[], selectedCar:'', contentSectionId: sectionId, contentSectionName: sectionName, taskType, requiredDate, dueDate: requiredDate, taskQuantity: qty, taskCopyIndex: copyIndex, userId:user.id || user.uid || userId, userUid:user.uid || user.id || userId, userName:ownerName, userEmail:user.email || '', assigneeUid:user.uid || user.id || userId, assigneeName:ownerName, assigneeEmail:user.email || '', assignedToUid:user.uid || user.id || userId, assignedToId:user.id || user.uid || userId, assignedToName:ownerName, assignedToEmail:user.email || '', assignedToSearch:keys, searchKeys:keys, assignedDepartmentId:sectionId, assignedDepartmentName:sectionName, departmentRole:role, received:false, receivedConfirmed:false, progress:0, status:'pending', steps:taskStepTemplate(role), attachments:[], source:'manual-campaign-edit' };
 }
 async function addTaskToCampaign(campaignId){
   const campaign = campaigns.find(item => item.id === campaignId); if(!campaign || !mainDb) return;
   const sectionId = document.getElementById('editAddSection')?.value || '';
   const taskType = document.getElementById('editAddTaskType')?.value || '';
   const qty = Math.max(1, Math.min(50, Number(document.getElementById('editAddQty')?.value || 1)));
+  const requiredDate = document.getElementById('editAddRequiredDate')?.value || '';
   const userIds = getSelectedValues(document.getElementById('editAddUsers'));
   if(!sectionId || !taskType || !userIds.length){ showToast('اختار المحتوى ونوع التاسك واليوزر.'); return; }
   const additions = [];
