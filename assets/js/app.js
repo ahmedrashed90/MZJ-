@@ -1744,20 +1744,43 @@ function structureSectionTitleByType(type){
 function splitStructureRowsIntoSections(rows){
   const source = Array.isArray(rows) ? rows : [];
   if(!source.length) return [];
-  const starts = [0];
+  const titleIndexes = [];
   source.forEach((row, index) => {
-    if(index === 0) return;
     const hasTitle = (row || []).some(cell => cell && !cell.skip && isStructureSectionTitleText(cell.value || ''));
-    if(hasTitle) starts.push(index);
+    if(hasTitle) titleIndexes.push(index);
   });
-  return starts.map((start, i) => {
-    const end = (starts[i + 1] || source.length) - 1;
-    const sectionRows = source.slice(start, end + 1);
+  if(!titleIndexes.length){
+    const type = structureSectionTypeFromRows(source);
+    return [{ start:0, end:source.length - 1, rows:source, title:structureSectionTitleByType(type), type }]
+      .filter(section => section.rows.some(row => structureRowValues(row).length));
+  }
+
+  const sections = titleIndexes.map((titleIndex, i) => {
+    const prefixStart = i === 0 ? 0 : titleIndex;
+    const nextTitleIndex = titleIndexes[i + 1] ?? source.length;
+    const sectionRows = source.slice(prefixStart, nextTitleIndex);
     const type = structureSectionTypeFromRows(sectionRows);
     const title = structureSectionTitleByType(type);
-    const rowsWithoutRepeatedTitle = sectionRows.filter(row => !(row || []).some(cell => cell && !cell.skip && isStructureSectionTitleText(cell.value || '')));
-    return { start, end, rows: rowsWithoutRepeatedTitle.length ? rowsWithoutRepeatedTitle : sectionRows, title, type };
+    // The big Excel title row is represented by the colored header above the table.
+    // Keep campaign-code rows and side label rows exactly as sheet data, but remove only the title strip row.
+    const rowsWithoutTitleStrip = sectionRows.filter((row, rowIndexWithinSection) => {
+      const actualIndex = prefixStart + rowIndexWithinSection;
+      if(actualIndex !== titleIndex) return true;
+      return !(row || []).some(cell => cell && !cell.skip && isStructureSectionTitleText(cell.value || ''));
+    });
+    return { start:prefixStart, end:nextTitleIndex - 1, rows:rowsWithoutTitleStrip.length ? rowsWithoutTitleStrip : sectionRows, title, type };
   }).filter(section => section.rows.some(row => structureRowValues(row).length));
+
+  return sections.reduce((merged, section) => {
+    const last = merged[merged.length - 1];
+    if(last && last.type === section.type){
+      last.rows = last.rows.concat(section.rows);
+      last.end = section.end;
+    }else{
+      merged.push(section);
+    }
+    return merged;
+  }, []);
 }
 function compactStructureSectionRows(sectionRows){
   const rows = Array.isArray(sectionRows) ? sectionRows : [];
