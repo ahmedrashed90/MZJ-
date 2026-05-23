@@ -949,22 +949,26 @@ function buildCampaignTaskDocs(campaignId, payload){
         const user = findUserByAnyIdentity([userId, task.userNames, task.userName, task.assignedToName]) || {};
         const resolvedUserId = user.id || user.uid || userId;
         const dep = departmentForUser(resolvedUserId || userId);
-        const role = normalizeDepartmentRole(dep.name || user.department || task.contentSectionName);
+        const sectionName = normalizeText(task.contentSectionName || dep.name || user.department || '');
+        const role = normalizeDepartmentRole(sectionName || dep.name || user.department);
         const qty = Math.max(1, Math.min(50, Number(task.quantity || 1)));
-        for(let copyIndex = 0; copyIndex < qty; copyIndex += 1){
+        const rowCars = Array.isArray(creativeRow.selectedCars) ? creativeRow.selectedCars.filter(car => car && (car.id || car.label)) : [];
+        const taskUnits = rowCars.length ? rowCars.map((car, i) => ({ copyIndex: i, car })) : Array.from({ length: qty }, (_, i) => ({ copyIndex: i, car: null }));
+        taskUnits.forEach(unit => {
+          const selectedCarLabel = unit.car ? normalizeText(unit.car.label || unit.car.name || unit.car.id) : '';
           docs.push({
             campaignId,
             campaignName: payload.campaignName || payload.name || '',
             campaignCode: payload.campaignCode || '',
             creative: creativeRow.creative || '',
             product: creativeRow.product || '',
-            selectedCars: creativeRow.selectedCars || [],
-            selectedCar: (creativeRow.selectedCars || []).map(car => car.label).join('، '),
+            selectedCars: unit.car ? [unit.car] : [],
+            selectedCar: selectedCarLabel,
             contentSectionId: task.contentSectionId || '',
-            contentSectionName: task.contentSectionName || '',
+            contentSectionName: sectionName,
             taskType: task.taskType || '',
-            taskQuantity: qty,
-            taskCopyIndex: copyIndex + 1,
+            taskQuantity: taskUnits.length,
+            taskCopyIndex: unit.copyIndex + 1,
             userId: resolvedUserId || userId,
             userUid: user.uid || resolvedUserId || userId,
             userName: userName(user) || userId,
@@ -979,20 +983,20 @@ function buildCampaignTaskDocs(campaignId, payload){
             displayName: user.displayName || '',
             username: user.username || '',
             assignedToSearch: uniqueList([userId, resolvedUserId, user.id, user.uid, user.email, user.emailLower, userName(user), user.name, user.displayName, user.username].filter(Boolean)),
-            assignedDepartmentId: dep.id || '',
-            assignedDepartmentName: dep.name || user.department || '',
+            assignedDepartmentId: task.contentSectionId || dep.id || '',
+            assignedDepartmentName: sectionName || dep.name || user.department || '',
             departmentRole: role,
             received: false,
             progress: 0,
             steps: taskStepTemplate(role),
             status: 'pending',
             creativeIndex,
-            taskIndex: `${taskIndex}-${copyIndex + 1}`,
+            taskIndex: `${taskIndex}-${unit.copyIndex + 1}`,
             createdAt: serverTime(),
             updatedAt: serverTime(),
             source: 'mzj-marketing-spa'
           });
-        }
+        });
       });
     });
   });
@@ -1630,6 +1634,9 @@ function loadCampaigns(){
   safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).orderBy('createdAt','desc').onSnapshot(snapshot => {
     campaigns = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) }));
     renderCampaigns();
+    renderTasksPage();
+    if(getRoute() === 'calendar') renderCalendarPage();
+    refreshOpenTaskModal();
   }, error => { console.error('Campaigns load error', error); renderCampaigns(); });
 }
 function loadCampaignTasks(){
@@ -1637,6 +1644,8 @@ function loadCampaignTasks(){
   safeCollection(window.MZJ_CAMPAIGN_TASKS_COLLECTION).onSnapshot(snapshot => {
     campaignTasks = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) }));
     renderCampaigns();
+    renderTasksPage();
+    refreshOpenTaskModal();
   }, error => { console.error('Campaign tasks load error', error); renderCampaigns(); });
 }
 
