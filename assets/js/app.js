@@ -1680,7 +1680,22 @@ function buildMergedStructureSheet(sheet, sheetName){
 }
 function tableRowsFromMergedSheet(sheetTable){
   if(sheetTable?.mode !== 'merged') return Array.isArray(sheetTable?.rows) ? sheetTable.rows : [];
-  return (sheetTable.rows || []).map(row => (row || []).filter(c => !c.skip).map(c => normalizeText(c.value || '')));
+  // مهم: لا نحذف خلايا الـ merge الفارغة/skip أثناء القراءة.
+  // حذفها كان بيزحزح الأعمدة في الصفوف التالية، فـ نوع المحتوى كان بيتقرأ غلط.
+  return (sheetTable.rows || []).map(row => (row || []).map(c => c?.skip ? '' : normalizeText(c?.value || '')));
+}
+function structureDistributionRows(structure){
+  return (Array.isArray(structure?.parsedRows) ? structure.parsedRows : [])
+    .filter(row => normalizeText(row?.contentType || '') && normalizeText(row?.taskNo || ''));
+}
+function structureTaskNumber(task){
+  return normalizeText(task?.structureTaskNo || task?.taskNo || task?.structureRow?.taskNo || '');
+}
+function structureContentTaskLabel(row, fallback = 'نوع محتوى'){
+  const no = normalizeText(row?.taskNo || '');
+  const type = normalizeText(row?.contentType || '');
+  if(no && type) return `${no} - ${type}`;
+  return type || no || fallback;
 }
 async function parseStructureWorkbookBuffer(buffer){
   if(!window.XLSX) return { parsedRows: [], sheetTables: [] };
@@ -1944,12 +1959,13 @@ function buildTaskDetailHtml(task){
       </div>
     </div>
     <div class="modal-section task-brief-row task-brief-row-four">
+      <div class="brief-box"><span>رقم التاسك</span><strong>${escapeHtml(structureTaskNumber(task) || '—')}</strong></div>
       <div class="brief-box"><span>نوع المحتوى</span><strong>${escapeHtml(taskContentType(task) || '—')}</strong></div>
       <div class="brief-box"><span>نوع التاسك</span><strong>${escapeHtml(task.taskType || '—')}</strong></div>
       <div class="brief-box"><span>الكريتيف</span><strong>${escapeHtml(task.creative || task.product || '—')}</strong></div>
       <div class="brief-box"><span>السيارة المختارة</span><strong>${escapeHtml(task.selectedCar || task.carName || '')}</strong></div>
     </div>
-    ${task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : ''}
+    ${task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>رقم التاسك</span><strong>${escapeHtml(structureTaskNumber(task) || '—')}</strong></div><div><span>نوع المحتوى</span><strong>${escapeHtml(task.structureRow.contentType || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : ''}
     <div class="modal-section task-actions-section">
       <div class="modal-section-title"><h3>إجراءات التكليف</h3><span>${progress}%</span></div>
       <div class="task-deadline-row"><span>التاريخ المطلوب: <b>${formatDateShort(requiredDate)}</b></span><strong>${escapeHtml(requiredLeft)}</strong></div>
@@ -2104,15 +2120,20 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
   const resolvedUserName = userName(user) || assigneeId || 'غير محدد';
   const sectionName = row.contentType || parentTask.contentSectionName || 'المحتوى';
   const role = normalizeDepartmentRole(sectionName);
-  const taskType = row.contentName || row.taskNo || row.idea || 'تاسك من الهيكل';
+  const taskType = row.contentType || row.contentName || row.idea || 'تاسك من الهيكل';
+  const taskNo = normalizeText(row.taskNo || '');
+  const taskLabel = structureContentTaskLabel(row, taskType);
   const searchKeys = uniqueList([resolvedUserId, user.id, user.uid, user.email, user.emailLower, resolvedUserName, user.name, user.displayName, user.username].filter(Boolean));
   return normalizeCampaignTask({
     id: `${campaign.id}-structure-${Date.now()}-${rowIndex + 1}`,
     campaignId: campaign.id,
     campaignName: campaign.campaignName || campaign.name || '',
     campaignCode: campaign.campaignCode || campaign.campaign_code || '',
-    creative: row.contentType || parentTask.creative || '',
-    product: row.contentName || row.idea || row.contentType || parentTask.product || '',
+    creative: taskLabel,
+    product: row.idea || row.contentName || row.description || row.contentType || parentTask.product || '',
+    taskNo,
+    structureTaskNo: taskNo,
+    structureTaskLabel: taskLabel,
     contentSectionId: parentTask.contentSectionId || parentTask.assignedDepartmentId || '',
     contentSectionName: sectionName,
     taskType,
@@ -2159,7 +2180,7 @@ async function saveStructureDistribution(taskId){
   rows.forEach((rowEl) => {
     const index = Number(rowEl.dataset.structureRow || 0);
     const assignee = rowEl.querySelector('.js-structure-assignee')?.value || '';
-    const sourceRow = taskStructure(task).parsedRows?.[index];
+    const sourceRow = structureDistributionRows(taskStructure(task))[index];
     if(assignee && sourceRow) additions.push(buildStructureTaskFromRow(campaign, task, sourceRow, assignee, index));
   });
   if(!additions.length) return showToast('اختار يوزر واحد على الأقل.');
@@ -2819,7 +2840,9 @@ function shortCampaignTitle(campaign){
   return escapeHtml(campaign.campaignName || campaign.name || campaign.campaign_code || campaign.campaignCode || 'حملة');
 }
 function shortTaskName(task){
-  return escapeHtml(task.creative || task.product || task.taskType || 'تاسك');
+  const no = structureTaskNumber(task);
+  const name = normalizeText(task.structureTaskLabel || task.creative || task.taskType || task.product || 'تاسك');
+  return escapeHtml(no && !name.includes(no) ? `${no} - ${name}` : name);
 }
 function receivedLabel(task){ return task.received || task.receivedConfirmed ? 'تم الاستلام' : 'لم يستلم'; }
 function receivedClass(task){ return task.received || task.receivedConfirmed ? 'is-done' : 'is-waiting'; }
@@ -2849,7 +2872,7 @@ function renderUserDashboard(){
   const groups = Object.entries(groupMap).map(([label, tasks]) => ({ label, tasks }));
   const taskCard = task => `<article class="content-task-card">
     <h3>${escapeHtml(task.campaignName || 'حملة')}</h3>
-    <p>${escapeHtml(task.product || task.selectedCar || task.creative || task.taskType || '—')}</p>
+    <p>${shortTaskName(task)}</p>
     <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button><button type="button" class="btn btn-light ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تم الاستلام'}</button></div>
     <div class="task-metric-row"><span>متوسط اكتمال التاسكات</span><b>${taskProgress(task)}%</b></div>
     <div class="task-metric-row"><span>متوسط مساهمة الحملات</span><b>${taskProgress(task)}%</b></div>
