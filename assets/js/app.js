@@ -1026,8 +1026,8 @@ function baseCurrentUserIdentityValues(){
   const sessionUser = getCurrentUser() || {};
   const authUser = mainAuth?.currentUser || null;
   return [
-    sessionUser,
-    sessionUser.id, sessionUser.uid, sessionUser.email, sessionUser.emailLower, sessionUser.name, sessionUser.displayName, sessionUser.username,
+    sessionUser.id, sessionUser.uid, sessionUser.email, sessionUser.emailLower,
+    sessionUser.name, sessionUser.displayName, sessionUser.username,
     authUser?.uid, authUser?.email, authUser?.displayName,
     sessionStorage.getItem('mzj_login_email') || ''
   ];
@@ -1036,11 +1036,8 @@ function currentUserRelatedRecords(){
   const baseKeys = uniqueIdentityKeys(baseCurrentUserIdentityValues());
   if(!baseKeys.length || !Array.isArray(users) || !users.length) return [];
   return users.filter(user => {
-    const userKeys = uniqueIdentityKeys([user, user.id, user.uid, user.email, user.emailLower, user.name, user.displayName, user.username]);
-    if(identityIntersects(baseKeys, userKeys)) return true;
-    const email = identityClean(user.email || user.emailLower || '');
-    const name = identityClean(user.name || user.displayName || user.username || '');
-    return baseKeys.some(key => (email && (key === email || key.includes(email) || email.includes(key))) || (name && key.length > 2 && (key === name || key.includes(name) || name.includes(key))));
+    const userKeys = uniqueIdentityKeys([user.id, user.uid, user.email, user.emailLower, user.name, user.displayName, user.username]);
+    return identityIntersects(baseKeys, userKeys);
   });
 }
 function findCurrentUserRecord(){
@@ -1053,59 +1050,34 @@ function currentUserIdentityKeys(){
   const authUser = mainAuth?.currentUser || null;
   const related = currentUserRelatedRecords();
   return uniqueIdentityKeys([
-    ...baseCurrentUserIdentityValues(),
-    ...related,
-    ...related.flatMap(user => [user.id, user.uid, user.email, user.emailLower, user.name, user.displayName, user.username]),
+    sessionUser.id, sessionUser.uid, sessionUser.email, sessionUser.emailLower,
+    sessionUser.name, sessionUser.displayName, sessionUser.username,
     authUser?.uid, authUser?.email, authUser?.displayName,
-    sessionUser.themeSettings ? '' : ''
-  ]);
+    sessionStorage.getItem('mzj_login_email') || '',
+    ...related.flatMap(user => [user.id, user.uid, user.email, user.emailLower, user.name, user.displayName, user.username])
+  ]).filter(key => key && key.length > 1);
 }
 function taskIdentityKeys(task){
   return uniqueIdentityKeys([
-    task,
     task.userId, task.userUid, task.userEmail, task.userName,
     task.assigneeId, task.assigneeUid, task.assigneeEmail, task.assigneeName,
     task.assignedToId, task.assignedToUid, task.assignedToEmail, task.assignedToName,
     task.assignedToSearch, task.searchKeys,
-    task.userIds, task.userNames, task.assigneeIds, task.assigneeNames, task.assignedToIds, task.assignedToNames,
+    task.userIds, task.userNames, task.userEmails,
+    task.assigneeIds, task.assigneeNames, task.assigneeEmails,
+    task.assignedToIds, task.assignedToNames, task.assignedToEmails,
     task.users, task.assignees, task.assignedUsers
-  ]);
+  ]).filter(key => key && key.length > 1);
 }
 function identityIntersects(a, b){
   return a.some(x => b.includes(x));
 }
 function currentUserMatchesTaskExact(task){
+  // أمان الداش بورد: التاسك يظهر لليوزر فقط لو بيانات الإسناد فيها تطابق صريح.
+  // ممنوع التطابق الجزئي بالاسم، وممنوع البحث داخل JSON كامل عشان ما يظهرش تاسك يوزر تاني.
   const userKeys = currentUserIdentityKeys();
   const taskKeys = taskIdentityKeys(task);
-  if(identityIntersects(userKeys, taskKeys)) return true;
-
-  const current = findCurrentUserRecord() || getCurrentUser();
-  const authUser = mainAuth?.currentUser || null;
-  const currentName = identityClean(current.name || current.displayName || current.username || authUser?.displayName || '');
-  const currentEmail = identityClean(current.email || current.emailLower || sessionStorage.getItem('mzj_login_email') || authUser?.email || '');
-  const currentId = identityClean(current.id || current.uid || authUser?.uid || '');
-  const explicitValues = [
-    task.assignedToName, task.assigneeName, task.userName,
-    task.assignedToEmail, task.assigneeEmail, task.userEmail,
-    task.assignedToId, task.assignedToUid, task.assigneeId, task.assigneeUid, task.userId, task.userUid,
-    task.assignedToSearch, task.searchKeys, task.displayName, task.username,
-    ...(Array.isArray(task.userIds) ? task.userIds : []),
-    ...(Array.isArray(task.userNames) ? task.userNames : []),
-    ...(Array.isArray(task.assignedToIds) ? task.assignedToIds : []),
-    ...(Array.isArray(task.assignedToNames) ? task.assignedToNames : []),
-    ...(Array.isArray(task.assigneeIds) ? task.assigneeIds : []),
-    ...(Array.isArray(task.assigneeNames) ? task.assigneeNames : [])
-  ].flatMap(flattenIdentityValues).map(identityClean).filter(Boolean);
-  if(currentId && explicitValues.includes(currentId)) return true;
-  if(currentEmail && explicitValues.includes(currentEmail)) return true;
-  if(currentName && explicitValues.includes(currentName)) return true;
-  const signals = [currentId, currentEmail, currentName, ...userKeys].filter(v => v && v.length > 3);
-  if(signals.some(signal => explicitValues.some(value => value.includes(signal) || signal.includes(value)))) return true;
-  try{
-    const taskBlob = identityClean(JSON.stringify(task));
-    if(signals.some(signal => taskBlob.includes(signal))) return true;
-  }catch(_){ }
-  return false;
+  return !!userKeys.length && !!taskKeys.length && identityIntersects(userKeys, taskKeys);
 }
 function roleAliases(role){
   const map = {
@@ -1180,13 +1152,8 @@ function canonicalContentLabel(value){
 }
 function currentUserMatchesSelectedAssignee(id, name, email=''){
   const currentKeys = currentUserIdentityKeys();
-  const values = uniqueIdentityKeys([id, name, email]);
-  if(identityIntersects(currentKeys, values)) return true;
-  const current = findCurrentUserRecord() || getCurrentUser();
-  const currentName = identityClean(current.name || current.displayName || current.username || '');
-  const currentEmail = identityClean(current.email || current.emailLower || '');
-  const currentId = identityClean(current.id || current.uid || '');
-  return values.some(v => v && (v === currentName || v === currentEmail || v === currentId || (currentName && (v.includes(currentName) || currentName.includes(v)))));
+  const values = uniqueIdentityKeys([id, name, email]).filter(key => key && key.length > 1);
+  return !!currentKeys.length && !!values.length && identityIntersects(currentKeys, values);
 }
 function tasksFromCreativeRowsForCurrentUser(){
   if(isCurrentUserAdmin()) return [];
@@ -1260,46 +1227,14 @@ function tasksFromCreativeRowsForCurrentUser(){
   return generated;
 }
 function getVisibleTasksForCurrentUser(){
-  // المصدر الوحيد لداشبورد اليوزر: marketing_campaigns > departmentTasks
-  // لا يتم قراءة campaign_tasks هنا نهائياً.
+  // المصدر الوحيد لداشبورد اليوزر: marketing_campaigns > departmentTasks.
+  // اليوزر العادي يشوف التاسكات المسندة له صراحة فقط، بدون fallback بالقسم أو منشئ الحملة.
   const allTasks = campaigns.flatMap(campaign => {
     const campaignTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks : [];
     return campaignTasks.map(task => normalizeCampaignTask(task, campaign));
   });
-
   if(isCurrentUserAdmin()) return allTasks;
-
-  const keys = currentUserIdentityKeys().filter(key => key && key.length > 1);
-  const strictMatches = allTasks.filter(task => {
-    if(currentUserMatchesTaskExact(task)) return true;
-    const taskKeys = uniqueIdentityKeys([
-      task.assignedToId, task.assignedToUid, task.assignedToEmail, task.assignedToName,
-      task.assigneeId, task.assigneeUid, task.assigneeEmail, task.assigneeName,
-      task.userId, task.userUid, task.userEmail, task.userName,
-      task.displayName, task.username, task.assignedToSearch, task.searchKeys
-    ]);
-    if(identityIntersects(keys, taskKeys)) return true;
-    const blob = identityClean(JSON.stringify({
-      assignedToId: task.assignedToId,
-      assignedToUid: task.assignedToUid,
-      assignedToEmail: task.assignedToEmail,
-      assignedToName: task.assignedToName,
-      assigneeUid: task.assigneeUid,
-      assigneeEmail: task.assigneeEmail,
-      assigneeName: task.assigneeName,
-      userId: task.userId,
-      userUid: task.userUid,
-      userEmail: task.userEmail,
-      userName: task.userName,
-      searchKeys: task.searchKeys,
-      assignedToSearch: task.assignedToSearch
-    }));
-    return keys.some(key => key.length > 2 && blob.includes(key));
-  });
-
-  // لو مفيش تاسكات مسندة لليوزر الحالي، الداش بورد يفضل فاضي.
-  // لا نستخدم fallback بالقسم أو كل التاسكات حتى لا تظهر تاسكات مستخدمين آخرين.
-  return mergeCampaignTasks(strictMatches);
+  return mergeCampaignTasks(allTasks.filter(currentUserMatchesTaskExact));
 }
 function findTaskById(taskId, campaignId = ''){
   const campaignList = campaignId ? campaigns.filter(item => item.id === campaignId) : campaigns;
@@ -2012,11 +1947,13 @@ function buildTaskDetailHtml(task){
 function renderTaskDetail(taskId, campaignId = ''){
   const task = findTaskById(taskId, campaignId);
   if(!task) return;
+  if(!isCurrentUserAdmin() && !currentUserMatchesTaskExact(task)) return;
   openTaskModal(task);
 }
 async function toggleTaskStep(taskId, stepIndex){
   const task = findTaskById(taskId);
   if(!task) return;
+  if(!isCurrentUserAdmin() && !currentUserMatchesTaskExact(task)) return;
   const steps = Array.isArray(task.steps) && task.steps.length ? task.steps.map(step => ({...step})) : taskStepTemplate(task.departmentRole || 'other');
   const step = steps[Number(stepIndex)];
   if(!step) return;
@@ -2037,6 +1974,7 @@ async function toggleTaskStep(taskId, stepIndex){
 async function toggleTaskReceived(taskId){
   const task = findTaskById(taskId);
   if(!task) return;
+  if(!isCurrentUserAdmin() && !currentUserMatchesTaskExact(task)) return;
   const nextReceived = !(task.received || task.receivedConfirmed);
   await updateTaskOnFirebase(task.id, {
     received: nextReceived,
@@ -2536,7 +2474,8 @@ function collectPublishRows(){
 }
 function budgetRowTotalFromCard(card){
   if(!card) return 0;
-  const adsCount = Number(card.querySelector('.js-budget-ads-count')?.value || 0);
+  const adsRaw = card.querySelector('.js-budget-ads-count')?.value;
+  const adsCount = adsRaw === '' || adsRaw == null ? 1 : Number(adsRaw || 0);
   const value = Number(card.querySelector('.js-budget-value')?.value || 0);
   return Math.max(0, adsCount) * Math.max(0, value);
 }
@@ -2547,7 +2486,9 @@ function updateBudgetGrandTotal(){
 }
 function collectBudgetRows(){
   return [...document.querySelectorAll('.budget-item-card')].map((card, index) => {
-    const adsCount = Number(card.querySelector('.js-budget-ads-count')?.value || 0);
+    const adsRaw = card.querySelector('.js-budget-ads-count')?.value;
+    const adsCount = adsRaw === '' || adsRaw == null ? '' : Number(adsRaw || 0);
+    const effectiveAdsCount = adsRaw === '' || adsRaw == null ? 1 : Number(adsRaw || 0);
     const value = Number(card.querySelector('.js-budget-value')?.value || 0);
     return {
       index: index + 1,
@@ -2561,7 +2502,7 @@ function collectBudgetRows(){
       contentGoal: normalizeText(card.querySelector('.js-budget-content-goal')?.value),
       expectedGoal: normalizeText(card.querySelector('.js-budget-expected-goal')?.value),
       value,
-      total: Math.max(0, adsCount) * Math.max(0, value)
+      total: Math.max(0, effectiveAdsCount) * Math.max(0, value)
     };
   }).filter(item => item.funnel || item.newFunnel || item.product || item.platform || item.value || item.total);
 }
@@ -3376,7 +3317,8 @@ function renderScheduleSummary(campaign){
   return `<div class="compact-table"><table><thead><tr><th>التاريخ</th><th>المخرج</th><th>المنصات</th><th>ملاحظة</th></tr></thead><tbody>${list.map(item => `<tr><td>${escapeHtml(item.date || '')}</td><td>${escapeHtml(item.output || '')}</td><td>${escapeHtml(Array.isArray(item.platforms) ? item.platforms.join('، ') : item.platform || '')}</td><td>${escapeHtml(item.note || '')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function budgetItemTotal(item){
-  const adsCount = Number(item?.adsCount || item?.ads_count || 0);
+  const rawAds = item?.adsCount ?? item?.ads_count ?? '';
+  const adsCount = rawAds === '' || rawAds == null ? 1 : Number(rawAds || 0);
   const value = Number(item?.value || 0);
   const computed = Math.max(0, adsCount) * Math.max(0, value);
   return computed || Number(item?.total || 0);
