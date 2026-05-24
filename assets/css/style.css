@@ -1747,3 +1747,33 @@ body.has-user-dashboard-theme #dashboard.user-mode .admin-dashboard-board{
   .live-notification-popup{left:12px;right:12px;top:86px}
   .live-notification-card{min-width:0;width:100%}
 }
+
+/* v89: force live notification popup above the topbar */
+.live-notification-popup,
+body .live-notification-popup,
+#liveNotificationPopup{
+  position:fixed !important;
+  top:12px !important;
+  left:24px !important;
+  right:auto !important;
+  bottom:auto !important;
+  z-index:2147483647 !important;
+  pointer-events:none;
+}
+.live-notification-popup.show,
+#liveNotificationPopup.show{
+  pointer-events:auto !important;
+}
+.live-notification-card{
+  position:relative !important;
+  z-index:2147483647 !important;
+}
+@media(max-width:780px){
+  .live-notification-popup,
+  body .live-notification-popup,
+  #liveNotificationPopup{
+    top:10px !important;
+    left:10px !important;
+    right:10px !important;
+  }
+}
