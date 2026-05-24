@@ -1315,3 +1315,118 @@ body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard.user-
     align-items:flex-start;
   }
 }
+
+
+/* v85: remove user dashboard outer borders and hide completed tasks behind toggle */
+#dashboard.user-mode .user-content-dashboard.user-content-dashboard-plain,
+body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard.user-content-dashboard-plain{
+  background:transparent !important;
+  border:none !important;
+  box-shadow:none !important;
+  padding:0 !important;
+}
+#dashboard.user-mode .user-content-head.user-content-head-plain,
+body.has-user-dashboard-theme #dashboard.user-mode .user-content-head.user-content-head-plain{
+  background:transparent !important;
+  border:none !important;
+  box-shadow:none !important;
+  padding:0 !important;
+  margin:0 0 12px !important;
+}
+#dashboard.user-mode .content-type-col,
+body.has-user-dashboard-theme #dashboard.user-mode .content-type-col{
+  background:transparent !important;
+  border:none !important;
+  box-shadow:none !important;
+  padding:0 !important;
+  min-height:0 !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+}
+#dashboard.user-mode .content-type-title,
+body.has-user-dashboard-theme #dashboard.user-mode .content-type-title{
+  border:none !important;
+  padding:0 0 10px !important;
+  margin:0 0 10px !important;
+}
+#dashboard.user-mode .content-type-title span,
+#dashboard.user-mode .exec-stats span{
+  background:rgba(255,255,255,.92) !important;
+  border:1px solid rgba(214,190,178,.95) !important;
+}
+#dashboard.user-mode .content-type-board{
+  align-items:start !important;
+}
+#dashboard.user-mode .content-task-card,
+body.has-user-dashboard-theme #dashboard.user-mode .content-task-card{
+  background:rgba(255,255,255,.88) !important;
+  border:1px solid rgba(224,204,193,.96) !important;
+  box-shadow:0 14px 30px rgba(60,35,28,.10) !important;
+  backdrop-filter:blur(4px) !important;
+  -webkit-backdrop-filter:blur(4px) !important;
+}
+#dashboard.user-mode .content-task-card.completed,
+body.has-user-dashboard-theme #dashboard.user-mode .content-task-card.completed{
+  background:rgba(245,255,242,.9) !important;
+}
+.user-dashboard-actions-inline{
+  display:flex;
+  justify-content:flex-start;
+  gap:10px;
+  margin:0 0 16px;
+}
+.completed-tasks-panel{
+  margin-top:18px;
+  padding:16px;
+  border:1px solid rgba(220,201,191,.95);
+  border-radius:20px;
+  background:rgba(255,253,250,.72);
+  box-shadow:0 12px 26px rgba(60,35,28,.08);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+}
+.completed-tasks-panel[hidden]{display:none !important;}
+.completed-tasks-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+.completed-tasks-head h3{
+  margin:0;
+  font-size:18px;
+  color:var(--text);
+}
+.completed-tasks-head span{
+  background:#f3e6dc;
+  border:1px solid #e2cdbf;
+  border-radius:999px;
+  padding:6px 12px;
+  font-size:11px;
+  font-weight:900;
+  color:var(--primary);
+}
+.dashboard-empty-note{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:120px;
+  background:rgba(255,255,255,.52);
+  border:1px dashed rgba(222,201,189,.9);
+  border-radius:18px;
+  color:#7f655b;
+  font-weight:800;
+}
+.static-chip{
+  display:inline-flex !important;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+}
+@media(max-width:900px){
+  .completed-tasks-head{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+}

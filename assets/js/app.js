@@ -3210,23 +3210,33 @@ function renderUserDashboard(){
   setDashboardMode('user');
   applyEffectiveTheme();
   const myTasks = getVisibleTasksForCurrentUser();
-  const received = myTasks.filter(task => task.received || task.receivedConfirmed).length;
-  const done = myTasks.filter(task => taskProgress(task) >= 100).length;
-  const groupMap = {};
-  myTasks.forEach(task => {
-    const key = taskContentType(task);
-    if(!groupMap[key]) groupMap[key] = [];
-    groupMap[key].push(task);
-  });
-  const groups = Object.entries(groupMap).map(([label, tasks]) => ({ label, tasks }));
-  const taskCard = task => `<article class="content-task-card">
+  const activeTasks = myTasks.filter(task => taskProgress(task) < 100);
+  const completedTasks = myTasks.filter(task => taskProgress(task) >= 100);
+  const received = activeTasks.filter(task => task.received || task.receivedConfirmed).length;
+  const done = completedTasks.length;
+  const buildGroups = tasks => {
+    const groupMap = {};
+    tasks.forEach(task => {
+      const key = taskContentType(task);
+      if(!groupMap[key]) groupMap[key] = [];
+      groupMap[key].push(task);
+    });
+    return Object.entries(groupMap).map(([label, items]) => ({ label, tasks: items }));
+  };
+  const groups = buildGroups(activeTasks);
+  const completedGroups = buildGroups(completedTasks);
+  const taskCard = (task, completed = false) => `<article class="content-task-card ${completed ? 'completed' : ''}">
     <h3>${escapeHtml(task.campaignName || 'حملة')}</h3>
     <p>${shortTaskName(task)}</p>
-    <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button><button type="button" class="btn btn-light ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تم الاستلام'}</button></div>
-    <div class="task-metric-row"><span>متوسط اكتمال التاسكات</span><b>${taskProgress(task)}%</b></div>
-    <div class="task-metric-row"><span>متوسط مساهمة الحملات</span><b>${taskProgress(task)}%</b></div>
+    <div class="content-task-actions">
+      <button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
+      ${completed ? `<span class="btn btn-light done static-chip">مكتمل 100%</span>` : `<button type="button" class="btn btn-light ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">تم الاستلام</button>`}
+    </div>
+    <div class="task-metric-row"><span>نسبة الإنجاز</span><b>${taskProgress(task)}%</b></div>
+    <div class="task-metric-row"><span>حالة التاسك</span><b>${completed ? 'مكتمل' : (task.received || task.receivedConfirmed ? 'مستلم' : 'قيد التنفيذ')}</b></div>
     <div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div>
   </article>`;
+  const renderGroups = (items, completed = false) => items.length ? `<div class="content-type-board">${items.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(task => taskCard(task, completed)).join('')}</div></section>`).join('')}</div>` : `<div class="dashboard-empty-note">${completed ? 'لا توجد تاسكات منتهية حالياً.' : 'لا توجد تاسكات نشطة حالياً.'}</div>`;
   board.innerHTML = `
     <div class="user-dashboard-toolbar">
       <div class="user-theme-panel user-theme-panel-floating">
@@ -3237,9 +3247,16 @@ function renderUserDashboard(){
     <section class="user-content-dashboard user-content-dashboard-plain">
       <div class="user-content-head user-content-head-plain">
         <div><h2>أنواع المحتوى</h2><p>التاسكات المطلوبة منك حسب نوع المحتوى من الحملات.</p></div>
-        <div class="exec-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div>
+        <div class="exec-stats"><span>${activeTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div>
       </div>
-      ${groups.length ? `<div class="content-type-board">${groups.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : ''}
+      <div class="user-dashboard-actions-inline">
+        <button type="button" class="mini-btn" id="toggleCompletedTasksBtn" data-open="0" data-count="${done}">عرض التاسكات المنتهية (${done})</button>
+      </div>
+      ${renderGroups(groups, false)}
+      <section class="completed-tasks-panel" id="completedTasksPanel" hidden>
+        <div class="completed-tasks-head"><h3>التاسكات المنتهية</h3><span>${done} تاسك مكتمل</span></div>
+        ${renderGroups(completedGroups, true)}
+      </section>
     </section>`;
   applyEffectiveTheme();
 }
@@ -4199,6 +4216,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadTheme = event.target.closest('#userThemeImageInput');
     const clearTheme = event.target.closest('#clearUserThemeBtn');
     if(clearTheme){ await clearCurrentUserTheme(); return; }
+    const toggleCompletedBtn = event.target.closest('#toggleCompletedTasksBtn');
+    if(toggleCompletedBtn){
+      const panel = document.getElementById('completedTasksPanel');
+      if(panel){
+        const isOpen = toggleCompletedBtn.dataset.open === '1';
+        panel.hidden = isOpen;
+        toggleCompletedBtn.dataset.open = isOpen ? '0' : '1';
+        toggleCompletedBtn.textContent = isOpen ? `عرض التاسكات المنتهية (${toggleCompletedBtn.dataset.count || '0'})` : 'إخفاء التاسكات المنتهية';
+      }
+      return;
+    }
     const campaignCard = event.target.closest('[data-open-campaign]');
     if(campaignCard){ toggleCampaignInlineTasks(campaignCard, campaignCard.dataset.openCampaign); return; }
     if(event.target.id === 'closeDashboardDetail'){ document.getElementById('dashboardCampaignDetail')?.classList.remove('show'); }
