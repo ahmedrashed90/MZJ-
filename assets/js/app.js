@@ -2538,22 +2538,36 @@ function collectPublishRows(){
     note: normalizeText(card.querySelector('.js-publish-note')?.value)
   })).filter(item => item.date || item.output || item.platform || item.note);
 }
+function budgetRowTotalFromCard(card){
+  if(!card) return 0;
+  const adsCount = Number(card.querySelector('.js-budget-ads-count')?.value || 0);
+  const value = Number(card.querySelector('.js-budget-value')?.value || 0);
+  return Math.max(0, adsCount) * Math.max(0, value);
+}
+function updateBudgetGrandTotal(){
+  const total = [...document.querySelectorAll('.budget-item-card')].reduce((sum, card) => sum + budgetRowTotalFromCard(card), 0);
+  const holder = document.getElementById('budgetGrandTotalValue');
+  if(holder) holder.textContent = total ? total.toLocaleString('en-US') : '0';
+}
 function collectBudgetRows(){
-  return [...document.querySelectorAll('.budget-item-card')].map((card, index) => ({
-    index: index + 1,
-    funnel: card.querySelector('.js-funnel-select')?.value || '',
-    newFunnel: normalizeText(card.querySelector('.js-new-funnel')?.value),
-    product: card.querySelector('.js-product-select')?.value || '',
-    platform: card.querySelector('.js-platform-select')?.value || '',
-    publishDate: card.querySelector('.js-budget-publish-date')?.value || '',
-    duration: normalizeText(card.querySelector('.js-budget-duration')?.value),
-    adsCount: Number(card.querySelector('.js-budget-ads-count')?.value || 0),
-    contentGoal: normalizeText(card.querySelector('.js-budget-content-goal')?.value),
-    expectedGoal: normalizeText(card.querySelector('.js-budget-expected-goal')?.value),
-    quantity: Number(card.querySelector('.js-budget-quantity')?.value || 0),
-    value: Number(card.querySelector('.js-budget-value')?.value || 0),
-    total: Number(card.querySelector('.js-budget-total')?.value || 0)
-  })).filter(item => item.funnel || item.newFunnel || item.product || item.platform || item.value || item.total);
+  return [...document.querySelectorAll('.budget-item-card')].map((card, index) => {
+    const adsCount = Number(card.querySelector('.js-budget-ads-count')?.value || 0);
+    const value = Number(card.querySelector('.js-budget-value')?.value || 0);
+    return {
+      index: index + 1,
+      funnel: card.querySelector('.js-funnel-select')?.value || '',
+      newFunnel: normalizeText(card.querySelector('.js-new-funnel')?.value),
+      product: card.querySelector('.js-product-select')?.value || '',
+      platform: card.querySelector('.js-platform-select')?.value || '',
+      publishDate: card.querySelector('.js-budget-publish-date')?.value || '',
+      duration: normalizeText(card.querySelector('.js-budget-duration')?.value),
+      adsCount,
+      contentGoal: normalizeText(card.querySelector('.js-budget-content-goal')?.value),
+      expectedGoal: normalizeText(card.querySelector('.js-budget-expected-goal')?.value),
+      value,
+      total: Math.max(0, adsCount) * Math.max(0, value)
+    };
+  }).filter(item => item.funnel || item.newFunnel || item.product || item.platform || item.value || item.total);
 }
 async function saveCampaignToFirebase(){
   if(!mainDb){ showToast('اتصال Firebase غير متاح.'); return; }
@@ -2618,12 +2632,11 @@ function addBudgetItem(){
       <label class="field"><span>عدد الإعلانات</span><input class="js-budget-ads-count" type="number" min="0" /></label>
       <label class="field"><span>هدف المحتوى</span><input class="js-budget-content-goal" type="text" /></label>
       <label class="field"><span>الهدف المتوقع</span><input class="js-budget-expected-goal" type="text" /></label>
-      <label class="field"><span>الكمية</span><input class="js-budget-quantity" type="number" min="0" /></label>
       <label class="field"><span>القيمة</span><input class="js-budget-value" type="number" min="0" step="0.01" /></label>
-      <label class="field"><span>الإجمالي</span><input class="js-budget-total" type="number" min="0" step="0.01" /></label>
     </div>`;
   wrap.appendChild(card);
   refreshDynamicSelects();
+  updateBudgetGrandTotal();
 }
 function bindCampaignBuilder(){
   const creativeRows = document.getElementById('creativeRows'); const budgetRows = document.getElementById('budgetRows');
@@ -2657,7 +2670,7 @@ function bindCampaignBuilder(){
     const btn = event.target.closest('.delete-row');
     if(btn){ const container = document.getElementById('creativeRows'); btn.closest('.creative-row-card')?.remove(); restoreEmptyRow(container, 1, 'ابدأ بإضافة صف كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
     const budgetDel = event.target.closest('.delete-budget-row');
-    if(budgetDel){ budgetDel.closest('.budget-item-card')?.remove(); if(budgetRows && !budgetRows.querySelector('.budget-item-card')) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; }
+    if(budgetDel){ budgetDel.closest('.budget-item-card')?.remove(); if(budgetRows && !budgetRows.querySelector('.budget-item-card')) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; updateBudgetGrandTotal(); }
   });
   document.addEventListener('dblclick', async event => {
     const structureCell = event.target.closest('[data-structure-cell]');
@@ -2667,6 +2680,10 @@ function bindCampaignBuilder(){
       event.stopPropagation();
       openStructureCellNoteEditor(structureCell);
     }
+  });
+
+  document.addEventListener('input', event => {
+    if(event.target.matches('.js-budget-ads-count,.js-budget-value')) updateBudgetGrandTotal();
   });
 
   document.addEventListener('change', event => {
@@ -2680,11 +2697,12 @@ function bindCampaignBuilder(){
       updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return;
     }
     if(event.target.matches('.js-task-user,.js-car-checkbox,.js-creative-check')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
+    if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.matches('.js-platform-checkbox')){ return; }
     if(event.target.matches('.js-creative-select,.js-creative-check,.js-task-type,.js-task-quantity,.js-task-required-date')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
-  document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<div class="empty-state">ابدأ بإضافة صف كريتيف للحملة.</div>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; generateCampaignCode(); });
+  document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<div class="empty-state">ابدأ بإضافة صف كريتيف للحملة.</div>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; updateBudgetGrandTotal(); generateCampaignCode(); });
   document.getElementById('saveCampaignDraft')?.addEventListener('click', saveCampaignToFirebase);
 }
 
@@ -3361,10 +3379,17 @@ function renderScheduleSummary(campaign){
   if(!list.length) return '<div class="empty-state mini-empty">لا يوجد جدول نشر.</div>';
   return `<div class="compact-table"><table><thead><tr><th>التاريخ</th><th>المخرج</th><th>المنصات</th><th>ملاحظة</th></tr></thead><tbody>${list.map(item => `<tr><td>${escapeHtml(item.date || '')}</td><td>${escapeHtml(item.output || '')}</td><td>${escapeHtml(Array.isArray(item.platforms) ? item.platforms.join('، ') : item.platform || '')}</td><td>${escapeHtml(item.note || '')}</td></tr>`).join('')}</tbody></table></div>`;
 }
+function budgetItemTotal(item){
+  const adsCount = Number(item?.adsCount || item?.ads_count || 0);
+  const value = Number(item?.value || 0);
+  const computed = Math.max(0, adsCount) * Math.max(0, value);
+  return computed || Number(item?.total || 0);
+}
 function renderBudgetSummary(campaign){
   const list = Array.isArray(campaign.budgetItems) ? campaign.budgetItems : [];
   if(!list.length) return '<div class="empty-state mini-empty">لا توجد ميزانية.</div>';
-  return `<div class="compact-table"><table><thead><tr><th>Funnel</th><th>المنتج</th><th>المنصة</th><th>الإجمالي</th></tr></thead><tbody>${list.map(item => `<tr><td>${escapeHtml(item.funnel || item.newFunnel || '')}</td><td>${escapeHtml(item.product || '')}</td><td>${escapeHtml(item.platform || '')}</td><td>${escapeHtml(item.total || '')}</td></tr>`).join('')}</tbody></table></div>`;
+  const grandTotal = list.reduce((sum, item) => sum + budgetItemTotal(item), 0);
+  return `<div class="compact-table"><table><thead><tr><th>Funnel</th><th>المنتج</th><th>المنصة</th><th>عدد الإعلانات</th><th>القيمة</th><th>إجمالي البند</th></tr></thead><tbody>${list.map(item => `<tr><td>${escapeHtml(item.funnel || item.newFunnel || '')}</td><td>${escapeHtml(item.product || '')}</td><td>${escapeHtml(item.platform || '')}</td><td>${escapeHtml(item.adsCount || '')}</td><td>${escapeHtml(item.value || '')}</td><td>${escapeHtml(budgetItemTotal(item) || '')}</td></tr>`).join('')}<tr class="budget-total-row"><td colspan="5">إجمالي الميزانية</td><td>${escapeHtml(grandTotal || 0)}</td></tr></tbody></table></div>`;
 }
 function closeCampaignModal(){
   document.getElementById('campaignModal')?.classList.remove('show');

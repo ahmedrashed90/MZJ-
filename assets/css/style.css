@@ -69,6 +69,9 @@
 .budget-grid{display:grid;grid-template-columns:repeat(6,minmax(150px,1fr));gap:12px;align-items:end}
 .budget-grid .field span{font-size:12px}
 .budget-grid input,.budget-grid select{height:46px}
+.budget-grand-total{margin-top:14px;border:1px solid var(--border);border-radius:18px;background:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;font-weight:900;color:var(--primary);box-shadow:0 10px 26px rgba(95,61,47,.08)}
+.budget-grand-total strong{font-size:22px;color:var(--ink)}
+.budget-total-row td{font-weight:900;background:#fff3ec;color:var(--primary)}
 @media (max-width:1200px){.budget-grid{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:760px){.budget-grid{grid-template-columns:1fr}.publish-agenda{grid-template-columns:1fr}}
 
