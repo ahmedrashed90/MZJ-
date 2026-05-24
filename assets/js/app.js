@@ -34,7 +34,7 @@ window.MZJ_SYSTEM_SETTINGS_COLLECTION = "system_settings";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars";
 
-const routes = ['dashboard','campaigns','create-campaign','departments','calendar','tasks','stock','reports','settings'];
+const routes = ['dashboard','reports','create-campaign','campaigns','tasks','calendar','stock','departments','settings'];
 const pageAliases = {
   database: 'reports',
   report: 'reports',
@@ -3556,7 +3556,7 @@ function renderUsersPermissions(){
   }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
 }
 function pageLabel(page){
-  return {campaigns:'الحملات','create-campaign':'إنشاء حملة',departments:'الأقسام',calendar:'التقويم',tasks:'المهام',stock:'الاستوك',reports:'قاعدة البيانات',settings:'الإعدادات'}[page] || page;
+  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
 }
 function loadSystemSettings(){
   if(!mainDb) return;
