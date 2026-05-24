@@ -1231,7 +1231,9 @@ function isCampaignContentWritingTask(task){
   return isContentSection && isCampaignWriting;
 }
 function adminDashboardTasksForCampaign(campaign){
-  return tasksForCampaign(campaign).filter(task => !isCampaignContentWritingTask(task));
+  // تاسك كتابة محتوى الحملة يظهر للأدمن عادي لحد الاعتماد والتوزيع.
+  // بعد توزيع تاسكات الهيكل، نخفي تاسك الهيكل الرئيسي ونظهر التوزيعات الجديدة فقط.
+  return tasksForCampaign(campaign).filter(task => !(isCampaignContentWritingTask(task) && taskStructure(task).status === 'distributed'));
 }
 function campaignRequiredProgressFromTasks(related){
   const roles = ['content','shooting','design','montage'];

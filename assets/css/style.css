@@ -1633,3 +1633,39 @@ body.has-user-dashboard-theme #dashboard.user-mode .admin-dashboard-board{
     max-height:260px;
   }
 }
+
+/* v84: keep creative task cards 4 columns on desktop after checkbox picker */
+.creative-task-grid,
+.compact-creative-row .creative-task-grid{
+  grid-template-columns:repeat(4,minmax(220px,1fr)) !important;
+  gap:12px !important;
+}
+.creative-task-block,
+.compact-creative-row .creative-task-block{
+  padding:12px !important;
+  gap:10px !important;
+}
+.creative-task-block .task-user-checkbox-grid,
+.compact-creative-row .creative-task-block .task-user-checkbox-grid,
+.creative-task-block .js-task-user.task-user-checkbox-grid{
+  min-height:145px !important;
+  max-height:230px !important;
+  grid-template-columns:1fr !important;
+  gap:8px !important;
+}
+.task-user-check-card{
+  min-height:40px !important;
+  padding:9px 10px !important;
+}
+@media(max-width:1500px){
+  .creative-task-grid,
+  .compact-creative-row .creative-task-grid{
+    grid-template-columns:repeat(2,minmax(300px,1fr)) !important;
+  }
+}
+@media(max-width:900px){
+  .creative-task-grid,
+  .compact-creative-row .creative-task-grid{
+    grid-template-columns:1fr !important;
+  }
+}
