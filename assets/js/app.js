@@ -1159,7 +1159,9 @@ function currentUserMatchesTaskDepartment(task){
   return identityIntersects(depKeys, taskDepKeys);
 }
 function currentUserMatchesTask(task){
-  return currentUserMatchesTaskExact(task) || currentUserMatchesTaskDepartment(task);
+  // الداش بورد الخاص باليوزر يعرض التاسكات المسندة له صراحة فقط.
+  // ممنوع عرض تاسكات لمجرد إن اليوزر في نفس القسم أو هو منشئ الحملة.
+  return currentUserMatchesTaskExact(task);
 }
 
 function canonicalContentLabel(value){
@@ -1295,15 +1297,9 @@ function getVisibleTasksForCurrentUser(){
     return keys.some(key => key.length > 2 && blob.includes(key));
   });
 
-  if(strictMatches.length) return mergeCampaignTasks(strictMatches);
-
-  // fallback داخلي: لو بيانات حساب الدخول ناقصة أو مختلفة، نعرض تاسكات الأقسام التي ينتمي لها اليوزر.
-  const departmentMatches = allTasks.filter(task => currentUserMatchesTaskDepartment(task));
-  if(departmentMatches.length) return mergeCampaignTasks(departmentMatches);
-
-  // حماية أخيرة لمنع شاشة فاضية أثناء اختلاف بيانات اليوزر: اعرض التاسكات القادمة من المسار الصحيح فقط، مقسمة حسب المحتوى.
-  // هذا لا يقرأ من أي مسار خارجي، ويمكن تضييقه لاحقاً بعد ضبط بيانات users.
-  return mergeCampaignTasks(allTasks);
+  // لو مفيش تاسكات مسندة لليوزر الحالي، الداش بورد يفضل فاضي.
+  // لا نستخدم fallback بالقسم أو كل التاسكات حتى لا تظهر تاسكات مستخدمين آخرين.
+  return mergeCampaignTasks(strictMatches);
 }
 function findTaskById(taskId, campaignId = ''){
   const campaignList = campaignId ? campaigns.filter(item => item.id === campaignId) : campaigns;
