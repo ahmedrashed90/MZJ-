@@ -3287,7 +3287,7 @@ function openCampaignDataModal(campaignId){
   const modal = document.getElementById('campaignModal');
   const content = document.getElementById('campaignModalContent');
   if(!campaign || !modal || !content) return;
-  content.innerHTML = `<div class="task-modal-head"><div><span>عرض بيانات الحملة</span><h2>${escapeHtml(campaign.campaignName || campaign.name || 'حملة')}</h2><p>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</p></div><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div>
+  content.innerHTML = `<div class="task-modal-head"><div><span>عرض بيانات الحملة</span><h2>${escapeHtml(campaign.campaignName || campaign.name || 'حملة')}</h2><p>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</p></div><div class="modal-head-actions"><button type="button" class="mini-btn pdf-export-btn" data-export-campaign-pdf="${escapeHtml(campaign.id)}">تصدير PDF</button><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div></div>
     <div class="modal-section"><div class="modal-section-title"><h3>بيانات الحملة</h3></div><div class="task-info-grid"><div><span>التاريخ</span><strong>${formatDateShort(campaign.campaign_date || campaign.createdAt)}</strong></div><div><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || '')}</strong></div><div><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '')}</strong></div><div><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || '')}</strong></div><div><span>الهدف</span><strong>${escapeHtml(campaign.campaign_goal || '')}</strong></div><div><span>النهاية</span><strong>${formatDateShort(campaignEndDate(campaign))}</strong></div></div></div>
     <div class="modal-section"><div class="modal-section-title"><h3>كل المطلوب من التاسكات واليوزرات</h3></div>${buildTaskSummaryList(campaign)}</div>
     <div class="modal-section"><div class="modal-section-title"><h3>عرض جدول النشر</h3></div>${renderScheduleSummary(campaign)}</div>
@@ -3295,6 +3295,24 @@ function openCampaignDataModal(campaignId){
     <div class="modal-section"><div class="modal-section-title"><h3>عرض نتائج الحملة</h3></div>${campaignResultFileHtml(campaign)}<button type="button" class="btn btn-primary" data-upload-results-file="${escapeHtml(campaign.id)}">رفع ملف النتائج</button></div>
     <div class="modal-section"><div class="modal-section-title"><h3>روابط الحملة</h3></div>${campaignLinksHtml(campaign)}<div class="link-add-row"><select class="select" id="campaignLinkPlatform">${platformOptions()}</select><input class="control" id="campaignLinkUrl" type="url" placeholder="رابط المنصة" /><button type="button" class="btn btn-light" data-add-campaign-link="${escapeHtml(campaign.id)}">+ إضافة منصة ورابط</button></div></div>`;
   modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open');
+}
+function printableCompactTable(html){
+  return html.replace(/class="compact-table/g, 'class="compact-table print-table-wrap').replace(/class="db-task-lines-table"/g, 'class="db-task-lines-table print-table"');
+}
+function exportCampaignDataPdf(campaignId){
+  const campaign = campaigns.find(item => item.id === campaignId);
+  if(!campaign) return;
+  const tasksHtml = buildTaskSummaryList(campaign);
+  const title = `${campaign.campaignCode || campaign.campaign_code || ''} - ${campaign.campaignName || campaign.name || 'بيانات الحملة'}`.trim();
+  const safeTitle = escapeHtml(title || 'بيانات الحملة');
+  const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${safeTitle}</title><style>
+    @page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{font-family:Tahoma,Arial,sans-serif;direction:rtl;color:#2d1713;margin:0;background:#fff;font-size:11px}h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:18px 0 8px;border-bottom:2px solid #6f3f34;padding-bottom:6px}.report-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;border:2px solid #6f3f34;border-radius:14px;padding:12px;margin-bottom:12px}.meta{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:8px 0 14px}.meta div{border:1px solid #ead0c4;border-radius:10px;padding:8px;background:#fffaf6}.meta span{display:block;color:#8e7166;font-weight:700;font-size:10px}.meta strong{display:block;margin-top:4px;font-size:11px}.print-table-wrap{overflow:visible!important;border:1px solid #ead0c4;border-radius:10px}.print-table,.compact-table table{width:100%;border-collapse:collapse!important;min-width:0!important}.print-table th,.print-table td,.compact-table th,.compact-table td{border:1px solid #ead0c4!important;padding:7px!important;text-align:right!important;vertical-align:top!important;white-space:normal!important;line-height:1.65!important}.print-table th,.compact-table th{background:#f2e5dc!important;color:#2d1713!important;font-weight:900!important}.empty-state{border:1px dashed #ead0c4;border-radius:10px;padding:14px;text-align:center;color:#8e7166}.footer{margin-top:14px;color:#8e7166;font-size:10px;text-align:left}@media print{button{display:none!important}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+  </style></head><body><section class="report-head"><div><h1>تقرير بيانات الحملة</h1><strong>${safeTitle}</strong></div><div>تاريخ التصدير: ${escapeHtml(formatDateShort(new Date()))}</div></section><section class="meta"><div><span>التاريخ</span><strong>${escapeHtml(formatDateShort(campaign.campaign_date || campaign.createdAt))}</strong></div><div><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</strong></div><div><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '')}</strong></div><div><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || campaign.campaign_type || '')}</strong></div><div><span>هدف الحملة</span><strong>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '')}</strong></div><div><span>النهاية</span><strong>${escapeHtml(formatDateShort(campaignEndDate(campaign)))}</strong></div></section><h2>كل المطلوب من التاسكات واليوزرات</h2>${printableCompactTable(tasksHtml)}<h2>جدول النشر</h2>${printableCompactTable(renderScheduleSummary(campaign))}<h2>الميزانية</h2>${printableCompactTable(renderBudgetSummary(campaign))}<h2>روابط الحملة</h2>${printableCompactTable(campaignLinksHtml(campaign))}<div class="footer">MZJ Workspace</div><script>window.onload=function(){setTimeout(function(){window.focus();window.print();},250)}<\/script></body></html>`;
+  const printWindow = window.open('', '_blank');
+  if(!printWindow){ alert('المتصفح منع فتح نافذة التصدير. اسمح بالـ popups وجرب تاني.'); return; }
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
 }
 function renderScheduleSummary(campaign){
   const list = Array.isArray(campaign.publishSchedule) ? campaign.publishSchedule : [];
@@ -3899,6 +3917,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if(openTaskFromAnywhere){ closeCampaignModal(); renderTaskDetail(openTaskFromAnywhere.dataset.openTask, openTaskFromAnywhere.dataset.taskCampaign || ''); return; }
     const viewOwnerTasks = event.target.closest('[data-view-owner-tasks]');
     if(viewOwnerTasks){ openOwnerTasksModal(viewOwnerTasks.dataset.viewOwnerTasks, viewOwnerTasks.dataset.ownerKey || ''); return; }
+    const exportPdf = event.target.closest('[data-export-campaign-pdf]');
+    if(exportPdf){ exportCampaignDataPdf(exportPdf.dataset.exportCampaignPdf); return; }
     const viewData = event.target.closest('[data-view-campaign-data]');
     if(viewData){ openCampaignDataModal(viewData.dataset.viewCampaignData); return; }
     const editCampaign = event.target.closest('[data-edit-campaign]');

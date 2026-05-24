@@ -1147,3 +1147,4 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .db-task-lines-table tr:last-child td{border-bottom:0}
 .db-task-lines-table td:nth-child(1),.db-task-lines-table td:nth-child(6){white-space:nowrap!important;color:var(--primary);font-weight:900}
 .db-task-lines-table td:nth-child(8){min-width:260px;color:var(--muted)}
+.modal-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-start}.pdf-export-btn{background:#6f3f34!important;color:#fff!important;border-color:#6f3f34!important}.pdf-export-btn:hover{filter:brightness(.95)}
