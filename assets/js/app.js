@@ -104,6 +104,8 @@ function updateTopbarUser(){
 function renderRoute(){
   applyEffectiveTheme();
   updateTopbarUser();
+  applyAppearanceMode();
+  renderTopbarNotifications();
   applyUserPermissions();
   let route = routes.includes(getRoute()) ? getRoute() : 'dashboard';
   if(!pageAllowed(route)){
@@ -1057,6 +1059,59 @@ function restoreEmptyRow(container, colSpan, text){
 }
 function makeSelect(label, className = ''){ return `<select class="${className}" aria-label="${label}"><option value="">اختر</option></select>`; }
 function showToast(text){ let toast = document.querySelector('.save-toast'); if(!toast){ toast = document.createElement('div'); toast.className = 'save-toast'; document.body.appendChild(toast); } toast.textContent = text; toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 1800); }
+
+function applyAppearanceMode(){
+  localStorage.removeItem('mzj_appearance_mode');
+  document.body.classList.remove('dark-mode');
+}
+function toggleAppearanceMode(){
+  applyAppearanceMode();
+}
+function taskDueText(task){
+  const campaign = campaignForTask(task);
+  return formatDateShort(taskRequiredDate(task, campaign));
+}
+function taskNotificationItems(){
+  const isAdmin = isCurrentUserAdmin();
+  const tasks = isAdmin ? campaigns.flatMap(campaign => tasksForCampaign(campaign)) : getVisibleTasksForCurrentUser();
+  const items = [];
+  tasks.forEach(task => {
+    const late = taskDelayDays(task);
+    const progress = taskProgress(task);
+    const title = shortTaskName(task).replace(/<[^>]+>/g,'');
+    if(late > 0){ items.push({tone:'late', icon:'⏰', title:`تأخير ${late} يوم`, text:`${title} · ${taskOwnerName(task).replace(/<[^>]+>/g,'')}`}); }
+    else if(!(task.received || task.receivedConfirmed)){ items.push({tone:'new', icon:'📌', title:'تاسك لم يتم استلامه', text:`${title} · ${taskDueText(task)}`}); }
+    else if(progress > 0 && progress < 100){ items.push({tone:'active', icon:'⚡', title:`قيد التنفيذ ${progress}%`, text:`${title} · ${taskOwnerName(task).replace(/<[^>]+>/g,'')}`}); }
+  });
+  if(isAdmin){
+    campaigns.slice(-4).reverse().forEach(campaign => items.push({tone:'campaign', icon:'📣', title:'حملة محدثة', text: campaignNameText(campaign) || campaignCodeText(campaign) || 'حملة'}));
+  }
+  return items.slice(0, 12);
+}
+function renderTopbarNotifications(){
+  const btn = document.getElementById('notificationToggle');
+  const panel = document.getElementById('notificationPanel');
+  const count = document.getElementById('notificationCount');
+  if(!btn || !panel || !count) return;
+  const items = taskNotificationItems();
+  count.textContent = String(items.length);
+  count.classList.toggle('is-hidden', !items.length);
+  panel.innerHTML = `<div class="notification-head"><strong>الإشعارات</strong><small>${items.length} تنبيه</small></div>` + (items.length ? items.map(item => `<article class="notification-item ${item.tone}"><span>${item.icon}</span><div><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.text)}</small></div></article>`).join('') : '<div class="empty-state mini-empty">لا توجد إشعارات حالياً.</div>');
+}
+function proDepartmentName(task){
+  const label = taskDepartmentLabel(task);
+  return label && label !== 'قسم' && label !== 'غير محدد' ? label : 'بدون قسم';
+}
+function proMetricCard(icon, label, value, hint, tone=''){
+  return `<article class="pro-metric ${tone}"><span class="pro-metric-icon">${icon}</span><div><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong>${hint ? `<em>${escapeHtml(hint)}</em>` : ''}</div></article>`;
+}
+function renderProDashboardHero(allTasks){
+  const late = allTasks.filter(task => taskDelayDays(task) > 0).length;
+  const waiting = allTasks.filter(task => taskWorkflowStatus(task) === 'waiting').length;
+  const active = allTasks.filter(task => taskWorkflowStatus(task) === 'active').length;
+  return `<section class="pro-dashboard-strip dashboard-pro-hero">${proMetricCard('📣','الحملات',campaigns.length,`${campaigns.filter(c => normalizeStatus(c.status || '').includes('archived') === false).length} نشطة`)}${proMetricCard('✅','التاسكات',allTasks.length,`${averageProgress(allTasks)}% إنجاز`)}${proMetricCard('⏰','المتأخر',late,'حسب موعد التسليم','danger')}${proMetricCard('⚡','قيد التنفيذ',active,`${waiting} في الانتظار`,'active')}</section>`;
+}
+
 function taskBlockHtml(index){
   return `<div class="creative-task-block" data-task-index="${index}">
     <label><span>اختار المحتوى</span><select class="js-task-section-select">${contentSectionOptions()}</select></label>
@@ -3134,6 +3189,7 @@ function renderTasksPage(){
   if(totalDone) statusKeys.push('approved');
   const dashboardSubtitle = `${activeCampaigns.length} حملة نشطة · ${tasks.length} تاسك · ${delayedTasks.length} متأخر`;
   board.innerHTML = `<section class="monitor-page professional-monitor">
+    <div class="monitor-action-strip"><span>📊 متابعة مباشرة</span><span>آخر تحديث: ${escapeHtml(formatDateShort(new Date()))}</span><span>${isAdmin ? 'رؤية أدمن كاملة' : 'رؤية حسب صلاحياتك'}</span></div>
     <div class="monitor-hero-card">
       <div><p>نظرة عامة</p><h2>متابعة الحملات والتاسكات</h2><span>${escapeHtml(dashboardSubtitle)}</span></div>
       <strong>${averageProgress(tasks)}%</strong>
@@ -3228,7 +3284,7 @@ function renderUserDashboard(){
     <div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div>
   </article>`;
   board.innerHTML = `<section class="user-content-dashboard">
-    <div class="user-content-head"><div><h2>أنواع المحتوى</h2><p>التاسكات المطلوبة منك حسب نوع المحتوى من الحملات.</p></div><div class="exec-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div></div>
+    <div class="user-pro-hero"><div><span class="pro-kicker">MZJ Workspace</span><h2>أهلاً ${escapeHtml(getCurrentUserIdentity().name || 'بيك')}</h2><p>تاسكاتك الحالية حسب نوع المحتوى والحملات المسندة لك فقط.</p></div><div class="exec-stats"><span>📌 ${myTasks.length} تاسك</span><span>✅ ${received} مستلم</span><span>🏁 ${done} مكتمل</span></div></div>
     <div class="user-theme-panel"><label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label><button class="mini-btn" type="button" id="clearUserThemeBtn">استرجاع الثيم الافتراضي</button></div>
     ${groups.length ? `<div class="content-type-board">${groups.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : '<div class="empty-state soft-empty">لا توجد تكليفات مسندة لك حالياً.</div>'}
   </section>`;
@@ -3277,6 +3333,7 @@ function renderAdminDashboard(){
   </article>`;
 
   adminBoard.innerHTML = `
+    ${renderProDashboardHero(allTasks)}
     <section class="admin-dash-col receive-col"><div class="col-title"><h2>TASK - المطلوب</h2><p>متابعة ضغط اليوزرات على تم الاستلام فقط.</p></div>${requiredItems.length ? requiredItems.map(requiredCard).join('') : '<div class="empty-state soft-empty">كل المطلوب تم استلامه حالياً.</div>'}</section>
     <section class="admin-dash-col ready-col"><div class="col-title"><h2>جاهزية المطلوب</h2><p>اضغط على حملة لفتح التاسكات بنظام كانبان.</p></div>${readinessItems.length ? readinessItems.map(readinessCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات قيد التجهيز.</div>'}</section>
     <section class="admin-dash-col publish-col"><div class="col-title"><h2>قسم النشر</h2><p>تظهر هنا بعد اكتمال جاهزية المطلوب.</p></div>${publishItems.length ? publishItems.map(publishCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات جاهزة للنشر.</div>'}</section>
@@ -4172,6 +4229,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   document.getElementById('logoutBtn')?.addEventListener('click', async () => { localStorage.removeItem('mzj_logged_in'); localStorage.removeItem('mzj_login_email'); localStorage.removeItem('mzj_user'); try{ await mainAuth?.signOut?.(); }catch(_){} openLogin(); });
+  document.getElementById('notificationToggle')?.addEventListener('click', event => { event.stopPropagation(); renderTopbarNotifications(); document.getElementById('notificationPanel')?.classList.toggle('is-hidden'); });
+  document.addEventListener('click', event => { if(!event.target.closest('.notification-wrap')) document.getElementById('notificationPanel')?.classList.add('is-hidden'); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
   document.addEventListener('keydown', event => { if(event.key === 'Escape'){ closeTaskModal(); closeCampaignModal(); } });
   document.getElementById('calendarPrevMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()-1); renderCalendarPage(); });

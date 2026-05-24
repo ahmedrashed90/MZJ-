@@ -44,14 +44,14 @@
     <aside class="sidebar" id="sidebar">
       <div class="brand"><img src="assets/img/logo.png" alt="مجموعة محمد ذعار العجمي" /></div>
       <nav class="nav" id="mainNav" aria-label="القائمة الرئيسية">
-        <a href="#dashboard" data-route="dashboard"><span class="icon">⌂</span><span>لوحة التحكم</span></a>
-        <a href="#reports" data-route="reports"><span class="icon">▥</span><span>قاعدة البيانات</span></a>
-        <a href="#create-campaign" data-route="create-campaign"><span class="icon">＋</span><span>إنشاء حملة</span></a>
+        <a href="#dashboard" data-route="dashboard"><span class="icon">🏠</span><span>لوحة التحكم</span></a>
+        <a href="#reports" data-route="reports"><span class="icon">🗄️</span><span>قاعدة البيانات</span></a>
+        <a href="#create-campaign" data-route="create-campaign"><span class="icon">➕</span><span>إنشاء حملة</span></a>
         <a href="#campaigns" data-route="campaigns"><span class="icon">📣</span><span>إدارة الحملات</span></a>
-        <a href="#tasks" data-route="tasks"><span class="icon">☑</span><span>المتابعة</span></a>
-        <a href="#calendar" data-route="calendar"><span class="icon">▦</span><span>التقويم</span></a>
-        <a href="#stock" data-route="stock"><span class="icon">▧</span><span>الاستوك</span></a>
-        <a href="#departments" data-route="departments"><span class="icon">▤</span><span>الأقسام</span></a>
+        <a href="#tasks" data-route="tasks"><span class="icon">📈</span><span>المتابعة</span></a>
+        <a href="#calendar" data-route="calendar"><span class="icon">📅</span><span>التقويم</span></a>
+        <a href="#stock" data-route="stock"><span class="icon">🚗</span><span>الاستوك</span></a>
+        <a href="#departments" data-route="departments"><span class="icon">👥</span><span>الأقسام</span></a>
         <a href="#settings" data-route="settings"><span class="icon">⚙</span><span>الإعدادات</span></a>
       </nav>
     </aside>
@@ -61,6 +61,10 @@
         <button class="menu-btn" data-menu type="button">☰</button>
         <div class="search"><span>⌕</span><input type="search" placeholder="بحث داخل النظام" /></div>
         <div class="topbar-actions">
+          <div class="notification-wrap">
+            <button class="icon-btn notify-btn" type="button" id="notificationToggle" title="الإشعارات">🔔<span id="notificationCount" class="notify-count is-hidden">0</span></button>
+            <div class="notification-panel is-hidden" id="notificationPanel"></div>
+          </div>
           <span class="topbar-user" id="topbarUserName">مستخدم</span>
           <button class="btn btn-light" type="button" id="logoutBtn">خروج</button>
         </div>
