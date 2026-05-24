@@ -92,13 +92,18 @@ function openApp(){ loginView.classList.add('is-hidden'); appShell.classList.rem
 function openLogin(){ appShell.classList.add('is-hidden'); loginView.classList.remove('is-hidden'); }
 
 function updateTopbarUser(){
-  const target = document.getElementById('topbarUserName');
-  if(!target) return;
+  const nameTarget = document.getElementById('topbarUserName');
+  const departmentTarget = document.getElementById('topbarUserDepartment');
+  if(!nameTarget) return;
   const user = getCurrentUserIdentity();
   const displayName = user.name || user.email || 'مستخدم';
   const dep = departmentForUser(user.id || user.uid || user.email || displayName);
   const depName = dep?.name || getCurrentUser()?.departmentName || getCurrentUser()?.department || '';
-  target.innerHTML = `<span class="topbar-user-name">${escapeHtml(displayName)}</span>${depName ? `<small class="topbar-user-department">${escapeHtml(depName)}</small>` : ''}`;
+  nameTarget.textContent = displayName;
+  if(departmentTarget){
+    departmentTarget.textContent = depName || 'بدون قسم';
+    departmentTarget.classList.toggle('is-hidden', !depName);
+  }
 }
 
 function renderRoute(){
