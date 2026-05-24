@@ -1118,3 +1118,19 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
   #tasks .professional-grid{grid-template-columns:1fr!important;}
   #tasks .monitor-hero-card{flex-direction:column!important;align-items:flex-start!important;}
 }
+
+/* Database campaign task full details */
+.db-task-group-full{display:grid;gap:12px;padding:14px;background:rgba(255,255,255,.56)}
+.db-task-group-full h4{border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:0}
+.db-task-full-card{border:1px solid var(--border);border-radius:18px;background:#fffaf6;padding:14px;display:grid;gap:12px;box-shadow:0 8px 22px rgba(90,58,50,.06)}
+.db-task-full-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px dashed var(--border);padding-bottom:10px}
+.db-task-full-head b{display:block;font-size:15px;color:var(--text);line-height:1.7}
+.db-task-full-head small{display:block;color:var(--muted);font-weight:900;line-height:1.6}
+.db-task-meta-grid{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px}
+.db-task-meta-grid>div,.db-task-detail-field{border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.72);padding:10px;display:grid;gap:5px;align-content:start}
+.db-task-meta-grid span,.db-task-detail-field span{color:var(--muted);font-weight:900;font-size:12px}
+.db-task-meta-grid strong,.db-task-detail-field strong{color:var(--text);font-weight:900;line-height:1.7;white-space:pre-wrap}
+.db-task-details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.db-task-detail-field:nth-child(3),.db-task-detail-field:nth-child(4),.db-task-detail-field:nth-child(6){grid-column:span 2}
+@media(max-width:1100px){.db-task-meta-grid{grid-template-columns:repeat(2,1fr)}.db-task-details-grid{grid-template-columns:1fr}.db-task-detail-field:nth-child(3),.db-task-detail-field:nth-child(4),.db-task-detail-field:nth-child(6){grid-column:span 1}}
+@media(max-width:700px){.db-task-full-head{flex-direction:column}.db-task-meta-grid{grid-template-columns:1fr}}

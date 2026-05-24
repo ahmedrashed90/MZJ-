@@ -3188,7 +3188,36 @@ function buildTaskSummaryList(campaign){
   const grouped = campaignTasksByContent(campaign);
   const names = Object.keys(grouped);
   if(!names.length) return '<div class="empty-state soft-empty">لا توجد تاسكات.</div>';
-  return names.map(name => `<section class="db-task-group"><h4>${escapeHtml(name)} <span>${grouped[name].length}</span></h4>${grouped[name].map(task => `<div class="db-task-row"><b>${escapeHtml(task.taskType || shortTaskName(task))}</b><span>${escapeHtml(taskOwnerName(task))}</span><em>${taskProgress(task)}%</em></div>`).join('')}</section>`).join('');
+  const fieldBlock = (label, value) => value ? `<div class="db-task-detail-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>` : '';
+  return names.map(name => `<section class="db-task-group db-task-group-full"><h4>${escapeHtml(name)} <span>${grouped[name].length}</span></h4>${grouped[name].map(task => {
+    const row = task.structureRow || {};
+    const requiredDate = taskRequiredDate(task, campaign);
+    return `<article class="db-task-full-card">
+      <div class="db-task-full-head">
+        <div>
+          <b>${escapeHtml(structureContentTaskLabel(row, taskContentType(task) || task.taskType || shortTaskName(task)))}</b>
+          <small>${escapeHtml([structureTaskNumber(task), task.taskType || ''].filter(Boolean).join(' - '))}</small>
+        </div>
+        <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">عرض التاسك كامل</button>
+      </div>
+      <div class="db-task-meta-grid">
+        <div><span>اليوزر</span><strong>${escapeHtml(taskOwnerName(task))}</strong></div>
+        <div><span>القسم</span><strong>${escapeHtml(taskDepartmentLabel(task))}</strong></div>
+        <div><span>الحالة</span><strong>${escapeHtml(receivedLabel(task))}</strong></div>
+        <div><span>التقدم</span><strong>${taskProgress(task)}%</strong></div>
+        <div><span>التاريخ المطلوب</span><strong>${formatDateShort(requiredDate)}</strong></div>
+      </div>
+      <div class="db-task-details-grid">
+        ${fieldBlock('الهدف', row.goal)}
+        ${fieldBlock('الهدف الملموس', row.tangibleGoal)}
+        ${fieldBlock('الفكرة', row.idea || row.contentName)}
+        ${fieldBlock('وصف المحتوى', row.description)}
+        ${fieldBlock('الرسالة', row.message)}
+        ${fieldBlock('المطلوب من الكاتب', row.writerRequest)}
+        ${fieldBlock('CTA', row.cta)}
+      </div>
+    </article>`;
+  }).join('')}</section>`).join('');
 }
 function campaignResultFileHtml(campaign){
   const file = campaign.resultsFile || campaign.resultFile || null;
@@ -3814,6 +3843,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', async event => {
 
     if(event.target.closest('[data-close-campaign-modal]')){ closeCampaignModal(); return; }
+    const openTaskFromAnywhere = event.target.closest('[data-open-task]');
+    if(openTaskFromAnywhere){ closeCampaignModal(); renderTaskDetail(openTaskFromAnywhere.dataset.openTask, openTaskFromAnywhere.dataset.taskCampaign || ''); return; }
     const viewData = event.target.closest('[data-view-campaign-data]');
     if(viewData){ openCampaignDataModal(viewData.dataset.viewCampaignData); return; }
     const editCampaign = event.target.closest('[data-edit-campaign]');
