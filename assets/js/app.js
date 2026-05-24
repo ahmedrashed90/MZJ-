@@ -1144,7 +1144,7 @@ function taskBlockHtml(index){
     <label><span>اختار المحتوى</span><select class="js-task-section-select">${contentSectionOptions()}</select></label>
     <label><span>نوع التاسك</span><select class="js-task-type"><option value="">اختر نوع التاسك</option></select></label>
     <label class="task-qty-field"><span>العدد</span><input class="js-task-quantity" type="number" min="1" value="1" aria-label="عدد التاسكات" /></label>
-    <label><span>التاريخ المطلوب</span><input class="js-task-required-date" type="date" aria-label="التاريخ المطلوب" /></label>
+    <label class="pro-date-field"><span>التاريخ المطلوب</span><input class="js-task-required-date pro-date-input" type="date" aria-label="التاريخ المطلوب" /></label>
     <label><span>اليوزر</span><select class="js-task-user" multiple>${multiTaskUserOptions('', [])}</select></label>
   </div>`;
 }
@@ -2966,6 +2966,10 @@ function bindCampaignBuilder(){
     document.querySelectorAll('.multi-dropdown.open').forEach(el => { if(el !== toggle?.closest('.multi-dropdown')) el.classList.remove('open'); });
     if(toggle){ toggle.closest('.multi-dropdown')?.classList.toggle('open'); return; }
     if(!event.target.closest('.multi-dropdown')) document.querySelectorAll('.multi-dropdown.open').forEach(el => el.classList.remove('open'));
+    const dateInput = event.target.closest('.pro-date-input, .js-task-required-date');
+    if(dateInput && typeof dateInput.showPicker === 'function'){
+      try{ dateInput.showPicker(); }catch(_){ }
+    }
     const btn = event.target.closest('.delete-row');
     if(btn){ const container = document.getElementById('creativeRows'); btn.closest('.creative-row-card')?.remove(); restoreEmptyRow(container, 1, 'ابدأ بإضافة صف كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
     const budgetDel = event.target.closest('.delete-budget-row');
@@ -2984,6 +2988,11 @@ function bindCampaignBuilder(){
   document.addEventListener('input', event => {
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')) updateBudgetGrandTotal();
     if(event.target.closest('#stockAdvancedFilters')) renderStock();
+  });
+  document.addEventListener('focusin', event => {
+    if(event.target.matches('.pro-date-input, .js-task-required-date') && typeof event.target.showPicker === 'function'){
+      try{ event.target.showPicker(); }catch(_){ }
+    }
   });
 
   document.addEventListener('change', event => {

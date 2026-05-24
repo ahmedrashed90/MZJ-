@@ -1221,3 +1221,122 @@ body.dark-mode{background:var(--bg)!important;color:var(--text)!important}
 
 /* Notifications actions */
 .notification-head-actions{display:flex;align-items:center;gap:8px}.notification-clear,.notification-dismiss{border:1px solid var(--border);background:#fff;border-radius:999px;color:var(--primary);font-weight:900;cursor:pointer}.notification-clear{padding:5px 9px;font-size:11px}.notification-dismiss{margin-inline-start:auto;width:28px;height:28px;display:grid;place-items:center;font-size:16px;line-height:1}.notification-item[data-open-task]{cursor:pointer;transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease}.notification-item[data-open-task]:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(49,32,26,.10);border-color:rgba(139,83,71,.35)}.notification-item>div{min-width:0;flex:1}.notification-dismiss:hover,.notification-clear:hover{background:#fff3ef}
+
+/* v79: make creative selector larger and clearer in campaign builder */
+.compact-creative-row .creative-two-line-head .creative-checkbox-picker,
+.compact-creative-row .creative-checkbox-picker{
+  padding:12px!important;
+  border-radius:18px!important;
+  background:rgba(255,255,255,.92)!important;
+  border:1.5px solid var(--border)!important;
+  box-shadow:0 12px 28px rgba(62,38,29,.05)!important;
+}
+.compact-creative-row .creative-checkbox-picker>span{
+  font-size:13px!important;
+  font-weight:900!important;
+  color:var(--primary)!important;
+  margin-bottom:8px!important;
+}
+.compact-creative-row .creative-two-line-head .creative-checkbox-grid{
+  grid-template-columns:repeat(5,minmax(170px,1fr))!important;
+  grid-auto-rows:minmax(46px,auto)!important;
+  max-height:150px!important;
+  gap:10px!important;
+  padding:8px!important;
+  border-radius:16px!important;
+  background:rgba(255,248,244,.85)!important;
+}
+.compact-creative-row .creative-two-line-head .creative-check-card,
+.compact-creative-row .creative-check-card{
+  min-height:46px!important;
+  height:auto!important;
+  padding:10px 13px!important;
+  border-radius:14px!important;
+  font-size:13px!important;
+  line-height:1.35!important;
+  background:#fff!important;
+  border:1px solid var(--border)!important;
+  color:var(--text)!important;
+  box-shadow:0 8px 18px rgba(62,38,29,.035)!important;
+}
+.compact-creative-row .creative-check-card input{
+  width:18px!important;
+  height:18px!important;
+}
+.compact-creative-row .creative-check-card span{
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  font-weight:900!important;
+}
+@media(max-width:1500px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(4,minmax(150px,1fr))!important}}
+@media(max-width:1100px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(2,minmax(140px,1fr))!important}}
+@media(max-width:650px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:1fr!important}}
+
+
+/* v80: clearer creative picker + professional required date picker */
+.compact-creative-row .creative-two-line-head .creative-checkbox-picker,
+.compact-creative-row .creative-checkbox-picker{
+  padding:14px!important;
+  border-radius:20px!important;
+  border:2px solid rgba(153,100,82,.24)!important;
+}
+.compact-creative-row .creative-two-line-head .creative-checkbox-grid{
+  grid-template-columns:repeat(4,minmax(210px,1fr))!important;
+  grid-auto-rows:minmax(54px,auto)!important;
+  max-height:178px!important;
+  gap:12px!important;
+}
+.compact-creative-row .creative-two-line-head .creative-check-card,
+.compact-creative-row .creative-check-card{
+  min-height:54px!important;
+  padding:12px 15px!important;
+  font-size:14px!important;
+  border-radius:16px!important;
+}
+.compact-creative-row .creative-check-card input{
+  width:20px!important;
+  height:20px!important;
+}
+.pro-date-field{position:relative!important}
+.pro-date-field span{display:flex!important;align-items:center!important;gap:6px!important}
+.pro-date-field span::before{content:'📅';font-size:13px;line-height:1}
+.pro-date-input,
+.compact-creative-row .creative-task-block .pro-date-input,
+.compact-creative-row .creative-task-block input.js-task-required-date{
+  height:42px!important;
+  min-height:42px!important;
+  border-radius:14px!important;
+  border:1.5px solid rgba(153,100,82,.32)!important;
+  background:linear-gradient(135deg,#fff,#fff7f1)!important;
+  color:var(--text)!important;
+  font-size:13px!important;
+  font-weight:900!important;
+  padding:8px 14px!important;
+  box-shadow:0 10px 22px rgba(62,38,29,.055)!important;
+  cursor:pointer!important;
+  text-align:center!important;
+}
+.pro-date-input:hover,
+.compact-creative-row .creative-task-block input.js-task-required-date:hover{
+  border-color:var(--primary)!important;
+  box-shadow:0 12px 28px rgba(139,83,71,.12)!important;
+}
+.pro-date-input:focus,
+.compact-creative-row .creative-task-block input.js-task-required-date:focus{
+  outline:none!important;
+  border-color:var(--primary)!important;
+  box-shadow:0 0 0 4px rgba(139,83,71,.10),0 14px 30px rgba(62,38,29,.08)!important;
+}
+.pro-date-input::-webkit-calendar-picker-indicator,
+.compact-creative-row .creative-task-block input.js-task-required-date::-webkit-calendar-picker-indicator{
+  width:24px!important;
+  height:24px!important;
+  padding:5px!important;
+  border-radius:10px!important;
+  background-color:#f5e3d6!important;
+  cursor:pointer!important;
+}
+@media(max-width:1500px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(3,minmax(180px,1fr))!important}}
+@media(max-width:1050px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(2,minmax(160px,1fr))!important}}
+@media(max-width:650px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:1fr!important}}
