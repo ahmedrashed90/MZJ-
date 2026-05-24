@@ -1143,7 +1143,6 @@ function taskBlockHtml(index){
   return `<div class="creative-task-block" data-task-index="${index}">
     <label><span>اختار المحتوى</span><select class="js-task-section-select">${contentSectionOptions()}</select></label>
     <label><span>نوع التاسك</span><select class="js-task-type"><option value="">اختر نوع التاسك</option></select></label>
-    <label class="task-qty-field"><span>العدد</span><input class="js-task-quantity" type="number" min="1" value="1" aria-label="عدد التاسكات" /></label>
     <label class="pro-date-field"><span>التاريخ المطلوب</span><input class="js-task-required-date pro-date-input" type="date" aria-label="التاريخ المطلوب" /></label>
     <label><span>اليوزر</span><select class="js-task-user" multiple>${multiTaskUserOptions('', [])}</select></label>
   </div>`;
@@ -1218,6 +1217,28 @@ function taskProgress(task){
     return Math.min(100, Math.round(task.steps.reduce((sum, step) => sum + (step.done ? Number(step.percent || 0) : 0), 0)));
   }
   return Number(task.progress || 0);
+}
+function isCampaignContentWritingTask(task){
+  const sectionText = identityClean([
+    task.contentSectionName, task.assignedDepartmentName, task.departmentName, task.departmentRole, task.contentType
+  ].filter(Boolean).join(' '));
+  const typeText = identityClean([task.taskType, task.structureTaskLabel, task.creative, task.product].filter(Boolean).join(' '));
+  const isContentSection = normalizeDepartmentRole(sectionText) === 'content' || sectionText.includes('محتوي') || sectionText.includes('content');
+  const isCampaignWriting = typeText.includes('كتابه محتوي حمله') || (typeText.includes('كتابه') && typeText.includes('محتوي') && typeText.includes('حمله')) || (typeText.includes('campaign') && typeText.includes('content'));
+  return isContentSection && isCampaignWriting;
+}
+function adminDashboardTasksForCampaign(campaign){
+  return tasksForCampaign(campaign).filter(task => !isCampaignContentWritingTask(task));
+}
+function campaignRequiredProgressFromTasks(related){
+  const roles = ['content','shooting','design','montage'];
+  if(!related.length) return 0;
+  return Math.round(roles.reduce((total, role) => {
+    const tasks = related.filter(task => task.departmentRole === role);
+    if(!tasks.length) return total;
+    const avg = tasks.reduce((sum, task) => sum + taskProgress(task), 0) / tasks.length;
+    return total + (avg * 0.25);
+  }, 0));
 }
 function fallbackTasksFromCampaign(campaign){
   const fallback = [];
@@ -1336,15 +1357,7 @@ function groupTasksForKanban(tasks){
   return order.map(role => ({ role, label: labels[role], tasks: tasks.filter(task => (task.departmentRole || 'other') === role) })).filter(group => group.tasks.length);
 }
 function campaignRequiredProgress(campaign){
-  const related = tasksForCampaign(campaign);
-  const roles = ['content','shooting','design','montage'];
-  if(!related.length) return 0;
-  return Math.round(roles.reduce((total, role) => {
-    const tasks = related.filter(task => task.departmentRole === role);
-    if(!tasks.length) return total;
-    const avg = tasks.reduce((sum, task) => sum + taskProgress(task), 0) / tasks.length;
-    return total + (avg * 0.25);
-  }, 0));
+  return campaignRequiredProgressFromTasks(tasksForCampaign(campaign));
 }
 function campaignPublishProgress(campaign){
   const stages = campaign.publishStages || {};
@@ -2674,12 +2687,11 @@ function collectCampaignRows(){
       const section = block.querySelector('.js-task-section-select');
       const task = block.querySelector('.js-task-type');
       const userControl = block.querySelector('.js-task-user');
-      const qty = Math.max(1, Math.min(50, Number(block.querySelector('.js-task-quantity')?.value || 1)));
       return {
         contentSectionId: section?.value || '',
         contentSectionName: readSelectText(section),
         taskType: task?.value || '',
-        quantity: qty,
+        quantity: 1,
         requiredDate: block.querySelector('.js-task-required-date')?.value || '',
         userIds: selectedOptionValues(userControl),
         userNames: selectedOptionTexts(userControl)
@@ -3010,7 +3022,7 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.closest('#stockAdvancedFilters')){ renderStock(); return; }
     if(event.target.matches('.js-platform-checkbox')){ return; }
-    if(event.target.matches('.js-creative-select,.js-creative-check,.js-task-type,.js-task-quantity,.js-task-required-date')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
+    if(event.target.matches('.js-creative-select,.js-creative-check,.js-task-type,.js-task-required-date')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
   document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<div class="empty-state">ابدأ بإضافة صف كريتيف للحملة.</div>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; updateBudgetGrandTotal(); generateCampaignCode(); });
   document.getElementById('saveCampaignDraft')?.addEventListener('click', saveCampaignToFirebase);
@@ -3289,9 +3301,9 @@ function receivedLabel(task){ return task.received || task.receivedConfirmed ? '
 function receivedClass(task){ return task.received || task.receivedConfirmed ? 'is-done' : 'is-waiting'; }
 function taskOwnerName(task){ return escapeHtml(task.assignedToName || task.assigneeName || task.userName || 'بدون مسؤول'); }
 function campaignTasksSnapshot(campaign){
-  const related = tasksForCampaign(campaign);
+  const related = adminDashboardTasksForCampaign(campaign);
   const received = related.filter(task => task.received || task.receivedConfirmed).length;
-  const progress = campaignRequiredProgress(campaign);
+  const progress = campaignRequiredProgressFromTasks(related);
   const publish = campaignPublishProgress(campaign);
   return { related, received, progress, publish, total: related.length };
 }
@@ -3345,7 +3357,7 @@ function renderUserDashboard(){
 }
 
 function renderAdminDashboard(){
-  const allTasks = campaigns.flatMap(campaign => tasksForCampaign(campaign));
+  const allTasks = campaigns.flatMap(campaign => adminDashboardTasksForCampaign(campaign));
   const count = document.getElementById('dashboardCampaignsCount'); if(count) count.textContent = campaigns.length || '—';
   const tasksCount = document.getElementById('dashboardTasksCount'); if(tasksCount) tasksCount.textContent = allTasks.length || '—';
   const adminBoard = document.getElementById('adminDashboardBoard');
@@ -3396,7 +3408,7 @@ function renderAdminDashboard(){
 
 
 function renderCampaignInlineTasks(campaign){
-  const related = tasksForCampaign(campaign);
+  const related = adminDashboardTasksForCampaign(campaign);
   const grouped = groupTasksForKanban(related);
   const taskItem = task => `<article class="inline-task-row">
     <div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([taskDepartmentLabel(task), task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div>
@@ -3421,7 +3433,7 @@ function renderCampaignDetail(campaignId){
   const campaign = campaigns.find(item => item.id === campaignId);
   const detail = document.getElementById('dashboardCampaignDetail');
   if(!detail || !campaign) return;
-  const related = tasksForCampaign(campaign);
+  const related = adminDashboardTasksForCampaign(campaign);
   const snap = campaignTasksSnapshot(campaign);
   const taskItem = task => `<article class="campaign-task-list-item">
     <div class="task-list-main"><strong>${shortTaskName(task)}</strong><p>${escapeHtml([task.contentSectionName, task.taskType, taskOwnerName(task)].filter(Boolean).join(' / ') || 'بدون بيانات')}</p></div>
@@ -3746,7 +3758,7 @@ function openCampaignEditModal(campaignId){
   content.innerHTML = `<div class="task-modal-head"><div><span>تعديل الحملة</span><h2>${escapeHtml(campaignNameText(campaign) || 'حملة')}</h2><p>${escapeHtml(campaignCodeText(campaign))}</p></div><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div>
     <div class="modal-section"><div class="modal-section-title"><h3>بيانات الحملة</h3></div><div class="campaign-edit-grid"><label class="field"><span>اسم الحملة</span><input id="editCampaignName" value="${escapeHtml(campaign.campaignName || campaign.name || '')}"></label><label class="field"><span>نوع الحملة</span><input id="editCampaignType" value="${escapeHtml(campaign.campaignType || campaign.campaign_type || '')}"></label><label class="field"><span>هدف الحملة</span><input id="editCampaignGoal" value="${escapeHtml(campaign.campaign_goal || '')}"></label><label class="field"><span>تاريخ الحملة</span><input type="date" id="editCampaignDate" value="${escapeHtml(campaign.campaign_date || '')}"></label></div><button type="button" class="btn btn-primary" data-save-campaign-edit="${escapeHtml(campaign.id)}">حفظ تعديلات الحملة</button></div>
     <div class="modal-section"><div class="modal-section-title"><h3>التاسكات الحالية</h3></div>${taskRows}</div>
-    <div class="modal-section"><div class="modal-section-title"><h3>إضافة تاسك</h3></div><div class="campaign-edit-grid"><label class="field"><span>اختار المحتوى</span><select id="editAddSection">${contentSectionOptions()}</select></label><label class="field"><span>نوع التاسك</span><select id="editAddTaskType"><option value="">اختر نوع التاسك</option></select></label><label class="field"><span>العدد</span><input type="number" id="editAddQty" min="1" value="1"></label><label class="field"><span>التاريخ المطلوب</span><input type="date" id="editAddRequiredDate"></label><label class="field"><span>اليوزر</span><select id="editAddUsers" multiple size="4">${multiUserOptions()}</select></label></div><button type="button" class="btn btn-light" data-add-task-to-campaign="${escapeHtml(campaign.id)}">+ إضافة تاسك للحملة</button></div>`;
+    <div class="modal-section"><div class="modal-section-title"><h3>إضافة تاسك</h3></div><div class="campaign-edit-grid"><label class="field"><span>اختار المحتوى</span><select id="editAddSection">${contentSectionOptions()}</select></label><label class="field"><span>نوع التاسك</span><select id="editAddTaskType"><option value="">اختر نوع التاسك</option></select></label><label class="field"><span>التاريخ المطلوب</span><input type="date" id="editAddRequiredDate"></label><label class="field"><span>اليوزر</span><select id="editAddUsers" multiple size="4">${multiUserOptions()}</select></label></div><button type="button" class="btn btn-light" data-add-task-to-campaign="${escapeHtml(campaign.id)}">+ إضافة تاسك للحملة</button></div>`;
   modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open');
 }
 async function saveCampaignEdit(campaignId){
@@ -3768,7 +3780,7 @@ async function addTaskToCampaign(campaignId){
   const campaign = campaigns.find(item => item.id === campaignId); if(!campaign || !mainDb) return;
   const sectionId = document.getElementById('editAddSection')?.value || '';
   const taskType = document.getElementById('editAddTaskType')?.value || '';
-  const qty = Math.max(1, Math.min(50, Number(document.getElementById('editAddQty')?.value || 1)));
+  const qty = 1;
   const requiredDate = document.getElementById('editAddRequiredDate')?.value || '';
   const userIds = getSelectedValues(document.getElementById('editAddUsers'));
   if(!sectionId || !taskType || !userIds.length){ showToast('اختار المحتوى ونوع التاسك واليوزر.'); return; }

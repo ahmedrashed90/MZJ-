@@ -1465,3 +1465,101 @@ body.has-user-dashboard-theme #dashboard.user-mode .empty-state.soft-empty{
   color:var(--muted) !important;
   justify-content:flex-start !important;
 }
+
+
+/* v82: requested dashboard background, content-writing approval flow, and task picker sizing */
+body.has-user-dashboard-theme #dashboard.user-mode,
+body.has-user-dashboard-theme #dashboard.admin-mode{
+  background-size:100vw 100vh !important;
+  background-position:center top !important;
+  background-repeat:no-repeat !important;
+  background-attachment:fixed !important;
+}
+#dashboard.user-mode #adminDashboardBoard,
+#dashboard.user-mode .admin-dashboard-board,
+body.has-user-dashboard-theme #dashboard.user-mode #adminDashboardBoard,
+body.has-user-dashboard-theme #dashboard.user-mode .admin-dashboard-board{
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+  padding:0 !important;
+  margin-top:0 !important;
+}
+.creative-task-block .task-qty-field{
+  display:none !important;
+}
+.creative-task-grid{
+  grid-template-columns:repeat(2,minmax(330px,1fr)) !important;
+  gap:14px !important;
+}
+.creative-task-block{
+  padding:14px !important;
+  gap:12px !important;
+}
+.creative-task-block label{
+  gap:7px !important;
+}
+.creative-task-block span{
+  font-size:12.5px !important;
+}
+.creative-row-head select,
+.creative-row-head input,
+.creative-task-block select,
+.creative-task-block input{
+  height:42px !important;
+  font-size:13px !important;
+  padding:9px 11px !important;
+  border-radius:12px !important;
+}
+.creative-task-block .js-task-user{
+  height:132px !important;
+  min-height:132px !important;
+  font-size:13.5px !important;
+  padding:10px !important;
+  line-height:1.7 !important;
+}
+.creative-task-block .js-task-user option{
+  padding:8px 10px !important;
+}
+#editAddUsers{
+  min-height:150px !important;
+  font-size:14px !important;
+  padding:10px !important;
+}
+@media(max-width:900px){
+  .creative-task-grid{
+    grid-template-columns:1fr !important;
+  }
+}
+
+/* v82b: force bigger task/user selection even in compact creative rows */
+.compact-creative-row .creative-task-grid{
+  grid-template-columns:repeat(2,minmax(330px,1fr)) !important;
+  gap:14px !important;
+}
+.compact-creative-row .creative-task-block{
+  padding:14px !important;
+  border-radius:14px !important;
+  gap:12px !important;
+}
+.compact-creative-row .creative-task-block span{
+  font-size:12.5px !important;
+}
+.compact-creative-row .creative-task-block select,
+.compact-creative-row .creative-task-block input{
+  height:42px !important;
+  font-size:13px !important;
+  padding:9px 11px !important;
+  border-radius:12px !important;
+}
+.compact-creative-row .creative-task-block .js-task-user{
+  height:132px !important;
+  min-height:132px !important;
+  font-size:13.5px !important;
+  padding:10px !important;
+}
+@media(max-width:900px){
+  .compact-creative-row .creative-task-grid{grid-template-columns:1fr !important;}
+}
