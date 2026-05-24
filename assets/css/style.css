@@ -1242,3 +1242,17 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-metric-row,
 body.has-user-dashboard-theme #dashboard.user-mode .exec-stats span{
   background: rgba(255,255,255,.62) !important;
 }
+
+/* v82: remove empty-state band over user dashboard background */
+body.has-user-dashboard-theme #dashboard.user-mode .empty-state.soft-empty,
+body.has-user-dashboard-theme #dashboard.user-mode .soft-empty.empty-state,
+body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
+  background: transparent !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  min-height: auto !important;
+  padding: 10px 0 !important;
+}
