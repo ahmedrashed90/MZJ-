@@ -3178,7 +3178,7 @@ function databaseDepartmentCell(campaign, role, words){
   if(!departmentList.length) return '<span class="muted-db-cell">—</span>';
 
   // الكارت الصغير يحدد المسؤول من القسم الحالي، لكن الأرقام لازم تتحسب من نفس القائمة
-  // التي تظهر عند الضغط على "عرض تاسكات المسؤول"؛ أي كل تاسكات هذا المسؤول داخل الحملة.
+  // التي تظهر عند الضغط على "عرض التاسكات"؛ أي كل تاسكات هذا المسؤول داخل الحملة.
   const ownerKeys = uniqueList(departmentList.map(task => taskOwnerKey(task)).filter(Boolean));
   const grouped = ownerKeys.reduce((acc, key) => {
     const ownerTasks = campaignTasks.filter(task => taskOwnerKey(task) === key);
@@ -3203,7 +3203,7 @@ function databaseDepartmentCell(campaign, role, words){
       <span>أقرب تاريخ مطلوب / <b>${formatDateShort(nearestRequired)}</b></span>
       <span>آخر تاريخ استلام / <b>${formatDateShort(latestReceived)}</b></span>
       <span>أطول تأخير / <b>${maxDelay ? `${maxDelay} يوم` : '—'}</b></span>
-      <button type="button" class="mini-btn owner-tasks-btn" data-view-owner-tasks="${escapeHtml(campaign.id || '')}" data-owner-key="${escapeHtml(taskOwnerKey(group.tasks[0]) || '')}">عرض تاسكات المسؤول</button>
+      <button type="button" class="mini-btn owner-tasks-btn" data-view-owner-tasks="${escapeHtml(campaign.id || '')}" data-owner-key="${escapeHtml(taskOwnerKey(group.tasks[0]) || '')}">عرض التاسكات</button>
     </div>`;
   }).join('')}</div>`;
 }
