@@ -1443,3 +1443,18 @@ body.has-user-dashboard-theme #dashboard.user-mode .content-task-card.completed{
   color:var(--muted) !important;
   justify-content:flex-start !important;
 }
+
+
+/* v87: remove user dashboard outer transparent overlay from adminDashboardBoard */
+#dashboard.user-mode #adminDashboardBoard,
+#dashboard.user-mode .admin-dashboard-board,
+body.has-user-dashboard-theme #dashboard.user-mode #adminDashboardBoard,
+body.has-user-dashboard-theme #dashboard.user-mode .admin-dashboard-board{
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+  padding:0 !important;
+  margin-top:0 !important;
+}
