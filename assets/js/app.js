@@ -1684,9 +1684,72 @@ function tableRowsFromMergedSheet(sheetTable){
   // حذفها كان بيزحزح الأعمدة في الصفوف التالية، فـ نوع المحتوى كان بيتقرأ غلط.
   return (sheetTable.rows || []).map(row => (row || []).map(c => c?.skip ? '' : normalizeText(c?.value || '')));
 }
+function headerIndex(headers, patterns){
+  const list = Array.isArray(patterns) ? patterns : [patterns];
+  return (headers || []).findIndex(header => list.some(pattern => normalizeText(header).includes(pattern)));
+}
+function cellByHeader(row, index){
+  return index >= 0 ? normalizeText((row || [])[index] || '') : '';
+}
+function parseExecutionRowsFromSheetTables(structure){
+  const sheetTables = structureSheetTables(structure);
+  const parsed = [];
+  sheetTables.forEach(sheet => {
+    const rows = tableRowsFromMergedSheet(sheet);
+    let headerIndexNo = -1;
+    for(let i = 0; i < rows.length; i += 1){
+      const normalizedRow = (rows[i] || []).map(v => normalizeText(v));
+      const hasTaskNo = normalizedRow.some(cell => cell.includes('رقم التاسك') || cell.toLowerCase().includes('task no'));
+      const hasContentType = normalizedRow.some(cell => cell.includes('نوع المحتوى') || cell.toLowerCase().includes('content type'));
+      if(hasTaskNo && hasContentType){ headerIndexNo = i; break; }
+    }
+    if(headerIndexNo < 0) return;
+    const headers = (rows[headerIndexNo] || []).map(h => normalizeText(h));
+    const idx = {
+      campaignType: headerIndex(headers, ['نوع الحمله','نوع الحملة','campaign type']),
+      contentType: headerIndex(headers, ['نوع المحتوى','content type']),
+      taskNo: headerIndex(headers, ['رقم التاسك','task no','task']),
+      goal: headerIndex(headers, ['الهدف','goal']),
+      tangibleGoal: headerIndex(headers, ['الهدف الملموس']),
+      idea: headerIndex(headers, ['الفكرة','idea']),
+      contentName: headerIndex(headers, ['اسم المحتوي','اسم المحتوى','content name']),
+      description: headerIndex(headers, ['وصف المحتوي','وصف المحتوى','description']),
+      message: headerIndex(headers, ['الرسالة','message']),
+      writerRequest: headerIndex(headers, ['المطلوب من الكاتب','required from writer']),
+      cta: headerIndex(headers, ['cta','الدعوة لاتخاذ إجراء'])
+    };
+    for(let r = headerIndexNo + 1; r < rows.length; r += 1){
+      const row = rows[r] || [];
+      if(!row.some(v => normalizeText(v))) continue;
+      const contentType = cellByHeader(row, idx.contentType);
+      const taskNo = cellByHeader(row, idx.taskNo);
+      // التوزيع يكون من صفوف عمود نوع المحتوى فقط.
+      // أي صف لا يحتوي على نوع محتوى حقيقي لا يتحول لتاسك.
+      if(!contentType) continue;
+      const item = { sheetName: sheet.sheetName, rowNumber: r + 1, raw: {} };
+      headers.forEach((h, i) => { if(h) item.raw[h] = normalizeText(row[i]); });
+      item.campaignType = cellByHeader(row, idx.campaignType);
+      item.contentType = contentType;
+      item.taskNo = taskNo;
+      item.goal = cellByHeader(row, idx.goal);
+      item.tangibleGoal = cellByHeader(row, idx.tangibleGoal);
+      item.idea = cellByHeader(row, idx.idea);
+      item.contentName = cellByHeader(row, idx.contentName);
+      item.description = cellByHeader(row, idx.description);
+      item.message = cellByHeader(row, idx.message);
+      item.writerRequest = cellByHeader(row, idx.writerRequest);
+      item.cta = cellByHeader(row, idx.cta);
+      parsed.push(item);
+    }
+  });
+  return parsed;
+}
 function structureDistributionRows(structure){
-  return (Array.isArray(structure?.parsedRows) ? structure.parsedRows : [])
-    .filter(row => normalizeText(row?.contentType || '') && normalizeText(row?.taskNo || ''));
+  const fromTables = parseExecutionRowsFromSheetTables(structure);
+  const source = fromTables.length ? fromTables : (Array.isArray(structure?.parsedRows) ? structure.parsedRows : []);
+  return source
+    .filter(row => normalizeText(row?.contentType || ''))
+    .map((row, index) => ({ ...row, taskNo: normalizeText(row?.taskNo || '') || `T${String(index + 1).padStart(2, '0')}` }));
 }
 function structureTaskNumber(task){
   return normalizeText(task?.structureTaskNo || task?.taskNo || task?.structureRow?.taskNo || '');
@@ -1703,41 +1766,7 @@ async function parseStructureWorkbookBuffer(buffer){
   const contentSheetNames = workbook.SheetNames.filter(isCampaignContentSheetName);
   const selectedSheetNames = contentSheetNames.length ? contentSheetNames : workbook.SheetNames.slice(0, 1);
   const sheetTables = selectedSheetNames.map(sheetName => buildMergedStructureSheet(workbook.Sheets[sheetName], sheetName)).filter(sheet => (sheet.rows || []).length);
-  const parsedRows = [];
-  sheetTables.forEach(sheet => {
-    const rows = tableRowsFromMergedSheet(sheet);
-    let start = -1;
-    for(let i = 0; i < rows.length; i += 1){
-      const line = rows[i].map(v => normalizeText(v)).join(' | ');
-      if(line.includes('Content Execution Direction') || line.includes('آلية تنفيذ المحتوى')){ start = i + 1; break; }
-    }
-    if(start < 0){
-      start = rows.findIndex(row => row.some(cell => normalizeText(cell).includes('نوع المحتوى')) && row.some(cell => normalizeText(cell).includes('رقم التاسك')));
-    }
-    if(start < 0) return;
-    let headerIndex = start;
-    while(headerIndex < rows.length && rows[headerIndex].filter(Boolean).length < 3) headerIndex += 1;
-    const headers = (rows[headerIndex] || []).map(h => normalizeText(h));
-    for(let r = headerIndex + 1; r < rows.length; r += 1){
-      const row = rows[r] || [];
-      const hasData = row.some(v => normalizeText(v));
-      if(!hasData) continue;
-      const item = { sheetName: sheet.sheetName, rowNumber: r + 1, raw: {} };
-      headers.forEach((h, i) => { if(h) item.raw[h] = normalizeText(row[i]); });
-      item.campaignType = item.raw['نوع الحملة'] || item.raw['Campaign Type'] || '';
-      item.contentType = item.raw['نوع المحتوى'] || item.raw['Content Type'] || '';
-      item.taskNo = item.raw['رقم التاسك'] || item.raw['Task No'] || item.raw['Task'] || '';
-      item.goal = item.raw['الهدف'] || item.raw['Goal'] || '';
-      item.tangibleGoal = item.raw['الهدف الملموس'] || '';
-      item.idea = item.raw['الفكرة'] || item.raw['Idea'] || '';
-      item.contentName = item.raw['اسم المحتوى'] || item.raw['Content Name'] || '';
-      item.description = item.raw['وصف المحتوى'] || item.raw['Description'] || '';
-      item.message = item.raw['الرسالة'] || item.raw['Message'] || '';
-      item.writerRequest = item.raw['المطلوب من الكاتب'] || item.raw['Required From Writer'] || '';
-      item.cta = item.raw['CTA'] || item.raw['الدعوة لاتخاذ إجراء'] || '';
-      if(item.contentType || item.taskNo || item.idea || item.contentName || item.description || item.writerRequest) parsedRows.push(item);
-    }
-  });
+  const parsedRows = parseExecutionRowsFromSheetTables({ sheetTables });
   return { parsedRows, sheetTables };
 }
 
@@ -1910,9 +1939,9 @@ function structureRowsTable(rows, notes = []){
 }
 function structureAssigneeTable(task){
   const structure = taskStructure(task);
-  const rows = Array.isArray(structure.parsedRows) ? structure.parsedRows : [];
+  const rows = structureDistributionRows(structure);
   if(!rows.length) return '<div class="empty-state mini-empty">لا توجد صفوف لتوزيعها.</div>';
-  return `<div class="structure-distribution"><h4>توزيع تاسكات الهيكل</h4><div class="structure-assign-list">${rows.map((row, index) => `<div class="structure-assign-row" data-structure-row="${index}"><div><strong>${escapeHtml(row.taskNo || index + 1)} - ${escapeHtml(row.contentType || 'نوع محتوى')}</strong><p>${escapeHtml(row.idea || row.contentName || row.description || '')}</p></div><select class="js-structure-assignee"><option value="">اختر اليوزر</option>${users.map(u => `<option value="${escapeHtml(u.id || u.uid || u.email || u.name)}">${escapeHtml(userName(u))}</option>`).join('')}</select></div>`).join('')}</div><button class="btn btn-primary" type="button" data-save-structure-assignees="${escapeHtml(task.id)}">حفظ توزيع تاسكات الهيكل</button></div>`;
+  return `<div class="structure-distribution"><h4>توزيع تاسكات الهيكل</h4><div class="structure-assign-list">${rows.map((row, index) => `<div class="structure-assign-row" data-structure-row="${index}"><div><strong>${escapeHtml(structureContentTaskLabel(row, 'نوع محتوى'))}</strong><p>${escapeHtml(row.idea || row.contentName || row.description || row.goal || '')}</p></div><select class="js-structure-assignee"><option value="">اختر اليوزر</option>${users.map(u => `<option value="${escapeHtml(u.id || u.uid || u.email || u.name)}">${escapeHtml(userName(u))}</option>`).join('')}</select></div>`).join('')}</div><button class="btn btn-primary" type="button" data-save-structure-assignees="${escapeHtml(task.id)}">حفظ توزيع تاسكات الهيكل</button></div>`;
 }
 function renderStructureSection(task){
   if(!isCampaignStructureTask(task)) return '';
