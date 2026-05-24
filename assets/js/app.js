@@ -3236,7 +3236,12 @@ function renderUserDashboard(){
     <div class="task-metric-row"><span>حالة التاسك</span><b>${completed ? 'مكتمل' : (task.received || task.receivedConfirmed ? 'مستلم' : 'قيد التنفيذ')}</b></div>
     <div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div>
   </article>`;
-  const renderGroups = (items, completed = false) => items.length ? `<div class="content-type-board">${items.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(task => taskCard(task, completed)).join('')}</div></section>`).join('')}</div>` : `<div class="dashboard-empty-note">${completed ? 'لا توجد تاسكات منتهية حالياً.' : 'لا توجد تاسكات نشطة حالياً.'}</div>`;
+  const renderGroups = (items, completed = false) => {
+    if(items.length){
+      return `<div class="content-type-board">${items.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(task => taskCard(task, completed)).join('')}</div></section>`).join('')}</div>`;
+    }
+    return completed ? `<div class="dashboard-empty-note dashboard-empty-note-inline">لا توجد تاسكات منتهية حالياً.</div>` : '';
+  };
   board.innerHTML = `
     <div class="user-dashboard-toolbar">
       <div class="user-theme-panel user-theme-panel-floating">

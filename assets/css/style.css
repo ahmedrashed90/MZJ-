@@ -1430,3 +1430,16 @@ body.has-user-dashboard-theme #dashboard.user-mode .content-task-card.completed{
     align-items:flex-start;
   }
 }
+
+
+/* v86: remove active empty overlay from user dashboard completely */
+.dashboard-empty-note-inline{
+  min-height:auto !important;
+  background:transparent !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  padding:0 !important;
+  color:var(--muted) !important;
+  justify-content:flex-start !important;
+}
