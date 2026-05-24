@@ -3227,11 +3227,20 @@ function renderUserDashboard(){
     <div class="task-metric-row"><span>متوسط مساهمة الحملات</span><b>${taskProgress(task)}%</b></div>
     <div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div>
   </article>`;
-  board.innerHTML = `<section class="user-content-dashboard">
-    <div class="user-content-head"><div><h2>أنواع المحتوى</h2><p>التاسكات المطلوبة منك حسب نوع المحتوى من الحملات.</p></div><div class="exec-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div></div>
-    <div class="user-theme-panel"><label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label><button class="mini-btn" type="button" id="clearUserThemeBtn">استرجاع الثيم الافتراضي</button></div>
-    ${groups.length ? `<div class="content-type-board">${groups.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : ''}
-  </section>`;
+  board.innerHTML = `
+    <div class="user-dashboard-toolbar">
+      <div class="user-theme-panel user-theme-panel-floating">
+        <label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label>
+        <button class="mini-btn" type="button" id="clearUserThemeBtn">استرجاع الثيم الافتراضي</button>
+      </div>
+    </div>
+    <section class="user-content-dashboard user-content-dashboard-plain">
+      <div class="user-content-head user-content-head-plain">
+        <div><h2>أنواع المحتوى</h2><p>التاسكات المطلوبة منك حسب نوع المحتوى من الحملات.</p></div>
+        <div class="exec-stats"><span>${myTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div>
+      </div>
+      ${groups.length ? `<div class="content-type-board">${groups.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(taskCard).join('')}</div></section>`).join('')}</div>` : ''}
+    </section>`;
   applyEffectiveTheme();
 }
 function renderAdminDashboard(){
