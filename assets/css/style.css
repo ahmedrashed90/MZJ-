@@ -1777,3 +1777,46 @@ body .live-notification-popup,
     right:10px !important;
   }
 }
+
+/* v90: keep notification dropdown above user dashboard theme background */
+.topbar,
+body .topbar{
+  position:relative !important;
+  z-index:2147483000 !important;
+  isolation:isolate !important;
+}
+.notification-wrap{
+  position:relative !important;
+  z-index:2147483001 !important;
+}
+.notification-panel,
+body .notification-panel,
+#notificationPanel{
+  position:fixed !important;
+  top:92px !important;
+  left:24px !important;
+  right:auto !important;
+  z-index:2147483002 !important;
+  width:min(380px, calc(100vw - 48px)) !important;
+  max-height:calc(100vh - 112px) !important;
+  overflow:auto !important;
+  background:rgba(255,253,252,.99) !important;
+  backdrop-filter:blur(14px) !important;
+  -webkit-backdrop-filter:blur(14px) !important;
+}
+#dashboard,
+#dashboard.user-mode,
+body.has-user-dashboard-theme #dashboard,
+body.has-user-dashboard-theme #dashboard.user-mode{
+  z-index:1 !important;
+}
+@media(max-width:780px){
+  .notification-panel,
+  body .notification-panel,
+  #notificationPanel{
+    top:86px !important;
+    left:12px !important;
+    right:12px !important;
+    width:auto !important;
+  }
+}
