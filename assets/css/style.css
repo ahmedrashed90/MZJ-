@@ -1202,11 +1202,3 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .topbar-user{display:inline-flex;align-items:center;gap:8px;line-height:1.1}
 .topbar-user-name{font-weight:900;color:var(--primary)}
 .topbar-user-department{display:inline-flex;align-items:center;border:1px solid var(--border);background:var(--surface-2);color:var(--muted);border-radius:999px;padding:5px 9px;font-size:12px;font-weight:900;white-space:nowrap}
-
-
-/* v75: split username and department into separate topbar pills */
-.topbar-actions{flex-wrap:wrap}
-.topbar-user{display:inline-flex;align-items:center;justify-content:center;line-height:1.1;min-height:42px}
-.topbar-user-name-pill{background:#fff;color:var(--primary);border-color:var(--border);font-weight:900}
-.topbar-user-department-pill{background:var(--surface-2);color:var(--secondary);border-color:#D9BCAA;font-weight:900;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media(max-width:780px){.topbar-actions{gap:8px}.topbar-user-department-pill{max-width:130px}.topbar-user{padding:8px 10px;font-size:12px}}
