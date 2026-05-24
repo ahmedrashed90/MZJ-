@@ -104,6 +104,8 @@ function updateTopbarUser(){
 function renderRoute(){
   applyEffectiveTheme();
   updateTopbarUser();
+  applyAppearanceMode();
+  renderTopbarNotifications();
   applyUserPermissions();
   let route = routes.includes(getRoute()) ? getRoute() : 'dashboard';
   if(!pageAllowed(route)){
@@ -1057,12 +1059,92 @@ function restoreEmptyRow(container, colSpan, text){
 }
 function makeSelect(label, className = ''){ return `<select class="${className}" aria-label="${label}"><option value="">اختر</option></select>`; }
 function showToast(text){ let toast = document.querySelector('.save-toast'); if(!toast){ toast = document.createElement('div'); toast.className = 'save-toast'; document.body.appendChild(toast); } toast.textContent = text; toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 1800); }
+
+function applyAppearanceMode(){
+  localStorage.removeItem('mzj_appearance_mode');
+  document.body.classList.remove('dark-mode');
+}
+function toggleAppearanceMode(){
+  applyAppearanceMode();
+}
+function taskDueText(task){
+  const campaign = campaignForTask(task);
+  return formatDateShort(taskRequiredDate(task, campaign));
+}
+const NOTIFICATION_DISMISS_KEY = 'mzj_dismissed_notifications';
+function getDismissedNotificationKeys(){
+  try{ return JSON.parse(localStorage.getItem(NOTIFICATION_DISMISS_KEY) || '[]').map(String); }
+  catch(_){ return []; }
+}
+function setDismissedNotificationKeys(keys){
+  localStorage.setItem(NOTIFICATION_DISMISS_KEY, JSON.stringify(uniqueList((keys || []).map(String).filter(Boolean))));
+}
+function dismissNotificationKey(key){
+  if(!key) return;
+  setDismissedNotificationKeys([...getDismissedNotificationKeys(), key]);
+}
+function notificationTaskPayload(task, tone){
+  return {
+    key: `task:${task.id || ''}:${tone}`,
+    taskId: task.id || '',
+    campaignId: task.campaignId || ''
+  };
+}
+function taskNotificationItems(){
+  const isAdmin = isCurrentUserAdmin();
+  const tasks = isAdmin ? campaigns.flatMap(campaign => tasksForCampaign(campaign)) : getVisibleTasksForCurrentUser();
+  const dismissed = new Set(getDismissedNotificationKeys());
+  const items = [];
+  tasks.forEach(task => {
+    const late = taskDelayDays(task);
+    const progress = taskProgress(task);
+    const title = shortTaskName(task).replace(/<[^>]+>/g,'');
+    if(late > 0){ items.push({...notificationTaskPayload(task, 'late'), tone:'late', icon:'⏰', title:`تأخير ${late} يوم`, text:`${title} · ${taskOwnerName(task).replace(/<[^>]+>/g,'')}`}); }
+    else if(!(task.received || task.receivedConfirmed)){ items.push({...notificationTaskPayload(task, 'new'), tone:'new', icon:'📌', title:'تاسك لم يتم استلامه', text:`${title} · ${taskDueText(task)}`}); }
+    else if(progress > 0 && progress < 100){ items.push({...notificationTaskPayload(task, 'active'), tone:'active', icon:'⚡', title:`قيد التنفيذ ${progress}%`, text:`${title} · ${taskOwnerName(task).replace(/<[^>]+>/g,'')}`}); }
+  });
+  if(isAdmin){
+    campaigns.slice(-4).reverse().forEach(campaign => {
+      const campaignId = campaign.id || campaign.docId || campaign.campaignCode || campaign.campaign_code || campaignNameText(campaign) || 'campaign';
+      items.push({key:`campaign:${campaignId}:updated`, campaignId: campaign.id || campaign.docId || '', tone:'campaign', icon:'📣', title:'حملة محدثة', text: campaignNameText(campaign) || campaignCodeText(campaign) || 'حملة'});
+    });
+  }
+  return items.filter(item => !dismissed.has(item.key)).slice(0, 12);
+}
+function notificationItemHtml(item){
+  const openAttrs = item.taskId ? ` role="button" tabindex="0" data-open-task="${escapeHtml(item.taskId)}" data-task-campaign="${escapeHtml(item.campaignId || '')}" title="فتح التاسك"` : '';
+  return `<article class="notification-item ${item.tone}" data-notification-key="${escapeHtml(item.key || '')}"${openAttrs}><span>${item.icon}</span><div><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.text)}</small></div><button class="notification-dismiss" type="button" data-dismiss-notification="${escapeHtml(item.key || '')}" title="مسح الإشعار">×</button></article>`;
+}
+function renderTopbarNotifications(){
+  const btn = document.getElementById('notificationToggle');
+  const panel = document.getElementById('notificationPanel');
+  const count = document.getElementById('notificationCount');
+  if(!btn || !panel || !count) return;
+  const items = taskNotificationItems();
+  count.textContent = String(items.length);
+  count.classList.toggle('is-hidden', !items.length);
+  panel.innerHTML = `<div class="notification-head"><strong>الإشعارات</strong><div class="notification-head-actions"><small>${items.length} تنبيه</small>${items.length ? '<button type="button" class="notification-clear" data-clear-notifications>مسح الكل</button>' : ''}</div></div>` + (items.length ? items.map(notificationItemHtml).join('') : '<div class="empty-state mini-empty">لا توجد إشعارات حالياً.</div>');
+}
+function proDepartmentName(task){
+  const label = taskDepartmentLabel(task);
+  return label && label !== 'قسم' && label !== 'غير محدد' ? label : 'بدون قسم';
+}
+function proMetricCard(icon, label, value, hint, tone=''){
+  return `<article class="pro-metric ${tone}"><span class="pro-metric-icon">${icon}</span><div><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong>${hint ? `<em>${escapeHtml(hint)}</em>` : ''}</div></article>`;
+}
+function renderProDashboardHero(allTasks){
+  const late = allTasks.filter(task => taskDelayDays(task) > 0).length;
+  const waiting = allTasks.filter(task => taskWorkflowStatus(task) === 'waiting').length;
+  const active = allTasks.filter(task => taskWorkflowStatus(task) === 'active').length;
+  return `<section class="pro-dashboard-strip dashboard-pro-hero">${proMetricCard('📣','الحملات',campaigns.length,`${campaigns.filter(c => normalizeStatus(c.status || '').includes('archived') === false).length} نشطة`)}${proMetricCard('✅','التاسكات',allTasks.length,`${averageProgress(allTasks)}% إنجاز`)}${proMetricCard('⏰','المتأخر',late,'حسب موعد التسليم','danger')}${proMetricCard('⚡','قيد التنفيذ',active,`${waiting} في الانتظار`,'active')}</section>`;
+}
+
 function taskBlockHtml(index){
   return `<div class="creative-task-block" data-task-index="${index}">
     <label><span>اختار المحتوى</span><select class="js-task-section-select">${contentSectionOptions()}</select></label>
     <label><span>نوع التاسك</span><select class="js-task-type"><option value="">اختر نوع التاسك</option></select></label>
     <label class="task-qty-field"><span>العدد</span><input class="js-task-quantity" type="number" min="1" value="1" aria-label="عدد التاسكات" /></label>
-    <label><span>التاريخ المطلوب</span><input class="js-task-required-date" type="date" aria-label="التاريخ المطلوب" /></label>
+    <label class="pro-date-field"><span>التاريخ المطلوب</span><input class="js-task-required-date pro-date-input" type="date" aria-label="التاريخ المطلوب" /></label>
     <label><span>اليوزر</span><select class="js-task-user" multiple>${multiTaskUserOptions('', [])}</select></label>
   </div>`;
 }
@@ -2884,6 +2966,10 @@ function bindCampaignBuilder(){
     document.querySelectorAll('.multi-dropdown.open').forEach(el => { if(el !== toggle?.closest('.multi-dropdown')) el.classList.remove('open'); });
     if(toggle){ toggle.closest('.multi-dropdown')?.classList.toggle('open'); return; }
     if(!event.target.closest('.multi-dropdown')) document.querySelectorAll('.multi-dropdown.open').forEach(el => el.classList.remove('open'));
+    const dateInput = event.target.closest('.pro-date-input, .js-task-required-date');
+    if(dateInput && typeof dateInput.showPicker === 'function'){
+      try{ dateInput.showPicker(); }catch(_){ }
+    }
     const btn = event.target.closest('.delete-row');
     if(btn){ const container = document.getElementById('creativeRows'); btn.closest('.creative-row-card')?.remove(); restoreEmptyRow(container, 1, 'ابدأ بإضافة صف كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
     const budgetDel = event.target.closest('.delete-budget-row');
@@ -2902,6 +2988,11 @@ function bindCampaignBuilder(){
   document.addEventListener('input', event => {
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')) updateBudgetGrandTotal();
     if(event.target.closest('#stockAdvancedFilters')) renderStock();
+  });
+  document.addEventListener('focusin', event => {
+    if(event.target.matches('.pro-date-input, .js-task-required-date') && typeof event.target.showPicker === 'function'){
+      try{ event.target.showPicker(); }catch(_){ }
+    }
   });
 
   document.addEventListener('change', event => {
@@ -3134,6 +3225,7 @@ function renderTasksPage(){
   if(totalDone) statusKeys.push('approved');
   const dashboardSubtitle = `${activeCampaigns.length} حملة نشطة · ${tasks.length} تاسك · ${delayedTasks.length} متأخر`;
   board.innerHTML = `<section class="monitor-page professional-monitor">
+    <div class="monitor-action-strip"><span>📊 متابعة مباشرة</span><span>آخر تحديث: ${escapeHtml(formatDateShort(new Date()))}</span><span>${isAdmin ? 'رؤية أدمن كاملة' : 'رؤية حسب صلاحياتك'}</span></div>
     <div class="monitor-hero-card">
       <div><p>نظرة عامة</p><h2>متابعة الحملات والتاسكات</h2><span>${escapeHtml(dashboardSubtitle)}</span></div>
       <strong>${averageProgress(tasks)}%</strong>
@@ -3221,50 +3313,37 @@ function renderUserDashboard(){
       if(!groupMap[key]) groupMap[key] = [];
       groupMap[key].push(task);
     });
-    return Object.entries(groupMap).map(([label, items]) => ({ label, tasks: items }));
+    return Object.entries(groupMap).map(([label, tasks]) => ({ label, tasks }));
   };
   const groups = buildGroups(activeTasks);
   const completedGroups = buildGroups(completedTasks);
   const taskCard = (task, completed = false) => `<article class="content-task-card ${completed ? 'completed' : ''}">
     <h3>${escapeHtml(task.campaignName || 'حملة')}</h3>
     <p>${shortTaskName(task)}</p>
-    <div class="content-task-actions">
-      <button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
-      ${completed ? `<span class="btn btn-light done static-chip">مكتمل 100%</span>` : `<button type="button" class="btn btn-light ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">تم الاستلام</button>`}
-    </div>
+    <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>${completed ? `<span class="btn btn-light done static-chip">مكتمل 100%</span>` : `<button type="button" class="btn btn-light ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">تم الاستلام</button>`}</div>
     <div class="task-metric-row"><span>نسبة الإنجاز</span><b>${taskProgress(task)}%</b></div>
     <div class="task-metric-row"><span>حالة التاسك</span><b>${completed ? 'مكتمل' : (task.received || task.receivedConfirmed ? 'مستلم' : 'قيد التنفيذ')}</b></div>
     <div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div>
   </article>`;
-  const renderGroups = (items, completed = false) => {
-    if(items.length){
-      return `<div class="content-type-board">${items.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(task => taskCard(task, completed)).join('')}</div></section>`).join('')}</div>`;
-    }
-    return completed ? `<div class="dashboard-empty-note dashboard-empty-note-inline">لا توجد تاسكات منتهية حالياً.</div>` : '';
-  };
-  board.innerHTML = `
-    <div class="user-dashboard-toolbar">
+  const renderGroups = (items, completed = false) => items.length ? `<div class="content-type-board">${items.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(task => taskCard(task, completed)).join('')}</div></section>`).join('')}</div>` : '';
+  board.innerHTML = `<section class="user-content-dashboard user-content-dashboard-clean">
+    <div class="user-dashboard-toolbar user-dashboard-toolbar-clean">
       <div class="user-theme-panel user-theme-panel-floating">
         <label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label>
         <button class="mini-btn" type="button" id="clearUserThemeBtn">استرجاع الثيم الافتراضي</button>
-      </div>
-    </div>
-    <section class="user-content-dashboard user-content-dashboard-plain">
-      <div class="user-content-head user-content-head-plain">
-        <div><h2>أنواع المحتوى</h2><p>التاسكات المطلوبة منك حسب نوع المحتوى من الحملات.</p></div>
-        <div class="exec-stats"><span>${activeTasks.length} تاسك</span><span>${received} مستلم</span><span>${done} مكتمل</span></div>
-      </div>
-      <div class="user-dashboard-actions-inline">
         <button type="button" class="mini-btn" id="toggleCompletedTasksBtn" data-open="0" data-count="${done}">عرض التاسكات المنتهية (${done})</button>
       </div>
-      ${renderGroups(groups, false)}
-      <section class="completed-tasks-panel" id="completedTasksPanel" hidden>
-        <div class="completed-tasks-head"><h3>التاسكات المنتهية</h3><span>${done} تاسك مكتمل</span></div>
-        ${renderGroups(completedGroups, true)}
-      </section>
-    </section>`;
+    </div>
+    <div class="user-pro-hero user-pro-hero-clean"><div><span class="pro-kicker">MZJ Workspace</span><h2>أهلاً ${escapeHtml(getCurrentUserIdentity().name || 'بيك')}</h2><p>تاسكاتك الحالية حسب نوع المحتوى والحملات المسندة لك فقط.</p></div><div class="exec-stats"><span>📌 ${activeTasks.length} تاسك</span><span>✅ ${received} مستلم</span><span>🏁 ${done} مكتمل</span></div></div>
+    ${renderGroups(groups, false)}
+    <section class="completed-tasks-panel" id="completedTasksPanel" hidden>
+      <div class="completed-tasks-head"><h3>التاسكات المنتهية</h3><span>${done} تاسك مكتمل</span></div>
+      ${renderGroups(completedGroups, true) || '<div class="dashboard-empty-note dashboard-empty-note-inline">لا توجد تاسكات منتهية حالياً.</div>'}
+    </section>
+  </section>`;
   applyEffectiveTheme();
 }
+
 function renderAdminDashboard(){
   const allTasks = campaigns.flatMap(campaign => tasksForCampaign(campaign));
   const count = document.getElementById('dashboardCampaignsCount'); if(count) count.textContent = campaigns.length || '—';
@@ -3308,6 +3387,7 @@ function renderAdminDashboard(){
   </article>`;
 
   adminBoard.innerHTML = `
+    ${renderProDashboardHero(allTasks)}
     <section class="admin-dash-col receive-col"><div class="col-title"><h2>TASK - المطلوب</h2><p>متابعة ضغط اليوزرات على تم الاستلام فقط.</p></div>${requiredItems.length ? requiredItems.map(requiredCard).join('') : '<div class="empty-state soft-empty">كل المطلوب تم استلامه حالياً.</div>'}</section>
     <section class="admin-dash-col ready-col"><div class="col-title"><h2>جاهزية المطلوب</h2><p>اضغط على حملة لفتح التاسكات بنظام كانبان.</p></div>${readinessItems.length ? readinessItems.map(readinessCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات قيد التجهيز.</div>'}</section>
     <section class="admin-dash-col publish-col"><div class="col-title"><h2>قسم النشر</h2><p>تظهر هنا بعد اكتمال جاهزية المطلوب.</p></div>${publishItems.length ? publishItems.map(publishCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات جاهزة للنشر.</div>'}</section>
@@ -4203,6 +4283,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   document.getElementById('logoutBtn')?.addEventListener('click', async () => { localStorage.removeItem('mzj_logged_in'); localStorage.removeItem('mzj_login_email'); localStorage.removeItem('mzj_user'); try{ await mainAuth?.signOut?.(); }catch(_){} openLogin(); });
+  document.getElementById('notificationToggle')?.addEventListener('click', event => { event.stopPropagation(); renderTopbarNotifications(); document.getElementById('notificationPanel')?.classList.toggle('is-hidden'); });
+  document.addEventListener('click', event => { if(!event.target.closest('.notification-wrap')) document.getElementById('notificationPanel')?.classList.add('is-hidden'); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
   document.addEventListener('keydown', event => { if(event.key === 'Escape'){ closeTaskModal(); closeCampaignModal(); } });
   document.getElementById('calendarPrevMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()-1); renderCalendarPage(); });
@@ -4252,9 +4334,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('click', async event => {
 
+    const dismissNotification = event.target.closest('[data-dismiss-notification]');
+    if(dismissNotification){ event.preventDefault(); event.stopPropagation(); dismissNotificationKey(dismissNotification.dataset.dismissNotification || ''); renderTopbarNotifications(); return; }
+    const clearNotifications = event.target.closest('[data-clear-notifications]');
+    if(clearNotifications){ event.preventDefault(); event.stopPropagation(); const keys = taskNotificationItems().map(item => item.key).filter(Boolean); setDismissedNotificationKeys([...getDismissedNotificationKeys(), ...keys]); renderTopbarNotifications(); return; }
+
     if(event.target.closest('[data-close-campaign-modal]')){ closeCampaignModal(); return; }
     const openTaskFromAnywhere = event.target.closest('[data-open-task]');
-    if(openTaskFromAnywhere){ closeCampaignModal(); renderTaskDetail(openTaskFromAnywhere.dataset.openTask, openTaskFromAnywhere.dataset.taskCampaign || ''); return; }
+    if(openTaskFromAnywhere){ document.getElementById('notificationPanel')?.classList.add('is-hidden'); closeCampaignModal(); renderTaskDetail(openTaskFromAnywhere.dataset.openTask, openTaskFromAnywhere.dataset.taskCampaign || ''); return; }
     const viewOwnerTasks = event.target.closest('[data-view-owner-tasks]');
     if(viewOwnerTasks){ openOwnerTasksModal(viewOwnerTasks.dataset.viewOwnerTasks, viewOwnerTasks.dataset.ownerKey || ''); return; }
     const exportPdf = event.target.closest('[data-export-campaign-pdf]');

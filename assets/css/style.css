@@ -1203,159 +1203,206 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .topbar-user-name{font-weight:900;color:var(--primary)}
 .topbar-user-department{display:inline-flex;align-items:center;border:1px solid var(--border);background:var(--surface-2);color:var(--muted);border-radius:999px;padding:5px 9px;font-size:12px;font-weight:900;white-space:nowrap}
 
-/* v81: cleaner user dashboard over background image */
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-head,
-body.has-user-dashboard-theme #dashboard.admin-mode .user-content-head{
-  border-bottom-color: transparent !important;
-}
-body.has-user-dashboard-theme #dashboard.user-mode .content-type-col,
-body.has-user-dashboard-theme #dashboard.user-mode .content-task-card,
-body.has-user-dashboard-theme #dashboard.user-mode .soft-empty,
-body.has-user-dashboard-theme #dashboard.user-mode .task-metric-row,
-body.has-user-dashboard-theme #dashboard.user-mode .exec-stats span,
-body.has-user-dashboard-theme #dashboard.user-mode .card,
-body.has-user-dashboard-theme #dashboard.user-mode .empty-state,
-body.has-user-dashboard-theme #dashboard.user-mode .dash-task-receive-card,
-body.has-user-dashboard-theme #dashboard.user-mode .dash-ready-card,
-body.has-user-dashboard-theme #dashboard.user-mode .dash-publish-card,
-body.has-user-dashboard-theme #dashboard.user-mode .dash-archive-card{
-  border: 0 !important;
-  outline: 0 !important;
-}
-body.has-user-dashboard-theme #dashboard.user-mode .content-type-title{
-  border-bottom: 0 !important;
-}
-body.has-user-dashboard-theme #dashboard.user-mode .content-type-col{
-  background: rgba(255,255,255,.34) !important;
-  box-shadow: 0 16px 34px rgba(45,23,19,.09) !important;
-}
-body.has-user-dashboard-theme #dashboard.user-mode .content-task-card{
-  background: rgba(255,255,255,.55) !important;
-  box-shadow: 0 10px 24px rgba(45,23,19,.08) !important;
-}
-body.has-user-dashboard-theme #dashboard.user-mode .soft-empty,
-body.has-user-dashboard-theme #dashboard.user-mode .empty-state{
-  background: rgba(255,255,255,.18) !important;
-  box-shadow: none !important;
-}
-body.has-user-dashboard-theme #dashboard.user-mode .task-metric-row,
-body.has-user-dashboard-theme #dashboard.user-mode .exec-stats span{
-  background: rgba(255,255,255,.62) !important;
-}
+/* MZJ Pro UI layer: icons, micro animations, notifications, dark mode, branded dashboard */
+.nav a .icon{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:12px;background:rgba(255,255,255,.62);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);font-size:16px;line-height:1}.nav a.active .icon,.nav a:hover .icon{background:rgba(255,255,255,.20);color:#fff}.view.active{animation:mzjFadeUp .28s ease both}.card,.creative-row-card,.accordion-card,.dash-campaign-card,.dash-task-receive-card,.monitor-panel,.monitor-metric{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}.card:hover,.dash-campaign-card:hover,.dash-task-receive-card:hover,.monitor-panel:hover{transform:translateY(-2px);box-shadow:0 22px 60px rgba(90,58,50,.13)}.btn:active,.icon-btn:active{transform:scale(.98)}@keyframes mzjFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes mzjPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.notification-wrap{position:relative}.notify-btn{position:relative}.notify-count{position:absolute;top:-5px;left:-5px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#C94F43;color:#fff;font-size:10px;font-weight:900;display:grid;place-items:center;box-shadow:0 8px 18px rgba(201,79,67,.28);animation:mzjPulse 1.8s ease infinite}.notification-panel{position:absolute;top:54px;left:0;width:min(360px,86vw);background:rgba(255,253,252,.98);border:1px solid var(--border);border-radius:20px;box-shadow:0 24px 80px rgba(49,32,26,.18);padding:10px;z-index:120;display:grid;gap:8px}.notification-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--border);color:var(--primary)}.notification-head small{color:var(--muted);font-weight:800}.notification-item{display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid rgba(230,210,196,.85);border-radius:16px;background:#fffaf6}.notification-item>span{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:var(--warning)}.notification-item b{display:block;font-weight:900;color:var(--text)}.notification-item small{display:block;color:var(--muted);font-weight:700;margin-top:3px}.notification-item.late>span{background:#ffe2dd}.notification-item.active>span{background:#e3f0e0}.notification-item.new>span{background:#fff2cf}.theme-toggle{font-size:17px}.topbar-user{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}.topbar-user-name,.topbar-user-department{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:999px;background:#fff;padding:8px 12px;font-weight:900;color:var(--primary)}.topbar-user-department{color:var(--muted);background:var(--surface-2)}
+.pro-hero,.user-pro-hero{border:1px solid var(--border);border-radius:26px;background:linear-gradient(135deg,rgba(255,253,252,.96),rgba(247,237,228,.86));box-shadow:0 20px 70px rgba(90,58,50,.10);padding:20px;display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:16px}.pro-kicker{display:inline-flex;align-items:center;gap:8px;color:var(--secondary);font-weight:900;font-size:11px;letter-spacing:.08em;text-transform:uppercase}.pro-hero h2,.user-pro-hero h2{margin:5px 0 5px;font-size:26px}.pro-hero p,.user-pro-hero p{margin:0;color:var(--muted);font-weight:700}.pro-hero-metrics{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;min-width:min(720px,60%)}.pro-metric{border:1px solid var(--border);border-radius:18px;background:#fff;padding:12px;display:flex;align-items:center;gap:10px}.pro-metric-icon{width:42px;height:42px;border-radius:15px;background:var(--warning);display:grid;place-items:center;font-size:18px}.pro-metric small,.pro-metric em{display:block;color:var(--muted);font-style:normal;font-weight:800}.pro-metric strong{display:block;font-size:20px;color:var(--text);line-height:1.2}.pro-metric.danger .pro-metric-icon{background:#ffe0db}.pro-metric.active .pro-metric-icon{background:#e1f0df}.admin-dashboard-board{align-items:start}.dashboard-pro-hero{grid-column:1/-1}.monitor-action-strip{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.monitor-action-strip span{border:1px solid var(--border);background:#fff;border-radius:999px;padding:8px 12px;color:var(--primary);font-weight:900}.monitor-page.professional-monitor{max-width:none;width:100%}.professional-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.monitor-metrics.compact-metrics{grid-template-columns:repeat(5,minmax(0,1fr))}.content-task-card,.monitor-task-row,.monitor-progress-row{transition:transform .18s ease,background .18s ease}.content-task-card:hover,.monitor-task-row:hover,.monitor-progress-row:hover{transform:translateY(-1px);background:rgba(255,250,246,.9)}
+body.dark-mode{--primary:#F1D7C2;--primary-2:#8F5D50;--secondary:#D17A68;--accent:#C99C7E;--accent-2:#53352E;--cream:#261A17;--bg:#15100F;--surface:#211715;--surface-2:#2B1D19;--text:#FFF3EA;--muted:#C6A99B;--border:#4E342E;--success:#1F3B2A;--warning:#3A2B1D;--danger:#47211F;--shadow:0 20px 70px rgba(0,0,0,.28);background:radial-gradient(circle at top left,rgba(139,84,72,.24),transparent 34%),linear-gradient(180deg,#120D0C 0%,#1A1210 100%);color:var(--text)}body.dark-mode .sidebar{background:linear-gradient(180deg,#201614,#15100F);border-left-color:var(--border)}body.dark-mode .topbar,body.dark-mode .card,body.dark-mode .pro-hero,body.dark-mode .user-pro-hero,body.dark-mode .notification-panel,body.dark-mode .monitor-panel,body.dark-mode .monitor-metric{background:rgba(33,23,21,.92)}body.dark-mode .field input,body.dark-mode .field select,body.dark-mode .field textarea,body.dark-mode .control,body.dark-mode .select,body.dark-mode .search,body.dark-mode .icon-btn,body.dark-mode .btn-light,body.dark-mode .topbar-user-name,body.dark-mode .topbar-user-department,body.dark-mode .notification-item,body.dark-mode .pro-metric,body.dark-mode .monitor-action-strip span{background:#261A17;color:var(--text);border-color:var(--border)}body.dark-mode .empty-state,body.dark-mode .chart-placeholder{background:rgba(38,26,23,.65)}body.dark-mode .btn-primary{box-shadow:0 18px 40px rgba(0,0,0,.28)}body.dark-mode .nav a:hover,body.dark-mode .nav a.active{background:linear-gradient(135deg,#915244,#5D3B34)}body.dark-mode .save-toast{background:#E7C5AE;color:#211715}
+@media(max-width:1100px){.pro-hero,.user-pro-hero{flex-direction:column;align-items:stretch}.pro-hero-metrics{min-width:0;width:100%;grid-template-columns:repeat(2,1fr)}.monitor-metrics.compact-metrics,.professional-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:700px){.pro-hero-metrics,.monitor-metrics.compact-metrics,.professional-grid{grid-template-columns:1fr}.notification-panel{left:auto;right:0}.topbar-actions{flex-wrap:wrap}.topbar-user{white-space:normal}}
 
-/* v82: remove empty-state band over user dashboard background */
-body.has-user-dashboard-theme #dashboard.user-mode .empty-state.soft-empty,
-body.has-user-dashboard-theme #dashboard.user-mode .soft-empty.empty-state,
-body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
-  background: transparent !important;
-  border: 0 !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  min-height: auto !important;
-  padding: 10px 0 !important;
+/* v77 dashboard hero cleanup */
+.pro-dashboard-strip{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+.pro-dashboard-strip .pro-metric{min-height:72px;box-shadow:0 14px 38px rgba(90,58,50,.08)}
+@media(max-width:1100px){.pro-dashboard-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.pro-dashboard-strip{grid-template-columns:1fr}}
+
+/* v77 remove dark mode */
+body.dark-mode{background:var(--bg)!important;color:var(--text)!important}
+
+/* Notifications actions */
+.notification-head-actions{display:flex;align-items:center;gap:8px}.notification-clear,.notification-dismiss{border:1px solid var(--border);background:#fff;border-radius:999px;color:var(--primary);font-weight:900;cursor:pointer}.notification-clear{padding:5px 9px;font-size:11px}.notification-dismiss{margin-inline-start:auto;width:28px;height:28px;display:grid;place-items:center;font-size:16px;line-height:1}.notification-item[data-open-task]{cursor:pointer;transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease}.notification-item[data-open-task]:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(49,32,26,.10);border-color:rgba(139,83,71,.35)}.notification-item>div{min-width:0;flex:1}.notification-dismiss:hover,.notification-clear:hover{background:#fff3ef}
+
+/* v79: make creative selector larger and clearer in campaign builder */
+.compact-creative-row .creative-two-line-head .creative-checkbox-picker,
+.compact-creative-row .creative-checkbox-picker{
+  padding:12px!important;
+  border-radius:18px!important;
+  background:rgba(255,255,255,.92)!important;
+  border:1.5px solid var(--border)!important;
+  box-shadow:0 12px 28px rgba(62,38,29,.05)!important;
 }
+.compact-creative-row .creative-checkbox-picker>span{
+  font-size:13px!important;
+  font-weight:900!important;
+  color:var(--primary)!important;
+  margin-bottom:8px!important;
+}
+.compact-creative-row .creative-two-line-head .creative-checkbox-grid{
+  grid-template-columns:repeat(5,minmax(170px,1fr))!important;
+  grid-auto-rows:minmax(46px,auto)!important;
+  max-height:150px!important;
+  gap:10px!important;
+  padding:8px!important;
+  border-radius:16px!important;
+  background:rgba(255,248,244,.85)!important;
+}
+.compact-creative-row .creative-two-line-head .creative-check-card,
+.compact-creative-row .creative-check-card{
+  min-height:46px!important;
+  height:auto!important;
+  padding:10px 13px!important;
+  border-radius:14px!important;
+  font-size:13px!important;
+  line-height:1.35!important;
+  background:#fff!important;
+  border:1px solid var(--border)!important;
+  color:var(--text)!important;
+  box-shadow:0 8px 18px rgba(62,38,29,.035)!important;
+}
+.compact-creative-row .creative-check-card input{
+  width:18px!important;
+  height:18px!important;
+}
+.compact-creative-row .creative-check-card span{
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  font-weight:900!important;
+}
+@media(max-width:1500px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(4,minmax(150px,1fr))!important}}
+@media(max-width:1100px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(2,minmax(140px,1fr))!important}}
+@media(max-width:650px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:1fr!important}}
 
 
-/* v84: remove dashboard top band completely and move theme buttons outside */
-.user-dashboard-toolbar{
-  display:flex;
-  justify-content:flex-end;
-  align-items:center;
-  gap:10px;
-  margin:0 0 12px;
+/* v80: clearer creative picker + professional required date picker */
+.compact-creative-row .creative-two-line-head .creative-checkbox-picker,
+.compact-creative-row .creative-checkbox-picker{
+  padding:14px!important;
+  border-radius:20px!important;
+  border:2px solid rgba(153,100,82,.24)!important;
 }
-.user-theme-panel-floating{
-  margin:0 !important;
+.compact-creative-row .creative-two-line-head .creative-checkbox-grid{
+  grid-template-columns:repeat(4,minmax(210px,1fr))!important;
+  grid-auto-rows:minmax(54px,auto)!important;
+  max-height:178px!important;
+  gap:12px!important;
 }
-.user-content-dashboard-plain,
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard.user-content-dashboard-plain{
+.compact-creative-row .creative-two-line-head .creative-check-card,
+.compact-creative-row .creative-check-card{
+  min-height:54px!important;
+  padding:12px 15px!important;
+  font-size:14px!important;
+  border-radius:16px!important;
+}
+.compact-creative-row .creative-check-card input{
+  width:20px!important;
+  height:20px!important;
+}
+.pro-date-field{position:relative!important}
+.pro-date-field span{display:flex!important;align-items:center!important;gap:6px!important}
+.pro-date-field span::before{content:'📅';font-size:13px;line-height:1}
+.pro-date-input,
+.compact-creative-row .creative-task-block .pro-date-input,
+.compact-creative-row .creative-task-block input.js-task-required-date{
+  height:42px!important;
+  min-height:42px!important;
+  border-radius:14px!important;
+  border:1.5px solid rgba(153,100,82,.32)!important;
+  background:linear-gradient(135deg,#fff,#fff7f1)!important;
+  color:var(--text)!important;
+  font-size:13px!important;
+  font-weight:900!important;
+  padding:8px 14px!important;
+  box-shadow:0 10px 22px rgba(62,38,29,.055)!important;
+  cursor:pointer!important;
+  text-align:center!important;
+}
+.pro-date-input:hover,
+.compact-creative-row .creative-task-block input.js-task-required-date:hover{
+  border-color:var(--primary)!important;
+  box-shadow:0 12px 28px rgba(139,83,71,.12)!important;
+}
+.pro-date-input:focus,
+.compact-creative-row .creative-task-block input.js-task-required-date:focus{
+  outline:none!important;
+  border-color:var(--primary)!important;
+  box-shadow:0 0 0 4px rgba(139,83,71,.10),0 14px 30px rgba(62,38,29,.08)!important;
+}
+.pro-date-input::-webkit-calendar-picker-indicator,
+.compact-creative-row .creative-task-block input.js-task-required-date::-webkit-calendar-picker-indicator{
+  width:24px!important;
+  height:24px!important;
+  padding:5px!important;
+  border-radius:10px!important;
+  background-color:#f5e3d6!important;
+  cursor:pointer!important;
+}
+@media(max-width:1500px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(3,minmax(180px,1fr))!important}}
+@media(max-width:1050px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:repeat(2,minmax(160px,1fr))!important}}
+@media(max-width:650px){.compact-creative-row .creative-two-line-head .creative-checkbox-grid{grid-template-columns:1fr!important}}
+
+
+/* v81 on clean notifications source: remove user dashboard transparent layer + completed tasks toggle */
+#dashboard.user-mode #adminDashboardBoard,
+#dashboard.user-mode .admin-dashboard-board,
+body.has-user-dashboard-theme #dashboard.user-mode #adminDashboardBoard,
+body.has-user-dashboard-theme #dashboard.user-mode .admin-dashboard-board{
   background:transparent !important;
   border:0 !important;
   box-shadow:none !important;
   backdrop-filter:none !important;
   -webkit-backdrop-filter:none !important;
   padding:0 !important;
+  margin-top:0 !important;
 }
-.user-content-head-plain,
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-head.user-content-head-plain,
-body.has-user-dashboard-theme #dashboard.admin-mode .user-content-head.user-content-head-plain{
+#dashboard.user-mode .user-content-dashboard-clean,
+body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard-clean,
+body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard{
   background:transparent !important;
   border:0 !important;
   box-shadow:none !important;
   backdrop-filter:none !important;
   -webkit-backdrop-filter:none !important;
   padding:0 !important;
+  max-width:none !important;
+}
+#dashboard.user-mode .user-pro-hero-clean,
+body.has-user-dashboard-theme #dashboard.user-mode .user-pro-hero-clean,
+body.has-user-dashboard-theme #dashboard.user-mode .user-pro-hero{
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+  padding:0 !important;
+  margin:0 0 18px !important;
+}
+.user-dashboard-toolbar-clean{
+  display:flex !important;
+  justify-content:flex-end !important;
+  align-items:center !important;
   margin:0 0 14px !important;
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:16px;
 }
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard.user-content-dashboard-plain *,
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-head.user-content-head-plain *{
-  backdrop-filter:none;
-  -webkit-backdrop-filter:none;
-}
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-head.user-content-head-plain::before,
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-head.user-content-head-plain::after,
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard.user-content-dashboard-plain::before,
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard.user-content-dashboard-plain::after{
-  content:none !important;
-  display:none !important;
-}
-@media(max-width:900px){
-  .user-dashboard-toolbar{
-    justify-content:flex-start;
-    flex-wrap:wrap;
-  }
-  .user-content-head-plain{
-    flex-direction:column;
-    align-items:flex-start;
-  }
-}
-
-
-/* v85: remove user dashboard outer borders and hide completed tasks behind toggle */
-#dashboard.user-mode .user-content-dashboard.user-content-dashboard-plain,
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-dashboard.user-content-dashboard-plain{
-  background:transparent !important;
-  border:none !important;
-  box-shadow:none !important;
-  padding:0 !important;
-}
-#dashboard.user-mode .user-content-head.user-content-head-plain,
-body.has-user-dashboard-theme #dashboard.user-mode .user-content-head.user-content-head-plain{
-  background:transparent !important;
-  border:none !important;
-  box-shadow:none !important;
-  padding:0 !important;
-  margin:0 0 12px !important;
+.user-dashboard-toolbar-clean .user-theme-panel{
+  margin:0 !important;
+  justify-content:flex-start !important;
+  flex-wrap:wrap !important;
 }
 #dashboard.user-mode .content-type-col,
 body.has-user-dashboard-theme #dashboard.user-mode .content-type-col{
   background:transparent !important;
-  border:none !important;
+  border:0 !important;
   box-shadow:none !important;
-  padding:0 !important;
-  min-height:0 !important;
   backdrop-filter:none !important;
   -webkit-backdrop-filter:none !important;
+  padding:0 !important;
+  min-height:0 !important;
 }
 #dashboard.user-mode .content-type-title,
 body.has-user-dashboard-theme #dashboard.user-mode .content-type-title{
-  border:none !important;
+  border:0 !important;
   padding:0 0 10px !important;
   margin:0 0 10px !important;
-}
-#dashboard.user-mode .content-type-title span,
-#dashboard.user-mode .exec-stats span{
-  background:rgba(255,255,255,.92) !important;
-  border:1px solid rgba(214,190,178,.95) !important;
-}
-#dashboard.user-mode .content-type-board{
-  align-items:start !important;
 }
 #dashboard.user-mode .content-task-card,
 body.has-user-dashboard-theme #dashboard.user-mode .content-task-card{
@@ -1369,21 +1416,23 @@ body.has-user-dashboard-theme #dashboard.user-mode .content-task-card{
 body.has-user-dashboard-theme #dashboard.user-mode .content-task-card.completed{
   background:rgba(245,255,242,.9) !important;
 }
-.user-dashboard-actions-inline{
-  display:flex;
-  justify-content:flex-start;
-  gap:10px;
-  margin:0 0 16px;
+#dashboard.user-mode .soft-empty,
+#dashboard.user-mode .empty-state.soft-empty,
+body.has-user-dashboard-theme #dashboard.user-mode .soft-empty,
+body.has-user-dashboard-theme #dashboard.user-mode .empty-state.soft-empty{
+  display:none !important;
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
 }
 .completed-tasks-panel{
-  margin-top:18px;
-  padding:16px;
-  border:1px solid rgba(220,201,191,.95);
-  border-radius:20px;
-  background:rgba(255,253,250,.72);
-  box-shadow:0 12px 26px rgba(60,35,28,.08);
-  backdrop-filter:blur(6px);
-  -webkit-backdrop-filter:blur(6px);
+  margin-top:18px !important;
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
 }
 .completed-tasks-panel[hidden]{display:none !important;}
 .completed-tasks-head{
@@ -1393,12 +1442,11 @@ body.has-user-dashboard-theme #dashboard.user-mode .content-task-card.completed{
   gap:12px;
   margin-bottom:14px;
 }
-.completed-tasks-head h3{
-  margin:0;
-  font-size:18px;
-  color:var(--text);
-}
-.completed-tasks-head span{
+.completed-tasks-head h3{margin:0;font-size:18px;color:var(--text)}
+.completed-tasks-head span,.static-chip{
+  display:inline-flex !important;
+  align-items:center;
+  justify-content:center;
   background:#f3e6dc;
   border:1px solid #e2cdbf;
   border-radius:999px;
@@ -1407,32 +1455,6 @@ body.has-user-dashboard-theme #dashboard.user-mode .content-task-card.completed{
   font-weight:900;
   color:var(--primary);
 }
-.dashboard-empty-note{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  min-height:120px;
-  background:rgba(255,255,255,.52);
-  border:1px dashed rgba(222,201,189,.9);
-  border-radius:18px;
-  color:#7f655b;
-  font-weight:800;
-}
-.static-chip{
-  display:inline-flex !important;
-  align-items:center;
-  justify-content:center;
-  pointer-events:none;
-}
-@media(max-width:900px){
-  .completed-tasks-head{
-    flex-direction:column;
-    align-items:flex-start;
-  }
-}
-
-
-/* v86: remove active empty overlay from user dashboard completely */
 .dashboard-empty-note-inline{
   min-height:auto !important;
   background:transparent !important;
@@ -1442,19 +1464,4 @@ body.has-user-dashboard-theme #dashboard.user-mode .content-task-card.completed{
   padding:0 !important;
   color:var(--muted) !important;
   justify-content:flex-start !important;
-}
-
-
-/* v87: remove user dashboard outer transparent overlay from adminDashboardBoard */
-#dashboard.user-mode #adminDashboardBoard,
-#dashboard.user-mode .admin-dashboard-board,
-body.has-user-dashboard-theme #dashboard.user-mode #adminDashboardBoard,
-body.has-user-dashboard-theme #dashboard.user-mode .admin-dashboard-board{
-  background:transparent !important;
-  border:0 !important;
-  box-shadow:none !important;
-  backdrop-filter:none !important;
-  -webkit-backdrop-filter:none !important;
-  padding:0 !important;
-  margin-top:0 !important;
 }
