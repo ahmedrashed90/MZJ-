@@ -273,11 +273,14 @@ function usersForContentSection(sectionId){
   return users;
 }
 function multiTaskUserOptions(sectionId, selectedIds = []){
+  const chosen = Array.isArray(selectedIds) ? selectedIds.map(String) : [];
   const list = usersForContentSection(sectionId);
-  return list.length ? list.map(user => `<option value="${escapeHtml(user.id)}"${selectedIds.includes(user.id) ? ' selected' : ''}>${escapeHtml(userName(user))}</option>`).join('') : '<option value="" disabled>لا توجد يوزرات لهذا القسم</option>';
+  return list.length
+    ? list.map(user => `<label class="task-user-check-card"><input type="checkbox" class="js-task-user-checkbox" value="${escapeHtml(user.id)}" data-name="${escapeHtml(userName(user))}"${chosen.includes(String(user.id)) ? ' checked' : ''}> <span>${escapeHtml(userName(user))}</span></label>`).join('')
+    : '<div class="multi-empty task-user-empty">لا توجد يوزرات لهذا القسم</div>';
 }
 function selectedOptionTexts(control){
-  if(control?.classList?.contains('js-role-picker')){
+  if(control?.classList?.contains('js-role-picker') || (control?.classList?.contains('js-task-user') && control?.tagName !== 'SELECT')){
     return [...control.querySelectorAll('input[type="checkbox"]:checked')]
       .map(input => input.dataset.name || input.closest('label')?.textContent?.trim() || '')
       .filter(Boolean);
@@ -287,7 +290,7 @@ function selectedOptionTexts(control){
     .filter(text => text && !text.startsWith('اختر') && !text.startsWith('لا توجد'));
 }
 function selectedOptionValues(control){
-  if(control?.classList?.contains('js-role-picker')){
+  if(control?.classList?.contains('js-role-picker') || (control?.classList?.contains('js-task-user') && control?.tagName !== 'SELECT')){
     return [...control.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value).filter(Boolean);
   }
   return [...(control?.selectedOptions || [])]
@@ -1144,7 +1147,7 @@ function taskBlockHtml(index){
     <label><span>اختار المحتوى</span><select class="js-task-section-select">${contentSectionOptions()}</select></label>
     <label><span>نوع التاسك</span><select class="js-task-type"><option value="">اختر نوع التاسك</option></select></label>
     <label class="pro-date-field"><span>التاريخ المطلوب</span><input class="js-task-required-date pro-date-input" type="date" aria-label="التاريخ المطلوب" /></label>
-    <label><span>اليوزر</span><select class="js-task-user" multiple>${multiTaskUserOptions('', [])}</select></label>
+    <label class="task-users-field"><span>اليوزر</span><div class="js-task-user task-user-checkbox-grid">${multiTaskUserOptions('', [])}</div></label>
   </div>`;
 }
 
@@ -3017,7 +3020,7 @@ function bindCampaignBuilder(){
       if(userSelect) userSelect.innerHTML = multiTaskUserOptions(event.target.value, []);
       updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return;
     }
-    if(event.target.matches('.js-task-user,.js-car-checkbox,.js-creative-check')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
+    if(event.target.matches('.js-task-user-checkbox,.js-task-user,.js-car-checkbox,.js-creative-check')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.closest('#stockAdvancedFilters')){ renderStock(); return; }

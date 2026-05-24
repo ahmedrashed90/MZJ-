@@ -1563,3 +1563,73 @@ body.has-user-dashboard-theme #dashboard.user-mode .admin-dashboard-board{
 @media(max-width:900px){
   .compact-creative-row .creative-task-grid{grid-template-columns:1fr !important;}
 }
+
+/* v83: task users as large checkbox picker instead of ctrl multi-select */
+.creative-task-block .task-users-field{
+  grid-column:1/-1;
+}
+.creative-task-block .task-user-checkbox-grid{
+  width:100%;
+  min-height:150px;
+  max-height:220px;
+  overflow:auto;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:#fffaf6;
+}
+.task-user-check-card{
+  display:flex!important;
+  align-items:center;
+  gap:10px!important;
+  min-height:42px;
+  padding:10px 12px;
+  border:1px solid rgba(90,58,50,.14);
+  border-radius:14px;
+  background:rgba(255,255,255,.88);
+  color:var(--text);
+  font-size:13px!important;
+  font-weight:900;
+  cursor:pointer;
+  transition:.18s ease;
+}
+.task-user-check-card:hover{
+  transform:translateY(-1px);
+  border-color:var(--secondary);
+  box-shadow:0 8px 18px rgba(90,58,50,.08);
+}
+.task-user-check-card input{
+  width:18px!important;
+  height:18px!important;
+  accent-color:var(--primary);
+  flex:0 0 auto;
+}
+.task-user-check-card span{
+  font-size:13px!important;
+  color:var(--text)!important;
+  line-height:1.4;
+}
+.task-user-empty{
+  grid-column:1/-1;
+  min-height:70px;
+  display:grid;
+  place-items:center;
+  border-radius:14px;
+  background:rgba(255,255,255,.65);
+  color:var(--muted);
+  font-weight:900;
+}
+.compact-creative-row .creative-task-block .task-user-checkbox-grid,
+.creative-task-block .js-task-user.task-user-checkbox-grid{
+  height:auto!important;
+  min-height:150px!important;
+}
+@media(max-width:900px){
+  .creative-task-block .task-user-checkbox-grid{
+    grid-template-columns:1fr;
+    max-height:260px;
+  }
+}
