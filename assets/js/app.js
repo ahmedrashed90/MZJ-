@@ -3139,20 +3139,71 @@ function taskMatchesDatabaseDepartment(task, role, words){
   if(role && (task.departmentRole === role || normalizeDepartmentRole(text) === role)) return true;
   return (words || []).some(word => text.includes(identityClean(word)));
 }
+function rawTaskOwnerName(task){
+  return normalizeText(task.assignedToName || task.assigneeName || task.userName || 'بدون مسؤول');
+}
+function taskOwnerKey(task){
+  return normalizeText(task.assignedToUid || task.assignedToId || task.userUid || task.userId || task.assignedToEmail || task.userEmail || rawTaskOwnerName(task));
+}
+function latestTaskDate(tasks, picker){
+  const dates = tasks.map(picker).map(taskRawDateValue).map(value => value ? new Date(value) : null).filter(date => date && !Number.isNaN(date.getTime()));
+  if(!dates.length) return '';
+  return new Date(Math.max(...dates.map(date => date.getTime())));
+}
+function earliestTaskDate(tasks, picker){
+  const dates = tasks.map(picker).map(taskRawDateValue).map(value => value ? new Date(value) : null).filter(date => date && !Number.isNaN(date.getTime()));
+  if(!dates.length) return '';
+  return new Date(Math.min(...dates.map(date => date.getTime())));
+}
+function isTaskDelayed(task, campaign){
+  const required = parseDateForDelay(taskRequiredDate(task, campaign));
+  if(!required || taskProgress(task) >= 100) return false;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  required.setHours(0,0,0,0);
+  return required < today;
+}
+function delayDaysUntilToday(task, campaign){
+  if(!isTaskDelayed(task, campaign)) return 0;
+  const required = parseDateForDelay(taskRequiredDate(task, campaign));
+  const today = new Date();
+  const oneDay = 24 * 60 * 60 * 1000;
+  today.setHours(0,0,0,0);
+  required.setHours(0,0,0,0);
+  return Math.max(0, Math.ceil((today - required) / oneDay));
+}
 function databaseDepartmentCell(campaign, role, words){
-  const list = tasksForCampaign(campaign).filter(task => taskMatchesDatabaseDepartment(task, role, words));
-  if(!list.length) return '<span class="muted-db-cell">—</span>';
-  return `<div class="db-department-stack">${list.map(task => {
-    const requiredDate = taskRequiredDate(task, campaign);
-    const deliveredDate = taskDeliveredDate(task);
-    const delay = diffDays(deliveredDate, requiredDate);
-    const delayText = delay === '' ? '—' : `${delay} يوم`;
-    return `<div class="db-department-mini">
-      <span>اسم المسئول / <b>${taskOwnerName(task)}</b></span>
-      <span>تاريخ الاستلام / <b>${formatDateShort(taskReceivedDate(task))}</b></span>
-      <span>التاريخ المطلوب / <b>${formatDateShort(requiredDate)}</b></span>
-      <span>تاريخ التسليم / <b>${formatDateShort(deliveredDate)}</b></span>
-      <span>وقت التأخير / <b>${escapeHtml(delayText)}</b></span>
+  const campaignTasks = tasksForCampaign(campaign);
+  const departmentList = campaignTasks.filter(task => taskMatchesDatabaseDepartment(task, role, words));
+  if(!departmentList.length) return '<span class="muted-db-cell">—</span>';
+
+  // الكارت الصغير يحدد المسؤول من القسم الحالي، لكن الأرقام لازم تتحسب من نفس القائمة
+  // التي تظهر عند الضغط على "عرض تاسكات المسؤول"؛ أي كل تاسكات هذا المسؤول داخل الحملة.
+  const ownerKeys = uniqueList(departmentList.map(task => taskOwnerKey(task)).filter(Boolean));
+  const grouped = ownerKeys.reduce((acc, key) => {
+    const ownerTasks = campaignTasks.filter(task => taskOwnerKey(task) === key);
+    if(ownerTasks.length) acc[key] = { owner: rawTaskOwnerName(ownerTasks[0]), tasks: ownerTasks };
+    return acc;
+  }, {});
+
+  return `<div class="db-department-stack">${Object.values(grouped).map(group => {
+    const total = group.tasks.length;
+    const notStarted = group.tasks.filter(task => !(task.received || task.receivedConfirmed)).length;
+    const active = group.tasks.filter(task => (task.received || task.receivedConfirmed) && taskProgress(task) < 100).length;
+    const delayed = group.tasks.filter(task => isTaskDelayed(task, campaign)).length;
+    const maxDelay = Math.max(0, ...group.tasks.map(task => delayDaysUntilToday(task, campaign)));
+    const latestReceived = latestTaskDate(group.tasks, task => taskReceivedDate(task));
+    const nearestRequired = earliestTaskDate(group.tasks.filter(task => taskProgress(task) < 100), task => taskRequiredDate(task, campaign));
+    return `<div class="db-department-mini db-owner-summary">
+      <span>اسم المسئول / <b>${escapeHtml(group.owner)}</b></span>
+      <span>عدد التاسكات / <b>${total}</b></span>
+      <span>لم تبدأ / <b>${notStarted}</b></span>
+      <span>نشطة / <b>${active}</b></span>
+      <span>متأخرة / <b>${delayed}</b></span>
+      <span>أقرب تاريخ مطلوب / <b>${formatDateShort(nearestRequired)}</b></span>
+      <span>آخر تاريخ استلام / <b>${formatDateShort(latestReceived)}</b></span>
+      <span>أطول تأخير / <b>${maxDelay ? `${maxDelay} يوم` : '—'}</b></span>
+      <button type="button" class="mini-btn owner-tasks-btn" data-view-owner-tasks="${escapeHtml(campaign.id || '')}" data-owner-key="${escapeHtml(taskOwnerKey(group.tasks[0]) || '')}">عرض تاسكات المسؤول</button>
     </div>`;
   }).join('')}</div>`;
 }
@@ -3184,40 +3235,41 @@ function renderDatabasePage(){
     </tr>`;
   }).join('');
 }
+function shortDbText(value, limit = 90){
+  const text = normalizeText(value || '');
+  if(!text) return '—';
+  return text.length > limit ? `${text.slice(0, limit).trim()}…` : text;
+}
+function taskOneLineRow(task, campaign){
+  const row = task.structureRow || {};
+  const label = structureContentTaskLabel(row, taskContentType(task) || task.taskType || shortTaskName(task));
+  const brief = row.writerRequest || row.idea || row.description || row.message || task.brief || task.description || '';
+  return `<tr>
+    <td>${escapeHtml(structureTaskNumber(task) || '—')}</td>
+    <td><b>${escapeHtml(label)}</b></td>
+    <td>${escapeHtml(rawTaskOwnerName(task))}</td>
+    <td>${escapeHtml(taskDepartmentLabel(task))}</td>
+    <td>${escapeHtml(receivedLabel(task))}</td>
+    <td>${taskProgress(task)}%</td>
+    <td>${formatDateShort(taskRequiredDate(task, campaign))}</td>
+    <td>${escapeHtml(shortDbText(brief, 120))}</td>
+  </tr>`;
+}
 function buildTaskSummaryList(campaign){
-  const grouped = campaignTasksByContent(campaign);
-  const names = Object.keys(grouped);
-  if(!names.length) return '<div class="empty-state soft-empty">لا توجد تاسكات.</div>';
-  const fieldBlock = (label, value) => value ? `<div class="db-task-detail-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>` : '';
-  return names.map(name => `<section class="db-task-group db-task-group-full"><h4>${escapeHtml(name)} <span>${grouped[name].length}</span></h4>${grouped[name].map(task => {
-    const row = task.structureRow || {};
-    const requiredDate = taskRequiredDate(task, campaign);
-    return `<article class="db-task-full-card">
-      <div class="db-task-full-head">
-        <div>
-          <b>${escapeHtml(structureContentTaskLabel(row, taskContentType(task) || task.taskType || shortTaskName(task)))}</b>
-          <small>${escapeHtml([structureTaskNumber(task), task.taskType || ''].filter(Boolean).join(' - '))}</small>
-        </div>
-        <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">عرض التاسك كامل</button>
-      </div>
-      <div class="db-task-meta-grid">
-        <div><span>اليوزر</span><strong>${escapeHtml(taskOwnerName(task))}</strong></div>
-        <div><span>القسم</span><strong>${escapeHtml(taskDepartmentLabel(task))}</strong></div>
-        <div><span>الحالة</span><strong>${escapeHtml(receivedLabel(task))}</strong></div>
-        <div><span>التقدم</span><strong>${taskProgress(task)}%</strong></div>
-        <div><span>التاريخ المطلوب</span><strong>${formatDateShort(requiredDate)}</strong></div>
-      </div>
-      <div class="db-task-details-grid">
-        ${fieldBlock('الهدف', row.goal)}
-        ${fieldBlock('الهدف الملموس', row.tangibleGoal)}
-        ${fieldBlock('الفكرة', row.idea || row.contentName)}
-        ${fieldBlock('وصف المحتوى', row.description)}
-        ${fieldBlock('الرسالة', row.message)}
-        ${fieldBlock('المطلوب من الكاتب', row.writerRequest)}
-        ${fieldBlock('CTA', row.cta)}
-      </div>
-    </article>`;
-  }).join('')}</section>`).join('');
+  const list = tasksForCampaign(campaign);
+  if(!list.length) return '<div class="empty-state soft-empty">لا توجد تاسكات.</div>';
+  return `<div class="compact-table db-task-lines-wrap"><table class="db-task-lines-table"><thead><tr><th>رقم التاسك</th><th>التاسك</th><th>اليوزر</th><th>القسم</th><th>الحالة</th><th>التقدم</th><th>التاريخ المطلوب</th><th>مختصر المطلوب</th></tr></thead><tbody>${list.map(task => taskOneLineRow(task, campaign)).join('')}</tbody></table></div>`;
+}
+function openOwnerTasksModal(campaignId, ownerKey){
+  const campaign = campaigns.find(item => item.id === campaignId);
+  const modal = document.getElementById('campaignModal');
+  const content = document.getElementById('campaignModalContent');
+  if(!campaign || !modal || !content) return;
+  const list = tasksForCampaign(campaign).filter(task => taskOwnerKey(task) === ownerKey);
+  const owner = list[0] ? rawTaskOwnerName(list[0]) : 'المسؤول';
+  content.innerHTML = `<div class="task-modal-head"><div><span>تاسكات المسؤول</span><h2>${escapeHtml(owner)}</h2><p>${escapeHtml(campaign.campaignName || campaign.name || campaign.campaignCode || '')}</p></div><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div>
+    <div class="modal-section"><div class="modal-section-title"><h3>كل تاسكات المسؤول</h3></div>${list.length ? `<div class="compact-table db-task-lines-wrap"><table class="db-task-lines-table"><thead><tr><th>رقم التاسك</th><th>التاسك</th><th>القسم</th><th>الحالة</th><th>التقدم</th><th>التاريخ المطلوب</th><th>مختصر المطلوب</th></tr></thead><tbody>${list.map(task => { const row = task.structureRow || {}; const label = structureContentTaskLabel(row, taskContentType(task) || task.taskType || shortTaskName(task)); const brief = row.writerRequest || row.idea || row.description || row.message || task.brief || task.description || ''; return `<tr><td>${escapeHtml(structureTaskNumber(task) || '—')}</td><td><b>${escapeHtml(label)}</b></td><td>${escapeHtml(taskDepartmentLabel(task))}</td><td>${escapeHtml(receivedLabel(task))}</td><td>${taskProgress(task)}%</td><td>${formatDateShort(taskRequiredDate(task, campaign))}</td><td>${escapeHtml(shortDbText(brief, 120))}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty-state mini-empty">لا توجد تاسكات لهذا المسؤول.</div>'}</div>`;
+  modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open');
 }
 function campaignResultFileHtml(campaign){
   const file = campaign.resultsFile || campaign.resultFile || null;
@@ -3845,6 +3897,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if(event.target.closest('[data-close-campaign-modal]')){ closeCampaignModal(); return; }
     const openTaskFromAnywhere = event.target.closest('[data-open-task]');
     if(openTaskFromAnywhere){ closeCampaignModal(); renderTaskDetail(openTaskFromAnywhere.dataset.openTask, openTaskFromAnywhere.dataset.taskCampaign || ''); return; }
+    const viewOwnerTasks = event.target.closest('[data-view-owner-tasks]');
+    if(viewOwnerTasks){ openOwnerTasksModal(viewOwnerTasks.dataset.viewOwnerTasks, viewOwnerTasks.dataset.ownerKey || ''); return; }
     const viewData = event.target.closest('[data-view-campaign-data]');
     if(viewData){ openCampaignDataModal(viewData.dataset.viewCampaignData); return; }
     const editCampaign = event.target.closest('[data-edit-campaign]');

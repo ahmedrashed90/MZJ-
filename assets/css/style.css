@@ -1134,3 +1134,16 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .db-task-detail-field:nth-child(3),.db-task-detail-field:nth-child(4),.db-task-detail-field:nth-child(6){grid-column:span 2}
 @media(max-width:1100px){.db-task-meta-grid{grid-template-columns:repeat(2,1fr)}.db-task-details-grid{grid-template-columns:1fr}.db-task-detail-field:nth-child(3),.db-task-detail-field:nth-child(4),.db-task-detail-field:nth-child(6){grid-column:span 1}}
 @media(max-width:700px){.db-task-full-head{flex-direction:column}.db-task-meta-grid{grid-template-columns:1fr}}
+
+
+/* Database compact task rows and owner summaries */
+.db-owner-summary{gap:5px}
+.db-owner-summary .owner-tasks-btn{margin-top:6px;justify-self:start}
+.db-task-lines-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px;background:#fffaf6}
+.db-task-lines-table{width:100%;border-collapse:collapse;min-width:980px}
+.db-task-lines-table th,.db-task-lines-table td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:top;text-align:right;white-space:normal!important;line-height:1.7}
+.db-task-lines-table th{background:rgba(90,51,41,.08);font-weight:900;color:var(--text);position:sticky;top:0;z-index:1}
+.db-task-lines-table td{font-weight:800;color:var(--text)}
+.db-task-lines-table tr:last-child td{border-bottom:0}
+.db-task-lines-table td:nth-child(1),.db-task-lines-table td:nth-child(6){white-space:nowrap!important;color:var(--primary);font-weight:900}
+.db-task-lines-table td:nth-child(8){min-width:260px;color:var(--muted)}
