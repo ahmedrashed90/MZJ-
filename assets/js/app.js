@@ -1994,7 +1994,7 @@ function buildTaskDetailHtml(task){
       <div class="brief-box"><span>الكريتيف</span><strong>${escapeHtml(task.creative || task.product || '—')}</strong></div>
       <div class="brief-box"><span>السيارة المختارة</span><strong>${escapeHtml(task.selectedCar || task.carName || '')}</strong></div>
     </div>
-    ${task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>رقم التاسك</span><strong>${escapeHtml(structureTaskNumber(task) || '—')}</strong></div><div><span>نوع المحتوى</span><strong>${escapeHtml(task.structureRow.contentType || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : ''}
+    ${task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>الهدف</span><strong>${escapeHtml(task.structureRow.goal || '—')}</strong></div><div><span>الهدف الملموس</span><strong>${escapeHtml(task.structureRow.tangibleGoal || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : ''}
     <div class="modal-section task-actions-section">
       <div class="modal-section-title"><h3>إجراءات التكليف</h3><span>${progress}%</span></div>
       <div class="task-deadline-row"><span>التاريخ المطلوب: <b>${formatDateShort(requiredDate)}</b></span><strong>${escapeHtml(requiredLeft)}</strong></div>
@@ -2828,12 +2828,84 @@ function renderCalendarPage(){
   }
   board.innerHTML = `<div class="calendar-week-head"><span>الأحد</span><span>الإثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div><div class="calendar-month-grid">${cells.join('')}</div>`;
 }
+function taskDelayDays(task){
+  const campaign = campaignForTask(task);
+  const required = parseDateForDelay(taskRequiredDate(task, campaign));
+  if(!required || taskProgress(task) >= 100) return 0;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  required.setHours(0,0,0,0);
+  const diff = Math.ceil((today - required) / (24 * 60 * 60 * 1000));
+  return diff > 0 ? diff : 0;
+}
+function taskWorkflowStatus(task){
+  const progress = taskProgress(task);
+  const raw = normalizeStatus(task.status || task.taskStatus || task.state || '');
+  const structure = taskStructure(task);
+  if(raw.includes('rejected') || raw.includes('مرفوض')) return 'rejected';
+  if(raw.includes('needs') || raw.includes('changes') || raw.includes('تعديل') || structure.status === 'needs_changes') return 'needs_changes';
+  if(progress >= 100 || raw.includes('done') || raw.includes('complete') || raw.includes('approved') || raw.includes('معتمد')) return 'approved';
+  const steps = Array.isArray(task.steps) ? task.steps : [];
+  const waitingAdmin = steps.some((step, index) => step.adminOnly && !step.done && steps.slice(0, index).every(prev => prev.done));
+  if(waitingAdmin || raw.includes('review') || raw.includes('مراجعة')) return 'review';
+  if(task.received || task.receivedConfirmed || progress > 0 || raw.includes('progress') || raw.includes('received')) return 'active';
+  return 'waiting';
+}
+function statusLabelFromKey(key){
+  return { waiting:'قائمة الانتظار', active:'نشطة', review:'بانتظار المراجعة', needs_changes:'مطلوبة تعديل', approved:'معتمدة', rejected:'مرفوضة' }[key] || key;
+}
+function averageProgress(list){
+  if(!list.length) return 0;
+  return Math.round(list.reduce((sum, item) => sum + taskProgress(item), 0) / list.length);
+}
 function renderTasksPage(){
   const board = document.getElementById('tasksBoard'); if(!board) return;
-  const tasks = getVisibleTasksForCurrentUser();
-  if(!tasks.length){ board.innerHTML = '<div class="empty-state">لا توجد مهام حالياً.</div>'; return; }
-  const grouped = groupTasksForKanban(tasks);
-  board.innerHTML = `<div class="tasks-list-page">${grouped.map(group => `<section class="tasks-list-section"><div class="tasks-page-col-head"><h2>${group.label}</h2><span>${group.tasks.length}</span></div><div class="tasks-list-stack">${group.tasks.map(task => `<article class="tasks-page-card"><div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([task.campaignName, task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div><div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div><button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button></article>`).join('')}</div></section>`).join('')}</div>`;
+  const isAdmin = isCurrentUserAdmin();
+  const tasks = isAdmin ? campaigns.flatMap(campaign => tasksForCampaign(campaign)) : getVisibleTasksForCurrentUser();
+  const openCampaigns = campaigns.filter(campaign => normalizeStatus(campaign.status || '').includes('archived') === false);
+  const projectKeys = uniqueList(openCampaigns.map(campaign => normalizeText(campaign.projectName || campaign.project || campaign.projectId || campaign.clientName || campaign.campaignProject || '')).filter(Boolean));
+  const openProjectsCount = projectKeys.length || openCampaigns.length;
+  const counts = tasks.reduce((acc, task) => { const key = taskWorkflowStatus(task); acc[key] = (acc[key] || 0) + 1; return acc; }, {});
+  const delayedTasks = tasks.filter(task => taskDelayDays(task) > 0);
+  const employeeMap = {};
+  tasks.forEach(task => { const owner = taskOwnerName(task); (employeeMap[owner] ||= []).push(task); });
+  const deptMap = {};
+  tasks.forEach(task => { const dept = taskDepartmentLabel(task); (deptMap[dept] ||= []).push(task); });
+  const campaignRows = campaigns.map(campaign => { const list = tasksForCampaign(campaign); return { campaign, tasks:list, progress:averageProgress(list) }; }).filter(item => item.tasks.length);
+  const projectRows = Object.entries(campaignRows.reduce((acc, item) => {
+    const key = normalizeText(item.campaign.projectName || item.campaign.project || item.campaign.projectId || item.campaign.clientName || 'مشروع عام');
+    (acc[key] ||= []).push(...item.tasks);
+    return acc;
+  }, {})).map(([name, list]) => ({ name, progress:averageProgress(list), total:list.length }));
+  const metric = (label, value) => `<article class="monitor-metric"><span>${label}</span><strong>${value}</strong></article>`;
+  const bar = (label, value, total) => { const pct = total ? Math.round((value / total) * 100) : 0; return `<div class="monitor-bar-row"><div><b>${escapeHtml(label)}</b><span>${value}</span></div><div class="monitor-bar"><i style="width:${Math.min(100,pct)}%"></i></div></div>`; };
+  const progressRow = (label, pct, meta = '') => `<div class="monitor-progress-row"><div><b>${escapeHtml(label)}</b><span>${escapeHtml(meta)}</span></div><strong>${pct}%</strong><div class="task-card-progress"><span style="width:${Math.min(100,pct)}%"></span></div></div>`;
+  const employeeDelayRows = Object.entries(employeeMap).map(([name, list]) => ({ name, late:list.filter(task => taskDelayDays(task) > 0).length, days:list.reduce((sum, task) => sum + taskDelayDays(task), 0), total:list.length, progress:averageProgress(list) })).sort((a,b) => b.days - a.days);
+  const delayedRows = delayedTasks.sort((a,b) => taskDelayDays(b) - taskDelayDays(a)).slice(0, 20);
+  board.innerHTML = `<section class="monitor-page">
+    <div class="monitor-metrics">
+      ${metric('إجمالي المشاريع المفتوحة', openProjectsCount)}
+      ${metric('إجمالي الحملات', campaigns.length)}
+      ${metric('إجمالي التاسكات', tasks.length)}
+      ${metric('التاسكات المتأخرة', delayedTasks.length)}
+      ${metric('قائمة الانتظار', counts.waiting || 0)}
+      ${metric('التاسكات النشطة', counts.active || 0)}
+      ${metric('بانتظار المراجعة', counts.review || 0)}
+      ${metric('مطلوبة تعديل', counts.needs_changes || 0)}
+      ${metric('الكريتيفات المعتمدة', counts.approved || 0)}
+      ${metric('الكريتيفات المرفوضة', counts.rejected || 0)}
+    </div>
+    <div class="monitor-grid">
+      <section class="monitor-panel"><h2>عدد التاسكات في كل حالة</h2>${['waiting','active','review','needs_changes','approved','rejected'].map(key => bar(statusLabelFromKey(key), counts[key] || 0, tasks.length)).join('') || '<div class="empty-state mini-empty">لا توجد بيانات.</div>'}</section>
+      <section class="monitor-panel"><h2>التاسكات المتأخرة</h2>${delayedRows.length ? delayedRows.map(task => `<article class="monitor-task-row"><div><b>${shortTaskName(task)}</b><span>${escapeHtml(task.campaignName || '')} · ${taskOwnerName(task)}</span></div><strong>${taskDelayDays(task)} يوم</strong></article>`).join('') : '<div class="empty-state mini-empty">لا توجد تاسكات متأخرة.</div>'}</section>
+      <section class="monitor-panel"><h2>التأخير عند كل موظف</h2>${employeeDelayRows.length ? employeeDelayRows.map(row => `<article class="monitor-task-row"><div><b>${escapeHtml(row.name)}</b><span>${row.late} متأخر من ${row.total} تاسك</span></div><strong>${row.days} يوم</strong></article>`).join('') : '<div class="empty-state mini-empty">لا توجد بيانات موظفين.</div>'}</section>
+      <section class="monitor-panel"><h2>نسبة اكتمال كل حملة</h2>${campaignRows.length ? campaignRows.map(item => progressRow(item.campaign.campaignName || item.campaign.name || item.campaign.campaignCode || 'حملة', item.progress, `${item.tasks.length} تاسك`)).join('') : '<div class="empty-state mini-empty">لا توجد حملات.</div>'}</section>
+      <section class="monitor-panel"><h2>نسبة اكتمال كل مشروع</h2>${projectRows.length ? projectRows.map(item => progressRow(item.name, item.progress, `${item.total} تاسك`)).join('') : '<div class="empty-state mini-empty">لا توجد مشاريع.</div>'}</section>
+      <section class="monitor-panel wide"><h2>رسم بياني لكل حملة حسب مراحلها</h2>${campaignRows.length ? campaignRows.map(item => { const list = item.tasks; const localCounts = list.reduce((acc, task) => { const key = taskWorkflowStatus(task); acc[key] = (acc[key] || 0) + 1; return acc; }, {}); return `<div class="campaign-stage-chart"><h3>${shortCampaignTitle(item.campaign)}</h3>${['waiting','active','review','needs_changes','approved','rejected'].map(key => bar(statusLabelFromKey(key), localCounts[key] || 0, list.length)).join('')}</div>`; }).join('') : '<div class="empty-state mini-empty">لا توجد حملات.</div>'}</section>
+      <section class="monitor-panel"><h2>أداء كل قسم</h2>${Object.entries(deptMap).length ? Object.entries(deptMap).map(([name, list]) => progressRow(name, averageProgress(list), `${list.length} تاسك`)).join('') : '<div class="empty-state mini-empty">لا توجد بيانات أقسام.</div>'}</section>
+      <section class="monitor-panel"><h2>أداء كل موظف</h2>${employeeDelayRows.length ? employeeDelayRows.map(row => progressRow(row.name, row.progress, `${row.total} تاسك / تأخير ${row.days} يوم`)).join('') : '<div class="empty-state mini-empty">لا توجد بيانات موظفين.</div>'}</section>
+    </div>
+  </section>`;
 }
 
 function setDashboardMode(mode){
@@ -2931,7 +3003,7 @@ function renderAdminDashboard(){
   const requiredCard = item => `<article class="dash-task-receive-card">
     <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')}</span></div>
     <div class="receive-meter"><strong>${item.received}/${item.total}</strong><span>تم الاستلام</span></div>
-    <div class="receive-list">${item.related.slice(0,5).map(task => `<div><span>${shortTaskName(task)}</span><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b></div>`).join('')}${item.related.length>5 ? `<small>+ ${item.related.length-5} تاسكات أخرى</small>` : ''}</div>
+    <div class="receive-list">${item.related.map(task => `<div><span><b>${shortTaskName(task)}</b><em>${taskOwnerName(task)}</em></span><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b></div>`).join('')}</div>
   </article>`;
 
   const readinessCard = item => `<article class="dash-campaign-card dash-ready-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
