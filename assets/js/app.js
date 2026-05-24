@@ -86,7 +86,7 @@ let stockFilterMode = "all";
 let systemSettings = {};
 let activeTaskModalMeta = null;
 
-function isLoggedIn(){ return sessionStorage.getItem('mzj_logged_in') === '1'; }
+function isLoggedIn(){ return localStorage.getItem('mzj_logged_in') === '1'; }
 function getRoute(){ return (location.hash || '#dashboard').replace('#',''); }
 function openApp(){ loginView.classList.add('is-hidden'); appShell.classList.remove('is-hidden'); renderRoute(); bootstrapData(); }
 function openLogin(){ appShell.classList.add('is-hidden'); loginView.classList.remove('is-hidden'); }
@@ -95,7 +95,10 @@ function updateTopbarUser(){
   const target = document.getElementById('topbarUserName');
   if(!target) return;
   const user = getCurrentUserIdentity();
-  target.textContent = user.name || user.email || 'مستخدم';
+  const displayName = user.name || user.email || 'مستخدم';
+  const dep = departmentForUser(user.id || user.uid || user.email || displayName);
+  const depName = dep?.name || getCurrentUser()?.departmentName || getCurrentUser()?.department || '';
+  target.innerHTML = `<span class="topbar-user-name">${escapeHtml(displayName)}</span>${depName ? `<small class="topbar-user-department">${escapeHtml(depName)}</small>` : ''}`;
 }
 
 function renderRoute(){
@@ -125,7 +128,7 @@ function uniqueList(list){ return [...new Set(list.map(normalizeText).filter(Boo
 function getSelectedValues(select){ return [...(select?.selectedOptions || [])].map(option => option.value).filter(Boolean); }
 function serverTime(){ return firebase.firestore.FieldValue.serverTimestamp(); }
 function safeCollection(name){ return mainDb.collection(name); }
-function getCurrentUser(){ try{ return JSON.parse(sessionStorage.getItem('mzj_user') || '{}') || {}; }catch(_){ return {}; } }
+function getCurrentUser(){ try{ return JSON.parse(localStorage.getItem('mzj_user') || '{}') || {}; }catch(_){ return {}; } }
 function getCurrentUserIdentity(){
   const user = getCurrentUser() || {};
   const authUser = mainAuth?.currentUser || null;
@@ -133,12 +136,12 @@ function getCurrentUserIdentity(){
     id: user.id || user.uid || authUser?.uid || '',
     uid: user.uid || user.id || authUser?.uid || '',
     name: user.name || user.displayName || user.username || authUser?.displayName || '',
-    email: user.email || authUser?.email || sessionStorage.getItem('mzj_login_email') || '',
+    email: user.email || authUser?.email || localStorage.getItem('mzj_login_email') || '',
     role: user.role || 'user'
   };
 }
 
-function setCurrentUser(user){ sessionStorage.setItem('mzj_user', JSON.stringify(user || {})); }
+function setCurrentUser(user){ localStorage.setItem('mzj_user', JSON.stringify(user || {})); }
 function syncCurrentSessionUserFromUsers(){
   const current = getCurrentUser();
   if(!current || !Object.keys(current).length || !users.length) return;
@@ -176,7 +179,10 @@ function initFirebase(){
   try{
     const mainApp = firebase.apps.find(app => app.name === '[DEFAULT]') || firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
     mainDb = firebase.firestore(mainApp);
-    if(firebase.auth) mainAuth = firebase.auth(mainApp);
+    if(firebase.auth){
+      mainAuth = firebase.auth(mainApp);
+      try{ mainAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(_){}
+    }
   }catch(error){ console.error('Main Firebase init error', error); }
   try{
     const stockApp = firebase.apps.find(app => app.name === 'stockApp') || firebase.initializeApp(window.MZJ_STOCK_FIREBASE_CONFIG, 'stockApp');
@@ -393,6 +399,7 @@ function loadUsers(){
     const before = JSON.stringify(getCurrentUser() || {});
     syncCurrentSessionUserFromUsers();
     refreshDynamicSelects(); renderDepartments(); renderUsersPermissions(); renderAdminDashboard(); renderTasksPage();
+    updateTopbarUser();
     applyUserPermissions();
     const after = JSON.stringify(getCurrentUser() || {});
     if(before !== after || !pageAllowed(getRoute())) renderRoute();
@@ -426,6 +433,7 @@ function loadDepartments(){
       };
     });
     renderDepartments(); refreshDynamicSelects(); renderAdminDashboard(); renderTasksPage();
+    updateTopbarUser();
     const count = document.getElementById('dashboardDepartmentsCount'); if(count) count.textContent = departments.length || '—';
   }, error => { console.error(error); if(list) list.innerHTML = '<div class="empty-state">تعذر تحميل الأقسام.</div>'; });
 }
@@ -1299,7 +1307,7 @@ function baseCurrentUserIdentityValues(){
     sessionUser.id, sessionUser.uid, sessionUser.email, sessionUser.emailLower,
     sessionUser.name, sessionUser.displayName, sessionUser.username,
     authUser?.uid, authUser?.email, authUser?.displayName,
-    sessionStorage.getItem('mzj_login_email') || ''
+    localStorage.getItem('mzj_login_email') || ''
   ];
 }
 function currentUserRelatedRecords(){
@@ -1323,7 +1331,7 @@ function currentUserIdentityKeys(){
     sessionUser.id, sessionUser.uid, sessionUser.email, sessionUser.emailLower,
     sessionUser.name, sessionUser.displayName, sessionUser.username,
     authUser?.uid, authUser?.email, authUser?.displayName,
-    sessionStorage.getItem('mzj_login_email') || '',
+    localStorage.getItem('mzj_login_email') || '',
     ...related.flatMap(user => [user.id, user.uid, user.email, user.emailLower, user.name, user.displayName, user.username])
   ]).filter(key => key && key.length > 1);
 }
@@ -4080,7 +4088,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const rawEmail = normalizeText(document.getElementById('loginEmail')?.value);
     const email = rawEmail.toLowerCase();
-    sessionStorage.setItem('mzj_login_email', email);
+    localStorage.setItem('mzj_login_email', email);
     const password = document.getElementById('loginPassword')?.value || '';
 
     if(!rawEmail || !password){
@@ -4139,8 +4147,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      sessionStorage.setItem('mzj_logged_in','1');
-      sessionStorage.setItem('mzj_user', JSON.stringify({
+      localStorage.setItem('mzj_logged_in','1');
+      localStorage.setItem('mzj_user', JSON.stringify({
         id: userDoc.id,
         uid: authUser?.uid || userDoc.uid || userDoc.id,
         email: userDoc.email || rawEmail,
@@ -4163,7 +4171,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showMessage('loginMessage', 'تعذر تسجيل الدخول. راجع إعدادات Firebase أو صلاحيات users.');
     }
   });
-  document.getElementById('logoutBtn')?.addEventListener('click', () => { sessionStorage.removeItem('mzj_logged_in'); sessionStorage.removeItem('mzj_login_email'); openLogin(); });
+  document.getElementById('logoutBtn')?.addEventListener('click', async () => { localStorage.removeItem('mzj_logged_in'); localStorage.removeItem('mzj_login_email'); localStorage.removeItem('mzj_user'); try{ await mainAuth?.signOut?.(); }catch(_){} openLogin(); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
   document.addEventListener('keydown', event => { if(event.key === 'Escape'){ closeTaskModal(); closeCampaignModal(); } });
   document.getElementById('calendarPrevMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()-1); renderCalendarPage(); });
