@@ -260,9 +260,10 @@
           <div class="page-title"><h1>الاستوك</h1><p>قراءة فقط من قاعدة الاستوك، وحفظ حالة التصوير داخل MZJ-Marketing.</p></div>
           <button class="btn btn-light" type="button" id="refreshStockBtn">تحديث</button>
         </div>
-        <div class="grid stats stock-stats stock-stats-clean">
-          
-          <div class="card stat"><div><p>المعروض في الاستوك</p><div class="num" id="stockAvailableAfterExclude">—</div><small>بعد استبعاد المؤرشف والمباع</small></div><div class="stat-icon">◇</div></div>
+        <div class="grid stats stock-stats stock-stats-clean stock-stats-summary">
+          <div class="card stat stock-summary-filter-card" data-stock-filter-card="all"><div><p>المعروض في الاستوك</p><div class="num" id="stockAvailableAfterExclude">—</div><small>بعد استبعاد المؤرشف والمباع</small></div><div class="stat-icon">◇</div></div>
+          <div class="card stat stock-summary-filter-card" data-stock-filter-card="not-photographed"><div><p>لم يتم التصوير</p><div class="num" id="stockNotPhotographedCount">—</div><small>السيارات التي لم يتم تصويرها</small></div><div class="stat-icon">📷</div></div>
+          <div class="card stat stock-summary-filter-card" data-stock-filter-card="unused"><div><p>غير مستخدمة في أي نوع محتوى</p><div class="num" id="stockUnusedContentCount">—</div><small>غير مرتبطة بتاسكات أو كريتيفات</small></div><div class="stat-icon">☰</div></div>
           <div class="card stat is-hidden"><div><p>متاح للبيع</p><div class="num" id="stockAvailableForSale">—</div></div></div>
           <div class="card stat is-hidden"><div><p>حجز</p><div class="num" id="stockReserved">—</div></div></div>
           <div class="card stat is-hidden"><div><p>مباع تحت التسليم</p><div class="num" id="stockUnderDelivery">—</div></div></div>
@@ -276,12 +277,28 @@
             </div>
             <div class="stock-filter-area">
               <select id="stockFilterMode" class="stock-filter-hidden" aria-label="فلتر الاستوك">
-                <option value="all">كل السيارات</option>
-                <option value="not-photographed">لسه مش متصورة</option>
+                <option value="all">الكل</option>
+                <option value="not-photographed">لم يتم التصوير</option>
                 <option value="unused">غير مستخدمة في أي نوع محتوى</option>
                 <option value="not-photographed-unused">مش متصورة وغير مستخدمة</option>
               </select>
               <div id="stockFilterCards" class="stock-filter-cards" aria-label="فلاتر الاستوك"></div>
+            </div>
+          </div>
+          <div class="stock-advanced-filters" id="stockAdvancedFilters">
+            <input id="stockSearchInput" class="control" type="search" placeholder="بحث عام (مفتاح/سيارة/بيان/ألوان)" />
+            <select id="stockCarFilter" class="select"><option value="">السيارة (الكل)</option></select>
+            <select id="stockStatementFilter" class="select"><option value="">البيان (الكل)</option></select>
+            <select id="stockShotFilter" class="select"><option value="">تصوير (الكل)</option><option value="yes">نعم</option><option value="no">لا</option></select>
+            <select id="stockMontageFilter" class="select"><option value="">مونتاج (الكل)</option><option value="yes">نعم</option><option value="no">لا</option></select>
+            <select id="stockMontageDetailFilter" class="select"><option value="">تفاصيل المونتاج (الكل)</option></select>
+            <input id="stockExteriorFilter" class="control" type="text" placeholder="اللون الخارجي (اكتب)" />
+            <input id="stockInteriorFilter" class="control" type="text" placeholder="اللون الداخلي (اكتب)" />
+            <select id="stockAgendaInsideFilter" class="select"><option value="">داخل الأجندة (الكل)</option><option value="yes">نعم</option><option value="no">لا</option></select>
+            <select id="stockAgendaMonthFilter" class="select"><option value="">شهر الأجندة (الكل)</option><option value="1">يناير</option><option value="2">فبراير</option><option value="3">مارس</option><option value="4">أبريل</option><option value="5">مايو</option><option value="6">يونيو</option><option value="7">يوليو</option><option value="8">أغسطس</option><option value="9">سبتمبر</option><option value="10">أكتوبر</option><option value="11">نوفمبر</option><option value="12">ديسمبر</option></select>
+            <div class="stock-filter-actions">
+              <button class="btn btn-primary" type="button" id="exportStockExcelBtn">تصدير Excel</button>
+              <button class="btn btn-light" type="button" id="clearStockFiltersBtn">تصفير الفلاتر</button>
             </div>
           </div>
           <div class="stock-table-wrap">

@@ -585,6 +585,148 @@ function stockGroupUsage(group){
   });
   return hits;
 }
+
+function carFieldValue(car, keys){
+  for(const key of keys){
+    if(car && car[key] !== undefined && car[key] !== null && normalizeText(car[key]) !== '') return normalizeText(car[key]);
+  }
+  return '';
+}
+function stockRowModelYears(group){
+  return uniqueList((group.cars || []).map(car => carFieldValue(car, ['modelYear','model_year','year','model','carModel','سنة الموديل','الموديل','السنة'])).filter(Boolean));
+}
+function stockTaskRole(item){
+  const task = item?.task || {};
+  return normalizeDepartmentRole(task.departmentRole || task.assignedDepartmentName || task.contentSectionName || task.contentSection || task.departmentName || '');
+}
+function stockTaskTypeText(item){
+  const task = item?.task || {};
+  return normalizeText(task.taskType || task.contentType || task.content_type || task.structureTaskLabel || task.creative || task.product || item?.label || '');
+}
+function stockRowMontageDetails(group){
+  return uniqueList((group.usage || []).filter(item => stockTaskRole(item) === 'montage').map(stockTaskTypeText).filter(Boolean));
+}
+function stockRowHasMontage(group){ return stockRowMontageDetails(group).length > 0; }
+function stockRowInsideAgenda(group){
+  return (group.usage || []).some(item => Array.isArray(item?.campaign?.publishSchedule) && item.campaign.publishSchedule.some(row => row && row.date));
+}
+function stockRowAgendaMonths(group){
+  const months = [];
+  (group.usage || []).forEach(item => {
+    const list = Array.isArray(item?.campaign?.publishSchedule) ? item.campaign.publishSchedule : [];
+    list.forEach(row => {
+      const d = row?.date || row?.publishDate || row?.dayDate || '';
+      const date = d ? new Date(`${d}T00:00:00`) : null;
+      if(date && !Number.isNaN(date.getTime())) months.push(String(date.getMonth() + 1));
+    });
+  });
+  return uniqueList(months);
+}
+function stockSearchText(group){
+  const years = stockRowModelYears(group).join(' ');
+  const usageText = (group.usage || []).map(item => [item?.campaign?.campaignName, item?.campaign?.campaignCode, stockTaskTypeText(item), item?.label].filter(Boolean).join(' ')).join(' ');
+  return identityClean([group.key, group.carName, group.statement, group.exteriorColor, group.interiorColor, years, usageText].join(' '));
+}
+function stockSystemMontageDetailOptions(){
+  const fromSections = contentSections.filter(section => normalizeDepartmentRole(section.name || section.slug || section.departmentId || '') === 'montage')
+    .flatMap(section => Array.isArray(section.types) ? section.types : []);
+  const fromTasks = taskTypes.map(item => item.name).filter(Boolean);
+  const fromUsage = stockRowsWithMeta().flatMap(row => stockRowMontageDetails(row));
+  return uniqueList([...fromSections, ...fromUsage, ...fromTasks].map(normalizeText).filter(Boolean)).sort((a,b) => a.localeCompare(b, 'ar'));
+}
+function updateStockDynamicFilterOptions(rows){
+  const fill = (id, placeholder, values) => {
+    const select = document.getElementById(id);
+    if(!select) return;
+    const old = select.value || '';
+    select.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>` + uniqueList(values.map(normalizeText).filter(Boolean)).sort((a,b) => a.localeCompare(b, 'ar')).map(value => `<option value="${escapeHtml(value)}"${old === value ? ' selected' : ''}>${escapeHtml(value)}</option>`).join('');
+    if(old && ![...select.options].some(option => option.value === old)) select.value = '';
+  };
+  fill('stockCarFilter', 'السيارة (الكل)', rows.map(row => row.carName));
+  fill('stockStatementFilter', 'البيان (الكل)', rows.map(row => row.statement));
+  fill('stockMontageDetailFilter', 'تفاصيل المونتاج (الكل)', stockSystemMontageDetailOptions());
+}
+function stockAdvancedFilterValues(){
+  const val = id => normalizeText(document.getElementById(id)?.value || '');
+  return {
+    search: val('stockSearchInput'),
+    car: val('stockCarFilter'),
+    statement: val('stockStatementFilter'),
+    shot: val('stockShotFilter'),
+    montage: val('stockMontageFilter'),
+    montageDetail: val('stockMontageDetailFilter'),
+    exterior: val('stockExteriorFilter'),
+    interior: val('stockInteriorFilter'),
+    insideAgenda: val('stockAgendaInsideFilter'),
+    agendaMonth: val('stockAgendaMonthFilter')
+  };
+}
+function filterStockRowsAdvanced(rows){
+  const f = stockAdvancedFilterValues();
+  return rows.filter(group => {
+    if(f.search && !stockSearchText(group).includes(identityClean(f.search))) return false;
+    if(f.car && normalizeText(group.carName) !== f.car) return false;
+    if(f.statement && normalizeText(group.statement) !== f.statement) return false;
+    if(f.shot === 'yes' && !group.isPhotographed) return false;
+    if(f.shot === 'no' && group.isPhotographed) return false;
+    const hasMontage = stockRowHasMontage(group);
+    if(f.montage === 'yes' && !hasMontage) return false;
+    if(f.montage === 'no' && hasMontage) return false;
+    if(f.montageDetail && !stockRowMontageDetails(group).includes(f.montageDetail)) return false;
+    if(f.exterior && !identityClean(group.exteriorColor).includes(identityClean(f.exterior))) return false;
+    if(f.interior && !identityClean(group.interiorColor).includes(identityClean(f.interior))) return false;
+    const inside = stockRowInsideAgenda(group);
+    if(f.insideAgenda === 'yes' && !inside) return false;
+    if(f.insideAgenda === 'no' && inside) return false;
+    if(f.agendaMonth && !stockRowAgendaMonths(group).includes(String(Number(f.agendaMonth)))) return false;
+    return true;
+  });
+}
+function currentFilteredStockRows(){
+  const mode = document.getElementById('stockFilterMode')?.value || stockFilterMode || 'all';
+  return filterStockRowsAdvanced(filterStockRows(stockRowsWithMeta(), mode));
+}
+function clearStockFilters(){
+  ['stockSearchInput','stockCarFilter','stockStatementFilter','stockShotFilter','stockMontageFilter','stockMontageDetailFilter','stockExteriorFilter','stockInteriorFilter','stockAgendaInsideFilter','stockAgendaMonthFilter'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+  stockFilterMode = 'all';
+  const mode = document.getElementById('stockFilterMode');
+  if(mode) mode.value = 'all';
+  renderStock();
+}
+function exportStockRowsToExcel(){
+  const rows = currentFilteredStockRows();
+  if(!rows.length) return showToast('لا توجد بيانات لتصديرها.');
+  const headers = ['م','Unique Spec Key','السيارة','البيان','اللون الخارجي','اللون الداخلي','الموديل','العدد','تم التصوير','الاستخدام','تفاصيل المونتاج','داخل الأجندة','شهور الأجندة'];
+  const body = rows.map((group, index) => [
+    index + 1,
+    [group.carName, group.statement].filter(Boolean).join(' - '),
+    group.carName || '',
+    group.statement || '',
+    group.exteriorColor || '',
+    group.interiorColor || '',
+    stockRowModelYears(group).join('، '),
+    group.count || 0,
+    group.isPhotographed ? 'نعم' : 'لا',
+    group.isUsed ? `مستخدمة في ${group.usage.length} تاسك` : 'غير مستخدمة',
+    stockRowMontageDetails(group).join('، '),
+    stockRowInsideAgenda(group) ? 'نعم' : 'لا',
+    stockRowAgendaMonths(group).join('، ')
+  ]);
+  const esc = value => String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const table = `<html><head><meta charset="utf-8"></head><body dir="rtl"><table border="1"><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body.map(row => `<tr>${row.map(cell => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></body></html>`;
+  const blob = new Blob(['\ufeff', table], { type:'application/vnd.ms-excel;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `stock-export-${todayInputDate()}.xls`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 function stockGroupByKey(groupKey){
   // التصحيح المهم: مصدر جروبات الاستوك هو buildStockGroups، مش stockGroups غير موجودة.
   // وجود stockGroups كان بيكسر onchange قبل ما يوصل للحفظ في Firebase.
@@ -810,8 +952,8 @@ function updateStockFilterLabels(select, rows){
     'not-photographed-unused': stockRowsCount(filterStockRows(rows, 'not-photographed-unused'))
   };
   const labels = {
-    all: 'كل السيارات',
-    'not-photographed': 'لسه مش متصورة',
+    all: 'الكل',
+    'not-photographed': 'لم يتم التصوير',
     unused: 'غير مستخدمة في أي نوع محتوى',
     'not-photographed-unused': 'مش متصورة وغير مستخدمة'
   };
@@ -823,7 +965,7 @@ function updateStockFilterLabels(select, rows){
 function renderStockFilterCards(counts, labels){
   const wrap = document.getElementById('stockFilterCards');
   if(!wrap) return;
-  const order = ['all','not-photographed','unused','not-photographed-unused'];
+  const order = ['not-photographed','unused','not-photographed-unused'];
   wrap.innerHTML = order.map(key => `
     <button class="stock-filter-card ${stockFilterMode === key ? 'active' : ''}" type="button" data-stock-filter-card="${escapeHtml(key)}">
       <span>${escapeHtml(labels[key])}</span>
@@ -837,11 +979,20 @@ function renderStock(){
   const filterSelect = document.getElementById('stockFilterMode');
   stockFilterMode = filterSelect?.value || stockFilterMode || 'all';
   const allRows = stockRowsWithMeta();
-  const rows = filterStockRows(allRows, stockFilterMode);
+  updateStockDynamicFilterOptions(allRows);
+  const rows = filterStockRowsAdvanced(filterStockRows(allRows, stockFilterMode));
   updateStockFilterLabels(filterSelect, allRows);
+  const stockAllCount = stockRowsCount(allRows);
+  const stockNotShotCount = stockRowsCount(filterStockRows(allRows, 'not-photographed'));
+  const stockUnusedCount = stockRowsCount(filterStockRows(allRows, 'unused'));
   setText('dashboardCarsCount', visibleCars.length || '—');
-  setText('stockAvailableAfterExclude', stockRowsCount(rows) || '—');
+  setText('stockAvailableAfterExclude', stockAllCount || '—');
+  setText('stockNotPhotographedCount', stockNotShotCount || 0);
+  setText('stockUnusedContentCount', stockUnusedCount || 0);
   setText('stockAvailableForSale', stockRowsCount(rows) || '—');
+  document.querySelectorAll('.stock-summary-filter-card[data-stock-filter-card]').forEach(card => {
+    card.classList.toggle('active', (card.dataset.stockFilterCard || 'all') === stockFilterMode);
+  });
   setText('stockReserved', '—');
   setText('stockUnderDelivery', '—');
   if(!tbody) return;
@@ -2742,6 +2893,7 @@ function bindCampaignBuilder(){
 
   document.addEventListener('input', event => {
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')) updateBudgetGrandTotal();
+    if(event.target.closest('#stockAdvancedFilters')) renderStock();
   });
 
   document.addEventListener('change', event => {
@@ -2757,6 +2909,7 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-task-user,.js-car-checkbox,.js-creative-check')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
+    if(event.target.closest('#stockAdvancedFilters')){ renderStock(); return; }
     if(event.target.matches('.js-platform-checkbox')){ return; }
     if(event.target.matches('.js-creative-select,.js-creative-check,.js-task-type,.js-task-quantity,.js-task-required-date')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
@@ -2852,6 +3005,8 @@ function bindDepartments(){
   document.getElementById('cancelContentSectionEdit')?.addEventListener('click', () => { document.getElementById('contentSectionForm')?.reset(); resetForm(['contentSectionEditId']); });
   document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignTypes(); renderContentSections(); });
   document.getElementById('refreshStockBtn')?.addEventListener('click', renderStock);
+  document.getElementById('exportStockExcelBtn')?.addEventListener('click', exportStockRowsToExcel);
+  document.getElementById('clearStockFiltersBtn')?.addEventListener('click', clearStockFilters);
   document.getElementById('stockFilterMode')?.addEventListener('change', event => { stockFilterMode = event.target.value || 'all'; renderStock(); });
   document.addEventListener('click', event => {
     const card = event.target.closest('[data-stock-filter-card]');
@@ -3905,6 +4060,7 @@ function bootstrapData(){
     safeCollection(window.MZJ_CONTENT_SECTIONS_COLLECTION).orderBy('name').onSnapshot(snapshot => {
       contentSections = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, slug: data.slug || '', types: Array.isArray(data.types) ? data.types.map(normalizeText).filter(Boolean) : [], userIds: Array.isArray(data.userIds) ? data.userIds : [], users: Array.isArray(data.users) ? data.users : [], members: Array.isArray(data.members) ? data.members : [], memberUids: Array.isArray(data.memberUids) ? data.memberUids : [], memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails : [], memberNames: Array.isArray(data.memberNames) ? data.memberNames : [], departmentId: data.departmentId || data.department || data.contentDepartmentId || '' }; });
       renderContentSections();
+      if(getRoute() === 'stock') renderStock();
       if(getRoute() === 'dashboard') renderAdminDashboard();
     }, error => console.error(error));
   }
