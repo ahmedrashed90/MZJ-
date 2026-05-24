@@ -3072,7 +3072,7 @@ function renderCampaignDetail(campaignId){
   </article>`;
   const grouped = groupTasksForKanban(related);
   detail.classList.add('show');
-  detail.innerHTML = `<div class="detail-head clean-detail-head"><div><h2>${shortCampaignTitle(campaign)}</h2><p>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</p></div><button type="button" class="mini-btn" id="closeDashboardDetail">إغلاق</button></div>
+  detail.innerHTML = `<div class="detail-head clean-detail-head"><div><h2>${shortCampaignTitle(campaign)}</h2><p>${escapeHtml(campaignCodeText(campaign))}</p></div><button type="button" class="mini-btn" id="closeDashboardDetail">إغلاق</button></div>
     <div class="detail-summary-strip compact-summary"><span><b>${snap.total}</b> تاسك</span><span><b>${snap.received}</b> مستلم</span><span><b>${snap.progress}%</b> جاهزية</span></div>
     ${grouped.length ? grouped.map(group => `<section class="campaign-task-group"><div class="campaign-task-group-head"><h3>${group.label}</h3><span>${group.tasks.length}</span></div><div class="campaign-task-list">${group.tasks.map(taskItem).join('')}</div></section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}`;
 }
@@ -3219,7 +3219,7 @@ function renderDatabasePage(){
     return `<tr>
       <td>${index + 1}</td>
       <td>${formatDateShort(cDate)}</td>
-      <td>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</td>
+      <td>${escapeHtml(campaignCodeText(campaign))}</td>
       <td>${escapeHtml(campaign.campaignName || campaign.name || campaign.campaign_name || '')}</td>
       <td>${escapeHtml(campaign.campaignType || campaign.campaign_type || '')}</td>
       <td>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '')}</td>
@@ -3282,13 +3282,55 @@ function campaignLinksHtml(campaign){
   const links = Array.isArray(campaign.campaignLinks) ? campaign.campaignLinks : [];
   return `<div class="campaign-links-list">${links.length ? links.map((link, i) => `<div class="db-link-row"><b>${escapeHtml(link.platform || 'منصة')}</b><a href="${escapeHtml(link.url || '#')}" target="_blank" rel="noopener">${escapeHtml(link.url || '')}</a><button type="button" class="mini-btn danger" data-remove-campaign-link="${escapeHtml(campaign.id)}" data-link-index="${i}">حذف</button></div>`).join('') : '<div class="empty-state mini-empty">لا توجد روابط حملة.</div>'}</div>`;
 }
+
+function campaignStartPublishDate(campaign){
+  const list = Array.isArray(campaign.publishSchedule) ? campaign.publishSchedule.filter(item => item && item.date) : [];
+  return campaign.publishStartDate || campaign.publish_start_date || (list.length ? list[0].date : '') || campaign.startDate || '';
+}
+function campaignCodeText(campaign){ return campaign.campaignCode || campaign.campaign_code || campaign.code || ''; }
+function campaignNameText(campaign){ return campaign.campaignName || campaign.name || campaign.campaign_name || ''; }
+function campaignTypeText(campaign){ return campaign.campaignType || campaign.campaign_type || campaign.campaignTypeName || ''; }
+function campaignStatusText(campaign){
+  const status = campaign.request_status || campaign.status || '';
+  const map = { draft:'مسودة', pending:'قيد الانتظار', active:'نشطة', archived:'مؤرشفة', done:'منتهية', completed:'مكتملة' };
+  return map[status] || status || '—';
+}
+function campaignInfoCell(label, value, isDate = false){
+  const text = isDate ? formatDateShort(value) : (normalizeText(value || '') || '—');
+  return `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(text)}</strong></div>`;
+}
+function campaignFullDataGrid(campaign){
+  const tasks = tasksForCampaign(campaign);
+  const received = tasks.filter(task => task.received || task.receivedConfirmed).length;
+  const completed = tasks.filter(task => taskProgress(task) >= 100).length;
+  const fields = [
+    ['تاريخ الحملة', campaign.campaign_date || campaign.campaignDate || campaign.createdAt, true],
+    ['بداية النشر', campaignStartPublishDate(campaign), true],
+    ['نهاية النشر', campaignEndDate(campaign), true],
+    ['نوع الحملة', campaignTypeText(campaign)],
+    ['كود الحملة', campaignCodeText(campaign)],
+    ['اسم الحملة', campaignNameText(campaign)],
+    ['هدف الحملة', campaign.campaign_goal || campaign.campaignGoal],
+    ['هدف الإدارة', campaign.management_goal || campaign.managementGoal],
+    ['المطلوب من كاتب المحتوى', campaign.content_writer_brief || campaign.contentWriterBrief],
+    ['موعد تسليم الهيكل', campaign.structure_deadline || campaign.structureDeadline, true],
+    ['حالة الطلب', campaignStatusText(campaign)],
+    ['رقم مسلسل الحملة', campaign.campaignSerial || campaign.serial || campaign.sequence],
+    ['عدد التاسكات', tasks.length],
+    ['التاسكات المستلمة', received],
+    ['التاسكات المكتملة', completed],
+    ['تاريخ الإنشاء', campaign.createdAt, true],
+    ['آخر تحديث', campaign.updatedAt, true]
+  ];
+  return `<div class="task-info-grid campaign-full-info-grid">${fields.map(item => campaignInfoCell(item[0], item[1], item[2])).join('')}</div>`;
+}
 function openCampaignDataModal(campaignId){
   const campaign = campaigns.find(item => item.id === campaignId);
   const modal = document.getElementById('campaignModal');
   const content = document.getElementById('campaignModalContent');
   if(!campaign || !modal || !content) return;
-  content.innerHTML = `<div class="task-modal-head"><div><span>عرض بيانات الحملة</span><h2>${escapeHtml(campaign.campaignName || campaign.name || 'حملة')}</h2><p>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</p></div><div class="modal-head-actions"><button type="button" class="mini-btn pdf-export-btn" data-export-campaign-pdf="${escapeHtml(campaign.id)}">تصدير PDF</button><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div></div>
-    <div class="modal-section"><div class="modal-section-title"><h3>بيانات الحملة</h3></div><div class="task-info-grid"><div><span>التاريخ</span><strong>${formatDateShort(campaign.campaign_date || campaign.createdAt)}</strong></div><div><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || '')}</strong></div><div><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '')}</strong></div><div><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || '')}</strong></div><div><span>الهدف</span><strong>${escapeHtml(campaign.campaign_goal || '')}</strong></div><div><span>النهاية</span><strong>${formatDateShort(campaignEndDate(campaign))}</strong></div></div></div>
+  content.innerHTML = `<div class="task-modal-head"><div><span>عرض بيانات الحملة</span><h2>${escapeHtml(campaignNameText(campaign) || 'حملة')}</h2><p>${escapeHtml(campaignCodeText(campaign))}</p></div><div class="modal-head-actions"><button type="button" class="mini-btn pdf-export-btn" data-export-campaign-pdf="${escapeHtml(campaign.id)}">تصدير PDF</button><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div></div>
+    <div class="modal-section"><div class="modal-section-title"><h3>بيانات الحملة كاملة</h3></div>${campaignFullDataGrid(campaign)}</div>
     <div class="modal-section"><div class="modal-section-title"><h3>كل المطلوب من التاسكات واليوزرات</h3></div>${buildTaskSummaryList(campaign)}</div>
     <div class="modal-section"><div class="modal-section-title"><h3>عرض جدول النشر</h3></div>${renderScheduleSummary(campaign)}</div>
     <div class="modal-section"><div class="modal-section-title"><h3>عرض الميزانية</h3></div>${renderBudgetSummary(campaign)}</div>
@@ -3303,11 +3345,11 @@ function exportCampaignDataPdf(campaignId){
   const campaign = campaigns.find(item => item.id === campaignId);
   if(!campaign) return;
   const tasksHtml = buildTaskSummaryList(campaign);
-  const title = `${campaign.campaignCode || campaign.campaign_code || ''} - ${campaign.campaignName || campaign.name || 'بيانات الحملة'}`.trim();
+  const title = `${campaignCodeText(campaign)} - ${campaignNameText(campaign) || 'بيانات الحملة'}`.trim();
   const safeTitle = escapeHtml(title || 'بيانات الحملة');
   const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${safeTitle}</title><style>
     @page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{font-family:Tahoma,Arial,sans-serif;direction:rtl;color:#2d1713;margin:0;background:#fff;font-size:11px}h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:18px 0 8px;border-bottom:2px solid #6f3f34;padding-bottom:6px}.report-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;border:2px solid #6f3f34;border-radius:14px;padding:12px;margin-bottom:12px}.meta{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:8px 0 14px}.meta div{border:1px solid #ead0c4;border-radius:10px;padding:8px;background:#fffaf6}.meta span{display:block;color:#8e7166;font-weight:700;font-size:10px}.meta strong{display:block;margin-top:4px;font-size:11px}.print-table-wrap{overflow:visible!important;border:1px solid #ead0c4;border-radius:10px}.print-table,.compact-table table{width:100%;border-collapse:collapse!important;min-width:0!important}.print-table th,.print-table td,.compact-table th,.compact-table td{border:1px solid #ead0c4!important;padding:7px!important;text-align:right!important;vertical-align:top!important;white-space:normal!important;line-height:1.65!important}.print-table th,.compact-table th{background:#f2e5dc!important;color:#2d1713!important;font-weight:900!important}.empty-state{border:1px dashed #ead0c4;border-radius:10px;padding:14px;text-align:center;color:#8e7166}.footer{margin-top:14px;color:#8e7166;font-size:10px;text-align:left}@media print{button{display:none!important}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
-  </style></head><body><section class="report-head"><div><h1>تقرير بيانات الحملة</h1><strong>${safeTitle}</strong></div><div>تاريخ التصدير: ${escapeHtml(formatDateShort(new Date()))}</div></section><section class="meta"><div><span>التاريخ</span><strong>${escapeHtml(formatDateShort(campaign.campaign_date || campaign.createdAt))}</strong></div><div><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</strong></div><div><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '')}</strong></div><div><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || campaign.campaign_type || '')}</strong></div><div><span>هدف الحملة</span><strong>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '')}</strong></div><div><span>النهاية</span><strong>${escapeHtml(formatDateShort(campaignEndDate(campaign)))}</strong></div></section><h2>كل المطلوب من التاسكات واليوزرات</h2>${printableCompactTable(tasksHtml)}<h2>جدول النشر</h2>${printableCompactTable(renderScheduleSummary(campaign))}<h2>الميزانية</h2>${printableCompactTable(renderBudgetSummary(campaign))}<h2>روابط الحملة</h2>${printableCompactTable(campaignLinksHtml(campaign))}<div class="footer">MZJ Workspace</div><script>window.onload=function(){setTimeout(function(){window.focus();window.print();},250)}<\/script></body></html>`;
+  </style></head><body><section class="report-head"><div><h1>تقرير بيانات الحملة</h1><strong>${safeTitle}</strong></div><div>تاريخ التصدير: ${escapeHtml(formatDateShort(new Date()))}</div></section><section class="meta"><div><span>تاريخ الحملة</span><strong>${escapeHtml(formatDateShort(campaign.campaign_date || campaign.campaignDate || campaign.createdAt))}</strong></div><div><span>بداية النشر</span><strong>${escapeHtml(formatDateShort(campaignStartPublishDate(campaign)))}</strong></div><div><span>نهاية النشر</span><strong>${escapeHtml(formatDateShort(campaignEndDate(campaign)))}</strong></div><div><span>نوع الحملة</span><strong>${escapeHtml(campaignTypeText(campaign))}</strong></div><div><span>كود الحملة</span><strong>${escapeHtml(campaignCodeText(campaign))}</strong></div><div><span>اسم الحملة</span><strong>${escapeHtml(campaignNameText(campaign))}</strong></div><div><span>هدف الحملة</span><strong>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '')}</strong></div><div><span>هدف الإدارة</span><strong>${escapeHtml(campaign.management_goal || campaign.managementGoal || '')}</strong></div><div><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(campaign.content_writer_brief || campaign.contentWriterBrief || '')}</strong></div><div><span>موعد تسليم الهيكل</span><strong>${escapeHtml(formatDateShort(campaign.structure_deadline || campaign.structureDeadline))}</strong></div><div><span>حالة الطلب</span><strong>${escapeHtml(campaignStatusText(campaign))}</strong></div><div><span>رقم مسلسل الحملة</span><strong>${escapeHtml(campaign.campaignSerial || campaign.serial || campaign.sequence || '')}</strong></div></section><h2>كل المطلوب من التاسكات واليوزرات</h2>${printableCompactTable(tasksHtml)}<h2>جدول النشر</h2>${printableCompactTable(renderScheduleSummary(campaign))}<h2>الميزانية</h2>${printableCompactTable(renderBudgetSummary(campaign))}<h2>روابط الحملة</h2>${printableCompactTable(campaignLinksHtml(campaign))}<div class="footer">MZJ Workspace</div><script>window.onload=function(){setTimeout(function(){window.focus();window.print();},250)}<\/script></body></html>`;
   const printWindow = window.open('', '_blank');
   if(!printWindow){ alert('المتصفح منع فتح نافذة التصدير. اسمح بالـ popups وجرب تاني.'); return; }
   printWindow.document.open();
@@ -3335,7 +3377,7 @@ function openCampaignEditModal(campaignId){
   const content = document.getElementById('campaignModalContent');
   if(!campaign || !modal || !content) return;
   const taskRows = tasksForCampaign(campaign).map(task => `<div class="db-task-row"><b>${escapeHtml(task.taskType || shortTaskName(task))}</b><span>${escapeHtml(taskContentType(task))}</span><span>${escapeHtml(taskOwnerName(task))}</span><em>${taskProgress(task)}%</em></div>`).join('') || '<div class="empty-state mini-empty">لا توجد تاسكات.</div>';
-  content.innerHTML = `<div class="task-modal-head"><div><span>تعديل الحملة</span><h2>${escapeHtml(campaign.campaignName || campaign.name || 'حملة')}</h2><p>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '')}</p></div><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div>
+  content.innerHTML = `<div class="task-modal-head"><div><span>تعديل الحملة</span><h2>${escapeHtml(campaignNameText(campaign) || 'حملة')}</h2><p>${escapeHtml(campaignCodeText(campaign))}</p></div><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div>
     <div class="modal-section"><div class="modal-section-title"><h3>بيانات الحملة</h3></div><div class="campaign-edit-grid"><label class="field"><span>اسم الحملة</span><input id="editCampaignName" value="${escapeHtml(campaign.campaignName || campaign.name || '')}"></label><label class="field"><span>نوع الحملة</span><input id="editCampaignType" value="${escapeHtml(campaign.campaignType || campaign.campaign_type || '')}"></label><label class="field"><span>هدف الحملة</span><input id="editCampaignGoal" value="${escapeHtml(campaign.campaign_goal || '')}"></label><label class="field"><span>تاريخ الحملة</span><input type="date" id="editCampaignDate" value="${escapeHtml(campaign.campaign_date || '')}"></label></div><button type="button" class="btn btn-primary" data-save-campaign-edit="${escapeHtml(campaign.id)}">حفظ تعديلات الحملة</button></div>
     <div class="modal-section"><div class="modal-section-title"><h3>التاسكات الحالية</h3></div>${taskRows}</div>
     <div class="modal-section"><div class="modal-section-title"><h3>إضافة تاسك</h3></div><div class="campaign-edit-grid"><label class="field"><span>اختار المحتوى</span><select id="editAddSection">${contentSectionOptions()}</select></label><label class="field"><span>نوع التاسك</span><select id="editAddTaskType"><option value="">اختر نوع التاسك</option></select></label><label class="field"><span>العدد</span><input type="number" id="editAddQty" min="1" value="1"></label><label class="field"><span>التاريخ المطلوب</span><input type="date" id="editAddRequiredDate"></label><label class="field"><span>اليوزر</span><select id="editAddUsers" multiple size="4">${multiUserOptions()}</select></label></div><button type="button" class="btn btn-light" data-add-task-to-campaign="${escapeHtml(campaign.id)}">+ إضافة تاسك للحملة</button></div>`;
