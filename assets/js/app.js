@@ -1078,26 +1078,54 @@ const NOTIFICATION_DISMISS_KEY = 'mzj_dismissed_notifications';
 let notificationSnapshotReady = false;
 let lastNotificationKeys = [];
 let notificationAudioUnlocked = false;
-function unlockNotificationAudio(){ notificationAudioUnlocked = true; }
+let notificationAudioCtx = null;
+let liveNotificationTimer = null;
+function unlockNotificationAudio(){
+  notificationAudioUnlocked = true;
+  try{
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if(AudioContextClass && !notificationAudioCtx) notificationAudioCtx = new AudioContextClass();
+    notificationAudioCtx?.resume?.();
+  }catch(_){ /* browser may block until next user action */ }
+}
 function playNotificationSound(){
   if(!notificationAudioUnlocked) return;
   try{
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if(!AudioContextClass) return;
-    const ctx = new AudioContextClass();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = 880;
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.14, ctx.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.28);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.30);
-    window.setTimeout(() => { try{ ctx.close(); }catch(_){} }, 420);
+    const ctx = notificationAudioCtx || new AudioContextClass();
+    notificationAudioCtx = ctx;
+    ctx.resume?.();
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, ctx.currentTime);
+    master.gain.exponentialRampToValueAtTime(0.75, ctx.currentTime + 0.018);
+    master.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.62);
+    master.connect(ctx.destination);
+    const tones = [980, 1240, 1560];
+    tones.forEach((freq, index) => {
+      const osc = ctx.createOscillator();
+      osc.type = index === 0 ? 'square' : 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + (index * 0.11));
+      osc.connect(master);
+      osc.start(ctx.currentTime + (index * 0.11));
+      osc.stop(ctx.currentTime + 0.24 + (index * 0.11));
+    });
   }catch(error){ console.warn('Notification sound blocked', error); }
+}
+function showLiveNotification(item){
+  if(!item) return;
+  let box = document.getElementById('liveNotificationPopup');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'liveNotificationPopup';
+    box.className = 'live-notification-popup';
+    document.body.appendChild(box);
+  }
+  const openAttrs = item.taskId ? ` data-open-task="${escapeHtml(item.taskId)}" data-task-campaign="${escapeHtml(item.campaignId || '')}"` : '';
+  box.innerHTML = `<button type="button" class="live-notification-card ${escapeHtml(item.tone || '')}"${openAttrs}><span class="live-notification-icon">${escapeHtml(item.icon || '🔔')}</span><div><b>${escapeHtml(item.title || 'إشعار جديد')}</b><small>${escapeHtml(item.text || '')}</small></div></button>`;
+  box.classList.add('show');
+  window.clearTimeout(liveNotificationTimer);
+  liveNotificationTimer = window.setTimeout(() => box.classList.remove('show'), 7000);
 }
 function getDismissedNotificationKeys(){
   try{ return JSON.parse(localStorage.getItem(NOTIFICATION_DISMISS_KEY) || '[]').map(String); }
@@ -1154,7 +1182,13 @@ function renderTopbarNotifications(playSoundForNew = false){
   count.textContent = String(items.length);
   count.classList.toggle('is-hidden', !items.length);
   panel.innerHTML = `<div class="notification-head"><strong>الإشعارات</strong><div class="notification-head-actions"><small>${items.length} تنبيه</small>${items.length ? '<button type="button" class="notification-clear" data-clear-notifications>مسح الكل</button>' : ''}</div></div>` + (items.length ? items.map(notificationItemHtml).join('') : '<div class="empty-state mini-empty">لا توجد إشعارات حالياً.</div>');
-  if(notificationSnapshotReady && playSoundForNew && hasNew) playNotificationSound();
+  if(notificationSnapshotReady && playSoundForNew && hasNew){
+    const freshItem = items.find(item => item.key && !previous.has(item.key));
+    playNotificationSound();
+    showLiveNotification(freshItem || items[0]);
+    btn.classList.add('is-ringing');
+    window.setTimeout(() => btn.classList.remove('is-ringing'), 1400);
+  }
   lastNotificationKeys = keys;
   notificationSnapshotReady = true;
 }

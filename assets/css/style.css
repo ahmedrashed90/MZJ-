@@ -1675,3 +1675,75 @@ body.has-user-dashboard-theme #dashboard.user-mode .admin-dashboard-board{
   position:static !important;
   top:auto !important;
 }
+
+
+/* v88: live notification popup + louder alert feedback */
+.notify-btn.is-ringing{
+  animation:mzjBellRing .55s ease-in-out 2;
+  box-shadow:0 0 0 4px rgba(184,94,78,.12), 0 10px 24px rgba(184,94,78,.18);
+}
+@keyframes mzjBellRing{
+  0%,100%{transform:rotate(0deg)}
+  20%{transform:rotate(9deg)}
+  45%{transform:rotate(-8deg)}
+  70%{transform:rotate(6deg)}
+}
+.live-notification-popup{
+  position:fixed;
+  top:96px;
+  left:24px;
+  z-index:99999;
+  pointer-events:none;
+  transform:translateY(-12px);
+  opacity:0;
+  transition:.22s ease;
+}
+.live-notification-popup.show{
+  transform:translateY(0);
+  opacity:1;
+  pointer-events:auto;
+}
+.live-notification-card{
+  min-width:320px;
+  max-width:min(420px, calc(100vw - 36px));
+  border:1px solid rgba(184,94,78,.24);
+  border-radius:20px;
+  background:rgba(255,253,250,.96);
+  box-shadow:0 22px 55px rgba(50,25,18,.22);
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:14px 16px;
+  cursor:pointer;
+  text-align:right;
+  direction:rtl;
+  color:var(--text);
+  backdrop-filter:blur(10px);
+}
+.live-notification-card:hover{transform:translateY(-1px)}
+.live-notification-icon{
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  background:#fff3df;
+  flex:0 0 auto;
+  font-size:20px;
+}
+.live-notification-card b{
+  display:block;
+  font-size:14px;
+  margin-bottom:4px;
+  color:var(--text);
+}
+.live-notification-card small{
+  display:block;
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.5;
+}
+@media(max-width:780px){
+  .live-notification-popup{left:12px;right:12px;top:86px}
+  .live-notification-card{min-width:0;width:100%}
+}
