@@ -1218,3 +1218,6 @@ body.dark-mode{--primary:#F1D7C2;--primary-2:#8F5D50;--secondary:#D17A68;--accen
 
 /* v77 remove dark mode */
 body.dark-mode{background:var(--bg)!important;color:var(--text)!important}
+
+/* Notifications actions */
+.notification-head-actions{display:flex;align-items:center;gap:8px}.notification-clear,.notification-dismiss{border:1px solid var(--border);background:#fff;border-radius:999px;color:var(--primary);font-weight:900;cursor:pointer}.notification-clear{padding:5px 9px;font-size:11px}.notification-dismiss{margin-inline-start:auto;width:28px;height:28px;display:grid;place-items:center;font-size:16px;line-height:1}.notification-item[data-open-task]{cursor:pointer;transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease}.notification-item[data-open-task]:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(49,32,26,.10);border-color:rgba(139,83,71,.35)}.notification-item>div{min-width:0;flex:1}.notification-dismiss:hover,.notification-clear:hover{background:#fff3ef}

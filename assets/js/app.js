@@ -1071,22 +1071,49 @@ function taskDueText(task){
   const campaign = campaignForTask(task);
   return formatDateShort(taskRequiredDate(task, campaign));
 }
+const NOTIFICATION_DISMISS_KEY = 'mzj_dismissed_notifications';
+function getDismissedNotificationKeys(){
+  try{ return JSON.parse(localStorage.getItem(NOTIFICATION_DISMISS_KEY) || '[]').map(String); }
+  catch(_){ return []; }
+}
+function setDismissedNotificationKeys(keys){
+  localStorage.setItem(NOTIFICATION_DISMISS_KEY, JSON.stringify(uniqueList((keys || []).map(String).filter(Boolean))));
+}
+function dismissNotificationKey(key){
+  if(!key) return;
+  setDismissedNotificationKeys([...getDismissedNotificationKeys(), key]);
+}
+function notificationTaskPayload(task, tone){
+  return {
+    key: `task:${task.id || ''}:${tone}`,
+    taskId: task.id || '',
+    campaignId: task.campaignId || ''
+  };
+}
 function taskNotificationItems(){
   const isAdmin = isCurrentUserAdmin();
   const tasks = isAdmin ? campaigns.flatMap(campaign => tasksForCampaign(campaign)) : getVisibleTasksForCurrentUser();
+  const dismissed = new Set(getDismissedNotificationKeys());
   const items = [];
   tasks.forEach(task => {
     const late = taskDelayDays(task);
     const progress = taskProgress(task);
     const title = shortTaskName(task).replace(/<[^>]+>/g,'');
-    if(late > 0){ items.push({tone:'late', icon:'⏰', title:`تأخير ${late} يوم`, text:`${title} · ${taskOwnerName(task).replace(/<[^>]+>/g,'')}`}); }
-    else if(!(task.received || task.receivedConfirmed)){ items.push({tone:'new', icon:'📌', title:'تاسك لم يتم استلامه', text:`${title} · ${taskDueText(task)}`}); }
-    else if(progress > 0 && progress < 100){ items.push({tone:'active', icon:'⚡', title:`قيد التنفيذ ${progress}%`, text:`${title} · ${taskOwnerName(task).replace(/<[^>]+>/g,'')}`}); }
+    if(late > 0){ items.push({...notificationTaskPayload(task, 'late'), tone:'late', icon:'⏰', title:`تأخير ${late} يوم`, text:`${title} · ${taskOwnerName(task).replace(/<[^>]+>/g,'')}`}); }
+    else if(!(task.received || task.receivedConfirmed)){ items.push({...notificationTaskPayload(task, 'new'), tone:'new', icon:'📌', title:'تاسك لم يتم استلامه', text:`${title} · ${taskDueText(task)}`}); }
+    else if(progress > 0 && progress < 100){ items.push({...notificationTaskPayload(task, 'active'), tone:'active', icon:'⚡', title:`قيد التنفيذ ${progress}%`, text:`${title} · ${taskOwnerName(task).replace(/<[^>]+>/g,'')}`}); }
   });
   if(isAdmin){
-    campaigns.slice(-4).reverse().forEach(campaign => items.push({tone:'campaign', icon:'📣', title:'حملة محدثة', text: campaignNameText(campaign) || campaignCodeText(campaign) || 'حملة'}));
+    campaigns.slice(-4).reverse().forEach(campaign => {
+      const campaignId = campaign.id || campaign.docId || campaign.campaignCode || campaign.campaign_code || campaignNameText(campaign) || 'campaign';
+      items.push({key:`campaign:${campaignId}:updated`, campaignId: campaign.id || campaign.docId || '', tone:'campaign', icon:'📣', title:'حملة محدثة', text: campaignNameText(campaign) || campaignCodeText(campaign) || 'حملة'});
+    });
   }
-  return items.slice(0, 12);
+  return items.filter(item => !dismissed.has(item.key)).slice(0, 12);
+}
+function notificationItemHtml(item){
+  const openAttrs = item.taskId ? ` role="button" tabindex="0" data-open-task="${escapeHtml(item.taskId)}" data-task-campaign="${escapeHtml(item.campaignId || '')}" title="فتح التاسك"` : '';
+  return `<article class="notification-item ${item.tone}" data-notification-key="${escapeHtml(item.key || '')}"${openAttrs}><span>${item.icon}</span><div><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.text)}</small></div><button class="notification-dismiss" type="button" data-dismiss-notification="${escapeHtml(item.key || '')}" title="مسح الإشعار">×</button></article>`;
 }
 function renderTopbarNotifications(){
   const btn = document.getElementById('notificationToggle');
@@ -1096,7 +1123,7 @@ function renderTopbarNotifications(){
   const items = taskNotificationItems();
   count.textContent = String(items.length);
   count.classList.toggle('is-hidden', !items.length);
-  panel.innerHTML = `<div class="notification-head"><strong>الإشعارات</strong><small>${items.length} تنبيه</small></div>` + (items.length ? items.map(item => `<article class="notification-item ${item.tone}"><span>${item.icon}</span><div><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.text)}</small></div></article>`).join('') : '<div class="empty-state mini-empty">لا توجد إشعارات حالياً.</div>');
+  panel.innerHTML = `<div class="notification-head"><strong>الإشعارات</strong><div class="notification-head-actions"><small>${items.length} تنبيه</small>${items.length ? '<button type="button" class="notification-clear" data-clear-notifications>مسح الكل</button>' : ''}</div></div>` + (items.length ? items.map(notificationItemHtml).join('') : '<div class="empty-state mini-empty">لا توجد إشعارات حالياً.</div>');
 }
 function proDepartmentName(task){
   const label = taskDepartmentLabel(task);
@@ -4269,9 +4296,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('click', async event => {
 
+    const dismissNotification = event.target.closest('[data-dismiss-notification]');
+    if(dismissNotification){ event.preventDefault(); event.stopPropagation(); dismissNotificationKey(dismissNotification.dataset.dismissNotification || ''); renderTopbarNotifications(); return; }
+    const clearNotifications = event.target.closest('[data-clear-notifications]');
+    if(clearNotifications){ event.preventDefault(); event.stopPropagation(); const keys = taskNotificationItems().map(item => item.key).filter(Boolean); setDismissedNotificationKeys([...getDismissedNotificationKeys(), ...keys]); renderTopbarNotifications(); return; }
+
     if(event.target.closest('[data-close-campaign-modal]')){ closeCampaignModal(); return; }
     const openTaskFromAnywhere = event.target.closest('[data-open-task]');
-    if(openTaskFromAnywhere){ closeCampaignModal(); renderTaskDetail(openTaskFromAnywhere.dataset.openTask, openTaskFromAnywhere.dataset.taskCampaign || ''); return; }
+    if(openTaskFromAnywhere){ document.getElementById('notificationPanel')?.classList.add('is-hidden'); closeCampaignModal(); renderTaskDetail(openTaskFromAnywhere.dataset.openTask, openTaskFromAnywhere.dataset.taskCampaign || ''); return; }
     const viewOwnerTasks = event.target.closest('[data-view-owner-tasks]');
     if(viewOwnerTasks){ openOwnerTasksModal(viewOwnerTasks.dataset.viewOwnerTasks, viewOwnerTasks.dataset.ownerKey || ''); return; }
     const exportPdf = event.target.closest('[data-export-campaign-pdf]');
