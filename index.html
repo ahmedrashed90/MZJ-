@@ -106,10 +106,9 @@
               <label class="field"><span>تاريخ الحملة</span><input type="date" name="campaign_date" /></label>
               <label class="field"><span>بداية النشر</span><input type="date" name="publish_start_date" id="publishStartDate" /></label>
               <label class="field"><span>نهاية النشر</span><input type="date" name="publish_end_date" id="publishEndDate" /></label>
-              <label class="field"><span>اختيار كود الحملة</span><select id="campaignCodeSelect" name="campaign_code_key" class="js-campaign-code-select"><option value="">اختر الكود</option></select></label>
-              <label class="field"><span>كود الحملة</span><input id="campaignCodeInput" type="text" name="campaign_code" readonly /></label>
+              <label class="field"><span>نوع الحملة</span><select id="campaignTypeSelect" name="campaign_type_id" class="js-campaign-type-select"><option value="">اختر نوع الحملة</option></select></label>
+              <label class="field"><span>كود الحملة</span><input id="campaignCodeInput" type="text" name="campaign_code" readonly placeholder="يظهر تلقائياً بعد اختيار نوع الحملة" /></label>
               <label class="field"><span>اسم الحملة</span><input type="text" name="campaign_name" /></label>
-              <label class="field"><span>نوع الحملة</span><select name="campaign_type" class="js-campaign-type-select"><option value="">اختر نوع الحملة</option></select></label>
               <label class="field field-wide"><span>هدف الحملة</span><textarea name="campaign_goal"></textarea></label>
               <label class="field field-wide"><span>هدف الإدارة</span><textarea name="management_goal"></textarea></label>
               <label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief"></textarea></label>
@@ -156,7 +155,7 @@
 
       <section class="view" id="departments" data-title="الأقسام">
         <div class="page-head">
-          <div class="page-title"><h1>الأقسام</h1><p>إدارة الأقسام، اليوزرات داخل كل قسم، الكريتيفات، أنواع التاسك، أكواد وأنواع الحملات، وأقسام المحتوى.</p></div>
+          <div class="page-title"><h1>الأقسام</h1><p>إدارة الأقسام، اليوزرات داخل كل قسم، الكريتيفات، أنواع التاسك، أنواع الحملات وأكوادها، وأقسام المحتوى.</p></div>
         </div>
 
         <div class="grid admin-layout">
@@ -192,23 +191,13 @@
           </div>
 
           <div class="card admin-form-card">
-            <h2>إضافة كود حملة</h2>
-            <form class="form" id="campaignCodeForm">
-              <input type="hidden" id="campaignCodeEditId" />
-              <label class="field"><span>الكود المختصر</span><input type="text" id="campaignCodeValue" required placeholder="مثال: BV" /></label>
-              <label class="field"><span>بادئة الكود</span><input type="text" id="campaignCodePrefix" value="MZJ" /></label>
-              <label class="field"><span>وصف الكود</span><input type="text" id="campaignCodeName" /></label>
-              <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ الكود</button><button class="btn btn-light" type="button" id="cancelCampaignCodeEdit">إلغاء</button></div>
-              <p class="form-message" id="campaignCodeMessage"></p>
-            </form>
-          </div>
-
-          <div class="card admin-form-card">
-            <h2>إضافة نوع حملة</h2>
+            <h2>إضافة نوع حملة وكود</h2>
             <form class="form" id="campaignTypeForm">
               <input type="hidden" id="campaignTypeEditId" />
-              <label class="field"><span>نوع الحملة</span><input type="text" id="campaignTypeName" required /></label>
-              <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ نوع الحملة</button><button class="btn btn-light" type="button" id="cancelCampaignTypeEdit">إلغاء</button></div>
+              <label class="field"><span>نوع الحملة</span><input type="text" id="campaignTypeName" required placeholder="مثال: Awareness" /></label>
+              <label class="field"><span>الكود المختصر للنوع</span><input type="text" id="campaignTypeCode" required placeholder="مثال: AW" /></label>
+              <label class="field"><span>بادئة الكود</span><input type="text" id="campaignTypePrefix" value="MZJ" /></label>
+              <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ نوع الحملة والكود</button><button class="btn btn-light" type="button" id="cancelCampaignTypeEdit">إلغاء</button></div>
               <p class="form-message" id="campaignTypeMessage"></p>
             </form>
           </div>
@@ -239,8 +228,7 @@
           <div class="card"><div class="card-title"><h2>قائمة الأقسام</h2><button class="btn btn-light" type="button" id="refreshDepartmentsBtn">تحديث</button></div><div id="departmentsList" class="departments-list"><div class="empty-state">جاري تحميل الأقسام...</div></div></div>
           <div class="card"><h2>قائمة الكريتيفات</h2><div id="creativesList" class="departments-list"><div class="empty-state">جاري تحميل الكريتيفات...</div></div></div>
           <div class="card"><h2>أنواع التاسك</h2><div id="taskTypesList" class="departments-list"><div class="empty-state">جاري تحميل أنواع التاسك...</div></div></div>
-          <div class="card"><h2>أكواد الحملات</h2><div id="campaignCodesList" class="departments-list"><div class="empty-state">جاري تحميل أكواد الحملات...</div></div></div>
-          <div class="card"><h2>أنواع الحملات</h2><div id="campaignTypesList" class="departments-list"><div class="empty-state">جاري تحميل أنواع الحملات...</div></div></div>
+          <div class="card"><h2>أنواع الحملات وأكوادها</h2><div id="campaignTypesList" class="departments-list"><div class="empty-state">جاري تحميل أنواع الحملات...</div></div></div>
           <div class="card"><h2>المنصات</h2><div id="platformsList" class="departments-list"><div class="empty-state">جاري تحميل المنصات...</div></div></div>
           <div class="card"><h2>أقسام المحتوى وأنواعها</h2><div id="contentSectionsList" class="departments-list"><div class="empty-state">جاري تحميل أقسام المحتوى...</div></div></div>
         </div>

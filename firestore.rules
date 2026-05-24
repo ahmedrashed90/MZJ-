@@ -265,9 +265,9 @@ service cloud.firestore {
     function marketingCampaignKeysValid() {
       return request.resource.data.keys().hasOnly([
         "campaign_date", "campaign_code_key", "campaign_code", "campaign_name",
-        "campaign_type", "campaign_goal", "management_goal", "content_writer_brief",
+        "campaign_type", "campaign_type_id", "campaign_goal", "management_goal", "content_writer_brief",
         "structure_deadline", "request_status", "campaignCode", "campaignCodeId",
-        "campaignCodePrefix", "campaignCodeShortCode", "campaignType", "creatives",
+        "campaignCodePrefix", "campaignCodeShortCode", "campaignType", "campaignTypeId", "campaignSerial", "creatives",
         "publishSchedule", "budgetItems", "status", "source",
         "id", "name", "campaignName", "taskCount", "publishStages", "departmentTasks", "readiness", "stage",
         "resultsFile", "resultFile", "campaignLinks", "archivedAt", "archivedBy",

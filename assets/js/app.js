@@ -312,7 +312,12 @@ function taskTypeOptions(selectedValue = ''){
   return '<option value="">اختر نوع التاسك</option>' + taskTypes.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
 }
 function campaignTypeOptions(selectedValue = ''){
-  return '<option value="">اختر نوع الحملة</option>' + campaignTypes.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
+  return '<option value="">اختر نوع الحملة</option>' + campaignTypes.map(item => {
+    const codeLabel = [item.prefix || 'MZJ', item.code].filter(Boolean).join('-');
+    const label = codeLabel ? `${item.name} - ${codeLabel}` : item.name;
+    const selected = selectedValue === item.id || selectedValue === item.name;
+    return `<option value="${escapeHtml(item.id)}"${selected ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
 }
 function platformOptions(selectedValue = ''){
   return '<option value="">اختر المنصة</option>' + platforms.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
@@ -434,7 +439,18 @@ function renderDepartments(){
 }
 function renderCreatives(){ renderNameList('creativesList', creatives, 'data-edit-creative', 'data-delete-creative', 'لا توجد كريتيفات حتى الآن.'); }
 function renderTaskTypes(){ renderNameList('taskTypesList', taskTypes, 'data-edit-task-type', 'data-delete-task-type', 'لا توجد أنواع تاسك حتى الآن.'); }
-function renderCampaignTypes(){ renderNameList('campaignTypesList', campaignTypes, 'data-edit-campaign-type', 'data-delete-campaign-type', 'لا توجد أنواع حملات حتى الآن.'); }
+function renderCampaignTypes(){
+  const list = document.getElementById('campaignTypesList'); if(!list) return;
+  if(!campaignTypes.length){ list.innerHTML = '<div class="empty-state">لا توجد أنواع حملات حتى الآن.</div>'; return; }
+  list.innerHTML = campaignTypes.map(item => {
+    const codeLabel = [item.prefix || 'MZJ', item.code].filter(Boolean).join('-') || 'بدون كود';
+    const nextNumber = Number(item.nextNumber) || 1;
+    return `<article class="department-item">
+      <div class="item-head"><h3>${escapeHtml(item.name)}</h3><div class="item-actions"><button type="button" class="mini-btn" data-edit-campaign-type="${escapeHtml(item.id)}">تعديل</button><button type="button" class="mini-btn danger" data-delete-campaign-type="${escapeHtml(item.id)}">حذف</button></div></div>
+      <div class="chip-list"><span class="chip">${escapeHtml(codeLabel)}</span><span class="chip"><small>المسلسل القادم: ${escapeHtml(String(nextNumber).padStart(3, '0'))}</small></span></div>
+    </article>`;
+  }).join('');
+}
 function renderPlatforms(){ renderNameList('platformsList', platforms, 'data-edit-platform', 'data-delete-platform', 'لا توجد منصات حتى الآن.'); }
 function renderCampaignCodes(){
   const list = document.getElementById('campaignCodesList'); if(!list) return;
@@ -784,11 +800,12 @@ function updateProductOutput(row){
 }
 function updateAllProductOutputs(){ document.querySelectorAll('#creativeRows .creative-row-card').forEach(updateProductOutput); }
 function generateCampaignCode(){
-  const select = document.getElementById('campaignCodeSelect');
   const output = document.getElementById('campaignCodeInput');
-  if(!select || !output) return;
-  const item = campaignCodes.find(code => code.id === select.value);
-  if(!item){ output.value = ''; return; }
+  if(!output) return;
+  const typeSelect = document.getElementById('campaignTypeSelect') || document.querySelector('.js-campaign-type-select');
+  const legacyCodeSelect = document.getElementById('campaignCodeSelect');
+  const item = campaignTypes.find(type => type.id === typeSelect?.value || type.name === typeSelect?.value) || campaignCodes.find(code => code.id === legacyCodeSelect?.value);
+  if(!item || !item.code){ output.value = ''; return; }
   const now = new Date();
   const yy = String(now.getFullYear()).slice(-2);
   const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -2490,15 +2507,19 @@ async function saveCampaignToFirebase(){
   // تاريخ بداية/نهاية النشر موجودين داخل publishSchedule، ومش بنحفظهم كحقول مستقلة عشان مايكسرش قواعد Firestore القديمة.
   delete request.publish_start_date;
   delete request.publish_end_date;
-  const codeItem = campaignCodes.find(code => code.id === document.getElementById('campaignCodeSelect')?.value);
+  const typeItem = campaignTypes.find(type => type.id === document.getElementById('campaignTypeSelect')?.value || type.name === document.getElementById('campaignTypeSelect')?.value);
   const campaignCode = document.getElementById('campaignCodeInput')?.value || '';
+  const nextCampaignSerial = Number(typeItem?.nextNumber) || 1;
   const payload = {
     ...request,
     campaignCode,
-    campaignCodeId: codeItem?.id || '',
-    campaignCodePrefix: codeItem?.prefix || '',
-    campaignCodeShortCode: codeItem?.code || '',
-    campaignType: request.campaign_type || '',
+    campaignCodeId: typeItem?.id || '',
+    campaignTypeId: typeItem?.id || request.campaign_type_id || '',
+    campaignCodePrefix: typeItem?.prefix || '',
+    campaignCodeShortCode: typeItem?.code || '',
+    campaignSerial: nextCampaignSerial,
+    campaignType: typeItem?.name || request.campaign_type || '',
+    campaign_type: typeItem?.name || request.campaign_type || '',
     creatives: collectCampaignRows(),
     publishSchedule: collectPublishRows(),
     budgetItems: collectBudgetRows(),
@@ -2513,6 +2534,9 @@ async function saveCampaignToFirebase(){
     const docRef = await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).add(payload);
     const departmentTasks = buildDepartmentTasks(docRef.id, payload);
     await docRef.update({ id: docRef.id, departmentTasks, taskCount: departmentTasks.length, updatedAt: serverTime() });
+    if(typeItem?.id){
+      await safeCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION).doc(typeItem.id).update({ nextNumber: nextCampaignSerial + 1, updatedAt: serverTime() });
+    }
     showToast('تم حفظ الحملة على Firebase.');
     renderAdminDashboard(); renderTasksPage();
     window.location.hash = '#campaigns';
@@ -2566,6 +2590,7 @@ function bindCampaignBuilder(){
     creativeRows?.appendChild(card); refreshDynamicSelects(); renderPublishAgenda();
   });
   document.getElementById('campaignCodeSelect')?.addEventListener('change', generateCampaignCode);
+  document.getElementById('campaignTypeSelect')?.addEventListener('change', generateCampaignCode);
   document.getElementById('refreshPublishAgendaBtn')?.addEventListener('click', renderPublishAgenda);
   document.getElementById('publishStartDate')?.addEventListener('change', renderPublishAgenda);
   document.getElementById('publishEndDate')?.addEventListener('change', renderPublishAgenda);
@@ -2650,18 +2675,23 @@ function bindDepartments(){
   });
   bindNamedForm('creativeForm', 'creativeEditId', 'creativeName', 'creativeMessage', window.MZJ_CREATIVES_COLLECTION, 'تم حفظ الكريتيف.');
   bindNamedForm('taskTypeForm', 'taskTypeEditId', 'taskTypeName', 'taskTypeMessage', window.MZJ_TASK_TYPES_COLLECTION, 'تم حفظ نوع التاسك.');
-  bindNamedForm('campaignTypeForm', 'campaignTypeEditId', 'campaignTypeName', 'campaignTypeMessage', window.MZJ_CAMPAIGN_TYPES_COLLECTION, 'تم حفظ نوع الحملة.');
-  bindNamedForm('platformForm', 'platformEditId', 'platformName', 'platformMessage', window.MZJ_PLATFORMS_COLLECTION, 'تم حفظ المنصة.');
-  document.getElementById('campaignCodeForm')?.addEventListener('submit', async event => {
+  document.getElementById('campaignTypeForm')?.addEventListener('submit', async event => {
     event.preventDefault();
-    const id = document.getElementById('campaignCodeEditId')?.value;
-    const code = normalizeText(document.getElementById('campaignCodeValue')?.value).toUpperCase();
-    const prefix = normalizeText(document.getElementById('campaignCodePrefix')?.value).toUpperCase() || 'MZJ';
-    const name = normalizeText(document.getElementById('campaignCodeName')?.value);
-    if(!code) return; if(!mainDb){ showMessage('campaignCodeMessage', 'اتصال Firebase غير متاح.'); return; }
-    try{ const payload = { name: name || code, code, prefix, nextNumber: 1, updatedAt: serverTime() }; if(id) await safeCollection(window.MZJ_CAMPAIGN_CODES_COLLECTION).doc(id).update(payload); else await safeCollection(window.MZJ_CAMPAIGN_CODES_COLLECTION).add({ ...payload, createdAt: serverTime() }); event.target.reset(); document.getElementById('campaignCodePrefix').value = 'MZJ'; resetForm(['campaignCodeEditId']); showMessage('campaignCodeMessage', 'تم حفظ كود الحملة.'); }
-    catch(error){ console.error(error); showMessage('campaignCodeMessage', 'تعذر حفظ كود الحملة.'); }
+    const id = document.getElementById('campaignTypeEditId')?.value;
+    const name = normalizeText(document.getElementById('campaignTypeName')?.value);
+    const code = normalizeText(document.getElementById('campaignTypeCode')?.value).toUpperCase();
+    const prefix = normalizeText(document.getElementById('campaignTypePrefix')?.value).toUpperCase() || 'MZJ';
+    if(!name || !code) return;
+    if(!mainDb){ showMessage('campaignTypeMessage', 'اتصال Firebase غير متاح.'); return; }
+    try{
+      const oldItem = campaignTypes.find(item => item.id === id);
+      const payload = { name, code, prefix, nextNumber: Number(oldItem?.nextNumber) || 1, updatedAt: serverTime() };
+      if(id) await safeCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION).doc(id).update(payload);
+      else await safeCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION).add({ ...payload, createdAt: serverTime() });
+      event.target.reset(); document.getElementById('campaignTypePrefix').value = 'MZJ'; resetForm(['campaignTypeEditId']); showMessage('campaignTypeMessage', 'تم حفظ نوع الحملة والكود.');
+    }catch(error){ console.error(error); showMessage('campaignTypeMessage', 'تعذر حفظ نوع الحملة والكود.'); }
   });
+  bindNamedForm('platformForm', 'platformEditId', 'platformName', 'platformMessage', window.MZJ_PLATFORMS_COLLECTION, 'تم حفظ المنصة.');
   document.getElementById('contentSectionForm')?.addEventListener('submit', async event => {
     event.preventDefault(); const id = document.getElementById('contentSectionEditId')?.value; const name = normalizeText(document.getElementById('contentSectionName')?.value); const types = uniqueList((document.getElementById('contentSectionTypes')?.value || '').split('\n')); if(!name) return; if(!mainDb){ showMessage('contentSectionMessage', 'اتصال Firebase غير متاح.'); return; }
     try{ const payload = { name, types, updatedAt: serverTime() }; if(id) await safeCollection(window.MZJ_CONTENT_SECTIONS_COLLECTION).doc(id).update(payload); else await safeCollection(window.MZJ_CONTENT_SECTIONS_COLLECTION).add({ ...payload, createdAt: serverTime() }); event.target.reset(); resetForm(['contentSectionEditId']); showMessage('contentSectionMessage', 'تم حفظ قسم المحتوى.'); }
@@ -2677,7 +2707,7 @@ function bindDepartments(){
     const ttDel = event.target.closest('[data-delete-task-type]'); if(ttDel){ await deleteDoc('taskType', ttDel.dataset.deleteTaskType); return; }
     const ccEdit = event.target.closest('[data-edit-campaign-code]'); if(ccEdit){ const item = campaignCodes.find(x => x.id === ccEdit.dataset.editCampaignCode); if(item){ document.getElementById('campaignCodeEditId').value = item.id; document.getElementById('campaignCodeValue').value = item.code || ''; document.getElementById('campaignCodePrefix').value = item.prefix || 'MZJ'; document.getElementById('campaignCodeName').value = item.name || ''; } return; }
     const ccDel = event.target.closest('[data-delete-campaign-code]'); if(ccDel){ await deleteDoc('campaignCode', ccDel.dataset.deleteCampaignCode); return; }
-    const ctEdit = event.target.closest('[data-edit-campaign-type]'); if(ctEdit){ const item = campaignTypes.find(x => x.id === ctEdit.dataset.editCampaignType); if(item){ document.getElementById('campaignTypeEditId').value = item.id; document.getElementById('campaignTypeName').value = item.name; } return; }
+    const ctEdit = event.target.closest('[data-edit-campaign-type]'); if(ctEdit){ const item = campaignTypes.find(x => x.id === ctEdit.dataset.editCampaignType); if(item){ document.getElementById('campaignTypeEditId').value = item.id; document.getElementById('campaignTypeName').value = item.name || ''; document.getElementById('campaignTypeCode').value = item.code || ''; document.getElementById('campaignTypePrefix').value = item.prefix || 'MZJ'; } return; }
     const ctDel = event.target.closest('[data-delete-campaign-type]'); if(ctDel){ await deleteDoc('campaignType', ctDel.dataset.deleteCampaignType); return; }
     const pEdit = event.target.closest('[data-edit-platform]'); if(pEdit){ const item = platforms.find(x => x.id === pEdit.dataset.editPlatform); if(item){ document.getElementById('platformEditId').value = item.id; document.getElementById('platformName').value = item.name; } return; }
     const pDel = event.target.closest('[data-delete-platform]'); if(pDel){ await deleteDoc('platform', pDel.dataset.deletePlatform); return; }
@@ -2687,11 +2717,10 @@ function bindDepartments(){
   document.getElementById('cancelDepartmentEdit')?.addEventListener('click', () => { document.getElementById('departmentForm')?.reset(); resetForm(['departmentEditId']); refreshDynamicSelects(); });
   document.getElementById('cancelCreativeEdit')?.addEventListener('click', () => { document.getElementById('creativeForm')?.reset(); resetForm(['creativeEditId']); });
   document.getElementById('cancelTaskTypeEdit')?.addEventListener('click', () => { document.getElementById('taskTypeForm')?.reset(); resetForm(['taskTypeEditId']); });
-  document.getElementById('cancelCampaignCodeEdit')?.addEventListener('click', () => { document.getElementById('campaignCodeForm')?.reset(); document.getElementById('campaignCodePrefix').value = 'MZJ'; resetForm(['campaignCodeEditId']); });
-  document.getElementById('cancelCampaignTypeEdit')?.addEventListener('click', () => { document.getElementById('campaignTypeForm')?.reset(); resetForm(['campaignTypeEditId']); });
+  document.getElementById('cancelCampaignTypeEdit')?.addEventListener('click', () => { document.getElementById('campaignTypeForm')?.reset(); document.getElementById('campaignTypePrefix').value = 'MZJ'; resetForm(['campaignTypeEditId']); });
   document.getElementById('cancelPlatformEdit')?.addEventListener('click', () => { document.getElementById('platformForm')?.reset(); resetForm(['platformEditId']); });
   document.getElementById('cancelContentSectionEdit')?.addEventListener('click', () => { document.getElementById('contentSectionForm')?.reset(); resetForm(['contentSectionEditId']); });
-  document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignCodes(); renderCampaignTypes(); renderContentSections(); });
+  document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignTypes(); renderContentSections(); });
   document.getElementById('refreshStockBtn')?.addEventListener('click', renderStock);
   document.getElementById('stockFilterMode')?.addEventListener('change', event => { stockFilterMode = event.target.value || 'all'; renderStock(); });
   document.addEventListener('click', event => {
