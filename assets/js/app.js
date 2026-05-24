@@ -1075,6 +1075,30 @@ function taskDueText(task){
   return formatDateShort(taskRequiredDate(task, campaign));
 }
 const NOTIFICATION_DISMISS_KEY = 'mzj_dismissed_notifications';
+let notificationSnapshotReady = false;
+let lastNotificationKeys = [];
+let notificationAudioUnlocked = false;
+function unlockNotificationAudio(){ notificationAudioUnlocked = true; }
+function playNotificationSound(){
+  if(!notificationAudioUnlocked) return;
+  try{
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if(!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.14, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.28);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.30);
+    window.setTimeout(() => { try{ ctx.close(); }catch(_){} }, 420);
+  }catch(error){ console.warn('Notification sound blocked', error); }
+}
 function getDismissedNotificationKeys(){
   try{ return JSON.parse(localStorage.getItem(NOTIFICATION_DISMISS_KEY) || '[]').map(String); }
   catch(_){ return []; }
@@ -1118,15 +1142,21 @@ function notificationItemHtml(item){
   const openAttrs = item.taskId ? ` role="button" tabindex="0" data-open-task="${escapeHtml(item.taskId)}" data-task-campaign="${escapeHtml(item.campaignId || '')}" title="فتح التاسك"` : '';
   return `<article class="notification-item ${item.tone}" data-notification-key="${escapeHtml(item.key || '')}"${openAttrs}><span>${item.icon}</span><div><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.text)}</small></div><button class="notification-dismiss" type="button" data-dismiss-notification="${escapeHtml(item.key || '')}" title="مسح الإشعار">×</button></article>`;
 }
-function renderTopbarNotifications(){
+function renderTopbarNotifications(playSoundForNew = false){
   const btn = document.getElementById('notificationToggle');
   const panel = document.getElementById('notificationPanel');
   const count = document.getElementById('notificationCount');
   if(!btn || !panel || !count) return;
   const items = taskNotificationItems();
+  const keys = items.map(item => item.key).filter(Boolean);
+  const previous = new Set(lastNotificationKeys);
+  const hasNew = keys.some(key => !previous.has(key));
   count.textContent = String(items.length);
   count.classList.toggle('is-hidden', !items.length);
   panel.innerHTML = `<div class="notification-head"><strong>الإشعارات</strong><div class="notification-head-actions"><small>${items.length} تنبيه</small>${items.length ? '<button type="button" class="notification-clear" data-clear-notifications>مسح الكل</button>' : ''}</div></div>` + (items.length ? items.map(notificationItemHtml).join('') : '<div class="empty-state mini-empty">لا توجد إشعارات حالياً.</div>');
+  if(notificationSnapshotReady && playSoundForNew && hasNew) playNotificationSound();
+  lastNotificationKeys = keys;
+  notificationSnapshotReady = true;
 }
 function proDepartmentName(task){
   const label = taskDepartmentLabel(task);
@@ -3299,8 +3329,9 @@ function shortCampaignTitle(campaign){
 }
 function shortTaskName(task){
   const no = structureTaskNumber(task);
-  const name = normalizeText(task.structureTaskLabel || task.creative || task.taskType || task.product || 'تاسك');
-  return escapeHtml(no && !name.includes(no) ? `${no} - ${name}` : name);
+  const isCampaignWriting = typeof isCampaignContentWritingTask === 'function' && isCampaignContentWritingTask(task);
+  const name = isCampaignWriting ? 'كتابة محتوى حملة' : normalizeText(task.structureTaskLabel || task.creative || task.taskType || task.product || 'تاسك');
+  return escapeHtml(no && !name.includes(no) && !isCampaignWriting ? `${no} - ${name}` : name);
 }
 function receivedLabel(task){ return task.received || task.receivedConfirmed ? 'تم الاستلام' : 'لم يستلم'; }
 function receivedClass(task){ return task.received || task.receivedConfirmed ? 'is-done' : 'is-waiting'; }
@@ -3867,7 +3898,8 @@ function loadCampaigns(){
     if(getRoute() === 'calendar') renderCalendarPage();
     if(getRoute() === 'reports') renderDatabasePage();
     refreshOpenTaskModal();
-  }, error => { console.error('Campaigns load error', error); renderCampaigns(); });
+    renderTopbarNotifications(true);
+  }, error => { console.error('Campaigns load error', error); renderCampaigns(); renderTopbarNotifications(); });
 }
 function loadCampaignTasks(){
   campaignTasks = [];
@@ -4300,7 +4332,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   document.getElementById('logoutBtn')?.addEventListener('click', async () => { localStorage.removeItem('mzj_logged_in'); localStorage.removeItem('mzj_login_email'); localStorage.removeItem('mzj_user'); try{ await mainAuth?.signOut?.(); }catch(_){} openLogin(); });
-  document.getElementById('notificationToggle')?.addEventListener('click', event => { event.stopPropagation(); renderTopbarNotifications(); document.getElementById('notificationPanel')?.classList.toggle('is-hidden'); });
+  ['click','keydown','touchstart'].forEach(eventName => document.addEventListener(eventName, unlockNotificationAudio, { once:true, passive:true }));
+  document.getElementById('notificationToggle')?.addEventListener('click', event => { event.stopPropagation(); unlockNotificationAudio(); renderTopbarNotifications(); document.getElementById('notificationPanel')?.classList.toggle('is-hidden'); });
   document.addEventListener('click', event => { if(!event.target.closest('.notification-wrap')) document.getElementById('notificationPanel')?.classList.add('is-hidden'); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
   document.addEventListener('keydown', event => { if(event.key === 'Escape'){ closeTaskModal(); closeCampaignModal(); } });

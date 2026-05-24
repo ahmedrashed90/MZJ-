@@ -1669,3 +1669,9 @@ body.has-user-dashboard-theme #dashboard.user-mode .admin-dashboard-board{
     grid-template-columns:1fr !important;
   }
 }
+
+/* v86: topbar stays only at page top, not sticky while scrolling */
+.topbar{
+  position:static !important;
+  top:auto !important;
+}
