@@ -32,7 +32,7 @@ window.MZJ_CAMPAIGNS_COLLECTION = "marketing_campaigns";
 window.MZJ_CAMPAIGN_TASKS_COLLECTION = "campaign_tasks"; // غير مستخدم في داشبورد اليوزرات
 window.MZJ_SYSTEM_SETTINGS_COLLECTION = "system_settings";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
-window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars";
+window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
 const routes = ['dashboard','reports','create-campaign','campaigns','tasks','calendar','stock','departments','settings'];
 const pageAliases = {
@@ -523,23 +523,42 @@ function writeLocalStockMeta(docId, data){
   }catch(_){}
 }
 function loadStockMeta(){
-  if(!mainDb) return;
-  let collectionMeta = {};
+  // مسارات الحفظ المقروءة:
+  // 1) Firebase الرئيسي: marketing_stock_cars/{docId}
+  // 2) Firebase الاستوك لو الصلاحيات تسمح: marketing_stock_cars/{docId}
+  // 3) system_settings/main.stockCarStatusMap كمسار احتياطي قديم
+  // 4) localStorage كاحتياطي لحظي فقط
+  let mainCollectionMeta = {};
+  let stockCollectionMeta = {};
   let settingsMeta = {};
   const applyMeta = () => {
-    stockCarMeta = mergeStockMetaMaps(collectionMeta, settingsMeta, readLocalStockMeta());
+    stockCarMeta = mergeStockMetaMaps(mainCollectionMeta, stockCollectionMeta, settingsMeta, readLocalStockMeta());
     renderStock();
   };
-  safeCollection(window.MZJ_STOCK_META_COLLECTION).onSnapshot(snapshot => {
-    collectionMeta = {};
-    snapshot.docs.forEach(doc => { collectionMeta[doc.id] = { id: doc.id, ...(doc.data() || {}) }; });
-    applyMeta();
-  }, error => { console.error('Stock meta collection load error', error); applyMeta(); });
-  safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).onSnapshot(doc => {
-    const data = doc.exists ? (doc.data() || {}) : {};
-    settingsMeta = data.stockCarStatusMap || data.stockCarMeta || {};
-    applyMeta();
-  }, error => { console.error('Stock meta settings load error', error); applyMeta(); });
+
+  if(mainDb){
+    mainDb.collection(window.MZJ_STOCK_META_COLLECTION).onSnapshot(snapshot => {
+      mainCollectionMeta = {};
+      snapshot.docs.forEach(doc => { mainCollectionMeta[doc.id] = { id: doc.id, ...(doc.data() || {}) }; });
+      applyMeta();
+    }, error => { console.error('Main stock meta collection load error', error); applyMeta(); });
+
+    safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).onSnapshot(doc => {
+      const data = doc.exists ? (doc.data() || {}) : {};
+      settingsMeta = data.stockCarStatusMap || data.stockCarMeta || {};
+      applyMeta();
+    }, error => { console.error('Stock meta settings load error', error); applyMeta(); });
+  }
+
+  if(stockDb){
+    stockDb.collection(window.MZJ_STOCK_META_COLLECTION).onSnapshot(snapshot => {
+      stockCollectionMeta = {};
+      snapshot.docs.forEach(doc => { stockCollectionMeta[doc.id] = { id: doc.id, ...(doc.data() || {}) }; });
+      applyMeta();
+    }, error => { console.warn('Stock-project meta collection load skipped/error', error); applyMeta(); });
+  }
+
+  applyMeta();
 }
 function campaignTaskCars(){
   const used = [];
@@ -567,69 +586,81 @@ function stockGroupUsage(group){
   return hits;
 }
 function stockGroupByKey(groupKey){
-  return stockGroups().find(group => group.key === groupKey) || null;
+  // التصحيح المهم: مصدر جروبات الاستوك هو buildStockGroups، مش stockGroups غير موجودة.
+  // وجود stockGroups كان بيكسر onchange قبل ما يوصل للحفظ في Firebase.
+  return buildStockGroups().find(group => group.key === groupKey) || null;
 }
 async function saveStockShotStatus(groupKey, value){
-  if(!mainDb){ showToast('قاعدة البيانات غير متاحة.'); return; }
   const group = stockGroupByKey(groupKey);
   const docId = stockGroupDocId(groupKey);
   const previous = stockCarMeta[docId] || {};
   const current = getCurrentUserIdentity();
   const nowIso = new Date().toISOString();
-  const payload = {
+  const simplePayload = {
     groupKey: normalizeText(groupKey),
     docKey: docId,
-    carName: normalizeText(group?.carName || ''),
-    statement: normalizeText(group?.statement || ''),
-    exteriorColor: normalizeText(group?.exteriorColor || ''),
-    interiorColor: normalizeText(group?.interiorColor || ''),
-    carIds: Array.isArray(group?.carIds) ? group.carIds.map(normalizeText).filter(Boolean) : [],
-    count: Number(group?.count || 0),
+    carName: normalizeText(group?.carName || previous.carName || ''),
+    statement: normalizeText(group?.statement || previous.statement || ''),
+    exteriorColor: normalizeText(group?.exteriorColor || previous.exteriorColor || ''),
+    interiorColor: normalizeText(group?.interiorColor || previous.interiorColor || ''),
+    carIds: Array.isArray(group?.carIds) ? group.carIds.map(normalizeText).filter(Boolean) : (previous.carIds || []),
+    count: Number(group?.count || previous.count || 0),
     photographed: value === 'yes',
     photographedValue: value === 'yes' ? 'yes' : 'no',
-    updatedAt: serverTime(),
     updatedAtIso: nowIso,
     savedAtIso: nowIso,
     updatedBy: current.email || current.name || current.uid || ''
   };
-  const optimistic = { ...previous, ...payload, updatedAt: nowIso };
+  const payload = { ...simplePayload, updatedAt: serverTime() };
+  const optimistic = { ...previous, ...simplePayload, updatedAt: nowIso };
+
   stockCarMeta[docId] = optimistic;
   writeLocalStockMeta(docId, optimistic);
   renderStock();
-  try{
-    await safeCollection(window.MZJ_STOCK_META_COLLECTION).doc(docId).set(payload, { merge: true });
+
+  const writes = [];
+  if(mainDb){
+    writes.push(mainDb.collection(window.MZJ_STOCK_META_COLLECTION).doc(docId).set(payload, { merge: true }));
+  }
+  if(stockDb){
+    writes.push(stockDb.collection(window.MZJ_STOCK_META_COLLECTION).doc(docId).set(payload, { merge: true }));
+  }
+
+  const results = writes.length ? await Promise.allSettled(writes) : [];
+  const savedDirectly = results.some(result => result.status === 'fulfilled');
+  if(savedDirectly){
+    stockCarMeta[docId] = mergeStockMetaRecord(stockCarMeta[docId], simplePayload);
+    writeLocalStockMeta(docId, stockCarMeta[docId]);
+    renderStock();
     showToast('تم حفظ حالة التصوير.');
     return;
-  }catch(primaryError){
-    console.error('Stock shot save primary error', primaryError);
+  }
+
+  const firstError = results.find(result => result.status === 'rejected')?.reason;
+  console.error('Stock shot direct save failed', firstError);
+
+  if(mainDb){
     try{
-      const simplePayload = {
-        groupKey: payload.groupKey, docKey: payload.docKey, carName: payload.carName, statement: payload.statement,
-        exteriorColor: payload.exteriorColor, interiorColor: payload.interiorColor, carIds: payload.carIds || [], count: payload.count || 0,
-        photographed: payload.photographed, photographedValue: payload.photographedValue, updatedAt: nowIso, updatedAtIso: nowIso, savedAtIso: nowIso,
-        updatedBy: current.email || current.name || current.uid || '', savedIn: 'system_settings_fallback'
-      };
-      await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({
-        stockCarStatusMap: { [docId]: simplePayload },
+      await mainDb.collection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({
+        stockCarStatusMap: { [docId]: { ...simplePayload, savedIn: 'system_settings_fallback' } },
         updatedAt: serverTime(),
         updatedBy: current.email || current.name || current.uid || ''
       }, { merge: true });
-      stockCarMeta[docId] = mergeStockMetaRecord(previous, simplePayload);
+      stockCarMeta[docId] = mergeStockMetaRecord(stockCarMeta[docId], { ...simplePayload, savedIn: 'system_settings_fallback' });
       writeLocalStockMeta(docId, stockCarMeta[docId]);
       renderStock();
       showToast('تم حفظ حالة التصوير.');
       return;
     }catch(fallbackError){
-      console.error('Stock shot save fallback error', fallbackError);
-      // نحافظ على التغيير ظاهرياً في المتصفح، لكن نوضح أن Firebase رفض الحفظ.
-      stockCarMeta[docId] = mergeStockMetaRecord(stockCarMeta[docId] || previous, optimistic);
-      writeLocalStockMeta(docId, optimistic);
-      renderStock();
-      const msg = String(fallbackError?.message || primaryError?.message || fallbackError || primaryError || '');
-      if(msg.toLowerCase().includes('permission')) showToast('تم حفظها مؤقتاً على الجهاز، لكن Firebase رفض الحفظ. ارفع firestore.rules المرفق.');
+      console.error('Stock shot fallback save failed', fallbackError);
+      const msg = String(fallbackError?.message || firstError?.message || fallbackError || firstError || '');
+      if(msg.toLowerCase().includes('permission')) showToast('تم حفظها مؤقتاً على الجهاز، لكن Firebase رفض الحفظ. راجع Rules لمسار marketing_stock_cars.');
       else showToast('تم حفظها مؤقتاً على الجهاز، وتعذر حفظها في Firebase: ' + msg.slice(0, 90));
+      return;
     }
   }
+
+  showToast('تم حفظها مؤقتاً على الجهاز، لكن Firebase غير متاح.');
 }
 
 const stockShotSavingKeys = new Set();
