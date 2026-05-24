@@ -632,6 +632,69 @@ async function saveStockShotStatus(groupKey, value){
   }
 }
 
+const stockShotSavingKeys = new Set();
+async function handleStockShotSelectChange(select){
+  if(!select) return;
+  if(select._mzjStockShotBusy) return;
+  select._mzjStockShotBusy = true;
+  const groupKey = select.dataset.stockShot || select.getAttribute('data-stock-shot') || '';
+  if(!groupKey){ select._mzjStockShotBusy = false; return; }
+  const value = select.value === 'yes' ? 'yes' : 'no';
+  const docId = stockGroupDocId(groupKey);
+  const previous = stockCarMeta[docId] || {};
+  const group = stockGroupByKey(groupKey);
+  const current = getCurrentUserIdentity();
+  const nowIso = new Date().toISOString();
+  const optimistic = {
+    ...previous,
+    groupKey: normalizeText(groupKey),
+    docKey: docId,
+    carName: normalizeText(group?.carName || previous.carName || ''),
+    statement: normalizeText(group?.statement || previous.statement || ''),
+    exteriorColor: normalizeText(group?.exteriorColor || previous.exteriorColor || ''),
+    interiorColor: normalizeText(group?.interiorColor || previous.interiorColor || ''),
+    carIds: Array.isArray(group?.carIds) ? group.carIds.map(normalizeText).filter(Boolean) : (previous.carIds || []),
+    count: Number(group?.count || previous.count || 0),
+    photographed: value === 'yes',
+    photographedValue: value,
+    updatedAt: nowIso,
+    updatedAtIso: nowIso,
+    savedAtIso: nowIso,
+    updatedBy: current.email || current.name || current.uid || ''
+  };
+
+  // تحديث فوري في الواجهة والكاش قبل انتظار Firebase.
+  stockCarMeta[docId] = optimistic;
+  writeLocalStockMeta(docId, optimistic);
+  stockShotSavingKeys.add(docId);
+  renderStock();
+
+  const activeSelect = document.querySelector(`[data-stock-shot="${cssEscape(groupKey)}"]`);
+  if(activeSelect){
+    activeSelect.value = value;
+    activeSelect.classList.add('is-saving');
+    activeSelect.disabled = true;
+  }
+  try{
+    await saveStockShotStatus(groupKey, value);
+  }finally{
+    select._mzjStockShotBusy = false;
+    stockShotSavingKeys.delete(docId);
+    const nextSelect = document.querySelector(`[data-stock-shot="${cssEscape(groupKey)}"]`);
+    if(nextSelect){
+      nextSelect.disabled = false;
+      nextSelect.classList.remove('is-saving');
+      nextSelect.value = value;
+    }
+  }
+}
+
+function cssEscape(value){
+  if(window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(String(value));
+  return String(value).replace(/[\\"]/g, '\\$&');
+}
+window.mzjHandleStockShotChange = handleStockShotSelectChange;
+
 function loadStock(){
   if(!stockDb) return;
   stockDb.collection(window.MZJ_STOCK_CARS_COLLECTION).onSnapshot(snapshot => {
@@ -762,7 +825,7 @@ function renderStock(){
       <td>${escapeHtml(group.exteriorColor || '—')}</td>
       <td>${escapeHtml(group.interiorColor || '—')}</td>
       <td><span class="stock-count">${group.count}</span></td>
-      <td><select class="stock-shot-select" data-stock-shot="${escapeHtml(group.key)}"><option value="no"${photographedValue !== 'yes' ? ' selected' : ''}>لا</option><option value="yes"${photographedValue === 'yes' ? ' selected' : ''}>نعم</option></select></td>
+      <td><select class="stock-shot-select ${stockShotSavingKeys.has(stockGroupDocId(group.key)) ? 'is-saving' : ''}" data-stock-shot="${escapeHtml(group.key)}" onchange="window.mzjHandleStockShotChange && window.mzjHandleStockShotChange(this)"><option value="no"${photographedValue !== 'yes' ? ' selected' : ''}>لا</option><option value="yes"${photographedValue === 'yes' ? ' selected' : ''}>نعم</option></select></td>
       <td><span class="stock-use-badge ${group.isUsed ? 'is-used' : 'is-unused'}">${escapeHtml(usageText)}</span></td>
       <td><button class="mini-btn" type="button" data-stock-usage="${escapeHtml(group.key)}">استخدام السيارة</button></td>
     </tr>`;
@@ -2770,8 +2833,16 @@ function bindDepartments(){
   document.addEventListener('change', async event => {
     const select = event.target.closest('[data-stock-shot]');
     if(!select) return;
-    await saveStockShotStatus(select.dataset.stockShot, select.value);
-  });
+    if(select.dataset.handlingStockShot === '1') return;
+    select.dataset.handlingStockShot = '1';
+    try{ await handleStockShotSelectChange(select); }
+    finally{ setTimeout(() => { delete select.dataset.handlingStockShot; }, 0); }
+  }, true);
+  document.addEventListener('input', async event => {
+    const select = event.target.closest('[data-stock-shot]');
+    if(!select) return;
+    await handleStockShotSelectChange(select);
+  }, true);
   document.addEventListener('click', event => {
     const btn = event.target.closest('[data-stock-usage]');
     if(!btn) return;

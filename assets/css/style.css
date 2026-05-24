@@ -1157,3 +1157,6 @@ body.has-user-dashboard-theme #dashboard.user-mode .soft-empty{
 .campaign-full-info-grid>div{text-align:right!important;min-height:76px!important}
 .campaign-full-info-grid strong{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;line-height:1.8!important;word-break:break-word!important}
 .campaign-full-info-grid span{text-align:right!important}
+
+/* v68 stock photographed autosave feedback */
+.stock-shot-select.is-saving{opacity:.65;cursor:wait;box-shadow:0 0 0 2px rgba(120,67,54,.12)}
