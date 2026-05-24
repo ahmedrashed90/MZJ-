@@ -333,7 +333,8 @@ function funnelOptions(selectedValue = ''){
   return '<option value="">اختر Funnel</option>' + funnels.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
 }
 function productOptions(selectedValue = ''){
-  const products = getCampaignProducts();
+  const current = normalizeText(selectedValue || '');
+  const products = uniqueList([...getCampaignProducts(), current].filter(Boolean));
   return '<option value="">اختر المنتج</option>' + products.map(item => `<option value="${escapeHtml(item)}"${selectedValue === item ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('');
 }
 function campaignCodeOptions(selectedValue = ''){
@@ -487,6 +488,29 @@ function stockGroupDocId(groupKey){
   for(let i=0;i<source.length;i++){ hash = ((hash << 5) - hash) + source.charCodeAt(i); hash |= 0; }
   return 'stock_' + Math.abs(hash).toString(36) + '_' + source.replace(/[^\u0600-\u06FF\w-]+/g,'_').slice(0,60);
 }
+function stockMetaTime(meta){
+  const raw = meta?.updatedAtIso || meta?.savedAtIso || meta?.updatedAt || meta?.savedAt || '';
+  if(raw && typeof raw.toDate === 'function') return raw.toDate().getTime() || 0;
+  const parsed = raw ? Date.parse(raw) : 0;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function mergeStockMetaRecord(oldMeta, nextMeta){
+  if(!oldMeta) return nextMeta || {};
+  if(!nextMeta) return oldMeta || {};
+  const oldTime = stockMetaTime(oldMeta);
+  const nextTime = stockMetaTime(nextMeta);
+  if(nextTime >= oldTime) return { ...oldMeta, ...nextMeta };
+  return { ...nextMeta, ...oldMeta };
+}
+function mergeStockMetaMaps(...maps){
+  const merged = {};
+  maps.forEach(map => {
+    Object.entries(map || {}).forEach(([key, value]) => {
+      merged[key] = mergeStockMetaRecord(merged[key], value || {});
+    });
+  });
+  return merged;
+}
 function stockMetaForKey(groupKey){ return stockCarMeta[stockGroupDocId(groupKey)] || {}; }
 function readLocalStockMeta(){
   try{ return JSON.parse(localStorage.getItem('mzj_stock_meta_cache') || '{}') || {}; }catch(_){ return {}; }
@@ -494,7 +518,7 @@ function readLocalStockMeta(){
 function writeLocalStockMeta(docId, data){
   try{
     const current = readLocalStockMeta();
-    current[docId] = { ...(current[docId] || {}), ...(data || {}) };
+    current[docId] = mergeStockMetaRecord(current[docId] || {}, data || {});
     localStorage.setItem('mzj_stock_meta_cache', JSON.stringify(current));
   }catch(_){}
 }
@@ -503,7 +527,7 @@ function loadStockMeta(){
   let collectionMeta = {};
   let settingsMeta = {};
   const applyMeta = () => {
-    stockCarMeta = { ...readLocalStockMeta(), ...settingsMeta, ...collectionMeta };
+    stockCarMeta = mergeStockMetaMaps(collectionMeta, settingsMeta, readLocalStockMeta());
     renderStock();
   };
   safeCollection(window.MZJ_STOCK_META_COLLECTION).onSnapshot(snapshot => {
@@ -565,6 +589,7 @@ async function saveStockShotStatus(groupKey, value){
     photographedValue: value === 'yes' ? 'yes' : 'no',
     updatedAt: serverTime(),
     updatedAtIso: nowIso,
+    savedAtIso: nowIso,
     updatedBy: current.email || current.name || current.uid || ''
   };
   const optimistic = { ...previous, ...payload, updatedAt: nowIso };
@@ -581,7 +606,7 @@ async function saveStockShotStatus(groupKey, value){
       const simplePayload = {
         groupKey: payload.groupKey, docKey: payload.docKey, carName: payload.carName, statement: payload.statement,
         exteriorColor: payload.exteriorColor, interiorColor: payload.interiorColor, carIds: payload.carIds || [], count: payload.count || 0,
-        photographed: payload.photographed, photographedValue: payload.photographedValue, updatedAt: nowIso, updatedAtIso: nowIso,
+        photographed: payload.photographed, photographedValue: payload.photographedValue, updatedAt: nowIso, updatedAtIso: nowIso, savedAtIso: nowIso,
         updatedBy: current.email || current.name || current.uid || '', savedIn: 'system_settings_fallback'
       };
       await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({
@@ -589,7 +614,7 @@ async function saveStockShotStatus(groupKey, value){
         updatedAt: serverTime(),
         updatedBy: current.email || current.name || current.uid || ''
       }, { merge: true });
-      stockCarMeta[docId] = { ...previous, ...simplePayload };
+      stockCarMeta[docId] = mergeStockMetaRecord(previous, simplePayload);
       writeLocalStockMeta(docId, stockCarMeta[docId]);
       renderStock();
       showToast('تم حفظ حالة التصوير.');
@@ -597,7 +622,7 @@ async function saveStockShotStatus(groupKey, value){
     }catch(fallbackError){
       console.error('Stock shot save fallback error', fallbackError);
       // نحافظ على التغيير ظاهرياً في المتصفح، لكن نوضح أن Firebase رفض الحفظ.
-      stockCarMeta[docId] = optimistic;
+      stockCarMeta[docId] = mergeStockMetaRecord(stockCarMeta[docId] || previous, optimistic);
       writeLocalStockMeta(docId, optimistic);
       renderStock();
       const msg = String(fallbackError?.message || primaryError?.message || fallbackError || primaryError || '');
@@ -2338,7 +2363,9 @@ function collectCampaignRows(){
   });
 }
 function getCampaignProducts(){
-  return uniqueList([...document.querySelectorAll('.js-product-output')].map(input => normalizeText(input.value)).filter(Boolean));
+  const designAndMontageOutputs = typeof getCampaignPublishOutputs === 'function' ? getCampaignPublishOutputs() : [];
+  const manualProductOutputs = [...document.querySelectorAll('.js-product-output')].map(input => normalizeText(input.value)).filter(Boolean);
+  return uniqueList([...designAndMontageOutputs, ...manualProductOutputs]);
 }
 
 function carDisplayName(car){
