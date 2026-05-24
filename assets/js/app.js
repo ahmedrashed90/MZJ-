@@ -1323,8 +1323,12 @@ function taskContentType(task){
   return canonicalContentLabel(task.contentSectionName || task.assignedDepartmentName || task.contentType || '');
 }
 function taskDepartmentLabel(task){
-  const labels = {content:'قسم المحتوى', shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج', publish:'قسم النشر', other:'قسم'};
-  return labels[task.departmentRole || 'other'] || task.assignedDepartmentName || 'قسم';
+  const role = task.departmentRole || normalizeDepartmentRole(task.assignedDepartmentName || task.departmentName || task.contentSectionName || '');
+  const labels = {content:'قسم المحتوى', shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج', publish:'قسم النشر'};
+  if(task.structureGenerated || task.source === 'campaign-structure-distribution') return 'قسم المحتوى';
+  if(labels[role]) return labels[role];
+  const owner = findUserByAnyIdentity([task.assignedToUid, task.assignedToId, task.userUid, task.userId, task.assignedToEmail, task.userEmail, task.assignedToName, task.userName].filter(Boolean)) || {};
+  return normalizeText(task.departmentName || task.assignedDepartmentName || owner.departmentName || owner.department || task.contentSectionName || 'غير محدد');
 }
 function attachmentLabelForRole(role){
   if(role === 'shooting') return 'إرفاق ملف التصوير';
@@ -2862,46 +2866,43 @@ function renderTasksPage(){
   const board = document.getElementById('tasksBoard'); if(!board) return;
   const isAdmin = isCurrentUserAdmin();
   const tasks = isAdmin ? campaigns.flatMap(campaign => tasksForCampaign(campaign)) : getVisibleTasksForCurrentUser();
-  const openCampaigns = campaigns.filter(campaign => normalizeStatus(campaign.status || '').includes('archived') === false);
-  const projectKeys = uniqueList(openCampaigns.map(campaign => normalizeText(campaign.projectName || campaign.project || campaign.projectId || campaign.clientName || campaign.campaignProject || '')).filter(Boolean));
-  const openProjectsCount = projectKeys.length || openCampaigns.length;
+  const activeCampaigns = campaigns.filter(campaign => normalizeStatus(campaign.status || '').includes('archived') === false);
   const counts = tasks.reduce((acc, task) => { const key = taskWorkflowStatus(task); acc[key] = (acc[key] || 0) + 1; return acc; }, {});
   const delayedTasks = tasks.filter(task => taskDelayDays(task) > 0);
   const employeeMap = {};
   tasks.forEach(task => { const owner = taskOwnerName(task); (employeeMap[owner] ||= []).push(task); });
   const deptMap = {};
-  tasks.forEach(task => { const dept = taskDepartmentLabel(task); (deptMap[dept] ||= []).push(task); });
+  tasks.forEach(task => {
+    const dept = taskDepartmentLabel(task);
+    if(dept && dept !== 'قسم' && dept !== 'غير محدد') (deptMap[dept] ||= []).push(task);
+  });
   const campaignRows = campaigns.map(campaign => { const list = tasksForCampaign(campaign); return { campaign, tasks:list, progress:averageProgress(list) }; }).filter(item => item.tasks.length);
-  const projectRows = Object.entries(campaignRows.reduce((acc, item) => {
-    const key = normalizeText(item.campaign.projectName || item.campaign.project || item.campaign.projectId || item.campaign.clientName || 'مشروع عام');
-    (acc[key] ||= []).push(...item.tasks);
-    return acc;
-  }, {})).map(([name, list]) => ({ name, progress:averageProgress(list), total:list.length }));
-  const metric = (label, value) => `<article class="monitor-metric"><span>${label}</span><strong>${value}</strong></article>`;
-  const bar = (label, value, total) => { const pct = total ? Math.round((value / total) * 100) : 0; return `<div class="monitor-bar-row"><div><b>${escapeHtml(label)}</b><span>${value}</span></div><div class="monitor-bar"><i style="width:${Math.min(100,pct)}%"></i></div></div>`; };
+  const metric = (label, value, hint = '', tone = '') => `<article class="monitor-metric ${tone}"><span>${label}</span><strong>${value}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ''}</article>`;
+  const bar = (label, value, total) => { const pct = total ? Math.round((value / total) * 100) : 0; return `<div class="monitor-bar-row"><div><b>${escapeHtml(label)}</b><span>${value} تاسك</span></div><div class="monitor-bar"><i style="width:${Math.min(100,pct)}%"></i></div></div>`; };
   const progressRow = (label, pct, meta = '') => `<div class="monitor-progress-row"><div><b>${escapeHtml(label)}</b><span>${escapeHtml(meta)}</span></div><strong>${pct}%</strong><div class="task-card-progress"><span style="width:${Math.min(100,pct)}%"></span></div></div>`;
-  const employeeDelayRows = Object.entries(employeeMap).map(([name, list]) => ({ name, late:list.filter(task => taskDelayDays(task) > 0).length, days:list.reduce((sum, task) => sum + taskDelayDays(task), 0), total:list.length, progress:averageProgress(list) })).sort((a,b) => b.days - a.days);
+  const employeeDelayRows = Object.entries(employeeMap).map(([name, list]) => ({ name, late:list.filter(task => taskDelayDays(task) > 0).length, days:list.reduce((sum, task) => sum + taskDelayDays(task), 0), total:list.length, progress:averageProgress(list) })).sort((a,b) => b.days - a.days || b.late - a.late);
   const delayedRows = delayedTasks.sort((a,b) => taskDelayDays(b) - taskDelayDays(a)).slice(0, 20);
-  board.innerHTML = `<section class="monitor-page">
-    <div class="monitor-metrics">
-      ${metric('إجمالي المشاريع المفتوحة', openProjectsCount)}
-      ${metric('إجمالي الحملات', campaigns.length)}
-      ${metric('إجمالي التاسكات', tasks.length)}
-      ${metric('التاسكات المتأخرة', delayedTasks.length)}
-      ${metric('قائمة الانتظار', counts.waiting || 0)}
-      ${metric('التاسكات النشطة', counts.active || 0)}
-      ${metric('بانتظار المراجعة', counts.review || 0)}
-      ${metric('مطلوبة تعديل', counts.needs_changes || 0)}
-      ${metric('الكريتيفات المعتمدة', counts.approved || 0)}
-      ${metric('الكريتيفات المرفوضة', counts.rejected || 0)}
+  const statusKeys = ['waiting','active'];
+  const totalDone = (counts.approved || 0) + (counts.rejected || 0);
+  if(totalDone) statusKeys.push('approved');
+  const dashboardSubtitle = `${activeCampaigns.length} حملة نشطة · ${tasks.length} تاسك · ${delayedTasks.length} متأخر`;
+  board.innerHTML = `<section class="monitor-page professional-monitor">
+    <div class="monitor-hero-card">
+      <div><p>نظرة عامة</p><h2>متابعة الحملات والتاسكات</h2><span>${escapeHtml(dashboardSubtitle)}</span></div>
+      <strong>${averageProgress(tasks)}%</strong>
     </div>
-    <div class="monitor-grid">
-      <section class="monitor-panel"><h2>عدد التاسكات في كل حالة</h2>${['waiting','active','review','needs_changes','approved','rejected'].map(key => bar(statusLabelFromKey(key), counts[key] || 0, tasks.length)).join('') || '<div class="empty-state mini-empty">لا توجد بيانات.</div>'}</section>
+    <div class="monitor-metrics compact-metrics">
+      ${metric('إجمالي الحملات', campaigns.length, `${activeCampaigns.length} نشطة`, 'tone-campaigns')}
+      ${metric('إجمالي التاسكات', tasks.length, 'كل التاسكات المسندة', 'tone-tasks')}
+      ${metric('التاسكات المتأخرة', delayedTasks.length, 'حسب موعد التسليم', 'tone-late')}
+      ${metric('التاسكات في قائمة الانتظار', counts.waiting || 0, 'لم تبدأ بعد', 'tone-waiting')}
+      ${metric('التاسكات النشطة', counts.active || 0, 'قيد التنفيذ', 'tone-active')}
+    </div>
+    <div class="monitor-grid professional-grid">
+      <section class="monitor-panel"><h2>عدد التاسكات في كل حالة</h2>${statusKeys.map(key => bar(statusLabelFromKey(key), key === 'approved' ? totalDone : (counts[key] || 0), tasks.length)).join('') || '<div class="empty-state mini-empty">لا توجد بيانات.</div>'}</section>
       <section class="monitor-panel"><h2>التاسكات المتأخرة</h2>${delayedRows.length ? delayedRows.map(task => `<article class="monitor-task-row"><div><b>${shortTaskName(task)}</b><span>${escapeHtml(task.campaignName || '')} · ${taskOwnerName(task)}</span></div><strong>${taskDelayDays(task)} يوم</strong></article>`).join('') : '<div class="empty-state mini-empty">لا توجد تاسكات متأخرة.</div>'}</section>
       <section class="monitor-panel"><h2>التأخير عند كل موظف</h2>${employeeDelayRows.length ? employeeDelayRows.map(row => `<article class="monitor-task-row"><div><b>${escapeHtml(row.name)}</b><span>${row.late} متأخر من ${row.total} تاسك</span></div><strong>${row.days} يوم</strong></article>`).join('') : '<div class="empty-state mini-empty">لا توجد بيانات موظفين.</div>'}</section>
       <section class="monitor-panel"><h2>نسبة اكتمال كل حملة</h2>${campaignRows.length ? campaignRows.map(item => progressRow(item.campaign.campaignName || item.campaign.name || item.campaign.campaignCode || 'حملة', item.progress, `${item.tasks.length} تاسك`)).join('') : '<div class="empty-state mini-empty">لا توجد حملات.</div>'}</section>
-      <section class="monitor-panel"><h2>نسبة اكتمال كل مشروع</h2>${projectRows.length ? projectRows.map(item => progressRow(item.name, item.progress, `${item.total} تاسك`)).join('') : '<div class="empty-state mini-empty">لا توجد مشاريع.</div>'}</section>
-      <section class="monitor-panel wide"><h2>رسم بياني لكل حملة حسب مراحلها</h2>${campaignRows.length ? campaignRows.map(item => { const list = item.tasks; const localCounts = list.reduce((acc, task) => { const key = taskWorkflowStatus(task); acc[key] = (acc[key] || 0) + 1; return acc; }, {}); return `<div class="campaign-stage-chart"><h3>${shortCampaignTitle(item.campaign)}</h3>${['waiting','active','review','needs_changes','approved','rejected'].map(key => bar(statusLabelFromKey(key), localCounts[key] || 0, list.length)).join('')}</div>`; }).join('') : '<div class="empty-state mini-empty">لا توجد حملات.</div>'}</section>
       <section class="monitor-panel"><h2>أداء كل قسم</h2>${Object.entries(deptMap).length ? Object.entries(deptMap).map(([name, list]) => progressRow(name, averageProgress(list), `${list.length} تاسك`)).join('') : '<div class="empty-state mini-empty">لا توجد بيانات أقسام.</div>'}</section>
       <section class="monitor-panel"><h2>أداء كل موظف</h2>${employeeDelayRows.length ? employeeDelayRows.map(row => progressRow(row.name, row.progress, `${row.total} تاسك / تأخير ${row.days} يوم`)).join('') : '<div class="empty-state mini-empty">لا توجد بيانات موظفين.</div>'}</section>
     </div>
