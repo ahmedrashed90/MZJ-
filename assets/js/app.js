@@ -34,7 +34,7 @@ window.MZJ_SYSTEM_SETTINGS_COLLECTION = "system_settings";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
-const routes = ['dashboard','reports','create-campaign','campaigns','tasks','calendar','stock','departments','settings'];
+const routes = ['dashboard','reports','create-campaign','campaigns','social-publisher','tasks','calendar','stock','departments','settings'];
 const pageAliases = {
   database: 'reports',
   report: 'reports',
@@ -44,6 +44,10 @@ const pageAliases = {
   permissions: 'settings',
   dashboard: 'dashboard',
   campaigns: 'campaigns',
+  publisher: 'social-publisher',
+  publish: 'social-publisher',
+  social: 'social-publisher',
+  'social-publisher': 'social-publisher',
   'create-campaign': 'create-campaign',
   create_campaign: 'create-campaign',
   departments: 'departments',
@@ -121,6 +125,7 @@ function renderRoute(){
   if(route === 'tasks') renderTasksPage();
   if(route === 'stock') renderStock();
   if(route === 'reports') renderDatabasePage();
+  if(route === 'social-publisher') renderSocialPublisherPage();
 }
 function showMessage(id, text){ const el = document.getElementById(id); if(el) el.textContent = text || ''; }
 function escapeHtml(value){ return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
@@ -3923,6 +3928,89 @@ function renderCampaigns(){
   renderCampaignCards('campaignsList', 50);
   renderDatabasePage();
 }
+
+const SOCIAL_PUBLISH_LOG_KEY = 'mzj_social_publish_log_v1';
+const socialPlatformLabels = { facebook:'Facebook', instagram:'Instagram', tiktok:'TikTok' };
+function getSocialPublishLog(){
+  try{ return JSON.parse(localStorage.getItem(SOCIAL_PUBLISH_LOG_KEY) || '[]'); }catch(_){ return []; }
+}
+function setSocialPublishLog(items){ localStorage.setItem(SOCIAL_PUBLISH_LOG_KEY, JSON.stringify(Array.isArray(items) ? items.slice(0, 60) : [])); }
+function selectedSocialPlatforms(){
+  return [...document.querySelectorAll('input[name="platforms"]:checked')].map(input => input.value).filter(Boolean);
+}
+function renderSocialPublisherPage(){
+  renderSocialPreview();
+  renderSocialPublishLog();
+}
+function renderSocialPreview(){
+  const preview = document.getElementById('socialPostPreview');
+  if(!preview) return;
+  const title = normalizeText(document.getElementById('socialPostTitle')?.value) || 'عنوان المنشور';
+  const caption = normalizeText(document.getElementById('socialPostCaption')?.value) || 'اكتب نص المنشور ليظهر هنا...';
+  const mediaUrl = normalizeText(document.getElementById('socialPostMediaUrl')?.value);
+  const link = normalizeText(document.getElementById('socialPostLink')?.value);
+  const postType = normalizeText(document.getElementById('socialPostType')?.value) || 'post';
+  const platforms = selectedSocialPlatforms();
+  const platformHtml = platforms.length ? platforms.map(platform => `<span>${escapeHtml(socialPlatformLabels[platform] || platform)}</span>`).join('') : '<span>لم يتم اختيار قناة</span>';
+  preview.innerHTML = `<div class="preview-platforms">${platformHtml}</div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(caption).replace(/\n/g,'<br>')}</p><div class="preview-media-placeholder">${mediaUrl ? `ميديا مرفقة: ${escapeHtml(mediaUrl)}` : 'صورة / فيديو'}</div><small>${link ? `الرابط: ${escapeHtml(link)}` : 'لم يتم تحديد رابط بعد'} · ${escapeHtml(postTypeLabel(postType))}</small>`;
+}
+function postTypeLabel(type){ return {post:'منشور عادي',reel:'Reel / Short Video',story:'Story',draft:'مسودة فقط'}[type] || type; }
+function publishModeLabel(mode){ return {now:'نشر الآن',schedule:'جدولة',draft:'مسودة'}[mode] || mode; }
+function socialStatusLabel(item){
+  if(item.mode === 'schedule') return 'مجدول';
+  if(item.mode === 'draft' || item.type === 'draft') return 'مسودة';
+  return 'جاهز للنشر';
+}
+function renderSocialPublishLog(){
+  const wrap = document.getElementById('socialPublishLog');
+  if(!wrap) return;
+  const items = getSocialPublishLog();
+  if(!items.length){ wrap.innerHTML = '<div class="empty-state">لا توجد منشورات محفوظة حتى الآن.</div>'; return; }
+  wrap.innerHTML = items.map(item => {
+    const platforms = (item.platforms || []).map(platform => `<span>${escapeHtml(socialPlatformLabels[platform] || platform)}</span>`).join('');
+    const schedule = item.mode === 'schedule' ? `${escapeHtml(item.scheduleDate || '')} ${escapeHtml(item.scheduleTime || '')}`.trim() : publishModeLabel(item.mode);
+    return `<article class="social-log-item"><div class="social-log-main"><div class="preview-platforms">${platforms || '<span>بدون قناة</span>'}</div><h3>${escapeHtml(item.title || 'منشور بدون عنوان')}</h3><p>${escapeHtml(item.caption || '').slice(0, 180)}${String(item.caption || '').length > 180 ? '...' : ''}</p><small>${escapeHtml(postTypeLabel(item.type))} · ${escapeHtml(schedule || 'غير محدد')}</small></div><div class="social-log-side"><span class="social-log-status">${escapeHtml(socialStatusLabel(item))}</span><button class="btn btn-light" type="button" data-delete-social-log="${escapeHtml(item.id)}">حذف</button></div></article>`;
+  }).join('');
+}
+function bindSocialPublisher(){
+  const form = document.getElementById('socialPublisherForm');
+  if(!form) return;
+  ['input','change'].forEach(eventName => form.addEventListener(eventName, renderSocialPreview));
+  form.addEventListener('reset', () => setTimeout(renderSocialPreview, 0));
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const platforms = selectedSocialPlatforms();
+    if(!platforms.length){ showToast('اختار قناة واحدة على الأقل للنشر.'); return; }
+    const item = {
+      id: `social_${Date.now()}`,
+      title: normalizeText(document.getElementById('socialPostTitle')?.value),
+      caption: normalizeText(document.getElementById('socialPostCaption')?.value),
+      mediaUrl: normalizeText(document.getElementById('socialPostMediaUrl')?.value),
+      link: normalizeText(document.getElementById('socialPostLink')?.value),
+      type: normalizeText(document.getElementById('socialPostType')?.value) || 'post',
+      mode: normalizeText(document.getElementById('socialPublishMode')?.value) || 'now',
+      scheduleDate: normalizeText(document.getElementById('socialScheduleDate')?.value),
+      scheduleTime: normalizeText(document.getElementById('socialScheduleTime')?.value),
+      platforms,
+      createdAt: new Date().toISOString(),
+      createdBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
+    };
+    const log = [item, ...getSocialPublishLog()];
+    setSocialPublishLog(log);
+    renderSocialPublishLog();
+    showToast('تم حفظ المنشور في سجل النشر.');
+  });
+  document.getElementById('socialOpenComposerBtn')?.addEventListener('click', () => { location.hash = '#social-publisher'; document.getElementById('socialPostTitle')?.focus(); });
+  document.getElementById('socialReconnectBtn')?.addEventListener('click', () => showToast('واجهة الربط جاهزة. التفعيل الحقيقي يحتاج Backend وMeta/TikTok Apps.'));
+  document.getElementById('clearSocialLogBtn')?.addEventListener('click', () => { setSocialPublishLog([]); renderSocialPublishLog(); showToast('تم مسح سجل النشر المحلي.'); });
+  document.getElementById('socialPublishLog')?.addEventListener('click', event => {
+    const btn = event.target.closest('[data-delete-social-log]');
+    if(!btn) return;
+    setSocialPublishLog(getSocialPublishLog().filter(item => item.id !== btn.dataset.deleteSocialLog));
+    renderSocialPublishLog();
+  });
+}
+
 function loadCampaigns(){
   if(!mainDb) return;
   safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).orderBy('createdAt','desc').onSnapshot(snapshot => {
@@ -4146,7 +4234,7 @@ function renderUsersPermissions(){
   }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
 }
 function pageLabel(page){
-  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
+  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'النشر على السوشيال',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
 }
 function loadSystemSettings(){
   if(!mainDb) return;
@@ -4374,7 +4462,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('calendarPrevMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()-1); renderCalendarPage(); });
   document.getElementById('calendarNextMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()+1); renderCalendarPage(); });
   document.getElementById('calendarToday')?.addEventListener('click', () => { calendarCursor = new Date(); renderCalendarPage(); });
-  bindCampaignBuilder(); bindDepartments(); bindSettings();
+  bindCampaignBuilder(); bindDepartments(); bindSettings(); bindSocialPublisher();
   document.getElementById('dashboard')?.addEventListener('click', async event => {
     const stageBtn = event.target.closest('[data-stage][data-campaign-id]');
     if(stageBtn){ event.stopPropagation(); await togglePublishStage(stageBtn.dataset.campaignId, stageBtn.dataset.stage); return; }

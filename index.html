@@ -48,6 +48,7 @@
         <a href="#reports" data-route="reports"><span class="icon">🗄️</span><span>قاعدة البيانات</span></a>
         <a href="#create-campaign" data-route="create-campaign"><span class="icon">➕</span><span>إنشاء حملة</span></a>
         <a href="#campaigns" data-route="campaigns"><span class="icon">📣</span><span>إدارة الحملات</span></a>
+        <a href="#social-publisher" data-route="social-publisher"><span class="icon">🚀</span><span>النشر على السوشيال</span></a>
         <a href="#tasks" data-route="tasks"><span class="icon">📈</span><span>المتابعة</span></a>
         <a href="#calendar" data-route="calendar"><span class="icon">📅</span><span>التقويم</span></a>
         <a href="#stock" data-route="stock"><span class="icon">🚗</span><span>الاستوك</span></a>
@@ -156,6 +157,112 @@
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section class="view" id="social-publisher" data-title="النشر على السوشيال">
+        <div class="page-head social-publisher-head">
+          <div class="page-title">
+            <h1>النشر على السوشيال</h1>
+            <p>جهز منشور واحد وانشره أو جدوله على Facebook وInstagram وTikTok من مكان واحد.</p>
+          </div>
+          <div class="social-publisher-actions">
+            <button class="btn btn-light" type="button" id="socialReconnectBtn">إعادة فحص الربط</button>
+            <button class="btn btn-primary" type="button" id="socialOpenComposerBtn">＋ منشور جديد</button>
+          </div>
+        </div>
+
+        <div class="social-channel-grid">
+          <article class="card social-channel-card is-ready" data-channel-card="facebook">
+            <div class="social-channel-icon facebook">f</div>
+            <div>
+              <h3>Facebook</h3>
+              <p>نشر على صفحات فيسبوك المرتبطة.</p>
+              <span class="channel-status ready">جاهز للربط الرسمي</span>
+            </div>
+          </article>
+          <article class="card social-channel-card is-ready" data-channel-card="instagram">
+            <div class="social-channel-icon instagram">◎</div>
+            <div>
+              <h3>Instagram</h3>
+              <p>منشورات ورييلز لحساب Business / Creator.</p>
+              <span class="channel-status ready">جاهز للربط الرسمي</span>
+            </div>
+          </article>
+          <article class="card social-channel-card is-ready" data-channel-card="tiktok">
+            <div class="social-channel-icon tiktok">♪</div>
+            <div>
+              <h3>TikTok</h3>
+              <p>رفع فيديو أو حفظ مسودة لحساب تيك توك.</p>
+              <span class="channel-status ready">جاهز للربط الرسمي</span>
+            </div>
+          </article>
+        </div>
+
+        <div class="social-publisher-layout">
+          <form class="card social-composer" id="socialPublisherForm">
+            <div class="section-toolbar small-toolbar">
+              <div>
+                <h2>إنشاء منشور</h2>
+                <p>الصفحة حالياً تحفظ خطة النشر وسجلها داخل السيستم، والربط الحقيقي يتم لاحقاً من Backend آمن.</p>
+              </div>
+              <span class="social-mode-badge">Safe Mode</span>
+            </div>
+
+            <div class="social-platform-picker" aria-label="اختيار القنوات">
+              <label class="platform-check facebook"><input type="checkbox" name="platforms" value="facebook" checked><span>Facebook</span></label>
+              <label class="platform-check instagram"><input type="checkbox" name="platforms" value="instagram"><span>Instagram</span></label>
+              <label class="platform-check tiktok"><input type="checkbox" name="platforms" value="tiktok"><span>TikTok</span></label>
+            </div>
+
+            <div class="form-grid two">
+              <label class="field"><span>اسم الحملة / المنشور</span><input type="text" id="socialPostTitle" placeholder="مثال: عرض نهاية الأسبوع" required></label>
+              <label class="field"><span>نوع النشر</span><select id="socialPostType"><option value="post">منشور عادي</option><option value="reel">Reel / Short Video</option><option value="story">Story</option><option value="draft">مسودة فقط</option></select></label>
+            </div>
+
+            <label class="field"><span>نص المنشور</span><textarea id="socialPostCaption" rows="7" placeholder="اكتب نص المنشور هنا..." required></textarea></label>
+
+            <div class="form-grid two">
+              <label class="field"><span>رابط الميديا أو Drive</span><input type="url" id="socialPostMediaUrl" placeholder="https://..."></label>
+              <label class="field"><span>رابط Landing Page / واتساب</span><input type="url" id="socialPostLink" placeholder="https://..."></label>
+            </div>
+
+            <div class="form-grid three">
+              <label class="field"><span>طريقة التنفيذ</span><select id="socialPublishMode"><option value="now">نشر الآن</option><option value="schedule">جدولة</option><option value="draft">حفظ كمسودة</option></select></label>
+              <label class="field"><span>تاريخ الجدولة</span><input type="date" id="socialScheduleDate"></label>
+              <label class="field"><span>وقت الجدولة</span><input type="time" id="socialScheduleTime"></label>
+            </div>
+
+            <div class="social-warning-box">
+              <strong>تنبيه أمان:</strong> النشر الحقيقي يحتاج ربط Meta/TikTok عبر Backend وتخزين Tokens مشفر. هذه الصفحة جاهزة للواجهة والسجل بدون تخزين أي Token في المتصفح.
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-light" type="reset">مسح</button>
+              <button class="btn btn-primary" type="submit">حفظ في سجل النشر</button>
+            </div>
+          </form>
+
+          <aside class="card social-preview-card">
+            <div class="section-toolbar small-toolbar">
+              <div><h2>معاينة المنشور</h2><p>شكل تقريبي قبل النشر.</p></div>
+            </div>
+            <div class="social-post-preview" id="socialPostPreview">
+              <div class="preview-platforms"><span>Facebook</span></div>
+              <h3>عنوان المنشور</h3>
+              <p>اكتب نص المنشور ليظهر هنا...</p>
+              <div class="preview-media-placeholder">صورة / فيديو</div>
+              <small>لم يتم تحديد رابط بعد</small>
+            </div>
+          </aside>
+        </div>
+
+        <div class="card social-log-card">
+          <div class="section-toolbar small-toolbar">
+            <div><h2>سجل النشر</h2><p>آخر منشورات تم تجهيزها من الصفحة.</p></div>
+            <button class="btn btn-light" type="button" id="clearSocialLogBtn">مسح السجل المحلي</button>
+          </div>
+          <div id="socialPublishLog" class="social-log-list"><div class="empty-state">لا توجد منشورات محفوظة حتى الآن.</div></div>
         </div>
       </section>
 
