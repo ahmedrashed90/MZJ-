@@ -3961,11 +3961,14 @@ function setSocialStatus(text, ok = false){
   if(instagramStatus){ instagramStatus.textContent = hasInstagram ? 'متصل' : (ok ? 'اربط Instagram بالصفحة' : 'غير متصل'); }
   if(igInput){ igInput.value = hasInstagram ? `متصل: ${selectedPage.instagram.username || selectedPage.instagram.name || selectedPage.instagram.id}` : (ok ? 'لا يوجد Instagram Business مربوط بالصفحة المختارة' : 'غير متصل'); }
 }
-function renderSocialPagesSelect(){
+function renderSocialPagesSelect(note = ''){
   const select = document.getElementById('socialMetaPageSelect');
   if(!select) return;
   if(!socialMetaPages.length){
-    select.innerHTML = '<option value="">لا توجد صفحات متاحة</option>';
+    select.innerHTML = '<option value="">لا توجد صفحات متاحة حالياً</option>';
+    if(socialMetaConnected){
+      setSocialStatus(note || 'Meta Login متصل · صلاحيات الصفحات لم تتفعل بعد', true);
+    }
     return;
   }
   select.innerHTML = socialMetaPages.map(page => `<option value="${escapeHtml(page.id)}">${escapeHtml(page.name || page.id)}${page.instagram ? ' · Instagram متصل' : ''}</option>`).join('');
@@ -3975,7 +3978,10 @@ async function loadMetaConnection(){
   const statusEl = document.getElementById('socialMetaConnectionStatus');
   if(statusEl) statusEl.textContent = 'جاري فحص ربط Meta...';
   try{
-    const response = await fetch('/api/meta/pages', { credentials:'include' });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 9000);
+    const response = await fetch('/api/meta/pages', { credentials:'include', signal: controller.signal });
+    clearTimeout(timeout);
     const data = await response.json().catch(() => ({}));
     if(!response.ok || !data.ok){
       socialMetaConnected = false;
@@ -3984,12 +3990,14 @@ async function loadMetaConnection(){
       setSocialStatus(data.error || 'Meta غير متصل. اضغط ربط / إعادة ربط Meta.', false);
       return;
     }
-    socialMetaConnected = true;
+    socialMetaConnected = !!data.connected;
     socialMetaPages = Array.isArray(data.pages) ? data.pages : [];
-    renderSocialPagesSelect();
+    renderSocialPagesSelect(data.note || data.warning || '');
   }catch(error){
     socialMetaConnected = false;
-    setSocialStatus('تعذر فحص الربط: ' + (error.message || error), false);
+    socialMetaPages = [];
+    renderSocialPagesSelect();
+    setSocialStatus(error.name === 'AbortError' ? 'فحص Meta استغرق وقت طويل. جرب إعادة تحميل الصفحة.' : 'تعذر فحص الربط: ' + (error.message || error), false);
   }
 }
 function renderSocialPublisherPage(){

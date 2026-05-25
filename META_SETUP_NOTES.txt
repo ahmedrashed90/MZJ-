@@ -14,3 +14,6 @@ After Meta adds/approves Page and Instagram permissions, add this optional Verce
 META_SCOPES=public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata,instagram_basic,instagram_content_publish
 
 Then redeploy on Vercel.
+
+
+LOGIN_TEST_STATUS_FIX: /api/meta/pages now returns connected-limited when only public_profile is granted.
