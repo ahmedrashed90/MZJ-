@@ -111,9 +111,23 @@ function normalizePages(payload) {
   return [];
 }
 
+
+export function getConfiguredPageToken() {
+  return process.env.META_PAGE_ACCESS_TOKEN || process.env.META_SYSTEM_PAGE_TOKEN || '';
+}
+
+export async function getConfiguredPage() {
+  const pageId = getDefaultPageId();
+  const pageToken = getConfiguredPageToken();
+  if (!pageId || !pageToken) return null;
+  const fields = 'id,name,category,link,fan_count,instagram_business_account{id,username,name}';
+  const page = await graphGet(`/${pageId}`, { fields }, pageToken);
+  return { ...page, access_token: pageToken, _source: 'META_DEFAULT_PAGE_ID + META_PAGE_ACCESS_TOKEN' };
+}
+
 export async function getDirectPage(userToken, pageId = getDefaultPageId()) {
   if (!pageId) return null;
-  const fields = 'id,name,category,access_token,tasks,perms,instagram_business_account{id,username,name}';
+  const fields = 'id,name,category,link,fan_count,access_token,instagram_business_account{id,username,name}';
   const page = await graphGet(`/${pageId}`, { fields }, userToken);
   // If Meta does not expose a page access token on direct lookup, keep a user-token fallback
   // for diagnostics and for testing page edges. Publishing may still require page.access_token.
@@ -121,7 +135,7 @@ export async function getDirectPage(userToken, pageId = getDefaultPageId()) {
 }
 
 export async function getPages(userToken) {
-  const fields = 'id,name,access_token,category,tasks,perms,instagram_business_account{id,username,name}';
+  const fields = 'id,name,access_token,category,link,fan_count,instagram_business_account{id,username,name}';
   const direct = await graphGet('/me/accounts', { fields, limit: 100 }, userToken);
   let pages = normalizePages(direct);
   if (pages.length) return pages.map(page => ({ ...page, _source: '/me/accounts' }));
@@ -129,6 +143,9 @@ export async function getPages(userToken) {
   const nested = await graphGet('/me', { fields: `accounts.limit(100){${fields}}` }, userToken);
   pages = normalizePages(nested);
   if (pages.length) return pages.map(page => ({ ...page, _source: 'me.accounts' }));
+
+  const configuredPage = await getConfiguredPage().catch(() => null);
+  if (configuredPage) return [configuredPage];
 
   const envPage = await getDirectPage(userToken).catch(() => null);
   if (envPage) return [envPage];
@@ -138,6 +155,9 @@ export async function getPages(userToken) {
 
 export async function findPage(userToken, pageId) {
   const selectedPageId = pageId || getDefaultPageId();
+  const configuredPage = await getConfiguredPage().catch(() => null);
+  if (configuredPage && (!selectedPageId || String(configuredPage.id) === String(selectedPageId) || String(selectedPageId) === String(getDefaultPageId()))) return configuredPage;
+
   if (selectedPageId) {
     try {
       return await getDirectPage(userToken, selectedPageId);

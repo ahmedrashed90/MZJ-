@@ -15,10 +15,10 @@ export default async function handler(req, res) {
       ok: false,
       connected: true,
       error: 'Missing META_DEFAULT_PAGE_ID environment variable.',
-      expected: 'META_DEFAULT_PAGE_ID=61863628446846'
+      expected: 'META_DEFAULT_PAGE_ID=mzjcars'
     });
 
-    const fields = 'id,name,category,access_token,tasks,perms,fan_count,link,instagram_business_account{id,username,name}';
+    const fields = 'id,name,category,access_token,fan_count,link,instagram_business_account{id,username,name}';
     const me = await safe('me', () => graphGet('/me', { fields: 'id,name' }, token));
     const permissions = await safe('permissions', () => graphGet('/me/permissions', {}, token));
     const page = await safe('page', () => graphGet(`/${pageId}`, { fields }, token));
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     return json(res, 200, {
       ok: true,
       connected: true,
-      deployed: 'meta-direct-page-id-v5',
+      deployed: 'meta-direct-page-safe-fields-v6',
       pageId,
       note: 'If page.ok is true, the app can access the page directly. If page.result.access_token exists, posting can use it. If access_token is missing, publishing may still require Meta to expose a Page access token through /me/accounts.',
       me,
