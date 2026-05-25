@@ -1,24 +1,8 @@
-IMPORTANT FOR VERCEL HOBBY PLAN
+Vercel single function v10
 
-This version uses a single catch-all Serverless Function:
-  /api/[...path].js
-
-Before uploading this version to GitHub/Vercel, delete the old /api folder from the repository.
-If you only upload files on top of the old repo, the old API functions will remain and Vercel will still fail with the 12 Serverless Functions limit.
-
-Required /api folder after cleanup:
-  api/[...path].js
-
-Do not keep old files like:
-  api/meta/login.js
-  api/meta/callback.js
-  api/meta/pages.js
-  api/meta/page-direct-debug.js
-  api/publish/facebook.js
-  api/zoho-upload.js
-
-After deploy, check:
-  https://mzj.vercel.app/api/meta/debug
-
-Expected deployed value:
-  meta-single-function-vercel-hobby-v9
+IMPORTANT:
+1. Delete the old api folder completely from GitHub.
+2. Upload this package. The api folder must contain only: api/meta.js
+3. vercel.json must be at the project root.
+4. Redeploy production.
+5. Test: https://mzj.vercel.app/api/meta/debug
