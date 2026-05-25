@@ -1,0 +1,16 @@
+MZJ Publish - Meta Login Test Setup
+
+Vercel Environment Variables required:
+META_APP_ID=your_meta_app_id
+META_APP_SECRET=your_meta_app_secret
+META_REDIRECT_URI=https://mzj.vercel.app/api/meta/callback
+META_SUCCESS_REDIRECT=https://mzj.vercel.app/#social-publisher
+SESSION_SECRET=long_random_secret
+
+Current login scope is safe test mode:
+public_profile
+
+After Meta adds/approves Page and Instagram permissions, add this optional Vercel variable:
+META_SCOPES=public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata,instagram_basic,instagram_content_publish
+
+Then redeploy on Vercel.
