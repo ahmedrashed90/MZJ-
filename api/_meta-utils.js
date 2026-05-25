@@ -63,12 +63,22 @@ export function getUserToken(req) {
   try { return decryptToken(cookies[TOKEN_COOKIE]); } catch (_) { return null; }
 }
 
+export function appSecretProof(token) {
+  const secret = process.env.META_APP_SECRET;
+  if (!secret || !token) return null;
+  return crypto.createHmac('sha256', secret).update(token).digest('hex');
+}
+
 export async function graphGet(path, params = {}, token) {
   const url = new URL(`${GRAPH_BASE}${path}`);
   Object.entries(params || {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value);
   });
-  if (token) url.searchParams.set('access_token', token);
+  if (token) {
+    url.searchParams.set('access_token', token);
+    const proof = appSecretProof(token);
+    if (proof) url.searchParams.set('appsecret_proof', proof);
+  }
   const response = await fetch(url.toString());
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.error) throw new Error(payload.error?.message || `Meta API error: ${response.status}`);
@@ -80,18 +90,34 @@ export async function graphPost(path, params = {}, token) {
   Object.entries(params || {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') body.set(key, String(value));
   });
-  if (token) body.set('access_token', token);
+  if (token) {
+    body.set('access_token', token);
+    const proof = appSecretProof(token);
+    if (proof) body.set('appsecret_proof', proof);
+  }
   const response = await fetch(`${GRAPH_BASE}${path}`, { method: 'POST', body });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.error) throw new Error(payload.error?.message || `Meta API error: ${response.status}`);
   return payload;
 }
 
+function normalizePages(payload) {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.accounts?.data)) return payload.accounts.data;
+  return [];
+}
+
 export async function getPages(userToken) {
-  const result = await graphGet('/me/accounts', {
-    fields: 'id,name,access_token,category,instagram_business_account{id,username,name}'
-  }, userToken);
-  return Array.isArray(result.data) ? result.data : [];
+  const fields = 'id,name,access_token,category,tasks,perms,instagram_business_account{id,username,name}';
+  const direct = await graphGet('/me/accounts', { fields, limit: 100 }, userToken);
+  let pages = normalizePages(direct);
+  if (pages.length) return pages;
+
+  const nested = await graphGet('/me', { fields: `accounts.limit(100){${fields}}` }, userToken);
+  pages = normalizePages(nested);
+  if (pages.length) return pages;
+
+  return [];
 }
 
 export async function findPage(userToken, pageId) {

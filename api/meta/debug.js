@@ -7,9 +7,10 @@ export default async function handler(req, res) {
 
   res.status(200).json({
     ok: true,
-    deployed: 'meta-login-dynamic-scopes-pages-v3',
+    deployed: 'meta-pages-raw-debug-v4',
     scopes,
     appIdLast4: appId ? appId.slice(-4) : null,
+    graphVersion: process.env.META_GRAPH_VERSION || 'v20.0',
     hasMetaAppId: Boolean(process.env.META_APP_ID),
     hasMetaAppSecret: Boolean(process.env.META_APP_SECRET),
     hasMetaRedirectUri: Boolean(process.env.META_REDIRECT_URI),
