@@ -17,10 +17,11 @@ export default async function handler(req, res) {
     const message = [body.caption, body.link].filter(Boolean).join('\n\n').trim();
     if (!message && !body.mediaUrl) return json(res, 400, { ok: false, error: 'Write post text or add a media URL.' });
     const page = await findPage(token, body.pageId);
+    const publishToken = page.access_token || token;
     const payload = body.mediaUrl
-      ? await graphPost(`/${page.id}/photos`, { url: body.mediaUrl, caption: message, published: true }, page.access_token)
-      : await graphPost(`/${page.id}/feed`, { message }, page.access_token);
-    return json(res, 200, { ok: true, platform: 'facebook', page: { id: page.id, name: page.name }, result: payload });
+      ? await graphPost(`/${page.id}/photos`, { url: body.mediaUrl, caption: message, published: true }, publishToken)
+      : await graphPost(`/${page.id}/feed`, { message }, publishToken);
+    return json(res, 200, { ok: true, platform: 'facebook', page: { id: page.id, name: page.name }, usedPageAccessToken: Boolean(page.access_token), result: payload });
   } catch (error) {
     return json(res, 500, { ok: false, error: error.message });
   }

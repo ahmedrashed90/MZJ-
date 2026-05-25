@@ -11,7 +11,10 @@ export default async function handler(req, res) {
         id: page.id,
         name: page.name,
         category: page.category,
-        instagram: page.instagram_business_account || null
+        instagram: page.instagram_business_account || null,
+        source: page._source || null,
+        hasPageToken: Boolean(page.access_token),
+        tokenFallback: Boolean(page._userTokenFallback)
       })) });
     } catch (pagesError) {
       // Login-test mode only has public_profile, so page permissions are expected to fail.

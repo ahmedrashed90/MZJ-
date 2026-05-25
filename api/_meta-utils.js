@@ -17,6 +17,10 @@ export function getRequiredEnv(name) {
   return value;
 }
 
+export function getDefaultPageId() {
+  return process.env.META_DEFAULT_PAGE_ID || process.env.META_PAGE_ID || '';
+}
+
 export function parseCookies(req) {
   const header = req.headers.cookie || '';
   return Object.fromEntries(header.split(';').map(part => part.trim()).filter(Boolean).map(part => {
@@ -107,22 +111,42 @@ function normalizePages(payload) {
   return [];
 }
 
+export async function getDirectPage(userToken, pageId = getDefaultPageId()) {
+  if (!pageId) return null;
+  const fields = 'id,name,category,access_token,tasks,perms,instagram_business_account{id,username,name}';
+  const page = await graphGet(`/${pageId}`, { fields }, userToken);
+  // If Meta does not expose a page access token on direct lookup, keep a user-token fallback
+  // for diagnostics and for testing page edges. Publishing may still require page.access_token.
+  return { ...page, _source: 'META_DEFAULT_PAGE_ID', _userTokenFallback: !page.access_token };
+}
+
 export async function getPages(userToken) {
   const fields = 'id,name,access_token,category,tasks,perms,instagram_business_account{id,username,name}';
   const direct = await graphGet('/me/accounts', { fields, limit: 100 }, userToken);
   let pages = normalizePages(direct);
-  if (pages.length) return pages;
+  if (pages.length) return pages.map(page => ({ ...page, _source: '/me/accounts' }));
 
   const nested = await graphGet('/me', { fields: `accounts.limit(100){${fields}}` }, userToken);
   pages = normalizePages(nested);
-  if (pages.length) return pages;
+  if (pages.length) return pages.map(page => ({ ...page, _source: 'me.accounts' }));
+
+  const envPage = await getDirectPage(userToken).catch(() => null);
+  if (envPage) return [envPage];
 
   return [];
 }
 
 export async function findPage(userToken, pageId) {
+  const selectedPageId = pageId || getDefaultPageId();
+  if (selectedPageId) {
+    try {
+      return await getDirectPage(userToken, selectedPageId);
+    } catch (_) {
+      // fallback to account list below
+    }
+  }
   const pages = await getPages(userToken);
-  const page = pages.find(item => String(item.id) === String(pageId)) || pages[0];
+  const page = pages.find(item => String(item.id) === String(selectedPageId)) || pages[0];
   if (!page) throw new Error('No Facebook Pages found for this account. Make sure your account manages a Page and granted pages permissions.');
   return page;
 }

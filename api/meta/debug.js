@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   res.status(200).json({
     ok: true,
-    deployed: 'meta-pages-raw-debug-v4',
+    deployed: 'meta-direct-page-id-v5',
     scopes,
     appIdLast4: appId ? appId.slice(-4) : null,
     graphVersion: process.env.META_GRAPH_VERSION || 'v20.0',
