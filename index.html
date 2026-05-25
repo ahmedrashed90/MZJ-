@@ -165,9 +165,11 @@
           <div class="page-title">
             <h1>النشر على السوشيال</h1>
             <p>جهز منشور واحد وانشره أو جدوله على Facebook وInstagram وTikTok من مكان واحد.</p>
+            <div id="socialMetaConnectionStatus" class="social-meta-status">جاري فحص ربط Meta...</div>
           </div>
           <div class="social-publisher-actions">
-            <button class="btn btn-light" type="button" id="socialReconnectBtn">إعادة فحص الربط</button>
+            <button class="btn btn-light" type="button" id="socialDisconnectBtn">فصل الربط</button>
+            <button class="btn btn-light" type="button" id="socialReconnectBtn">ربط / إعادة ربط Meta</button>
             <button class="btn btn-primary" type="button" id="socialOpenComposerBtn">＋ منشور جديد</button>
           </div>
         </div>
@@ -178,7 +180,7 @@
             <div>
               <h3>Facebook</h3>
               <p>نشر على صفحات فيسبوك المرتبطة.</p>
-              <span class="channel-status ready">جاهز للربط الرسمي</span>
+              <span class="channel-status ready" id="facebookChannelStatus">غير متصل</span>
             </div>
           </article>
           <article class="card social-channel-card is-ready" data-channel-card="instagram">
@@ -186,7 +188,7 @@
             <div>
               <h3>Instagram</h3>
               <p>منشورات ورييلز لحساب Business / Creator.</p>
-              <span class="channel-status ready">جاهز للربط الرسمي</span>
+              <span class="channel-status ready" id="instagramChannelStatus">غير متصل</span>
             </div>
           </article>
           <article class="card social-channel-card is-ready" data-channel-card="tiktok">
@@ -194,7 +196,7 @@
             <div>
               <h3>TikTok</h3>
               <p>رفع فيديو أو حفظ مسودة لحساب تيك توك.</p>
-              <span class="channel-status ready">جاهز للربط الرسمي</span>
+              <span class="channel-status ready">مرحلة ثانية</span>
             </div>
           </article>
         </div>
@@ -204,9 +206,14 @@
             <div class="section-toolbar small-toolbar">
               <div>
                 <h2>إنشاء منشور</h2>
-                <p>الصفحة حالياً تحفظ خطة النشر وسجلها داخل السيستم، والربط الحقيقي يتم لاحقاً من Backend آمن.</p>
+                <p>الصفحة حالياً تحفظ خطة النشر وسجلها داخل السيستم، والربط الحالي يتم عبر API آمن على Vercel بدون إظهار أي Token في المتصفح.</p>
               </div>
-              <span class="social-mode-badge">Safe Mode</span>
+              <span class="social-mode-badge" id="socialModeBadge">Meta API Mode</span>
+            </div>
+
+            <div class="form-grid two">
+              <label class="field"><span>صفحة Facebook المرتبطة</span><select id="socialMetaPageSelect"><option value="">سيتم تحميل الصفحات بعد الربط</option></select></label>
+              <label class="field"><span>حالة Instagram</span><input type="text" id="socialInstagramStatus" value="غير مفحوص" readonly></label>
             </div>
 
             <div class="social-platform-picker" aria-label="اختيار القنوات">
@@ -234,12 +241,12 @@
             </div>
 
             <div class="social-warning-box">
-              <strong>تنبيه أمان:</strong> النشر الحقيقي يحتاج ربط Meta/TikTok عبر Backend وتخزين Tokens مشفر. هذه الصفحة جاهزة للواجهة والسجل بدون تخزين أي Token في المتصفح.
+              <strong>تنبيه أمان:</strong> يتم النشر على Meta من خلال API Routes على Vercel. لا تضع App Secret أو Tokens داخل ملفات HTML أو JavaScript. TikTok محجوز للمرحلة الثانية بعد تجهيز TikTok App.
             </div>
 
             <div class="form-actions">
               <button class="btn btn-light" type="reset">مسح</button>
-              <button class="btn btn-primary" type="submit">حفظ في سجل النشر</button>
+              <button class="btn btn-primary" type="submit" id="socialSubmitBtn">نشر / حفظ</button>
             </div>
           </form>
 

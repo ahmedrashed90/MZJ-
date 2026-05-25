@@ -3929,7 +3929,10 @@ function renderCampaigns(){
   renderDatabasePage();
 }
 
+
 const SOCIAL_PUBLISH_LOG_KEY = 'mzj_social_publish_log_v1';
+let socialMetaPages = [];
+let socialMetaConnected = false;
 const socialPlatformLabels = { facebook:'Facebook', instagram:'Instagram', tiktok:'TikTok' };
 function getSocialPublishLog(){
   try{ return JSON.parse(localStorage.getItem(SOCIAL_PUBLISH_LOG_KEY) || '[]'); }catch(_){ return []; }
@@ -3938,9 +3941,61 @@ function setSocialPublishLog(items){ localStorage.setItem(SOCIAL_PUBLISH_LOG_KEY
 function selectedSocialPlatforms(){
   return [...document.querySelectorAll('input[name="platforms"]:checked')].map(input => input.value).filter(Boolean);
 }
+function appendSocialLog(item){
+  setSocialPublishLog([item, ...getSocialPublishLog()]);
+  renderSocialPublishLog();
+}
+function getSelectedSocialPage(){
+  const pageId = document.getElementById('socialMetaPageSelect')?.value || '';
+  return socialMetaPages.find(page => String(page.id) === String(pageId)) || socialMetaPages[0] || null;
+}
+function setSocialStatus(text, ok = false){
+  const el = document.getElementById('socialMetaConnectionStatus');
+  if(el){ el.textContent = text; el.classList.toggle('is-connected', !!ok); el.classList.toggle('is-error', !ok); }
+  const facebookStatus = document.getElementById('facebookChannelStatus');
+  if(facebookStatus){ facebookStatus.textContent = ok ? 'متصل' : 'غير متصل'; facebookStatus.classList.toggle('ready', !!ok); }
+  const instagramStatus = document.getElementById('instagramChannelStatus');
+  const igInput = document.getElementById('socialInstagramStatus');
+  const selectedPage = getSelectedSocialPage();
+  const hasInstagram = !!(selectedPage && selectedPage.instagram && selectedPage.instagram.id);
+  if(instagramStatus){ instagramStatus.textContent = hasInstagram ? 'متصل' : (ok ? 'اربط Instagram بالصفحة' : 'غير متصل'); }
+  if(igInput){ igInput.value = hasInstagram ? `متصل: ${selectedPage.instagram.username || selectedPage.instagram.name || selectedPage.instagram.id}` : (ok ? 'لا يوجد Instagram Business مربوط بالصفحة المختارة' : 'غير متصل'); }
+}
+function renderSocialPagesSelect(){
+  const select = document.getElementById('socialMetaPageSelect');
+  if(!select) return;
+  if(!socialMetaPages.length){
+    select.innerHTML = '<option value="">لا توجد صفحات متاحة</option>';
+    return;
+  }
+  select.innerHTML = socialMetaPages.map(page => `<option value="${escapeHtml(page.id)}">${escapeHtml(page.name || page.id)}${page.instagram ? ' · Instagram متصل' : ''}</option>`).join('');
+  setSocialStatus(`Meta متصل · ${socialMetaPages.length} صفحة متاحة`, true);
+}
+async function loadMetaConnection(){
+  const statusEl = document.getElementById('socialMetaConnectionStatus');
+  if(statusEl) statusEl.textContent = 'جاري فحص ربط Meta...';
+  try{
+    const response = await fetch('/api/meta/pages', { credentials:'include' });
+    const data = await response.json().catch(() => ({}));
+    if(!response.ok || !data.ok){
+      socialMetaConnected = false;
+      socialMetaPages = [];
+      renderSocialPagesSelect();
+      setSocialStatus(data.error || 'Meta غير متصل. اضغط ربط / إعادة ربط Meta.', false);
+      return;
+    }
+    socialMetaConnected = true;
+    socialMetaPages = Array.isArray(data.pages) ? data.pages : [];
+    renderSocialPagesSelect();
+  }catch(error){
+    socialMetaConnected = false;
+    setSocialStatus('تعذر فحص الربط: ' + (error.message || error), false);
+  }
+}
 function renderSocialPublisherPage(){
   renderSocialPreview();
   renderSocialPublishLog();
+  loadMetaConnection();
 }
 function renderSocialPreview(){
   const preview = document.getElementById('socialPostPreview');
@@ -3957,6 +4012,7 @@ function renderSocialPreview(){
 function postTypeLabel(type){ return {post:'منشور عادي',reel:'Reel / Short Video',story:'Story',draft:'مسودة فقط'}[type] || type; }
 function publishModeLabel(mode){ return {now:'نشر الآن',schedule:'جدولة',draft:'مسودة'}[mode] || mode; }
 function socialStatusLabel(item){
+  if(item.status) return item.status;
   if(item.mode === 'schedule') return 'مجدول';
   if(item.mode === 'draft' || item.type === 'draft') return 'مسودة';
   return 'جاهز للنشر';
@@ -3969,39 +4025,75 @@ function renderSocialPublishLog(){
   wrap.innerHTML = items.map(item => {
     const platforms = (item.platforms || []).map(platform => `<span>${escapeHtml(socialPlatformLabels[platform] || platform)}</span>`).join('');
     const schedule = item.mode === 'schedule' ? `${escapeHtml(item.scheduleDate || '')} ${escapeHtml(item.scheduleTime || '')}`.trim() : publishModeLabel(item.mode);
-    return `<article class="social-log-item"><div class="social-log-main"><div class="preview-platforms">${platforms || '<span>بدون قناة</span>'}</div><h3>${escapeHtml(item.title || 'منشور بدون عنوان')}</h3><p>${escapeHtml(item.caption || '').slice(0, 180)}${String(item.caption || '').length > 180 ? '...' : ''}</p><small>${escapeHtml(postTypeLabel(item.type))} · ${escapeHtml(schedule || 'غير محدد')}</small></div><div class="social-log-side"><span class="social-log-status">${escapeHtml(socialStatusLabel(item))}</span><button class="btn btn-light" type="button" data-delete-social-log="${escapeHtml(item.id)}">حذف</button></div></article>`;
+    const error = item.error ? `<p class="social-log-error">${escapeHtml(item.error)}</p>` : '';
+    return `<article class="social-log-item"><div class="social-log-main"><div class="preview-platforms">${platforms || '<span>بدون قناة</span>'}</div><h3>${escapeHtml(item.title || 'منشور بدون عنوان')}</h3><p>${escapeHtml(item.caption || '').slice(0, 180)}${String(item.caption || '').length > 180 ? '...' : ''}</p>${error}<small>${escapeHtml(postTypeLabel(item.type))} · ${escapeHtml(schedule || 'غير محدد')}</small></div><div class="social-log-side"><span class="social-log-status">${escapeHtml(socialStatusLabel(item))}</span><button class="btn btn-light" type="button" data-delete-social-log="${escapeHtml(item.id)}">حذف</button></div></article>`;
   }).join('');
+}
+async function publishToMetaPlatform(platform, item){
+  const page = getSelectedSocialPage();
+  if(!page) throw new Error('اختار صفحة Facebook بعد الربط.');
+  const endpoint = platform === 'instagram' ? '/api/publish/instagram' : '/api/publish/facebook';
+  const response = await fetch(endpoint, {
+    method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ pageId: page.id, title: item.title, caption: item.caption, mediaUrl: item.mediaUrl, link: item.link, type: item.type })
+  });
+  const data = await response.json().catch(() => ({}));
+  if(!response.ok || !data.ok) throw new Error(data.error || `فشل النشر على ${socialPlatformLabels[platform] || platform}`);
+  return data;
+}
+async function handleSocialPublishSubmit(event){
+  event.preventDefault();
+  const platforms = selectedSocialPlatforms();
+  if(!platforms.length){ showToast('اختار قناة واحدة على الأقل للنشر.'); return; }
+  const item = {
+    id: `social_${Date.now()}`,
+    title: normalizeText(document.getElementById('socialPostTitle')?.value),
+    caption: normalizeText(document.getElementById('socialPostCaption')?.value),
+    mediaUrl: normalizeText(document.getElementById('socialPostMediaUrl')?.value),
+    link: normalizeText(document.getElementById('socialPostLink')?.value),
+    type: normalizeText(document.getElementById('socialPostType')?.value) || 'post',
+    mode: normalizeText(document.getElementById('socialPublishMode')?.value) || 'now',
+    scheduleDate: normalizeText(document.getElementById('socialScheduleDate')?.value),
+    scheduleTime: normalizeText(document.getElementById('socialScheduleTime')?.value),
+    platforms,
+    createdAt: new Date().toISOString(),
+    createdBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
+  };
+  if(item.mode !== 'now' || item.type === 'draft'){
+    appendSocialLog({ ...item, status: item.mode === 'schedule' ? 'مجدول محلياً' : 'مسودة محلية' });
+    showToast('تم حفظ المنشور محلياً. الجدولة التلقائية تحتاج Scheduler في مرحلة لاحقة.');
+    return;
+  }
+  if(platforms.includes('tiktok')){
+    appendSocialLog({ ...item, status:'TikTok غير مفعل', error:'TikTok يحتاج TikTok Developer App وContent Posting API في المرحلة الثانية.' });
+    showToast('TikTok مرحلة ثانية. سيتم تنفيذ Meta فقط إن كانت مختارة.');
+  }
+  const metaPlatforms = platforms.filter(platform => platform === 'facebook' || platform === 'instagram');
+  if(metaPlatforms.length && !socialMetaConnected){
+    showToast('اربط Meta الأول من زر ربط / إعادة ربط Meta.');
+    return;
+  }
+  for(const platform of metaPlatforms){
+    try{
+      const result = await publishToMetaPlatform(platform, item);
+      appendSocialLog({ ...item, id:`${item.id}_${platform}`, platforms:[platform], status:'تم النشر', resultId: result.result?.id || '' });
+      showToast(`تم النشر على ${socialPlatformLabels[platform]}.`);
+    }catch(error){
+      appendSocialLog({ ...item, id:`${item.id}_${platform}_error`, platforms:[platform], status:'فشل النشر', error: error.message || String(error) });
+      showToast(`فشل النشر على ${socialPlatformLabels[platform]}: ${error.message || error}`);
+    }
+  }
 }
 function bindSocialPublisher(){
   const form = document.getElementById('socialPublisherForm');
   if(!form) return;
   ['input','change'].forEach(eventName => form.addEventListener(eventName, renderSocialPreview));
   form.addEventListener('reset', () => setTimeout(renderSocialPreview, 0));
-  form.addEventListener('submit', event => {
-    event.preventDefault();
-    const platforms = selectedSocialPlatforms();
-    if(!platforms.length){ showToast('اختار قناة واحدة على الأقل للنشر.'); return; }
-    const item = {
-      id: `social_${Date.now()}`,
-      title: normalizeText(document.getElementById('socialPostTitle')?.value),
-      caption: normalizeText(document.getElementById('socialPostCaption')?.value),
-      mediaUrl: normalizeText(document.getElementById('socialPostMediaUrl')?.value),
-      link: normalizeText(document.getElementById('socialPostLink')?.value),
-      type: normalizeText(document.getElementById('socialPostType')?.value) || 'post',
-      mode: normalizeText(document.getElementById('socialPublishMode')?.value) || 'now',
-      scheduleDate: normalizeText(document.getElementById('socialScheduleDate')?.value),
-      scheduleTime: normalizeText(document.getElementById('socialScheduleTime')?.value),
-      platforms,
-      createdAt: new Date().toISOString(),
-      createdBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
-    };
-    const log = [item, ...getSocialPublishLog()];
-    setSocialPublishLog(log);
-    renderSocialPublishLog();
-    showToast('تم حفظ المنشور في سجل النشر.');
-  });
+  form.addEventListener('submit', handleSocialPublishSubmit);
+  document.getElementById('socialMetaPageSelect')?.addEventListener('change', () => setSocialStatus(socialMetaConnected ? `Meta متصل · ${socialMetaPages.length} صفحة متاحة` : 'Meta غير متصل', socialMetaConnected));
   document.getElementById('socialOpenComposerBtn')?.addEventListener('click', () => { location.hash = '#social-publisher'; document.getElementById('socialPostTitle')?.focus(); });
-  document.getElementById('socialReconnectBtn')?.addEventListener('click', () => showToast('واجهة الربط جاهزة. التفعيل الحقيقي يحتاج Backend وMeta/TikTok Apps.'));
+  document.getElementById('socialReconnectBtn')?.addEventListener('click', () => { window.location.href = '/api/meta/login'; });
+  document.getElementById('socialDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/meta/logout', { credentials:'include' }); }catch(_){} socialMetaConnected=false; socialMetaPages=[]; renderSocialPagesSelect(); setSocialStatus('تم فصل ربط Meta من هذا المتصفح.', false); showToast('تم فصل الربط.'); });
   document.getElementById('clearSocialLogBtn')?.addEventListener('click', () => { setSocialPublishLog([]); renderSocialPublishLog(); showToast('تم مسح سجل النشر المحلي.'); });
   document.getElementById('socialPublishLog')?.addEventListener('click', event => {
     const btn = event.target.closest('[data-delete-social-log]');
