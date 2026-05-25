@@ -17,3 +17,7 @@ Then redeploy on Vercel.
 
 
 LOGIN_TEST_STATUS_FIX: /api/meta/pages now returns connected-limited when only public_profile is granted.
+
+
+V3 update:
+/api/meta/login now requests dynamic page scopes from META_SCOPES, defaulting to public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata. /api/meta/debug shows deployed marker meta-login-dynamic-scopes-pages-v3. /api/meta/token-debug shows granted permissions for the connected token.
