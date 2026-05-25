@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getRequiredEnv, setCookie, STATE_COOKIE } from '../_meta-utils.js';
+import { getRequiredEnv, setCookie, STATE_COOKIE } from '../../lib/meta-utils.js';
 
 const DEFAULT_SCOPES = [
   'public_profile',

@@ -1,4 +1,4 @@
-import { findPage, getUserToken, graphPost, json } from '../_meta-utils.js';
+import { findPage, getUserToken, graphPost, json } from '../../lib/meta-utils.js';
 
 async function readBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;

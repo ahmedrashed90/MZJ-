@@ -1,4 +1,4 @@
-import { json } from '../_meta-utils.js';
+import { json } from '../../lib/meta-utils.js';
 
 export default async function handler(req, res) {
   return json(res, 501, {

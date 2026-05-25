@@ -1,4 +1,4 @@
-import { getUserToken, graphGet, json } from '../_meta-utils.js';
+import { getUserToken, graphGet, json } from '../../lib/meta-utils.js';
 
 async function safe(name, fn) {
   try {

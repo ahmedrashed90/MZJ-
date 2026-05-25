@@ -1,4 +1,4 @@
-import { GRAPH_BASE, SUCCESS_REDIRECT, TOKEN_COOKIE, STATE_COOKIE, clearCookie, encryptToken, getRequiredEnv, parseCookies, setCookie } from '../_meta-utils.js';
+import { GRAPH_BASE, SUCCESS_REDIRECT, TOKEN_COOKIE, STATE_COOKIE, clearCookie, encryptToken, getRequiredEnv, parseCookies, setCookie } from '../../lib/meta-utils.js';
 
 async function fetchJson(url) {
   const response = await fetch(url.toString());

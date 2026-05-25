@@ -1,4 +1,4 @@
-import { getDefaultPageId, getUserToken, graphGet, json } from '../_meta-utils.js';
+import { getDefaultPageId, getUserToken, graphGet, json } from '../../lib/meta-utils.js';
 
 async function safe(label, fn) {
   try { return { ok: true, result: await fn() }; }

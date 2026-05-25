@@ -1,4 +1,4 @@
-import { getPages, getUserToken, graphGet, json } from '../_meta-utils.js';
+import { getPages, getUserToken, graphGet, json } from '../../lib/meta-utils.js';
 
 export default async function handler(req, res) {
   try {
