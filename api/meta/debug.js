@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   res.status(200).json({
     ok: true,
-    deployed: 'meta-direct-page-safe-fields-v6',
+    deployed: 'meta-vercel-hobby-safe-v8',
     scopes,
     appIdLast4: appId ? appId.slice(-4) : null,
     graphVersion: process.env.META_GRAPH_VERSION || 'v20.0',
