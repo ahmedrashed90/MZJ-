@@ -1,17 +1,1 @@
-MZJ Meta Secure Debug v13
-
-Changes:
-- Removed raw access_token exposure from diagnostics.
-- /api/meta/pages-debug and /api/meta/page-direct-debug now redact any token-like fields.
-- Facebook publishing logic is unchanged from the working v12 flow.
-- Vercel Hobby-safe structure is preserved: one API serverless function at /api/meta.js with rewrites.
-
-Required env values remain:
-META_APP_ID
-META_APP_SECRET
-META_REDIRECT_URI
-META_SUCCESS_REDIRECT
-SESSION_SECRET
-META_SCOPES
-META_DEFAULT_PAGE_ID=616836628446846
-META_PAGE_ACCESS_TOKEN=<secret page/system token>
+Meta secure debug v14: redacts access_token query parameters, appsecret_proof values, and Meta token-looking strings from all debug payloads. Keep META_PAGE_ACCESS_TOKEN only in Vercel Environment Variables.
