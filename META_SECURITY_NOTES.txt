@@ -1,1 +1,3 @@
-Meta secure debug v14: redacts access_token query parameters, appsecret_proof values, and Meta token-looking strings from all debug payloads. Keep META_PAGE_ACCESS_TOKEN only in Vercel Environment Variables.
+MZJ Meta Secure Debug v15
+
+Debug endpoints summarize responses only. They do not return access tokens, paging URLs, appsecret_proof, or raw feed payloads.
