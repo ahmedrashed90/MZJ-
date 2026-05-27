@@ -3965,9 +3965,9 @@ async function loadTikTokConnection(){
     socialTikTokUser = data.user || null;
     if(socialTikTokConnected){
       const name = socialTikTokUser?.display_name || socialTikTokUser?.username || 'TikTok';
-      setTikTokStatus(`متصل: ${name}`, true);
+      setTikTokStatus(`متصل Sandbox: ${name} · Draft Upload جاهز لاحقاً`, true);
     } else {
-      setTikTokStatus(data.hasTikTokClientKey ? 'جاهز للربط' : 'إعدادات ناقصة', false);
+      setTikTokStatus(data.hasTikTokClientKey ? 'جاهز للربط Sandbox' : 'إعدادات TikTok ناقصة', false);
     }
   }catch(error){
     socialTikTokConnected = false;
@@ -4105,8 +4105,8 @@ async function handleSocialPublishSubmit(event){
       appendSocialLog({ ...item, status:'TikTok غير متصل', error:'اربط TikTok أولاً من زر ربط TikTok.' });
       showToast('اربط TikTok أولاً. سيتم تنفيذ Meta فقط إن كانت مختارة.');
     } else {
-      appendSocialLog({ ...item, status:'TikTok متصل - رفع المسودة لاحقاً', error:'تم ربط TikTok بنجاح. رفع الفيديو كمسودة سيتم في خطوة Content Posting التالية.' });
-      showToast('TikTok متصل. رفع الفيديو كمسودة سيتم في الخطوة التالية.');
+      appendSocialLog({ ...item, status:'TikTok Sandbox - Draft جاهز لاحقاً', error:'TikTok مربوط في وضع Sandbox. رفع الفيديو كمسودة سيتم بعد تحديد مصدر الميديا وشكل النشر.' });
+      showToast('TikTok متصل Sandbox. رفع Draft سيتم بعد تحديد مصدر الميديا.');
     }
   }
   const metaPlatforms = platforms.filter(platform => platform === 'facebook' || platform === 'instagram');
