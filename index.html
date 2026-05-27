@@ -49,6 +49,7 @@
         <a href="#create-campaign" data-route="create-campaign"><span class="icon">➕</span><span>إنشاء حملة</span></a>
         <a href="#campaigns" data-route="campaigns"><span class="icon">📣</span><span>إدارة الحملات</span></a>
         <a href="#social-publisher" data-route="social-publisher"><span class="icon">🚀</span><span>النشر على السوشيال</span></a>
+        <a href="#publish-center" data-route="publish-center"><span class="icon">🧭</span><span>مركز النشر</span></a>
         <a href="#tasks" data-route="tasks"><span class="icon">📈</span><span>المتابعة</span></a>
         <a href="#calendar" data-route="calendar"><span class="icon">📅</span><span>التقويم</span></a>
         <a href="#stock" data-route="stock"><span class="icon">🚗</span><span>الاستوك</span></a>
@@ -272,6 +273,50 @@
             <button class="btn btn-light" type="button" id="clearSocialLogBtn">مسح السجل المحلي</button>
           </div>
           <div id="socialPublishLog" class="social-log-list"><div class="empty-state">لا توجد منشورات محفوظة حتى الآن.</div></div>
+        </div>
+      </section>
+
+      <section class="view" id="publish-center" data-title="مركز النشر">
+        <div class="page-head publish-center-head">
+          <div class="page-title">
+            <h1>مركز النشر</h1>
+            <p>صفحة مركزية تجمع منشورات الحملات والنشر اليومي والأجندات، وتعرض الكابشن والهاشتاجات والمنصات والحالة في مكان واحد.</p>
+          </div>
+          <div class="social-publisher-actions">
+            <a class="btn btn-primary" href="#social-publisher">＋ إنشاء منشور</a>
+            <a class="btn btn-light" href="#calendar">عرض التقويم</a>
+            <a class="btn btn-light" href="#campaigns">الحملات</a>
+          </div>
+        </div>
+
+        <div class="publish-center-note card">
+          <strong>معلومة تشغيل:</strong> هذه الصفحة هي المكان الذي سيجمع لاحقًا كل ما سيتم نشره من الحملات والأجندات اليومية. التقويم يعرض المواعيد فقط، أما مركز النشر فيعرض التفاصيل الكاملة مثل الكابشن، الهاشتاجات، نوع المحتوى، المنصات، والميديا.
+        </div>
+
+        <div class="publish-center-stats" id="publishCenterStats">
+          <article class="publish-center-stat"><span>كل المنشورات</span><strong>0</strong></article>
+          <article class="publish-center-stat"><span>من الحملات</span><strong>0</strong></article>
+          <article class="publish-center-stat"><span>النشر اليومي</span><strong>0</strong></article>
+          <article class="publish-center-stat"><span>منشور</span><strong>0</strong></article>
+          <article class="publish-center-stat"><span>فشل</span><strong>0</strong></article>
+        </div>
+
+        <div class="card publish-center-card">
+          <div class="section-toolbar small-toolbar">
+            <div>
+              <h2>كل عناصر النشر</h2>
+              <p>حاليًا تعرض بيانات النشر المحلي وجدول نشر الحملات. في مرحلة Firebase ستقرأ من scheduled_posts وتشمل الحملات والأجندات اليومية.</p>
+            </div>
+            <div class="publish-center-filters">
+              <span>حملات</span>
+              <span>أجندات</span>
+              <span>مجدول</span>
+              <span>منشور</span>
+            </div>
+          </div>
+          <div id="publishCenterList" class="publish-center-list">
+            <div class="empty-state">جاري تحميل مركز النشر...</div>
+          </div>
         </div>
       </section>
 

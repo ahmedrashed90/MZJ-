@@ -34,7 +34,7 @@ window.MZJ_SYSTEM_SETTINGS_COLLECTION = "system_settings";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
-const routes = ['dashboard','reports','create-campaign','campaigns','social-publisher','tasks','calendar','stock','departments','settings'];
+const routes = ['dashboard','reports','create-campaign','campaigns','social-publisher','publish-center','tasks','calendar','stock','departments','settings'];
 const pageAliases = {
   database: 'reports',
   report: 'reports',
@@ -48,6 +48,11 @@ const pageAliases = {
   publish: 'social-publisher',
   social: 'social-publisher',
   'social-publisher': 'social-publisher',
+  'publish-center': 'publish-center',
+  publish_center: 'publish-center',
+  publishing_center: 'publish-center',
+  center: 'publish-center',
+  'مركز-النشر': 'publish-center',
   'create-campaign': 'create-campaign',
   create_campaign: 'create-campaign',
   departments: 'departments',
@@ -126,6 +131,7 @@ function renderRoute(){
   if(route === 'stock') renderStock();
   if(route === 'reports') renderDatabasePage();
   if(route === 'social-publisher') renderSocialPublisherPage();
+  if(route === 'publish-center') renderPublishCenterPage();
 }
 function showMessage(id, text){ const el = document.getElementById(id); if(el) el.textContent = text || ''; }
 function escapeHtml(value){ return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
@@ -3946,6 +3952,7 @@ function selectedSocialPlatforms(){
 function appendSocialLog(item){
   setSocialPublishLog([item, ...getSocialPublishLog()]);
   renderSocialPublishLog();
+  if(getRoute() === 'publish-center') renderPublishCenterPage();
 }
 function getSelectedSocialPage(){
   const pageId = document.getElementById('socialMetaPageSelect')?.value || '';
@@ -4065,6 +4072,90 @@ function renderSocialPublishLog(){
     return `<article class="social-log-item"><div class="social-log-main"><div class="preview-platforms">${platforms || '<span>بدون قناة</span>'}</div><h3>${escapeHtml(item.title || 'منشور بدون عنوان')}</h3><p>${escapeHtml(item.caption || '').slice(0, 180)}${String(item.caption || '').length > 180 ? '...' : ''}</p>${error}<small>${escapeHtml(postTypeLabel(item.type))} · ${escapeHtml(schedule || 'غير محدد')}</small></div><div class="social-log-side"><span class="social-log-status">${escapeHtml(socialStatusLabel(item))}</span><button class="btn btn-light" type="button" data-delete-social-log="${escapeHtml(item.id)}">حذف</button></div></article>`;
   }).join('');
 }
+
+function publishCenterCampaignItems(){
+  return publishEntriesFromCampaigns().map((entry, index) => ({
+    id: `campaign_${entry.campaignId || index}_${entry.date || index}`,
+    sourceType: 'campaign',
+    sourceLabel: 'حملة',
+    title: entry.output || entry.campaignName || 'منشور حملة',
+    caption: entry.caption || entry.notes || '',
+    hashtags: extractHashtags(entry.caption || entry.notes || ''),
+    type: entry.type || entry.output || 'post',
+    platforms: entry.platform ? String(entry.platform).split(/[,+/،]/).map(v => normalizeText(v)).filter(Boolean) : [],
+    scheduleDate: entry.date || '',
+    scheduleTime: entry.time || '',
+    status: 'مجدول من حملة',
+    campaignName: entry.campaignName || '',
+    createdBy: '',
+    updatedAt: entry.date || ''
+  }));
+}
+function extractHashtags(text){
+  const tags = String(text || '').match(/#[\p{L}\p{N}_]+/gu) || [];
+  return uniqueList(tags).slice(0, 12);
+}
+function publishCenterSocialItems(){
+  return getSocialPublishLog().map(item => ({
+    ...item,
+    sourceType: item.sourceType || (item.mode === 'schedule' ? 'agenda' : 'manual'),
+    sourceLabel: item.sourceType === 'campaign' ? 'حملة' : (item.mode === 'schedule' ? 'نشر يومي' : 'نشر يدوي'),
+    hashtags: item.hashtags || extractHashtags(item.caption || ''),
+    status: socialStatusLabel(item),
+    scheduleDate: item.scheduleDate || (item.createdAt ? String(item.createdAt).slice(0,10) : ''),
+    scheduleTime: item.scheduleTime || '',
+    updatedAt: item.createdAt || ''
+  }));
+}
+function getPublishCenterItems(){
+  return [...publishCenterSocialItems(), ...publishCenterCampaignItems()].sort((a,b) => {
+    const da = `${a.scheduleDate || ''} ${a.scheduleTime || ''}`.trim() || a.updatedAt || '';
+    const db = `${b.scheduleDate || ''} ${b.scheduleTime || ''}`.trim() || b.updatedAt || '';
+    return String(db).localeCompare(String(da));
+  });
+}
+function publishCenterStatusClass(status){
+  const text = normalizeText(status);
+  if(text.includes('فشل')) return 'failed';
+  if(text.includes('تم النشر') || text.includes('منشور')) return 'published';
+  if(text.includes('مجدول')) return 'scheduled';
+  if(text.includes('مسودة')) return 'draft';
+  if(text.includes('مراجعة')) return 'review';
+  return 'ready';
+}
+function renderPublishCenterPage(){
+  const list = document.getElementById('publishCenterList');
+  const stats = document.getElementById('publishCenterStats');
+  if(!list) return;
+  const items = getPublishCenterItems();
+  const counts = {
+    total: items.length,
+    campaigns: items.filter(i => i.sourceType === 'campaign').length,
+    agenda: items.filter(i => i.sourceType === 'agenda').length,
+    published: items.filter(i => String(i.status || '').includes('تم النشر') || String(i.status || '').includes('منشور')).length,
+    failed: items.filter(i => String(i.status || '').includes('فشل')).length
+  };
+  if(stats){
+    stats.innerHTML = [
+      ['كل المنشورات', counts.total],
+      ['من الحملات', counts.campaigns],
+      ['النشر اليومي', counts.agenda],
+      ['منشور', counts.published],
+      ['فشل', counts.failed]
+    ].map(([label,value]) => `<article class="publish-center-stat"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join('');
+  }
+  if(!items.length){
+    list.innerHTML = `<div class="publish-center-empty"><h3>مركز النشر جاهز</h3><p>لسه مفيش منشورات أو أجندات محفوظة. بعد بناء مرحلة Firebase هتظهر هنا كل منشورات الحملات والنشر اليومي بتفاصيلها.</p><div class="publish-center-empty-actions"><a class="btn btn-primary" href="#social-publisher">إنشاء منشور تجريبي</a><a class="btn btn-light" href="#calendar">فتح التقويم</a></div></div>`;
+    return;
+  }
+  list.innerHTML = items.map(item => {
+    const platforms = (item.platforms || []).map(platform => `<span>${escapeHtml(socialPlatformLabels[platform] || platform)}</span>`).join('') || '<span>غير محدد</span>';
+    const hashtags = (item.hashtags || []).length ? `<div class="publish-center-tags">${item.hashtags.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}</div>` : '<div class="publish-center-tags muted">لا توجد هاشتاجات مسجلة</div>';
+    const caption = normalizeText(item.caption || item.notes || '');
+    const when = [item.scheduleDate, item.scheduleTime].filter(Boolean).join(' · ') || 'غير محدد';
+    return `<article class="publish-center-row"><div class="publish-center-row-main"><div class="publish-center-row-head"><span class="source-badge ${escapeHtml(item.sourceType || 'manual')}">${escapeHtml(item.sourceLabel || 'نشر')}</span><strong>${escapeHtml(item.title || 'منشور بدون عنوان')}</strong></div><p>${caption ? escapeHtml(caption).slice(0, 260) + (caption.length > 260 ? '...' : '') : 'لا يوجد كابشن محفوظ لهذا العنصر.'}</p>${hashtags}</div><div class="publish-center-row-meta"><div class="preview-platforms">${platforms}</div><small>${escapeHtml(postTypeLabel(item.type || 'post'))}</small><small>${escapeHtml(when)}</small><span class="publish-center-status ${publishCenterStatusClass(item.status)}">${escapeHtml(item.status || 'جاهز')}</span></div></article>`;
+  }).join('');
+}
 async function publishToMetaPlatform(platform, item){
   const page = getSelectedSocialPage();
   if(!page) throw new Error('اختار صفحة Facebook بعد الربط.');
@@ -4143,6 +4234,7 @@ function bindSocialPublisher(){
     if(!btn) return;
     setSocialPublishLog(getSocialPublishLog().filter(item => item.id !== btn.dataset.deleteSocialLog));
     renderSocialPublishLog();
+    if(getRoute() === 'publish-center') renderPublishCenterPage();
   });
 }
 
@@ -4153,6 +4245,7 @@ function loadCampaigns(){
     renderCampaigns();
     renderTasksPage();
     if(getRoute() === 'calendar') renderCalendarPage();
+    if(getRoute() === 'publish-center') renderPublishCenterPage();
     if(getRoute() === 'reports') renderDatabasePage();
     refreshOpenTaskModal();
     renderTopbarNotifications(true);
@@ -4369,7 +4462,7 @@ function renderUsersPermissions(){
   }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
 }
 function pageLabel(page){
-  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'النشر على السوشيال',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
+  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'النشر على السوشيال','publish-center':'مركز النشر',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
 }
 function loadSystemSettings(){
   if(!mainDb) return;
