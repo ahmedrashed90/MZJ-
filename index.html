@@ -170,6 +170,8 @@
           <div class="social-publisher-actions">
             <button class="btn btn-light" type="button" id="socialDisconnectBtn">فصل الربط</button>
             <button class="btn btn-light" type="button" id="socialReconnectBtn">ربط / إعادة ربط Meta</button>
+            <button class="btn btn-light" type="button" id="socialTikTokConnectBtn">ربط TikTok</button>
+            <button class="btn btn-light" type="button" id="socialTikTokDisconnectBtn">فصل TikTok</button>
             <button class="btn btn-primary" type="button" id="socialOpenComposerBtn">＋ منشور جديد</button>
           </div>
         </div>
@@ -196,7 +198,7 @@
             <div>
               <h3>TikTok</h3>
               <p>رفع فيديو أو حفظ مسودة لحساب تيك توك.</p>
-              <span class="channel-status ready">مرحلة ثانية</span>
+              <span class="channel-status" id="tiktokChannelStatus">غير متصل</span>
             </div>
           </article>
         </div>
@@ -241,7 +243,7 @@
             </div>
 
             <div class="social-warning-box">
-              <strong>تنبيه أمان:</strong> يتم النشر على Meta من خلال API Routes على Vercel. لا تضع App Secret أو Tokens داخل ملفات HTML أو JavaScript. TikTok محجوز للمرحلة الثانية بعد تجهيز TikTok App.
+              <strong>تنبيه أمان:</strong> يتم النشر على Meta من خلال API Routes على Vercel. لا تضع App Secret أو Tokens داخل ملفات HTML أو JavaScript. TikTok متاح للربط عبر Login Kit، ورفع الفيديو كمسودة يتم بعد استكمال اختبار Content Posting API.
             </div>
 
             <div class="form-actions">

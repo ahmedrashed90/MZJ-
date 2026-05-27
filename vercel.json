@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/meta/:path*", "destination": "/api/meta?path=:path*" },
+    { "source": "/api/tiktok/:path*", "destination": "/api/meta?path=tiktok/:path*" },
     { "source": "/api/publish/facebook", "destination": "/api/meta?path=publish/facebook" },
     { "source": "/api/zoho-upload", "destination": "/api/meta?path=zoho-upload" }
   ]

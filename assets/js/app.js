@@ -3933,6 +3933,8 @@ function renderCampaigns(){
 const SOCIAL_PUBLISH_LOG_KEY = 'mzj_social_publish_log_v1';
 let socialMetaPages = [];
 let socialMetaConnected = false;
+let socialTikTokConnected = false;
+let socialTikTokUser = null;
 const socialPlatformLabels = { facebook:'Facebook', instagram:'Instagram', tiktok:'TikTok' };
 function getSocialPublishLog(){
   try{ return JSON.parse(localStorage.getItem(SOCIAL_PUBLISH_LOG_KEY) || '[]'); }catch(_){ return []; }
@@ -3949,6 +3951,31 @@ function getSelectedSocialPage(){
   const pageId = document.getElementById('socialMetaPageSelect')?.value || '';
   return socialMetaPages.find(page => String(page.id) === String(pageId)) || socialMetaPages[0] || null;
 }
+function setTikTokStatus(text, ok = false){
+  const el = document.getElementById('tiktokChannelStatus');
+  if(el){ el.textContent = text; el.classList.toggle('ready', !!ok); el.classList.toggle('is-error', !ok); }
+}
+
+async function loadTikTokConnection(){
+  setTikTokStatus('جاري الفحص...', false);
+  try{
+    const response = await fetch('/api/tiktok/status', { credentials:'include' });
+    const data = await response.json().catch(() => ({}));
+    socialTikTokConnected = !!(response.ok && data.ok && data.connected);
+    socialTikTokUser = data.user || null;
+    if(socialTikTokConnected){
+      const name = socialTikTokUser?.display_name || socialTikTokUser?.username || 'TikTok';
+      setTikTokStatus(`متصل: ${name}`, true);
+    } else {
+      setTikTokStatus(data.hasTikTokClientKey ? 'جاهز للربط' : 'إعدادات ناقصة', false);
+    }
+  }catch(error){
+    socialTikTokConnected = false;
+    socialTikTokUser = null;
+    setTikTokStatus('تعذر فحص TikTok', false);
+  }
+}
+
 function setSocialStatus(text, ok = false){
   const el = document.getElementById('socialMetaConnectionStatus');
   if(el){ el.textContent = text; el.classList.toggle('is-connected', !!ok); el.classList.toggle('is-error', !ok); }
@@ -4004,6 +4031,7 @@ function renderSocialPublisherPage(){
   renderSocialPreview();
   renderSocialPublishLog();
   loadMetaConnection();
+  loadTikTokConnection();
 }
 function renderSocialPreview(){
   const preview = document.getElementById('socialPostPreview');
@@ -4073,8 +4101,13 @@ async function handleSocialPublishSubmit(event){
     return;
   }
   if(platforms.includes('tiktok')){
-    appendSocialLog({ ...item, status:'TikTok غير مفعل', error:'TikTok يحتاج TikTok Developer App وContent Posting API في المرحلة الثانية.' });
-    showToast('TikTok مرحلة ثانية. سيتم تنفيذ Meta فقط إن كانت مختارة.');
+    if(!socialTikTokConnected){
+      appendSocialLog({ ...item, status:'TikTok غير متصل', error:'اربط TikTok أولاً من زر ربط TikTok.' });
+      showToast('اربط TikTok أولاً. سيتم تنفيذ Meta فقط إن كانت مختارة.');
+    } else {
+      appendSocialLog({ ...item, status:'TikTok متصل - رفع المسودة لاحقاً', error:'تم ربط TikTok بنجاح. رفع الفيديو كمسودة سيتم في خطوة Content Posting التالية.' });
+      showToast('TikTok متصل. رفع الفيديو كمسودة سيتم في الخطوة التالية.');
+    }
   }
   const metaPlatforms = platforms.filter(platform => platform === 'facebook' || platform === 'instagram');
   if(metaPlatforms.length && !socialMetaConnected){
@@ -4101,6 +4134,8 @@ function bindSocialPublisher(){
   document.getElementById('socialMetaPageSelect')?.addEventListener('change', () => setSocialStatus(socialMetaConnected ? `Meta متصل · ${socialMetaPages.length} صفحة متاحة` : 'Meta غير متصل', socialMetaConnected));
   document.getElementById('socialOpenComposerBtn')?.addEventListener('click', () => { location.hash = '#social-publisher'; document.getElementById('socialPostTitle')?.focus(); });
   document.getElementById('socialReconnectBtn')?.addEventListener('click', () => { window.location.href = '/api/meta/login'; });
+  document.getElementById('socialTikTokConnectBtn')?.addEventListener('click', () => { window.location.href = '/api/tiktok/login'; });
+  document.getElementById('socialTikTokDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/tiktok/logout', { credentials:'include' }); }catch(_){} socialTikTokConnected=false; socialTikTokUser=null; setTikTokStatus('تم الفصل', false); showToast('تم فصل TikTok.'); });
   document.getElementById('socialDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/meta/logout', { credentials:'include' }); }catch(_){} socialMetaConnected=false; socialMetaPages=[]; renderSocialPagesSelect(); setSocialStatus('تم فصل ربط Meta من هذا المتصفح.', false); showToast('تم فصل الربط.'); });
   document.getElementById('clearSocialLogBtn')?.addEventListener('click', () => { setSocialPublishLog([]); renderSocialPublishLog(); showToast('تم مسح سجل النشر المحلي.'); });
   document.getElementById('socialPublishLog')?.addEventListener('click', event => {
