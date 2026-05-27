@@ -1,0 +1,6 @@
+MZJ v22 - Publish Center completion workflow
+- Added "استكمال البيانات" for imported schedule items with missing fields.
+- The same Publish Center composer now opens in edit/completion mode.
+- Missing caption/media/platform/date/time are validated before completion.
+- Updated items are saved back to local publish center data and calendar preview.
+- API deployed marker: meta-publish-center-complete-v22.

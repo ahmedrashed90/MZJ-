@@ -4249,6 +4249,7 @@ function renderSocialPublishLog(){
 const publishContentTypeLabels = { reel:'Reel / فيديو', story:'Story', carousel:'صور متعددة / Carousel', image:'صورة واحدة', post:'منشور عادي', draft:'مسودة فقط' };
 const publishSourceLabels = { campaign:'حملة', agenda:'نشر يومي', manual:'نشر يدوي' };
 const publishStatusLabels = { draft:'مسودة', review:'بانتظار مراجعة', scheduled:'مجدول', published:'منشور', failed:'فشل' };
+let publishComposerEditingId = null;
 const publishContentRules = {
   reel: { text:'Reel / فيديو: يحتاج فيديو رأسي. مناسب لـ Facebook + Instagram + TikTok Draft.', allowed:['facebook','instagram','tiktok'] },
   story: { text:'Story: يحتاج صورة أو فيديو رأسي. مناسب حاليًا لـ Instagram، ويمكن تفعيل Facebook لاحقًا.', allowed:['instagram'] },
@@ -4256,23 +4257,62 @@ const publishContentRules = {
   image: { text:'صورة واحدة: مناسب لـ Facebook + Instagram. TikTok Photo لاحقًا.', allowed:['facebook','instagram'] }
 };
 function todayIsoDate(){ const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function publishItemMissingFields(item){
+  const missing = [];
+  if(!normalizeText(item?.scheduleDate)) missing.push('تاريخ النشر');
+  if(!normalizeText(item?.scheduleTime)) missing.push('وقت النشر');
+  if(!normalizeText(item?.type || item?.contentType)) missing.push('نوع المحتوى');
+  if(!Array.isArray(item?.platforms) || !item.platforms.length) missing.push('المنصات');
+  if(!normalizeText(item?.caption)) missing.push('الكابشن');
+  const mediaCount = Array.isArray(item?.mediaItems) ? item.mediaItems.filter(m => normalizeText(m?.url)).length : (normalizeText(item?.mediaUrl) ? 1 : 0);
+  if(!mediaCount) missing.push('الميديا');
+  return missing;
+}
+function publishStatusKeyFromLabel(status){
+  const text = normalizeText(status);
+  if(text.includes('مجدول')) return 'scheduled';
+  if(text.includes('مراجعة')) return 'review';
+  if(text.includes('منشور')) return 'published';
+  if(text.includes('فشل')) return 'failed';
+  return 'draft';
+}
 function openPublishComposer(defaults = {}){
   const modal = document.getElementById('publishComposerModal');
   const form = document.getElementById('publishCenterComposerForm');
   if(!modal || !form) return;
+  const itemId = typeof defaults === 'string' ? defaults : (defaults && defaults.id && getSocialPublishLog().some(item => String(item.id) === String(defaults.id)) ? defaults.id : null);
+  const item = itemId ? getSocialPublishLog().find(entry => String(entry.id) === String(itemId)) : (typeof defaults === 'object' ? defaults : {});
+  if(itemId && !item){ showToast('تعذر العثور على عنصر النشر المطلوب.'); return; }
+  publishComposerEditingId = itemId || null;
   form.reset();
-  document.getElementById('pcSourceType').value = defaults.sourceType || 'agenda';
-  document.getElementById('pcContentType').value = defaults.type || 'reel';
-  document.getElementById('pcStatus').value = defaults.status || 'draft';
-  document.getElementById('pcDate').value = defaults.scheduleDate || todayIsoDate();
-  document.getElementById('pcTime').value = defaults.scheduleTime || '21:00';
-  document.getElementById('pcTitle').value = defaults.title || '';
+  const modalTitle = document.getElementById('publishComposerTitle');
+  const headText = document.querySelector('.publish-composer-head p');
+  if(modalTitle) modalTitle.textContent = publishComposerEditingId ? 'استكمال بيانات المنشور' : 'إنشاء منشور جديد';
+  if(headText) headText.textContent = publishComposerEditingId ? 'كمّل البيانات الناقصة مثل الكابشن والميديا والمنصات، ثم احفظ العنصر ليظهر جاهزًا داخل مركز النشر والتقويم.' : 'حدد نوع المنشور والمحتوى والمنصات، واحفظه مؤقتًا داخل مركز النشر والتقويم. الربط مع Firebase سيتم في المرحلة القادمة.';
+  document.getElementById('pcSourceType').value = item?.sourceType || 'agenda';
+  document.getElementById('pcContentType').value = item?.type || item?.contentType || 'reel';
+  document.getElementById('pcStatus').value = item?.status ? publishStatusKeyFromLabel(item.status) : (item?.status || 'draft');
+  document.getElementById('pcDate').value = item?.scheduleDate || todayIsoDate();
+  document.getElementById('pcTime').value = item?.scheduleTime || '21:00';
+  document.getElementById('pcTitle').value = item?.title || '';
+  document.getElementById('pcCaption').value = item?.caption || '';
+  document.getElementById('pcHashtags').value = Array.isArray(item?.hashtags) ? item.hashtags.join(' ') : '';
+  document.getElementById('pcLink').value = item?.link || '';
+  document.getElementById('pcLocation').value = item?.location || '';
+  document.getElementById('pcNotes').value = item?.notes || '';
+  const mediaLines = Array.isArray(item?.mediaItems) ? item.mediaItems.map(m => m?.url).filter(Boolean) : (item?.mediaUrl ? [item.mediaUrl] : []);
+  document.getElementById('pcMediaUrls').value = mediaLines.join('\n');
   updatePublishComposerType();
+  const platforms = Array.isArray(item?.platforms) ? item.platforms : [];
+  platforms.forEach(platform => {
+    const input = document.querySelector(`input[name="pcPlatforms"][value="${platform}"]`);
+    if(input && !input.disabled) input.checked = true;
+  });
   renderPublishComposerPreview();
   modal.classList.add('show');
   modal.setAttribute('aria-hidden','false');
   document.body.classList.add('modal-open');
-  setTimeout(() => document.getElementById('pcTitle')?.focus(), 80);
+  setTimeout(() => document.getElementById(publishComposerEditingId ? 'pcCaption' : 'pcTitle')?.focus(), 80);
 }
 function closePublishComposer(){
   const modal = document.getElementById('publishComposerModal');
@@ -4280,6 +4320,7 @@ function closePublishComposer(){
   modal.classList.remove('show');
   modal.setAttribute('aria-hidden','true');
   document.body.classList.remove('modal-open');
+  publishComposerEditingId = null;
 }
 function selectedPublishCenterPlatforms(){
   return [...document.querySelectorAll('input[name="pcPlatforms"]:checked')].map(input => input.value).filter(Boolean);
@@ -4327,12 +4368,16 @@ function handlePublishCenterComposerSubmit(event){
   const title = normalizeText(document.getElementById('pcTitle')?.value);
   const caption = normalizeText(document.getElementById('pcCaption')?.value);
   if(!title){ showToast('اكتب اسم المنشور أو الحملة.'); document.getElementById('pcTitle')?.focus(); return; }
+  if(!caption){ showToast('اكتب الكابشن قبل حفظ العنصر.'); document.getElementById('pcCaption')?.focus(); return; }
   const mediaItems = mediaLinesFromComposer();
   if(['reel','story','carousel','image'].includes(type) && !mediaItems.length){ showToast('أضف رابط ميديا واحد على الأقل مؤقتًا.'); document.getElementById('pcMediaUrls')?.focus(); return; }
   if(type === 'carousel' && mediaItems.length < 2){ showToast('Carousel يحتاج صورتين على الأقل.'); document.getElementById('pcMediaUrls')?.focus(); return; }
   const statusKey = normalizeText(document.getElementById('pcStatus')?.value) || 'draft';
+  const existingItems = getSocialPublishLog();
+  const previous = publishComposerEditingId ? existingItems.find(item => String(item.id) === String(publishComposerEditingId)) : null;
   const item = {
-    id: `pc_${Date.now()}`,
+    ...(previous || {}),
+    id: previous?.id || `pc_${Date.now()}`,
     sourceType,
     sourceLabel: publishSourceLabels[sourceType] || 'نشر',
     title,
@@ -4350,19 +4395,37 @@ function handlePublishCenterComposerSubmit(event){
     link: normalizeText(document.getElementById('pcLink')?.value),
     location: normalizeText(document.getElementById('pcLocation')?.value),
     notes: normalizeText(document.getElementById('pcNotes')?.value),
-    createdAt: new Date().toISOString(),
-    createdBy: getCurrentUser()?.name || getCurrentUser()?.email || ''
+    importStatus: 'ready',
+    missingFields: [],
+    createdAt: previous?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdBy: previous?.createdBy || getCurrentUser()?.name || getCurrentUser()?.email || ''
   };
-  appendSocialLog(item);
+  const missingAfterSave = publishItemMissingFields(item);
+  if(missingAfterSave.length){
+    item.importStatus = 'needs_completion';
+    item.missingFields = missingAfterSave;
+    item.status = 'يحتاج استكمال';
+    item.notes = item.notes || `ناقص: ${missingAfterSave.join('، ')}`;
+  }
+  if(previous){
+    setSocialPublishLog(existingItems.map(entry => String(entry.id) === String(previous.id) ? item : entry));
+    renderSocialPublishLog();
+  } else {
+    appendSocialLog(item);
+  }
   renderCalendarPage();
+  renderPublishCenterPage();
   closePublishComposer();
-  showToast('تم حفظ المنشور في مركز النشر والتقويم مؤقتًا.');
+  showToast(previous ? 'تم استكمال بيانات المنشور وتحديثه.' : 'تم حفظ المنشور في مركز النشر والتقويم مؤقتًا.');
 }
 function bindPublishCenter(){
   document.getElementById('openPublishCenterComposerBtn')?.addEventListener('click', () => openPublishComposer());
   document.getElementById('importPublishScheduleBtn')?.addEventListener('click', () => { const input = document.getElementById('publishScheduleImportInput'); if(input){ input.value = ''; input.click(); } });
   document.getElementById('publishScheduleImportInput')?.addEventListener('change', event => importPublishScheduleFile(event.target.files?.[0] || null));
   document.getElementById('publishCenterList')?.addEventListener('click', event => {
+    const editBtn = event.target.closest('[data-complete-publish-item], [data-edit-publish-item]');
+    if(editBtn){ openPublishComposer(editBtn.dataset.completePublishItem || editBtn.dataset.editPublishItem); return; }
     const btn = event.target.closest('[data-open-publish-composer]');
     if(btn) openPublishComposer();
   });
@@ -4459,7 +4522,10 @@ function renderPublishCenterPage(){
     const when = [item.scheduleDate, item.scheduleTime].filter(Boolean).join(' · ') || 'غير محدد';
     const mediaCount = Array.isArray(item.mediaItems) ? item.mediaItems.length : (item.mediaUrl ? 1 : 0);
     const missingHtml = Array.isArray(item.missingFields) && item.missingFields.length ? `<div class="publish-missing-fields">ناقص: ${item.missingFields.map(field => `<span>${escapeHtml(field)}</span>`).join('')}</div>` : '';
-    return `<article class="publish-center-row"><div class="publish-center-row-main"><div class="publish-center-row-head"><span class="source-badge ${escapeHtml(item.sourceType || 'manual')}">${escapeHtml(item.sourceLabel || 'نشر')}</span><strong>${escapeHtml(item.title || 'منشور بدون عنوان')}</strong></div><p>${caption ? escapeHtml(caption).slice(0, 260) + (caption.length > 260 ? '...' : '') : 'لا يوجد كابشن محفوظ لهذا العنصر.'}</p>${hashtags}${missingHtml}</div><div class="publish-center-row-meta"><div class="preview-platforms">${platforms}</div><small>${escapeHtml(postTypeLabel(item.type || 'post'))}</small><small>${escapeHtml(when)}</small><small>${mediaCount} ميديا${item.location ? ` · ${escapeHtml(item.location)}` : ''}</small><span class="publish-center-status ${publishCenterStatusClass(item.status)}">${escapeHtml(item.status || 'جاهز')}</span></div></article>`;
+    const isEditable = !String(item.id || '').startsWith('campaign_');
+    const needsCompletion = Array.isArray(item.missingFields) && item.missingFields.length;
+    const actionsHtml = isEditable ? `<div class="publish-center-actions"><button class="btn btn-primary btn-sm" type="button" data-complete-publish-item="${escapeHtml(item.id)}">${needsCompletion ? 'استكمال البيانات' : 'تعديل البيانات'}</button></div>` : '<div class="publish-center-actions"><span class="muted">عنصر حملة من قاعدة البيانات</span></div>';
+    return `<article class="publish-center-row"><div class="publish-center-row-main"><div class="publish-center-row-head"><span class="source-badge ${escapeHtml(item.sourceType || 'manual')}">${escapeHtml(item.sourceLabel || 'نشر')}</span><strong>${escapeHtml(item.title || 'منشور بدون عنوان')}</strong></div><p>${caption ? escapeHtml(caption).slice(0, 260) + (caption.length > 260 ? '...' : '') : 'لا يوجد كابشن محفوظ لهذا العنصر.'}</p>${hashtags}${missingHtml}${actionsHtml}</div><div class="publish-center-row-meta"><div class="preview-platforms">${platforms}</div><small>${escapeHtml(postTypeLabel(item.type || 'post'))}</small><small>${escapeHtml(when)}</small><small>${mediaCount} ميديا${item.location ? ` · ${escapeHtml(item.location)}` : ''}</small><span class="publish-center-status ${publishCenterStatusClass(item.status)}">${escapeHtml(item.status || 'جاهز')}</span></div></article>`;
   }).join('');
 }
 async function publishToMetaPlatform(platform, item){

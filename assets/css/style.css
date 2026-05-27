@@ -1947,3 +1947,28 @@ body:has(.publish-composer-modal.show) .topbar{
   color:#991b1b;
 }
 .modal-head-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* v22: completion workflow inside Publish Center */
+.publish-center-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:12px;
+}
+.publish-center-actions .btn-sm{
+  padding:7px 11px;
+  border-radius:12px;
+  font-size:.82rem;
+}
+.publish-center-actions .muted{
+  color:var(--muted);
+  font-size:.82rem;
+  font-weight:800;
+}
+.publish-center-row:has(.publish-missing-fields){
+  border-color:#fecaca;
+  background:linear-gradient(180deg,#fffafa,#fff7ed);
+}
+.publish-composer-dialog:has(#publishComposerTitle){
+  scroll-behavior:smooth;
+}
