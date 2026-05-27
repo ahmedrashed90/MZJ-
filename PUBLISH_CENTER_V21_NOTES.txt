@@ -1,0 +1,10 @@
+MZJ Publish Center v21
+
+Changes:
+- Added publish schedule export from Campaign Data modal.
+- Added Publish Center import button for Excel/CSV schedule files.
+- Imported rows are converted to local Publish Center items and displayed in Calendar.
+- Missing fields are detected: caption, media, platforms, content type, publish date.
+- Items with missing data are marked as "يحتاج استكمال".
+- Fixed Publish Center composer modal layering so the top header no longer appears above the popup.
+- Kept single Vercel serverless function: api/meta.js.

@@ -3788,7 +3788,7 @@ function openCampaignDataModal(campaignId){
   const modal = document.getElementById('campaignModal');
   const content = document.getElementById('campaignModalContent');
   if(!campaign || !modal || !content) return;
-  content.innerHTML = `<div class="task-modal-head"><div><span>عرض بيانات الحملة</span><h2>${escapeHtml(campaignNameText(campaign) || 'حملة')}</h2><p>${escapeHtml(campaignCodeText(campaign))}</p></div><div class="modal-head-actions"><button type="button" class="mini-btn pdf-export-btn" data-export-campaign-pdf="${escapeHtml(campaign.id)}">تصدير PDF</button><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div></div>
+  content.innerHTML = `<div class="task-modal-head"><div><span>عرض بيانات الحملة</span><h2>${escapeHtml(campaignNameText(campaign) || 'حملة')}</h2><p>${escapeHtml(campaignCodeText(campaign))}</p></div><div class="modal-head-actions"><button type="button" class="mini-btn" data-export-campaign-schedule="${escapeHtml(campaign.id)}">تصدير جدول النشر</button><button type="button" class="mini-btn pdf-export-btn" data-export-campaign-pdf="${escapeHtml(campaign.id)}">تصدير PDF</button><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div></div>
     <div class="modal-section"><div class="modal-section-title"><h3>بيانات الحملة كاملة</h3></div>${campaignFullDataGrid(campaign)}</div>
     <div class="modal-section"><div class="modal-section-title"><h3>كل المطلوب من التاسكات واليوزرات</h3></div>${buildTaskSummaryList(campaign)}</div>
     <div class="modal-section"><div class="modal-section-title"><h3>عرض جدول النشر</h3></div>${renderScheduleSummary(campaign)}</div>
@@ -3814,6 +3814,170 @@ function exportCampaignDataPdf(campaignId){
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
+}
+
+function publishContentTypeFromText(value){
+  const text = normalizeText(value || '').toLowerCase();
+  if(!text) return '';
+  if(/reel|ريل|video|فيديو|موشن|motion/.test(text)) return 'reel';
+  if(/story|ستوري|قصة/.test(text)) return 'story';
+  if(/carousel|album|ألبوم|البوم|صور متعددة|كاروسيل/.test(text)) return 'carousel';
+  if(/image|photo|صورة|بوست/.test(text)) return 'image';
+  return text;
+}
+function publishScheduleExportRows(campaign){
+  const list = Array.isArray(campaign.publishSchedule) ? campaign.publishSchedule : [];
+  return list.map((item, index) => {
+    const platforms = Array.isArray(item.platforms) ? item.platforms.join(', ') : (item.platform || '');
+    const output = item.output || item.type || item.contentType || '';
+    const campaignName = campaignNameText(campaign) || '';
+    return {
+      'sourceType': 'campaign',
+      'campaignCode': campaignCodeText(campaign) || '',
+      'campaignName': campaignName,
+      'rowNumber': index + 1,
+      'publishDate': item.date || '',
+      'publishTime': item.time || '',
+      'contentType': publishContentTypeFromText(output) || output || '',
+      'output': output || '',
+      'platforms': platforms,
+      'title': [campaignName, output].filter(Boolean).join(' - '),
+      'caption': '',
+      'hashtags': '',
+      'mediaUrls': '',
+      'link': '',
+      'location': '',
+      'notes': item.note || '',
+      'status': 'needs_completion'
+    };
+  });
+}
+function exportCampaignPublishScheduleFile(campaignId){
+  const campaign = campaigns.find(item => item.id === campaignId);
+  if(!campaign) return;
+  const rows = publishScheduleExportRows(campaign);
+  if(!rows.length){ showToast('لا يوجد جدول نشر للتصدير في هذه الحملة.'); return; }
+  if(!window.XLSX){ showToast('مكتبة Excel لم يتم تحميلها.'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'publish_schedule');
+  const fileName = `${(campaignCodeText(campaign) || 'campaign').replace(/[\\/:*?"<>|\s]+/g,'_')}_publish_schedule.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  showToast('تم تصدير جدول النشر. ارفعه من مركز النشر لاستكمال البيانات الناقصة.');
+}
+function normalizeImportHeader(value){
+  return String(value || '').trim().replace(/^\uFEFF/, '').toLowerCase();
+}
+function firstImportValue(row, keys){
+  const map = Object.keys(row || {}).reduce((acc, key) => { acc[normalizeImportHeader(key)] = row[key]; return acc; }, {});
+  for(const key of keys){
+    const v = map[normalizeImportHeader(key)];
+    if(v !== undefined && v !== null && String(v).trim() !== '') return v;
+  }
+  return '';
+}
+function excelDateToIso(value){
+  if(!value) return '';
+  if(value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0,10);
+  if(typeof value === 'number' && window.XLSX){
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if(parsed && parsed.y) return `${parsed.y}-${String(parsed.m).padStart(2,'0')}-${String(parsed.d).padStart(2,'0')}`;
+  }
+  const text = String(value).trim();
+  if(/^\d{4}-\d{1,2}-\d{1,2}/.test(text)){
+    const [y,m,d] = text.split(/[T\s]/)[0].split('-');
+    return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  }
+  const date = new Date(text);
+  if(!Number.isNaN(date.getTime())) return date.toISOString().slice(0,10);
+  return text;
+}
+function normalizeImportPlatforms(value){
+  const raw = Array.isArray(value) ? value.join(',') : String(value || '');
+  const parts = raw.split(/[,،+\/|]/).map(v => normalizeText(v).toLowerCase()).filter(Boolean);
+  const result = [];
+  parts.forEach(part => {
+    if(/facebook|فيس|فيسبوك|fb/.test(part)) result.push('facebook');
+    else if(/instagram|انستا|إنستا|ig/.test(part)) result.push('instagram');
+    else if(/tiktok|تيك|tik/.test(part)) result.push('tiktok');
+  });
+  return uniqueList(result);
+}
+function statusFromImportRow(row, missing){
+  const raw = normalizeText(firstImportValue(row, ['status','الحالة']));
+  if(missing.length) return 'يحتاج استكمال';
+  if(/scheduled|مجدول/.test(raw)) return 'مجدول';
+  if(/review|مراجعة/.test(raw)) return 'بانتظار مراجعة';
+  if(/published|منشور/.test(raw)) return 'منشور';
+  return 'مسودة مستوردة';
+}
+function publishItemFromScheduleRow(row, index){
+  const sourceType = normalizeText(firstImportValue(row, ['sourceType','source','مصدر','نوع المصدر'])) || 'campaign';
+  const title = normalizeText(firstImportValue(row, ['title','اسم المنشور','اسم الحملة','campaignName','campaign_name'])) || `منشور مستورد ${index + 1}`;
+  const caption = normalizeText(firstImportValue(row, ['caption','الكابشن','نص المنشور','postText']));
+  const hashtagsText = normalizeText(firstImportValue(row, ['hashtags','هاشتاجات','الهاشتاجات']));
+  const date = excelDateToIso(firstImportValue(row, ['publishDate','date','تاريخ النشر','التاريخ']));
+  const time = normalizeText(firstImportValue(row, ['publishTime','time','وقت النشر','الوقت'])) || '21:00';
+  const contentTypeRaw = normalizeText(firstImportValue(row, ['contentType','type','نوع المحتوى','output','المخرج'])) || 'reel';
+  const type = publishContentTypeFromText(contentTypeRaw) || 'reel';
+  const platforms = normalizeImportPlatforms(firstImportValue(row, ['platforms','platform','المنصات','المنصة']));
+  const mediaText = String(firstImportValue(row, ['mediaUrls','mediaUrl','media','روابط الميديا','رابط الميديا']) || '');
+  const mediaItems = mediaText.split(/\n|\r|;/).map(normalizeText).filter(Boolean).map(url => ({ url, type: /\.(mp4|mov|webm)(\?|$)/i.test(url) ? 'video' : 'image' }));
+  const missing = [];
+  if(!date) missing.push('تاريخ النشر');
+  if(!type) missing.push('نوع المحتوى');
+  if(!platforms.length) missing.push('المنصات');
+  if(!caption) missing.push('الكابشن');
+  if(!mediaItems.length) missing.push('الميديا');
+  const status = statusFromImportRow(row, missing);
+  return {
+    id: `import_${Date.now()}_${index}`,
+    sourceType: sourceType === 'agenda' ? 'agenda' : (sourceType === 'manual' ? 'manual' : 'campaign'),
+    sourceLabel: sourceType === 'agenda' ? 'أجندة' : (sourceType === 'manual' ? 'نشر يدوي' : 'حملة'),
+    title,
+    caption,
+    hashtags: extractHashtags(`${hashtagsText} ${caption}`),
+    platforms,
+    type,
+    contentType: type,
+    mode: 'schedule',
+    status,
+    importStatus: missing.length ? 'needs_completion' : 'ready',
+    missingFields: missing,
+    scheduleDate: date,
+    scheduleTime: time,
+    mediaUrl: mediaItems[0]?.url || '',
+    mediaItems,
+    link: normalizeText(firstImportValue(row, ['link','url','رابط الموقع','Landing Page'])),
+    location: normalizeText(firstImportValue(row, ['location','الموقع','Location'])),
+    notes: normalizeText(firstImportValue(row, ['notes','note','ملاحظات','ملاحظة'])) || (missing.length ? `ناقص: ${missing.join('، ')}` : ''),
+    campaignCode: normalizeText(firstImportValue(row, ['campaignCode','كود الحملة'])),
+    campaignName: normalizeText(firstImportValue(row, ['campaignName','اسم الحملة'])),
+    createdAt: new Date().toISOString(),
+    createdBy: getCurrentUser()?.name || getCurrentUser()?.email || 'استيراد جدول نشر'
+  };
+}
+async function importPublishScheduleFile(file){
+  if(!file) return;
+  if(!window.XLSX){ showToast('مكتبة Excel لم يتم تحميلها.'); return; }
+  try{
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type:'array', cellDates:true });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+    if(!rows.length){ showToast('ملف جدول النشر فارغ.'); return; }
+    const imported = rows.map((row, index) => publishItemFromScheduleRow(row, index));
+    setSocialPublishLog([...imported, ...getSocialPublishLog()]);
+    renderSocialPublishLog();
+    renderCalendarPage();
+    renderPublishCenterPage();
+    const ready = imported.filter(item => item.importStatus === 'ready').length;
+    const missing = imported.length - ready;
+    showToast(`تم استيراد ${imported.length} منشور. جاهز: ${ready} · يحتاج استكمال: ${missing}`);
+  }catch(error){
+    console.error(error);
+    showToast('تعذر قراءة ملف جدول النشر. تأكد من أن الملف Excel أو CSV صحيح.');
+  }
 }
 function renderScheduleSummary(campaign){
   const list = Array.isArray(campaign.publishSchedule) ? campaign.publishSchedule : [];
@@ -4196,6 +4360,8 @@ function handlePublishCenterComposerSubmit(event){
 }
 function bindPublishCenter(){
   document.getElementById('openPublishCenterComposerBtn')?.addEventListener('click', () => openPublishComposer());
+  document.getElementById('importPublishScheduleBtn')?.addEventListener('click', () => { const input = document.getElementById('publishScheduleImportInput'); if(input){ input.value = ''; input.click(); } });
+  document.getElementById('publishScheduleImportInput')?.addEventListener('change', event => importPublishScheduleFile(event.target.files?.[0] || null));
   document.getElementById('publishCenterList')?.addEventListener('click', event => {
     const btn = event.target.closest('[data-open-publish-composer]');
     if(btn) openPublishComposer();
@@ -4258,6 +4424,7 @@ function publishCenterStatusClass(status){
   if(text.includes('مجدول')) return 'scheduled';
   if(text.includes('مسودة')) return 'draft';
   if(text.includes('مراجعة')) return 'review';
+  if(text.includes('استكمال') || text.includes('ناقص')) return 'needs';
   return 'ready';
 }
 function renderPublishCenterPage(){
@@ -4291,7 +4458,8 @@ function renderPublishCenterPage(){
     const caption = normalizeText(item.caption || item.notes || '');
     const when = [item.scheduleDate, item.scheduleTime].filter(Boolean).join(' · ') || 'غير محدد';
     const mediaCount = Array.isArray(item.mediaItems) ? item.mediaItems.length : (item.mediaUrl ? 1 : 0);
-    return `<article class="publish-center-row"><div class="publish-center-row-main"><div class="publish-center-row-head"><span class="source-badge ${escapeHtml(item.sourceType || 'manual')}">${escapeHtml(item.sourceLabel || 'نشر')}</span><strong>${escapeHtml(item.title || 'منشور بدون عنوان')}</strong></div><p>${caption ? escapeHtml(caption).slice(0, 260) + (caption.length > 260 ? '...' : '') : 'لا يوجد كابشن محفوظ لهذا العنصر.'}</p>${hashtags}</div><div class="publish-center-row-meta"><div class="preview-platforms">${platforms}</div><small>${escapeHtml(postTypeLabel(item.type || 'post'))}</small><small>${escapeHtml(when)}</small><small>${mediaCount} ميديا${item.location ? ` · ${escapeHtml(item.location)}` : ''}</small><span class="publish-center-status ${publishCenterStatusClass(item.status)}">${escapeHtml(item.status || 'جاهز')}</span></div></article>`;
+    const missingHtml = Array.isArray(item.missingFields) && item.missingFields.length ? `<div class="publish-missing-fields">ناقص: ${item.missingFields.map(field => `<span>${escapeHtml(field)}</span>`).join('')}</div>` : '';
+    return `<article class="publish-center-row"><div class="publish-center-row-main"><div class="publish-center-row-head"><span class="source-badge ${escapeHtml(item.sourceType || 'manual')}">${escapeHtml(item.sourceLabel || 'نشر')}</span><strong>${escapeHtml(item.title || 'منشور بدون عنوان')}</strong></div><p>${caption ? escapeHtml(caption).slice(0, 260) + (caption.length > 260 ? '...' : '') : 'لا يوجد كابشن محفوظ لهذا العنصر.'}</p>${hashtags}${missingHtml}</div><div class="publish-center-row-meta"><div class="preview-platforms">${platforms}</div><small>${escapeHtml(postTypeLabel(item.type || 'post'))}</small><small>${escapeHtml(when)}</small><small>${mediaCount} ميديا${item.location ? ` · ${escapeHtml(item.location)}` : ''}</small><span class="publish-center-status ${publishCenterStatusClass(item.status)}">${escapeHtml(item.status || 'جاهز')}</span></div></article>`;
   }).join('');
 }
 async function publishToMetaPlatform(platform, item){
@@ -4884,6 +5052,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if(viewOwnerTasks){ openOwnerTasksModal(viewOwnerTasks.dataset.viewOwnerTasks, viewOwnerTasks.dataset.ownerKey || ''); return; }
     const exportPdf = event.target.closest('[data-export-campaign-pdf]');
     if(exportPdf){ exportCampaignDataPdf(exportPdf.dataset.exportCampaignPdf); return; }
+    const exportSchedule = event.target.closest('[data-export-campaign-schedule]');
+    if(exportSchedule){ exportCampaignPublishScheduleFile(exportSchedule.dataset.exportCampaignSchedule); return; }
     const viewData = event.target.closest('[data-view-campaign-data]');
     if(viewData){ openCampaignDataModal(viewData.dataset.viewCampaignData); return; }
     const editCampaign = event.target.closest('[data-edit-campaign]');
