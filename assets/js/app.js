@@ -3250,7 +3250,15 @@ function renderCalendarPage(){
   const first = new Date(year, month, 1);
   const last = new Date(year, month + 1, 0);
   if(title) title.textContent = first.toLocaleDateString('ar-SA', { month:'long', year:'numeric' });
-  const entries = publishEntriesFromCampaigns();
+  const campaignEntries = publishEntriesFromCampaigns().map(entry => ({...entry, calendarTitle: entry.output || 'حملة', calendarMeta: [entry.platform, entry.time, entry.campaignName].filter(Boolean).join(' · ')}));
+  const centerEntries = publishCenterSocialItems().filter(item => item.scheduleDate).map(item => ({
+    ...item,
+    date: item.scheduleDate,
+    time: item.scheduleTime,
+    calendarTitle: `${postTypeLabel(item.type || 'post')} · ${item.sourceLabel || 'نشر'}`,
+    calendarMeta: [(item.platforms || []).map(p => socialPlatformLabels[p] || p).join(' + '), item.scheduleTime, item.status].filter(Boolean).join(' · ')
+  }));
+  const entries = [...campaignEntries, ...centerEntries];
   const byDate = entries.reduce((acc, entry) => { (acc[entry.date] ||= []).push(entry); return acc; }, {});
   const cells = [];
   for(let i = 0; i < first.getDay(); i += 1) cells.push('<article class="calendar-day empty"></article>');
@@ -3258,7 +3266,7 @@ function renderCalendarPage(){
     const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const date = new Date(year, month, d);
     const dayEntries = byDate[iso] || [];
-    cells.push(`<article class="calendar-day"><div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div><small>${iso}</small><div class="calendar-day-items">${dayEntries.length ? dayEntries.map(item => `<div class="calendar-publish-item"><b>${escapeHtml(item.output || 'نشر')}</b><span>${escapeHtml([item.platform, item.time, item.campaignName].filter(Boolean).join(' · '))}</span></div>`).join('') : ''}</div></article>`);
+    cells.push(`<article class="calendar-day"><div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div><small>${iso}</small><div class="calendar-day-items">${dayEntries.length ? dayEntries.map(item => `<div class="calendar-publish-item"><b>${escapeHtml(item.calendarTitle || item.output || 'نشر')}</b><span>${escapeHtml(item.calendarMeta || [item.platform, item.time, item.campaignName].filter(Boolean).join(' · '))}</span></div>`).join('') : ''}</div></article>`);
   }
   board.innerHTML = `<div class="calendar-week-head"><span>الأحد</span><span>الإثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div><div class="calendar-month-grid">${cells.join('')}</div>`;
 }
@@ -4073,6 +4081,135 @@ function renderSocialPublishLog(){
   }).join('');
 }
 
+
+const publishContentTypeLabels = { reel:'Reel / فيديو', story:'Story', carousel:'صور متعددة / Carousel', image:'صورة واحدة', post:'منشور عادي', draft:'مسودة فقط' };
+const publishSourceLabels = { campaign:'حملة', agenda:'نشر يومي', manual:'نشر يدوي' };
+const publishStatusLabels = { draft:'مسودة', review:'بانتظار مراجعة', scheduled:'مجدول', published:'منشور', failed:'فشل' };
+const publishContentRules = {
+  reel: { text:'Reel / فيديو: يحتاج فيديو رأسي. مناسب لـ Facebook + Instagram + TikTok Draft.', allowed:['facebook','instagram','tiktok'] },
+  story: { text:'Story: يحتاج صورة أو فيديو رأسي. مناسب حاليًا لـ Instagram، ويمكن تفعيل Facebook لاحقًا.', allowed:['instagram'] },
+  carousel: { text:'Carousel / صور متعددة: يحتاج أكثر من صورة. مناسب لـ Facebook + Instagram. TikTok Photo لاحقًا بعد اعتماد الإنتاج.', allowed:['facebook','instagram'] },
+  image: { text:'صورة واحدة: مناسب لـ Facebook + Instagram. TikTok Photo لاحقًا.', allowed:['facebook','instagram'] }
+};
+function todayIsoDate(){ const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function openPublishComposer(defaults = {}){
+  const modal = document.getElementById('publishComposerModal');
+  const form = document.getElementById('publishCenterComposerForm');
+  if(!modal || !form) return;
+  form.reset();
+  document.getElementById('pcSourceType').value = defaults.sourceType || 'agenda';
+  document.getElementById('pcContentType').value = defaults.type || 'reel';
+  document.getElementById('pcStatus').value = defaults.status || 'draft';
+  document.getElementById('pcDate').value = defaults.scheduleDate || todayIsoDate();
+  document.getElementById('pcTime').value = defaults.scheduleTime || '21:00';
+  document.getElementById('pcTitle').value = defaults.title || '';
+  updatePublishComposerType();
+  renderPublishComposerPreview();
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  setTimeout(() => document.getElementById('pcTitle')?.focus(), 80);
+}
+function closePublishComposer(){
+  const modal = document.getElementById('publishComposerModal');
+  if(!modal) return;
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden','true');
+  document.body.classList.remove('modal-open');
+}
+function selectedPublishCenterPlatforms(){
+  return [...document.querySelectorAll('input[name="pcPlatforms"]:checked')].map(input => input.value).filter(Boolean);
+}
+function updatePublishComposerType(){
+  const type = document.getElementById('pcContentType')?.value || 'reel';
+  const rule = publishContentRules[type] || publishContentRules.reel;
+  const helper = document.getElementById('publishTypeHelper');
+  if(helper) helper.textContent = rule.text;
+  document.querySelectorAll('input[name="pcPlatforms"]').forEach(input => {
+    const label = input.closest('label');
+    const allowed = rule.allowed.includes(input.value);
+    input.disabled = !allowed;
+    label?.classList.toggle('disabled', !allowed);
+    if(!allowed) input.checked = false;
+  });
+  if(!selectedPublishCenterPlatforms().length){
+    const first = rule.allowed[0];
+    const target = document.querySelector(`input[name="pcPlatforms"][value="${first}"]`);
+    if(target) target.checked = true;
+  }
+}
+function renderPublishComposerPreview(){
+  const preview = document.getElementById('publishComposerPreview');
+  if(!preview) return;
+  const title = normalizeText(document.getElementById('pcTitle')?.value) || 'منشور جديد';
+  const caption = normalizeText(document.getElementById('pcCaption')?.value);
+  const tags = normalizeText(document.getElementById('pcHashtags')?.value);
+  const type = document.getElementById('pcContentType')?.value || 'reel';
+  const sourceType = document.getElementById('pcSourceType')?.value || 'agenda';
+  const platforms = selectedPublishCenterPlatforms();
+  const when = [document.getElementById('pcDate')?.value, document.getElementById('pcTime')?.value].filter(Boolean).join(' · ') || 'غير محدد';
+  const mediaLines = String(document.getElementById('pcMediaUrls')?.value || '').split(/\n+/).map(normalizeText).filter(Boolean);
+  preview.innerHTML = `<strong>${escapeHtml(title)}</strong><p>${caption ? escapeHtml(caption).slice(0, 180) + (caption.length > 180 ? '...' : '') : 'لا يوجد كابشن بعد.'}</p><div class="publish-preview-meta"><span>${escapeHtml(publishSourceLabels[sourceType] || sourceType)}</span><span>${escapeHtml(publishContentTypeLabels[type] || type)}</span><span>${escapeHtml(platforms.map(p => socialPlatformLabels[p] || p).join(' + ') || 'بدون منصة')}</span><span>${escapeHtml(when)}</span><span>${mediaLines.length} ميديا</span></div>${tags ? `<div class="publish-center-tags">${extractHashtags(tags).map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}</div>` : ''}`;
+}
+function mediaLinesFromComposer(){
+  return String(document.getElementById('pcMediaUrls')?.value || '').split(/\n+/).map(normalizeText).filter(Boolean).map(url => ({ url, type: /\.(mp4|mov|webm)(\?|$)/i.test(url) ? 'video' : 'image' }));
+}
+function handlePublishCenterComposerSubmit(event){
+  event.preventDefault();
+  const platforms = selectedPublishCenterPlatforms();
+  if(!platforms.length){ showToast('اختار منصة واحدة على الأقل.'); return; }
+  const type = normalizeText(document.getElementById('pcContentType')?.value) || 'reel';
+  const sourceType = normalizeText(document.getElementById('pcSourceType')?.value) || 'agenda';
+  const title = normalizeText(document.getElementById('pcTitle')?.value);
+  const caption = normalizeText(document.getElementById('pcCaption')?.value);
+  if(!title){ showToast('اكتب اسم المنشور أو الحملة.'); document.getElementById('pcTitle')?.focus(); return; }
+  const mediaItems = mediaLinesFromComposer();
+  if(['reel','story','carousel','image'].includes(type) && !mediaItems.length){ showToast('أضف رابط ميديا واحد على الأقل مؤقتًا.'); document.getElementById('pcMediaUrls')?.focus(); return; }
+  if(type === 'carousel' && mediaItems.length < 2){ showToast('Carousel يحتاج صورتين على الأقل.'); document.getElementById('pcMediaUrls')?.focus(); return; }
+  const statusKey = normalizeText(document.getElementById('pcStatus')?.value) || 'draft';
+  const item = {
+    id: `pc_${Date.now()}`,
+    sourceType,
+    sourceLabel: publishSourceLabels[sourceType] || 'نشر',
+    title,
+    caption,
+    hashtags: extractHashtags(`${document.getElementById('pcHashtags')?.value || ''} ${caption}`),
+    platforms,
+    type,
+    contentType: type,
+    mode: statusKey === 'scheduled' ? 'schedule' : 'draft',
+    status: publishStatusLabels[statusKey] || statusKey,
+    scheduleDate: normalizeText(document.getElementById('pcDate')?.value),
+    scheduleTime: normalizeText(document.getElementById('pcTime')?.value),
+    mediaUrl: mediaItems[0]?.url || '',
+    mediaItems,
+    link: normalizeText(document.getElementById('pcLink')?.value),
+    location: normalizeText(document.getElementById('pcLocation')?.value),
+    notes: normalizeText(document.getElementById('pcNotes')?.value),
+    createdAt: new Date().toISOString(),
+    createdBy: getCurrentUser()?.name || getCurrentUser()?.email || ''
+  };
+  appendSocialLog(item);
+  renderCalendarPage();
+  closePublishComposer();
+  showToast('تم حفظ المنشور في مركز النشر والتقويم مؤقتًا.');
+}
+function bindPublishCenter(){
+  document.getElementById('openPublishCenterComposerBtn')?.addEventListener('click', () => openPublishComposer());
+  document.getElementById('publishCenterList')?.addEventListener('click', event => {
+    const btn = event.target.closest('[data-open-publish-composer]');
+    if(btn) openPublishComposer();
+  });
+  document.querySelectorAll('[data-close-publish-composer]').forEach(el => el.addEventListener('click', closePublishComposer));
+  const form = document.getElementById('publishCenterComposerForm');
+  if(form){
+    form.addEventListener('submit', handlePublishCenterComposerSubmit);
+    form.addEventListener('reset', () => setTimeout(() => { updatePublishComposerType(); renderPublishComposerPreview(); }, 0));
+    form.addEventListener('input', renderPublishComposerPreview);
+    form.addEventListener('change', event => { if(event.target.id === 'pcContentType') updatePublishComposerType(); renderPublishComposerPreview(); });
+  }
+}
+
 function publishCenterCampaignItems(){
   return publishEntriesFromCampaigns().map((entry, index) => ({
     id: `campaign_${entry.campaignId || index}_${entry.date || index}`,
@@ -4145,7 +4282,7 @@ function renderPublishCenterPage(){
     ].map(([label,value]) => `<article class="publish-center-stat"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join('');
   }
   if(!items.length){
-    list.innerHTML = `<div class="publish-center-empty"><h3>مركز النشر جاهز</h3><p>لسه مفيش منشورات أو أجندات محفوظة. بعد بناء مرحلة Firebase هتظهر هنا كل منشورات الحملات والنشر اليومي بتفاصيلها.</p><div class="publish-center-empty-actions"><a class="btn btn-primary" href="#social-publisher">إنشاء منشور تجريبي</a><a class="btn btn-light" href="#calendar">فتح التقويم</a></div></div>`;
+    list.innerHTML = `<div class="publish-center-empty"><h3>مركز النشر جاهز</h3><p>لسه مفيش منشورات أو أجندات محفوظة. بعد بناء مرحلة Firebase هتظهر هنا كل منشورات الحملات والنشر اليومي بتفاصيلها.</p><div class="publish-center-empty-actions"><button class="btn btn-primary" type="button" data-open-publish-composer>إنشاء منشور</button><a class="btn btn-light" href="#calendar">فتح التقويم</a></div></div>`;
     return;
   }
   list.innerHTML = items.map(item => {
@@ -4153,7 +4290,8 @@ function renderPublishCenterPage(){
     const hashtags = (item.hashtags || []).length ? `<div class="publish-center-tags">${item.hashtags.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}</div>` : '<div class="publish-center-tags muted">لا توجد هاشتاجات مسجلة</div>';
     const caption = normalizeText(item.caption || item.notes || '');
     const when = [item.scheduleDate, item.scheduleTime].filter(Boolean).join(' · ') || 'غير محدد';
-    return `<article class="publish-center-row"><div class="publish-center-row-main"><div class="publish-center-row-head"><span class="source-badge ${escapeHtml(item.sourceType || 'manual')}">${escapeHtml(item.sourceLabel || 'نشر')}</span><strong>${escapeHtml(item.title || 'منشور بدون عنوان')}</strong></div><p>${caption ? escapeHtml(caption).slice(0, 260) + (caption.length > 260 ? '...' : '') : 'لا يوجد كابشن محفوظ لهذا العنصر.'}</p>${hashtags}</div><div class="publish-center-row-meta"><div class="preview-platforms">${platforms}</div><small>${escapeHtml(postTypeLabel(item.type || 'post'))}</small><small>${escapeHtml(when)}</small><span class="publish-center-status ${publishCenterStatusClass(item.status)}">${escapeHtml(item.status || 'جاهز')}</span></div></article>`;
+    const mediaCount = Array.isArray(item.mediaItems) ? item.mediaItems.length : (item.mediaUrl ? 1 : 0);
+    return `<article class="publish-center-row"><div class="publish-center-row-main"><div class="publish-center-row-head"><span class="source-badge ${escapeHtml(item.sourceType || 'manual')}">${escapeHtml(item.sourceLabel || 'نشر')}</span><strong>${escapeHtml(item.title || 'منشور بدون عنوان')}</strong></div><p>${caption ? escapeHtml(caption).slice(0, 260) + (caption.length > 260 ? '...' : '') : 'لا يوجد كابشن محفوظ لهذا العنصر.'}</p>${hashtags}</div><div class="publish-center-row-meta"><div class="preview-platforms">${platforms}</div><small>${escapeHtml(postTypeLabel(item.type || 'post'))}</small><small>${escapeHtml(when)}</small><small>${mediaCount} ميديا${item.location ? ` · ${escapeHtml(item.location)}` : ''}</small><span class="publish-center-status ${publishCenterStatusClass(item.status)}">${escapeHtml(item.status || 'جاهز')}</span></div></article>`;
   }).join('');
 }
 async function publishToMetaPlatform(platform, item){
@@ -4686,11 +4824,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('notificationToggle')?.addEventListener('click', event => { event.stopPropagation(); unlockNotificationAudio(); renderTopbarNotifications(); document.getElementById('notificationPanel')?.classList.toggle('is-hidden'); });
   document.addEventListener('click', event => { if(!event.target.closest('.notification-wrap')) document.getElementById('notificationPanel')?.classList.add('is-hidden'); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
-  document.addEventListener('keydown', event => { if(event.key === 'Escape'){ closeTaskModal(); closeCampaignModal(); } });
+  document.addEventListener('keydown', event => { if(event.key === 'Escape'){ closeTaskModal(); closeCampaignModal(); closePublishComposer(); } });
   document.getElementById('calendarPrevMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()-1); renderCalendarPage(); });
   document.getElementById('calendarNextMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()+1); renderCalendarPage(); });
   document.getElementById('calendarToday')?.addEventListener('click', () => { calendarCursor = new Date(); renderCalendarPage(); });
-  bindCampaignBuilder(); bindDepartments(); bindSettings(); bindSocialPublisher();
+  bindCampaignBuilder(); bindDepartments(); bindSettings(); bindSocialPublisher(); bindPublishCenter();
   document.getElementById('dashboard')?.addEventListener('click', async event => {
     const stageBtn = event.target.closest('[data-stage][data-campaign-id]');
     if(stageBtn){ event.stopPropagation(); await togglePublishStage(stageBtn.dataset.campaignId, stageBtn.dataset.stage); return; }

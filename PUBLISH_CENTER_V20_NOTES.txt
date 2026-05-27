@@ -1,0 +1,1 @@
+v20 adds an in-page Publish Center composer form with content type, platforms, caption, hashtags, media URLs, schedule date/time, local persistence, and calendar preview. Firebase persistence comes next.
