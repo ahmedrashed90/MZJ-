@@ -164,13 +164,8 @@
         <div class="page-head social-publisher-head">
           <div class="page-title">
             <h1>النشر على السوشيال</h1>
-            <p>مرحلة ربط المنصات مكتملة. Facebook جاهز للنشر، Instagram متصل وينتظر تجهيز الميديا، وTikTok متصل Sandbox لاختبار Draft Upload.</p>
+            <p>جهز منشور واحد وانشره أو جدوله على Facebook وInstagram وTikTok من مكان واحد.</p>
             <div id="socialMetaConnectionStatus" class="social-meta-status">جاري فحص ربط Meta...</div>
-            <div class="social-linking-summary">
-              <span>Facebook Publishing جاهز</span>
-              <span>Instagram متصل</span>
-              <span>TikTok Sandbox متصل</span>
-            </div>
           </div>
           <div class="social-publisher-actions">
             <button class="btn btn-light" type="button" id="socialDisconnectBtn">فصل الربط</button>
@@ -186,7 +181,7 @@
             <div class="social-channel-icon facebook">f</div>
             <div>
               <h3>Facebook</h3>
-              <p>متصل وجاهز للنشر الفعلي على صفحة MZJ Cars.</p>
+              <p>متصل وجاهز للنشر الفعلي على الصفحة.</p>
               <span class="channel-status ready" id="facebookChannelStatus">غير متصل</span>
             </div>
           </article>
@@ -194,7 +189,7 @@
             <div class="social-channel-icon instagram">◎</div>
             <div>
               <h3>Instagram</h3>
-              <p>متصل بحساب Business، يحتاج ميديا مباشرة عند تفعيل النشر.</p>
+              <p>متصل وينتظر تحديد مصدر الميديا للنشر.</p>
               <span class="channel-status ready" id="instagramChannelStatus">غير متصل</span>
             </div>
           </article>
@@ -202,8 +197,8 @@
             <div class="social-channel-icon tiktok">♪</div>
             <div>
               <h3>TikTok</h3>
-              <p>متصل في وضع Sandbox لاختبار رفع الفيديو كمسودة.</p>
-              <span class="channel-status sandbox" id="tiktokChannelStatus">غير متصل</span>
+              <p>متصل Sandbox · Draft Upload جاهز للاختبار لاحقًا.</p>
+              <span class="channel-status" id="tiktokChannelStatus">غير متصل - Sandbox</span>
             </div>
           </article>
         </div>
@@ -213,9 +208,9 @@
             <div class="section-toolbar small-toolbar">
               <div>
                 <h2>إنشاء منشور</h2>
-                <p>استخدم هذا القسم للتحقق من حالة الربط فقط حالياً. شكل النشر والجدولة سيتحدد بعد مراجعة طريقة مسؤول النشر.</p>
+                <p>الصفحة حالياً تحفظ خطة النشر وسجلها داخل السيستم، والربط الحالي يتم عبر API آمن على Vercel بدون إظهار أي Token في المتصفح.</p>
               </div>
-              <span class="social-mode-badge" id="socialModeBadge">Linking Closed</span>
+              <span class="social-mode-badge" id="socialModeBadge">Meta API Mode</span>
             </div>
 
             <div class="form-grid two">
@@ -226,7 +221,7 @@
             <div class="social-platform-picker" aria-label="اختيار القنوات">
               <label class="platform-check facebook"><input type="checkbox" name="platforms" value="facebook" checked><span>Facebook</span></label>
               <label class="platform-check instagram"><input type="checkbox" name="platforms" value="instagram"><span>Instagram</span></label>
-              <label class="platform-check tiktok sandbox-platform"><input type="checkbox" name="platforms" value="tiktok"><span>TikTok <small>Sandbox / Draft</small></span></label>
+              <label class="platform-check tiktok"><input type="checkbox" name="platforms" value="tiktok"><span>TikTok</span></label>
             </div>
 
             <div class="form-grid two">
@@ -248,7 +243,7 @@
             </div>
 
             <div class="social-warning-box">
-              <strong>حالة الربط:</strong> Facebook متصل والنشر الفعلي يعمل. Instagram متصل وجاهز بعد تحديد مصدر الميديا. TikTok متصل Sandbox لاختبار Draft Upload فقط، أما Production يحتاج مراجعة TikTok لاحقاً. لا تضع أي Tokens داخل ملفات HTML أو JavaScript.
+              <strong>تنبيه أمان:</strong> يتم النشر على Meta من خلال API Routes على Vercel. لا تضع App Secret أو Tokens داخل ملفات HTML أو JavaScript. TikTok متصل حاليًا في وضع Sandbox لاختبار Draft Upload. النشر الفعلي Production يحتاج مراجعة TikTok لاحقًا.
             </div>
 
             <div class="form-actions">

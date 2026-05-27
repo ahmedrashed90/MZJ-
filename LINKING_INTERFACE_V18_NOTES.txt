@@ -1,0 +1,4 @@
+MZJ Linking Interface Final v18
+- UI only: clarifies Facebook, Instagram, and TikTok Sandbox statuses.
+- API remains single function api/meta.js.
+- TikTok OAuth debug kept, deployed label updated to meta-linking-interface-final-v18.

@@ -1823,14 +1823,6 @@ body.has-user-dashboard-theme #dashboard.user-mode{
 
 
 /* Social publisher page */
-
-.social-linking-summary{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
-.social-linking-summary span{display:inline-flex;align-items:center;border-radius:999px;padding:6px 10px;background:rgba(34,197,94,.1);color:#15803d;font-weight:900;font-size:12px;border:1px solid rgba(34,197,94,.18);}
-.channel-status.sandbox{background:rgba(14,165,233,.12);color:#0369a1;}
-.channel-status.ready.sandbox{background:rgba(14,165,233,.14);color:#0369a1;}
-.platform-check small{display:inline-block;margin-inline-start:5px;font-size:11px;color:var(--muted);font-weight:800;}
-.platform-check.sandbox-platform{border-color:rgba(14,165,233,.3);background:rgba(14,165,233,.06);}
-.social-channel-card[data-channel-card="tiktok"]::after{content:"Sandbox";position:absolute;top:12px;inset-inline-end:12px;border-radius:999px;background:rgba(14,165,233,.12);color:#0369a1;padding:5px 9px;font-size:11px;font-weight:900;}
 .social-publisher-head{gap:16px;align-items:flex-start;}
 .social-publisher-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
 .social-channel-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:16px;}
