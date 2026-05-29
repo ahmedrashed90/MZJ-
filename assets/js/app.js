@@ -4207,7 +4207,6 @@ async function loadMetaConnection(){
   }
 }
 function renderSocialPublisherPage(){
-  renderSocialPreview();
   renderSocialPublishLog();
   loadMetaConnection();
   loadTikTokConnection();
@@ -4602,8 +4601,10 @@ function publishPrepTasksFromCampaignSchedules(){
   }).filter(Boolean));
 }
 function getPublishingPrepTasks(){
+  // تجهيز النشر يعرض التاسكات المسندة للموظف فقط حتى يتطابق مع الداشبورد.
+  // جدول النشر يستخدم لتوليد/تصدير الخطة، لكنه لا يضيف تاسك منفصل هنا إلا بعد تحويله لتاسك فعلي.
   const map = new Map();
-  [...publishPrepTasksFromExistingTasks(), ...publishPrepTasksFromCampaignSchedules()].forEach(task => {
+  publishPrepTasksFromExistingTasks().forEach(task => {
     if(!map.has(task.id)) map.set(task.id, task);
   });
   return [...map.values()];
@@ -4658,8 +4659,8 @@ function renderPublishPrepPage(){
       </div>
       <details class="prep-task-details">
         <summary>عرض كل التفاصيل</summary>
-        <div class="prep-detail-block"><b>الكابشن</b><p>${escapeHtml(task.caption || 'لا يوجد كابشن محفوظ.')}</p></div>
-        <div class="prep-detail-block"><b>الهاشتاجات</b><p>${escapeHtml(task.hashtags || 'لا توجد هاشتاجات محفوظة.')}</p></div>
+        <div class="prep-detail-block"><b>الكابشن</b><p>${escapeHtml(task.caption || 'لا يوجد كابشن محفوظ من الحملة/الأجندة. المسؤول يضيفه في بيانات التاسك أو جدول النشر.')}</p></div>
+        <div class="prep-detail-block"><b>الهاشتاجات</b><p>${escapeHtml(task.hashtags || 'لا توجد هاشتاجات محفوظة. المسؤول يضيفها في بيانات التاسك أو جدول النشر.')}</p></div>
         <div class="prep-detail-block"><b>ملاحظات المسؤول</b><p>${escapeHtml(task.notes || 'لا توجد ملاحظات.')}</p></div>
       </details>
       <div class="prep-upload-box">
@@ -4797,12 +4798,12 @@ async function handleSocialPublishSubmit(event){
 }
 function bindSocialPublisher(){
   const form = document.getElementById('socialPublisherForm');
-  if(!form) return;
-  ['input','change'].forEach(eventName => form.addEventListener(eventName, renderSocialPreview));
-  form.addEventListener('reset', () => setTimeout(renderSocialPreview, 0));
-  form.addEventListener('submit', handleSocialPublishSubmit);
+  if(form){
+    ['input','change'].forEach(eventName => form.addEventListener(eventName, renderSocialPreview));
+    form.addEventListener('reset', () => setTimeout(renderSocialPreview, 0));
+    form.addEventListener('submit', handleSocialPublishSubmit);
+  }
   document.getElementById('socialMetaPageSelect')?.addEventListener('change', () => setSocialStatus(socialMetaConnected ? `Meta متصل · ${socialMetaPages.length} صفحة متاحة` : 'Meta غير متصل', socialMetaConnected));
-  document.getElementById('socialOpenComposerBtn')?.addEventListener('click', () => { location.hash = '#social-publisher'; document.getElementById('socialPostTitle')?.focus(); });
   document.getElementById('socialReconnectBtn')?.addEventListener('click', () => { window.location.href = '/api/meta/login'; });
   document.getElementById('socialTikTokConnectBtn')?.addEventListener('click', () => { window.location.href = '/api/tiktok/login'; });
   document.getElementById('socialTikTokDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/tiktok/logout', { credentials:'include' }); }catch(_){} socialTikTokConnected=false; socialTikTokUser=null; setTikTokStatus('تم الفصل - Sandbox', false); showToast('تم فصل TikTok.'); });
@@ -5041,7 +5042,7 @@ function renderUsersPermissions(){
   }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
 }
 function pageLabel(page){
-  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'النشر على السوشيال','publish-prep':'تجهيز النشر',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
+  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'ربط المنصات','publish-prep':'تجهيز النشر',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
 }
 function loadSystemSettings(){
   if(!mainDb) return;

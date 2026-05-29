@@ -1,0 +1,1 @@
+v25: renamed social publisher to linking platforms, removed composer/preview, kept log/status only, publish prep counts match assigned tasks, added notes for caption/hashtags source.
