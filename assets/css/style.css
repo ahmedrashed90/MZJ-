@@ -1999,3 +1999,9 @@ body:has(.publish-composer-modal.show) .topbar{
 .prep-file-ready{grid-column:1/-1;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:10px;font-weight:800}
 .prep-file-ready small{display:block;color:#64748b;font-weight:600;margin-top:3px}
 @media (max-width: 900px){.publish-prep-stats,.prep-task-grid,.prep-upload-box{grid-template-columns:1fr}.prep-task-top{flex-direction:column}}
+
+
+/* v26: Publish schedule caption/hashtag quick buttons */
+.publish-copy-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.publish-copy-btn{width:100%;font-size:11px;min-height:30px;border-style:dashed;background:#fff}
+.publish-copy-btn.filled{background:#eaf2ff;border-color:#8bb7ff;color:#1f5fbf;font-weight:800;border-style:solid}

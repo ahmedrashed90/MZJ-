@@ -2871,7 +2871,9 @@ function getPublishSelections(){
       platforms: selectedPlatformValues(card),
       platform: selectedPlatformValues(card).join('، '),
       time: '',
-      note: normalizeText(card.querySelector('.js-publish-note')?.value)
+      caption: normalizeText(card.querySelector('.js-publish-caption')?.value),
+      hashtagsText: normalizeText(card.querySelector('.js-publish-hashtags')?.value),
+      note: ''
     };
   });
   return selections;
@@ -2909,11 +2911,33 @@ function renderPublishAgenda(){
       <div class="publish-day-date">${iso}</div>
       <select class="js-publish-output-select compact-select" aria-label="اختيار النشر">${makePublishOutputOptions(outputs, currentOutput)}</select>
       <div class="publish-platform-checks" aria-label="المنصات">${platformCheckboxList(prev.platforms || prev.platform || [])}</div>
-      <input type="text" class="js-publish-note compact-input" value="${escapeHtml(prev.note || '')}" placeholder="ملاحظة" aria-label="ملاحظات" />
+      <input type="hidden" class="js-publish-caption" value="${escapeHtml(prev.caption || '')}" />
+      <input type="hidden" class="js-publish-hashtags" value="${escapeHtml(prev.hashtagsText || prev.hashtags || '')}" />
+      <div class="publish-copy-buttons">
+        <button type="button" class="mini-btn publish-copy-btn ${prev.caption ? 'filled' : ''}" data-publish-caption-btn>الكابشن${prev.caption ? ' ✓' : ''}</button>
+        <button type="button" class="mini-btn publish-copy-btn ${prev.hashtagsText || prev.hashtags ? 'filled' : ''}" data-publish-hashtags-btn>الهاشتاج${prev.hashtagsText || prev.hashtags ? ' ✓' : ''}</button>
+      </div>
     </article>`);
   });
   wrap.innerHTML = `<div class="publish-calendar-head"><span>الأحد</span><span>الإثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div><div class="publish-calendar-grid">${cells.join('')}</div>`;
   updatePublishOutputAvailability();
+}
+function editPublishDayText(card, kind){
+  if(!card) return;
+  const isCaption = kind === 'caption';
+  const input = card.querySelector(isCaption ? '.js-publish-caption' : '.js-publish-hashtags');
+  const btn = card.querySelector(isCaption ? '[data-publish-caption-btn]' : '[data-publish-hashtags-btn]');
+  const title = isCaption ? 'اكتب الكابشن' : 'اكتب الهاشتاج';
+  const current = input?.value || '';
+  const value = prompt(title, current);
+  if(value === null) return;
+  const clean = normalizeText(value);
+  if(input) input.value = clean;
+  if(btn){
+    btn.classList.toggle('filled', !!clean);
+    btn.textContent = `${isCaption ? 'الكابشن' : 'الهاشتاج'}${clean ? ' ✓' : ''}`;
+  }
+  showToast(clean ? `تم حفظ ${isCaption ? 'الكابشن' : 'الهاشتاج'} لهذا اليوم.` : `تم مسح ${isCaption ? 'الكابشن' : 'الهاشتاج'} لهذا اليوم.`);
 }
 function collectPublishRows(){
   return [...document.querySelectorAll('.publish-day-card')].map(card => ({
@@ -2923,8 +2947,11 @@ function collectPublishRows(){
     platforms: selectedPlatformValues(card),
     platform: selectedPlatformValues(card).join('، '),
     time: '',
-    note: normalizeText(card.querySelector('.js-publish-note')?.value)
-  })).filter(item => item.date || item.output || item.platform || item.note);
+    caption: normalizeText(card.querySelector('.js-publish-caption')?.value),
+    hashtagsText: normalizeText(card.querySelector('.js-publish-hashtags')?.value),
+    hashtags: extractHashtags(`${card.querySelector('.js-publish-hashtags')?.value || ''} ${card.querySelector('.js-publish-caption')?.value || ''}`),
+    note: ''
+  })).filter(item => item.date || item.output || item.platform || item.caption || item.hashtagsText);
 }
 function budgetRowTotalFromCard(card){
   if(!card) return 0;
@@ -3062,6 +3089,10 @@ function bindCampaignBuilder(){
     if(dateInput && typeof dateInput.showPicker === 'function'){
       try{ dateInput.showPicker(); }catch(_){ }
     }
+    const captionBtn = event.target.closest('[data-publish-caption-btn]');
+    if(captionBtn){ editPublishDayText(captionBtn.closest('.publish-day-card'), 'caption'); return; }
+    const hashtagBtn = event.target.closest('[data-publish-hashtags-btn]');
+    if(hashtagBtn){ editPublishDayText(hashtagBtn.closest('.publish-day-card'), 'hashtags'); return; }
     const btn = event.target.closest('.delete-row');
     if(btn){ const container = document.getElementById('creativeRows'); btn.closest('.creative-row-card')?.remove(); restoreEmptyRow(container, 1, 'ابدأ بإضافة صف كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
     const budgetDel = event.target.closest('.delete-budget-row');
@@ -3842,8 +3873,8 @@ function publishScheduleExportRows(campaign){
       'output': output || '',
       'platforms': platforms,
       'title': [campaignName, output].filter(Boolean).join(' - '),
-      'caption': '',
-      'hashtags': '',
+      'caption': item.caption || '',
+      'hashtags': Array.isArray(item.hashtags) ? item.hashtags.join(' ') : (item.hashtagsText || ''),
       'mediaUrls': '',
       'link': '',
       'location': '',
@@ -3917,7 +3948,7 @@ function publishItemFromScheduleRow(row, index){
   const caption = normalizeText(firstImportValue(row, ['caption','الكابشن','نص المنشور','postText']));
   const hashtagsText = normalizeText(firstImportValue(row, ['hashtags','هاشتاجات','الهاشتاجات']));
   const date = excelDateToIso(firstImportValue(row, ['publishDate','date','تاريخ النشر','التاريخ']));
-  const time = normalizeText(firstImportValue(row, ['publishTime','time','وقت النشر','الوقت'])) || '21:00';
+  const time = normalizeText(firstImportValue(row, ['publishTime','time','وقت النشر','الوقت']));
   const contentTypeRaw = normalizeText(firstImportValue(row, ['contentType','type','نوع المحتوى','output','المخرج'])) || 'reel';
   const type = publishContentTypeFromText(contentTypeRaw) || 'reel';
   const platforms = normalizeImportPlatforms(firstImportValue(row, ['platforms','platform','المنصات','المنصة']));
