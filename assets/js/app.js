@@ -76,6 +76,7 @@ const overlay = document.querySelector('[data-close-menu]');
 
 let mainDb = null;
 let mainAuth = null;
+let mainStorage = null;
 let stockDb = null;
 let departments = [];
 let users = [];
@@ -192,6 +193,9 @@ function initFirebase(){
   try{
     const mainApp = firebase.apps.find(app => app.name === '[DEFAULT]') || firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
     mainDb = firebase.firestore(mainApp);
+    if(firebase.storage){
+      try{ mainStorage = firebase.storage(mainApp); }catch(storageError){ console.error('Main Firebase storage init error', storageError); }
+    }
     if(firebase.auth){
       mainAuth = firebase.auth(mainApp);
       try{ mainAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(_){}
@@ -1727,7 +1731,7 @@ function getDriveUploadEndpoint(){
 }
 function buildZohoFileUrl(file){
   const id = file.fileId || file.resource_id || file.id || '';
-  return file.fileUrl || file.url || file.viewUrl || file.webViewLink || file.permalink || file.downloadUrl || (id ? `https://workdrive.zoho.sa/file/${encodeURIComponent(id)}` : '');
+  return file.fileUrl || file.url || file.downloadURL || file.downloadUrl || file.storageUrl || file.viewUrl || file.webViewLink || file.permalink || (id ? `https://workdrive.zoho.sa/file/${encodeURIComponent(id)}` : '');
 }
 function taskFiles(task){ return Array.isArray(task.attachments) ? task.attachments : []; }
 function renderAttachmentTable(task, kind = 'all'){
@@ -1756,11 +1760,59 @@ function fileToDataUrl(file){
   });
 }
 function dataUrlBase64(dataUrl){ return String(dataUrl || '').split(',')[1] || ''; }
-async function uploadTaskFileToDrive(file, task){
+function safeStorageSegment(value){
+  return String(value || 'item').trim().replace(/[\\/#?%*:|"<>\s]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 90) || 'item';
+}
+function uniqueStorageFileName(file){
+  const name = String(file?.name || 'file').replace(/[\/#?%*:|"<>]+/g, '-');
+  return name || 'file';
+}
+async function uploadTaskFileToFirebaseStorage(file, task, uploadKind = 'final'){
+  if(!mainStorage) throw new Error('Firebase Storage غير متاح. تأكد من تحميل storage SDK وإعداد bucket.');
+  if(!mainAuth?.currentUser) throw new Error('لازم تسجل دخول Firebase قبل رفع الملفات.');
+  const current = getCurrentUserIdentity();
+  const userId = safeStorageSegment(current.uid || current.id || current.email || 'user');
+  const kind = uploadKind === 'final' ? 'final' : 'review';
+  const fileName = uniqueStorageFileName(file);
+  const path = kind === 'final' ? `final-media/${fileName}` : `review-media/${fileName}`;
+  const ref = mainStorage.ref().child(path);
+  const snapshot = await ref.put(file, {
+    contentType: file.type || 'application/octet-stream',
+    customMetadata: {
+      uploadKind: kind,
+      taskId: String(task.id || task.taskId || ''),
+      campaignId: String(task.campaignId || ''),
+      originalFileName: file.name || fileName,
+      uploadedBy: current.email || current.name || userId
+    }
+  });
+  const downloadURL = await snapshot.ref.getDownloadURL();
+  return {
+    storageProvider: 'firebase',
+    storagePath: path,
+    name: file.name,
+    fileName: file.name,
+    size: file.size || 0,
+    mimeType: file.type || 'application/octet-stream',
+    type: file.type || 'application/octet-stream',
+    downloadURL,
+    downloadUrl: downloadURL,
+    fileUrl: downloadURL,
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: current.email || current.name || userId,
+    departmentRole: task.departmentRole || '',
+    departmentName: task.assignedDepartmentName || taskDepartmentLabel(task),
+    uploadKind: kind,
+    kind,
+    purpose: kind,
+    isFinal: kind === 'final'
+  };
+}
+async function uploadTaskFileToZohoReview(file, task){
   const current = getCurrentUser();
   const dataUrl = await fileToDataUrl(file);
   const payload = {
-    action: 'uploadTaskAttachment',
+    action: 'uploadTaskReviewFile',
     fileName: file.name,
     name: file.name,
     mimeType: file.type || 'application/octet-stream',
@@ -1776,15 +1828,13 @@ async function uploadTaskFileToDrive(file, task){
     taskType: task.taskType || '',
     taskId: task.id || '',
     uploadedBy: current.email || current.name || current.uid || '',
-    directUpload: true,
+    uploadKind: 'review',
+    kind: 'review',
+    purpose: 'review',
+    isFinal: false,
+    keepOriginalFileName: true,
     flatUpload: true,
-    createFolder: false,
-    folderMode: 'root',
-    parentFolderName: 'MZJ Uploads',
-    targetFolderName: 'MZJ Uploads',
-    targetFileName: file.name,
-    desiredFileName: file.name,
-    keepOriginalFileName: true
+    createFolder: false
   };
   const res = await fetch(getDriveUploadEndpoint(), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
   const text = await res.text();
@@ -1793,13 +1843,11 @@ async function uploadTaskFileToDrive(file, task){
   catch(_){ throw new Error('تعذر رفع الملف: رد السيرفر ليس JSON. تأكد من إعداد Zoho API.'); }
   if(!res.ok || result.success === false || result.ok === false){
     const rawErr = result.error || result.message || result.title || result.raw || '';
-    if(String(rawErr).includes('Authorization') || String(rawErr).includes('401') || res.status === 401 || res.status === 502){
-      throw new Error('فشل رفع الملف على Zoho Drive: اعتماد Zoho غير صالح أو Web App غير مصرح. راجع إعدادات Zoho/التوكن.');
-    }
-    throw new Error(rawErr || 'فشل رفع الملف على Zoho Drive.');
+    throw new Error(rawErr || 'فشل رفع ملف المراجعة على Zoho WorkDrive.');
   }
   const fileId = result.fileId || result.id || result.resource_id || result.data?.id || result.data?.fileId || '';
   return {
+    storageProvider: 'zoho',
     fileId,
     name: result.name || result.fileName || file.name,
     fileName: result.fileName || result.name || file.name,
@@ -1807,8 +1855,16 @@ async function uploadTaskFileToDrive(file, task){
     uploadedAt: new Date().toISOString(),
     uploadedBy: current.email || current.name || current.uid || '',
     departmentRole: task.departmentRole || '',
-    departmentName: task.assignedDepartmentName || taskDepartmentLabel(task)
+    departmentName: task.assignedDepartmentName || taskDepartmentLabel(task),
+    uploadKind: 'review',
+    kind: 'review',
+    purpose: 'review',
+    isFinal: false
   };
+}
+async function uploadTaskFileToDrive(file, task, uploadKind = 'review'){
+  if(uploadKind === 'final') return uploadTaskFileToFirebaseStorage(file, task, 'final');
+  return uploadTaskFileToZohoReview(file, task);
 }
 function openTaskModal(task){
   const modal = document.getElementById('taskModal');
@@ -4630,10 +4686,10 @@ function prepMatchText(value){
   return normalizeText(value).toLowerCase().replace(/[\s_\-–—|\/\\]+/g, ' ').trim();
 }
 function prepScheduleCaptionValue(row){
-  return normalizeText(row?.caption || row?.postText || row?.copy || row?.text || '');
+  return normalizeText(row?.caption || row?.postCaption || row?.postText || row?.copy || row?.text || row?.['الكابشن'] || row?.['نص المنشور'] || '');
 }
 function prepScheduleHashtagValue(row){
-  const raw = row?.hashtagsText || row?.hashtags || row?.hashTags || row?.tags || '';
+  const raw = row?.hashtagsText || row?.hashtags || row?.hashTags || row?.tags || row?.['الهاشتاج'] || row?.['الهاشتاجات'] || row?.['هاشتاجات'] || '';
   return Array.isArray(raw) ? raw.join(' ') : normalizeText(raw);
 }
 function prepScheduleRowsForCampaign(campaign){
@@ -4668,9 +4724,19 @@ function prepScheduleMatchScore(row, task, campaign){
 function enrichPrepTaskFromSchedule(base, campaign, rawTask){
   const rows = prepScheduleRowsForCampaign(campaign);
   if(!rows.length) return base;
-  const best = rows.map((row, index) => ({ row, index, score: prepScheduleMatchScore(row, { ...base, raw: rawTask }, campaign) }))
+  let best = rows.map((row, index) => ({ row, index, score: prepScheduleMatchScore(row, { ...base, raw: rawTask }, campaign) }))
     .filter(item => item.score > 0)
     .sort((a,b) => b.score - a.score)[0];
+  if(!best){
+    const baseType = prepMatchText(base.type || base.raw?.taskType || base.raw?.contentType || '');
+    const byType = rows.map((row, index) => ({ row, index }))
+      .find(item => {
+        const out = prepMatchText(`${item.row.output || ''} ${item.row.contentType || ''} ${item.row.type || ''}`);
+        return baseType && (out.includes(baseType) || baseType.includes(out));
+      });
+    if(byType) best = { ...byType, score: 1 };
+  }
+  if(!best && rows.length === 1) best = { row: rows[0], index: 0, score: 1 };
   if(!best) return base;
   const row = best.row;
   const scheduleCaption = prepScheduleCaptionValue(row);
@@ -5655,7 +5721,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try{
       showToast('جاري رفع الملف...');
       const uploadKind = event.target.dataset.uploadKind || 'review';
-      const record = await uploadTaskFileToDrive(file, task);
+      const record = await uploadTaskFileToDrive(file, task, uploadKind);
       record.uploadKind = uploadKind;
       record.kind = uploadKind;
       record.purpose = uploadKind;
