@@ -1769,7 +1769,8 @@ function uniqueStorageFileName(file){
 }
 async function uploadTaskFileToFirebaseStorage(file, task, uploadKind = 'final'){
   if(!mainStorage) throw new Error('Firebase Storage غير متاح. تأكد من تحميل storage SDK وإعداد bucket.');
-  if(!mainAuth?.currentUser) throw new Error('لازم تسجل دخول Firebase قبل رفع الملفات.');
+  // v32: final media upload is allowed by Storage Rules during the current integration stage.
+  // Do not block upload just because Firebase Auth is not active yet.
   const current = getCurrentUserIdentity();
   const userId = safeStorageSegment(current.uid || current.id || current.email || 'user');
   const kind = uploadKind === 'final' ? 'final' : 'review';
