@@ -49,7 +49,7 @@
         <a href="#create-campaign" data-route="create-campaign"><span class="icon">➕</span><span>إنشاء حملة</span></a>
         <a href="#campaigns" data-route="campaigns"><span class="icon">📣</span><span>إدارة الحملات</span></a>
         <a href="#social-publisher" data-route="social-publisher"><span class="icon">🚀</span><span>النشر على السوشيال</span></a>
-        <a href="#publish-center" data-route="publish-center"><span class="icon">🧭</span><span>مركز النشر</span></a>
+        <a href="#publish-prep" data-route="publish-prep"><span class="icon">📤</span><span>تجهيز النشر</span></a>
         <a href="#tasks" data-route="tasks"><span class="icon">📈</span><span>المتابعة</span></a>
         <a href="#calendar" data-route="calendar"><span class="icon">📅</span><span>التقويم</span></a>
         <a href="#stock" data-route="stock"><span class="icon">🚗</span><span>الاستوك</span></a>
@@ -276,107 +276,47 @@
         </div>
       </section>
 
-      <section class="view" id="publish-center" data-title="مركز النشر">
-        <div class="page-head publish-center-head">
+      <section class="view" id="publish-prep" data-title="تجهيز النشر">
+        <div class="page-head publish-prep-head">
           <div class="page-title">
-            <h1>مركز النشر</h1>
-            <p>صفحة مركزية تجمع منشورات الحملات والنشر اليومي والأجندات، وتعرض الكابشن والهاشتاجات والمنصات والحالة في مكان واحد.</p>
+            <h1>تجهيز النشر</h1>
+            <p>صفحة اليوزر لاستلام تاسكات الحملات والأجندات، مراجعة كل التفاصيل، ورفع الملف النهائي ثم تسليمه للمراجعة والجدولة.</p>
           </div>
           <div class="social-publisher-actions">
-            <button class="btn btn-primary" type="button" id="openPublishCenterComposerBtn">＋ إنشاء منشور</button>
-            <button class="btn btn-light" type="button" id="importPublishScheduleBtn">استيراد جدول نشر</button>
+            <button class="btn btn-light" type="button" id="refreshPublishPrepBtn">تحديث التاسكات</button>
             <a class="btn btn-light" href="#calendar">عرض التقويم</a>
-            <a class="btn btn-light" href="#campaigns">الحملات</a>
           </div>
         </div>
 
-        <div class="publish-center-note card">
-          <strong>معلومة تشغيل:</strong> هذه الصفحة هي المكان الذي سيجمع لاحقًا كل ما سيتم نشره من الحملات والأجندات اليومية. التقويم يعرض المواعيد فقط، أما مركز النشر فيعرض التفاصيل الكاملة مثل الكابشن، الهاشتاجات، نوع المحتوى، المنصات، والميديا.
+        <div class="publish-prep-note card">
+          <strong>طريقة العمل:</strong>
+          اليوزر يشوف التاسكات المسندة له فقط، يفتح التاسك، يراجع كل التفاصيل، يرفع الملف النهائي، ثم يضغط تسليم. بعد ربط Firebase Storage سيتم رفع الملفات فعليًا وحفظها مع المنشور تلقائيًا.
         </div>
 
-        <div class="publish-center-stats" id="publishCenterStats">
-          <article class="publish-center-stat"><span>كل المنشورات</span><strong>0</strong></article>
-          <article class="publish-center-stat"><span>من الحملات</span><strong>0</strong></article>
-          <article class="publish-center-stat"><span>النشر اليومي</span><strong>0</strong></article>
-          <article class="publish-center-stat"><span>منشور</span><strong>0</strong></article>
-          <article class="publish-center-stat"><span>فشل</span><strong>0</strong></article>
+        <div class="publish-prep-stats" id="publishPrepStats">
+          <article class="publish-center-stat"><span>تاسكاتي</span><strong>0</strong></article>
+          <article class="publish-center-stat"><span>قيد التجهيز</span><strong>0</strong></article>
+          <article class="publish-center-stat"><span>تم التسليم</span><strong>0</strong></article>
+          <article class="publish-center-stat"><span>يحتاج تعديل</span><strong>0</strong></article>
         </div>
 
-        <div class="card publish-center-card">
+        <div class="card publish-prep-card">
           <div class="section-toolbar small-toolbar">
             <div>
-              <h2>كل عناصر النشر</h2>
-              <p>حاليًا تعرض بيانات النشر المحلي وجدول نشر الحملات. في مرحلة Firebase ستقرأ من scheduled_posts وتشمل الحملات والأجندات اليومية.</p>
+              <h2>تاسكاتي المطلوبة</h2>
+              <p>كل كارت يعرض تفاصيل التاسك كاملة: المصدر، نوع المحتوى، المنصات، الكابشن، الهاشتاجات، تاريخ النشر، والمطلوب رفعه.</p>
             </div>
             <div class="publish-center-filters">
               <span>حملات</span>
               <span>أجندات</span>
-              <span>مجدول</span>
-              <span>منشور</span>
+              <span>ملفات نهائية</span>
             </div>
           </div>
-          <div id="publishCenterList" class="publish-center-list">
-            <div class="empty-state">جاري تحميل مركز النشر...</div>
+          <div id="publishPrepList" class="publish-prep-list">
+            <div class="empty-state">جاري تحميل تاسكات تجهيز النشر...</div>
           </div>
         </div>
       </section>
-
-
-      <div class="publish-composer-modal" id="publishComposerModal" aria-hidden="true">
-        <div class="publish-composer-backdrop" data-close-publish-composer></div>
-        <div class="publish-composer-dialog" role="dialog" aria-modal="true" aria-labelledby="publishComposerTitle">
-          <button class="publish-composer-close" type="button" data-close-publish-composer aria-label="إغلاق">×</button>
-          <div class="publish-composer-head">
-            <div>
-              <span>مركز النشر</span>
-              <h2 id="publishComposerTitle">إنشاء منشور جديد</h2>
-              <p>حدد نوع المنشور والمحتوى والمنصات، واحفظه مؤقتًا داخل مركز النشر والتقويم. الربط مع Firebase سيتم في المرحلة القادمة.</p>
-            </div>
-          </div>
-
-          <form id="publishCenterComposerForm" class="publish-composer-form">
-            <div class="publish-composer-grid">
-              <label class="field"><span>مصدر المنشور</span><select id="pcSourceType"><option value="agenda">نشر يومي / أجندة</option><option value="campaign">حملة</option><option value="manual">نشر يدوي</option></select></label>
-              <label class="field"><span>نوع المحتوى</span><select id="pcContentType"><option value="reel">Reel / فيديو</option><option value="story">Story</option><option value="carousel">صور متعددة / Carousel</option><option value="image">صورة واحدة</option></select></label>
-              <label class="field"><span>الحالة</span><select id="pcStatus"><option value="draft">مسودة</option><option value="review">بانتظار مراجعة</option><option value="scheduled">مجدول</option></select></label>
-              <label class="field"><span>اسم المنشور / الحملة</span><input id="pcTitle" type="text" placeholder="مثال: هيونداي أكسنت 2026"></label>
-              <label class="field"><span>تاريخ النشر <small>مطلوب</small></span><input id="pcDate" type="date" required></label>
-              <label class="field"><span>وقت النشر <small>اختياري</small></span><input id="pcTime" type="time"></label>
-            </div>
-
-            <div class="publish-type-helper" id="publishTypeHelper">اختر نوع المحتوى لعرض المنصات والمتطلبات المناسبة.</div>
-
-            <div class="modal-section publish-platform-section">
-              <div class="modal-section-title"><h3>المنصات</h3><span>اختر قناة واحدة أو أكثر</span></div>
-              <div class="publish-platform-pills" id="pcPlatformPills">
-                <label><input type="checkbox" name="pcPlatforms" value="facebook"> <span>Facebook</span></label>
-                <label><input type="checkbox" name="pcPlatforms" value="instagram"> <span>Instagram</span></label>
-                <label><input type="checkbox" name="pcPlatforms" value="tiktok"> <span>TikTok Sandbox</span></label>
-              </div>
-            </div>
-
-            <label class="field"><span>الكابشن</span><textarea id="pcCaption" rows="7" placeholder="اكتب نص المنشور كاملًا هنا..."></textarea></label>
-            <label class="field"><span>الهاشتاجات</span><input id="pcHashtags" type="text" placeholder="#Hyundai #MZJ #سيارات_عائلية"></label>
-            <div class="publish-composer-grid two">
-              <label class="field"><span>رابط الموقع / Landing Page</span><input id="pcLink" type="url" placeholder="https://..."></label>
-              <label class="field"><span>الموقع Location اختياري</span><input id="pcLocation" type="text" placeholder="Riyadh / الرياض"></label>
-            </div>
-            <label class="field"><span>روابط الميديا مؤقتًا</span><textarea id="pcMediaUrls" rows="4" placeholder="ضع كل رابط صورة أو فيديو في سطر منفصل إلى أن نربط Firebase Storage أو Zoho"></textarea></label>
-            <label class="field"><span>ملاحظات داخلية</span><textarea id="pcNotes" rows="3" placeholder="أي تعليمات لفريق التسويق أو مسؤول المراجعة..."></textarea></label>
-
-            <div class="publish-composer-preview" id="publishComposerPreview">
-              <strong>معاينة سريعة</strong>
-              <p>اكتب البيانات لعرض ملخص المنشور هنا.</p>
-            </div>
-
-            <div class="publish-composer-actions">
-              <button class="btn btn-light" type="button" data-close-publish-composer>إلغاء</button>
-              <button class="btn btn-light" type="reset">تفريغ</button>
-              <button class="btn btn-primary" type="submit">حفظ في مركز النشر</button>
-            </div>
-          </form>
-        </div>
-      </div>
 
       <section class="view" id="departments" data-title="الأقسام">
         <div class="page-head">

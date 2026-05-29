@@ -1,0 +1,5 @@
+v24
+- Removed Publish Center route from navigation.
+- Added تجهيز النشر page for user assigned tasks.
+- Users upload final media file and submit task locally until Firebase Storage integration.
+- Date is still required and time optional in publishing logic.

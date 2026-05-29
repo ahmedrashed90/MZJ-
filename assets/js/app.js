@@ -34,7 +34,7 @@ window.MZJ_SYSTEM_SETTINGS_COLLECTION = "system_settings";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
-const routes = ['dashboard','reports','create-campaign','campaigns','social-publisher','publish-center','tasks','calendar','stock','departments','settings'];
+const routes = ['dashboard','reports','create-campaign','campaigns','social-publisher','publish-prep','tasks','calendar','stock','departments','settings'];
 const pageAliases = {
   database: 'reports',
   report: 'reports',
@@ -48,11 +48,11 @@ const pageAliases = {
   publish: 'social-publisher',
   social: 'social-publisher',
   'social-publisher': 'social-publisher',
-  'publish-center': 'publish-center',
-  publish_center: 'publish-center',
-  publishing_center: 'publish-center',
-  center: 'publish-center',
-  'مركز-النشر': 'publish-center',
+  'publish-prep': 'publish-prep',
+  publish_prep: 'publish-prep',
+  publishing_prep: 'publish-prep',
+  prep: 'publish-prep',
+  'تجهيز-النشر': 'publish-prep',
   'create-campaign': 'create-campaign',
   create_campaign: 'create-campaign',
   departments: 'departments',
@@ -131,7 +131,7 @@ function renderRoute(){
   if(route === 'stock') renderStock();
   if(route === 'reports') renderDatabasePage();
   if(route === 'social-publisher') renderSocialPublisherPage();
-  if(route === 'publish-center') renderPublishCenterPage();
+  if(route === 'publish-prep') renderPublishPrepPage();
 }
 function showMessage(id, text){ const el = document.getElementById(id); if(el) el.textContent = text || ''; }
 function escapeHtml(value){ return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
@@ -3863,7 +3863,7 @@ function exportCampaignPublishScheduleFile(campaignId){
   XLSX.utils.book_append_sheet(wb, ws, 'publish_schedule');
   const fileName = `${(campaignCodeText(campaign) || 'campaign').replace(/[\\/:*?"<>|\s]+/g,'_')}_publish_schedule.xlsx`;
   XLSX.writeFile(wb, fileName);
-  showToast('تم تصدير جدول النشر. ارفعه من مركز النشر لاستكمال البيانات الناقصة.');
+  showToast('تم تصدير جدول النشر. سيتم استخدامه لاحقًا لتوليد تاسكات تجهيز النشر.');
 }
 function normalizeImportHeader(value){
   return String(value || '').trim().replace(/^\uFEFF/, '').toLowerCase();
@@ -4124,7 +4124,7 @@ function selectedSocialPlatforms(){
 function appendSocialLog(item){
   setSocialPublishLog([item, ...getSocialPublishLog()]);
   renderSocialPublishLog();
-  if(getRoute() === 'publish-center') renderPublishCenterPage();
+  if(getRoute() === 'publish-prep') renderPublishPrepPage();
 }
 function getSelectedSocialPage(){
   const pageId = document.getElementById('socialMetaPageSelect')?.value || '';
@@ -4492,6 +4492,211 @@ function publishCenterStatusClass(status){
   if(text.includes('استكمال') || text.includes('ناقص')) return 'needs';
   return 'ready';
 }
+
+const publishPrepSubmissionKey = 'mzj_publish_prep_submissions_v1';
+function getPublishPrepSubmissions(){
+  try{ return JSON.parse(localStorage.getItem(publishPrepSubmissionKey) || '{}') || {}; }catch(_){ return {}; }
+}
+function setPublishPrepSubmissions(data){ localStorage.setItem(publishPrepSubmissionKey, JSON.stringify(data || {})); }
+function currentUserMatchTokens(){
+  const user = getCurrentUserIdentity();
+  return uniqueList([user.id, user.uid, user.email, user.name, getCurrentUser()?.username, getCurrentUser()?.displayName].map(v => String(v || '').toLowerCase()));
+}
+function valueMatchesCurrentUser(value){
+  const v = String(value || '').toLowerCase().trim();
+  if(!v) return false;
+  return currentUserMatchTokens().some(token => token && (v === token || v.includes(token) || token.includes(v)));
+}
+function taskAssignedToCurrentUser(task){
+  if(isCurrentUserAdmin()) return true;
+  const candidates = [
+    task.assignedTo, task.assignedToName, task.assignedToEmail, task.owner, task.ownerName, task.user, task.userName,
+    task.employee, task.employeeName, task.responsible, task.responsibleName, task.createdBy
+  ];
+  if(Array.isArray(task.assignees)) candidates.push(...task.assignees.map(a => typeof a === 'object' ? (a.email || a.name || a.id || a.uid) : a));
+  if(Array.isArray(task.users)) candidates.push(...task.users.map(a => typeof a === 'object' ? (a.email || a.name || a.id || a.uid) : a));
+  return candidates.some(valueMatchesCurrentUser);
+}
+function prepTaskTypeLabel(task){
+  const raw = normalizeText(task.contentType || task.postType || task.type || task.taskType || task.department || '');
+  const low = raw.toLowerCase();
+  if(low.includes('reel') || raw.includes('ريل') || raw.includes('فيديو')) return 'Reel / فيديو';
+  if(low.includes('story') || raw.includes('ستوري')) return 'Story';
+  if(low.includes('carousel') || raw.includes('كاروسيل') || raw.includes('صور متعددة')) return 'Carousel / صور متعددة';
+  if(raw.includes('صورة')) return 'صورة واحدة';
+  if(raw.includes('تصميم')) return 'تصميم';
+  if(raw.includes('مونتاج')) return 'مونتاج';
+  if(raw.includes('تصوير')) return 'تصوير';
+  return raw || 'محتوى نشر';
+}
+function prepTaskRequiredFileLabel(task){
+  const type = prepTaskTypeLabel(task);
+  if(type.includes('Reel') || type.includes('فيديو') || type.includes('مونتاج')) return 'فيديو نهائي';
+  if(type.includes('Carousel')) return 'مجموعة صور نهائية';
+  if(type.includes('Story')) return 'صورة/فيديو ستوري نهائي';
+  if(type.includes('تصميم')) return 'ملف التصميم النهائي';
+  return 'الملف النهائي';
+}
+function prepTaskDate(task, campaign){
+  return task.publishDate || task.scheduleDate || task.requiredDate || task.dueDate || task.deadline || campaign?.campaignEndDate || campaign?.endDate || '';
+}
+function normalizePrepPlatformList(value){
+  const list = Array.isArray(value) ? value : String(value || '').split(/[,،+]/);
+  return uniqueList(list.map(v => normalizeText(v))).map(v => {
+    const low = v.toLowerCase();
+    if(low.includes('facebook') || v.includes('فيس')) return 'Facebook';
+    if(low.includes('instagram') || v.includes('انست')) return 'Instagram';
+    if(low.includes('tiktok') || v.includes('تيك')) return 'TikTok';
+    return v;
+  }).filter(Boolean);
+}
+function campaignForPrepTask(task){
+  return campaigns.find(c => String(c.id || c.campaignId || c.campaignCode || '') === String(task.campaignId || task.parentId || task.campaignCode || '')) || campaignForTask?.(task) || null;
+}
+function publishPrepTasksFromExistingTasks(){
+  const visible = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser() : campaignTasks;
+  return (visible || []).filter(task => taskAssignedToCurrentUser(task)).map(task => {
+    const campaign = campaignForPrepTask(task) || {};
+    return {
+      id: `task_${task.id || task.taskId || task.code || Math.random().toString(36).slice(2)}`,
+      sourceType: task.sourceType || 'campaign',
+      sourceLabel: task.sourceLabel || (campaign.campaignName || campaign.name ? 'حملة' : 'تاسك'),
+      title: shortTaskName?.(task) || task.title || task.name || task.taskName || 'تاسك تجهيز نشر',
+      campaignName: campaign.campaignName || campaign.name || task.campaignName || '',
+      type: prepTaskTypeLabel(task),
+      requiredFile: prepTaskRequiredFileLabel(task),
+      platforms: normalizePrepPlatformList(task.platforms || task.platform || campaign.platforms || campaign.platform),
+      caption: task.caption || task.copy || task.description || campaign.caption || campaign.description || '',
+      hashtags: task.hashtags || campaign.hashtags || '',
+      publishDate: prepTaskDate(task, campaign),
+      publishTime: task.publishTime || task.scheduleTime || '',
+      deadline: task.deadline || task.dueDate || task.requiredDate || '',
+      notes: task.notes || task.note || task.instructions || task.description || '',
+      raw: task
+    };
+  });
+}
+function publishPrepTasksFromCampaignSchedules(){
+  const tokens = currentUserMatchTokens();
+  return campaigns.flatMap(campaign => (campaign.publishSchedule || []).map((row, index) => {
+    const assigned = row.assignedTo || row.owner || row.user || row.employee || row.responsible || '';
+    if(!isCurrentUserAdmin() && assigned && !valueMatchesCurrentUser(assigned)) return null;
+    if(!isCurrentUserAdmin() && !assigned) return null;
+    return {
+      id: `schedule_${campaign.id || campaign.campaignCode || 'campaign'}_${index}`,
+      sourceType: 'campaign',
+      sourceLabel: 'حملة',
+      title: row.output || row.title || `منشور ${campaign.campaignName || campaign.name || 'حملة'}`,
+      campaignName: campaign.campaignName || campaign.name || campaign.campaignCode || '',
+      type: prepTaskTypeLabel(row),
+      requiredFile: prepTaskRequiredFileLabel(row),
+      platforms: normalizePrepPlatformList(row.platforms || row.platform),
+      caption: row.caption || '',
+      hashtags: row.hashtags || '',
+      publishDate: row.date || row.publishDate || '',
+      publishTime: row.time || row.publishTime || '',
+      deadline: row.deadline || row.deliveryDate || row.date || '',
+      notes: row.note || row.notes || '',
+      raw: row
+    };
+  }).filter(Boolean));
+}
+function getPublishingPrepTasks(){
+  const map = new Map();
+  [...publishPrepTasksFromExistingTasks(), ...publishPrepTasksFromCampaignSchedules()].forEach(task => {
+    if(!map.has(task.id)) map.set(task.id, task);
+  });
+  return [...map.values()];
+}
+function publishPrepStatus(task, submission){
+  if(submission?.status) return submission.status;
+  const raw = normalizeStatus(task.raw?.status || task.raw?.state || '');
+  if(raw.includes('تعديل') || raw.includes('needs')) return 'يحتاج تعديل';
+  if(submission?.fileName) return 'تم التسليم';
+  return 'بانتظار رفع الملف النهائي';
+}
+function renderPublishPrepPage(){
+  const list = document.getElementById('publishPrepList');
+  if(!list) return;
+  const tasks = getPublishingPrepTasks();
+  const submissions = getPublishPrepSubmissions();
+  const enriched = tasks.map(task => ({ task, submission: submissions[task.id] || {} }));
+  const stats = document.getElementById('publishPrepStats');
+  if(stats){
+    const delivered = enriched.filter(x => publishPrepStatus(x.task, x.submission).includes('التسليم')).length;
+    const changes = enriched.filter(x => publishPrepStatus(x.task, x.submission).includes('تعديل')).length;
+    stats.innerHTML = `
+      <article class="publish-center-stat"><span>تاسكاتي</span><strong>${enriched.length}</strong></article>
+      <article class="publish-center-stat"><span>قيد التجهيز</span><strong>${Math.max(0, enriched.length - delivered - changes)}</strong></article>
+      <article class="publish-center-stat"><span>تم التسليم</span><strong>${delivered}</strong></article>
+      <article class="publish-center-stat"><span>يحتاج تعديل</span><strong>${changes}</strong></article>`;
+  }
+  if(!enriched.length){
+    list.innerHTML = `<div class="empty-state">لا توجد تاسكات تجهيز نشر مسندة لك حاليًا. عندما يتم توليد تاسكات من الحملة أو الأجندة ستظهر هنا تلقائيًا.</div>`;
+    return;
+  }
+  list.innerHTML = enriched.map(({task, submission}) => {
+    const status = publishPrepStatus(task, submission);
+    const platforms = task.platforms?.length ? task.platforms.join(' + ') : 'غير محدد';
+    const fileInfo = submission.fileName ? `<div class="prep-file-ready">✅ تم رفع: <b>${escapeHtml(submission.fileName)}</b><small>${escapeHtml(submission.fileSize || '')} · ${escapeHtml(submission.uploadedAt || '')}</small></div>` : `<div class="prep-file-missing">مطلوب رفع ${escapeHtml(task.requiredFile || 'الملف النهائي')}</div>`;
+    return `<article class="publish-prep-task" data-prep-task="${escapeHtml(task.id)}">
+      <div class="prep-task-top">
+        <div>
+          <span class="source-badge ${escapeHtml(task.sourceType || 'campaign')}">${escapeHtml(task.sourceLabel || 'تاسك')}</span>
+          <h3>${escapeHtml(task.title || 'تاسك تجهيز')}</h3>
+          <p>${escapeHtml(task.campaignName || 'بدون حملة مرتبطة')}</p>
+        </div>
+        <span class="publish-center-status ${status.includes('تعديل') ? 'failed' : status.includes('التسليم') ? 'published' : 'scheduled'}">${escapeHtml(status)}</span>
+      </div>
+      <div class="prep-task-grid">
+        <div><b>نوع المحتوى</b><span>${escapeHtml(task.type)}</span></div>
+        <div><b>المنصات</b><span>${escapeHtml(platforms)}</span></div>
+        <div><b>تاريخ النشر</b><span>${escapeHtml(task.publishDate || 'غير محدد')}</span></div>
+        <div><b>وقت النشر</b><span>${escapeHtml(task.publishTime || 'بدون وقت')}</span></div>
+        <div><b>ميعاد التسليم</b><span>${escapeHtml(task.deadline || 'غير محدد')}</span></div>
+        <div><b>المطلوب</b><span>${escapeHtml(task.requiredFile || 'ملف نهائي')}</span></div>
+      </div>
+      <details class="prep-task-details">
+        <summary>عرض كل التفاصيل</summary>
+        <div class="prep-detail-block"><b>الكابشن</b><p>${escapeHtml(task.caption || 'لا يوجد كابشن محفوظ.')}</p></div>
+        <div class="prep-detail-block"><b>الهاشتاجات</b><p>${escapeHtml(task.hashtags || 'لا توجد هاشتاجات محفوظة.')}</p></div>
+        <div class="prep-detail-block"><b>ملاحظات المسؤول</b><p>${escapeHtml(task.notes || 'لا توجد ملاحظات.')}</p></div>
+      </details>
+      <div class="prep-upload-box">
+        ${fileInfo}
+        <label class="prep-upload-field"><span>رفع الملف النهائي</span><input type="file" data-prep-file="${escapeHtml(task.id)}" accept="image/*,video/*,.pdf,.zip" /></label>
+        <textarea data-prep-note="${escapeHtml(task.id)}" placeholder="ملاحظات التسليم للملف النهائي">${escapeHtml(submission.note || '')}</textarea>
+        <button class="btn btn-primary" type="button" data-submit-prep-task="${escapeHtml(task.id)}">تسليم الملف النهائي</button>
+      </div>
+    </article>`;
+  }).join('');
+}
+function bindPublishPrepPage(){
+  document.getElementById('refreshPublishPrepBtn')?.addEventListener('click', () => { renderPublishPrepPage(); showToast('تم تحديث تاسكات تجهيز النشر.'); });
+  document.getElementById('publishPrepList')?.addEventListener('click', event => {
+    const btn = event.target.closest('[data-submit-prep-task]');
+    if(!btn) return;
+    const id = btn.dataset.submitPrepTask;
+    const fileInput = document.querySelector(`[data-prep-file="${CSS.escape(id)}"]`);
+    const noteInput = document.querySelector(`[data-prep-note="${CSS.escape(id)}"]`);
+    const file = fileInput?.files?.[0];
+    if(!file){ showToast('اختار الملف النهائي الأول.'); return; }
+    const submissions = getPublishPrepSubmissions();
+    submissions[id] = {
+      status: 'تم التسليم',
+      fileName: file.name,
+      fileType: file.type || 'file',
+      fileSize: `${Math.max(1, Math.round(file.size / 1024))} KB`,
+      note: normalizeText(noteInput?.value),
+      uploadedAt: new Date().toLocaleString('ar-SA'),
+      uploadedBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
+    };
+    setPublishPrepSubmissions(submissions);
+    renderPublishPrepPage();
+    showToast('تم تسليم الملف النهائي للتاسك.');
+  });
+}
+
 function renderPublishCenterPage(){
   const list = document.getElementById('publishCenterList');
   const stats = document.getElementById('publishCenterStats');
@@ -4608,7 +4813,7 @@ function bindSocialPublisher(){
     if(!btn) return;
     setSocialPublishLog(getSocialPublishLog().filter(item => item.id !== btn.dataset.deleteSocialLog));
     renderSocialPublishLog();
-    if(getRoute() === 'publish-center') renderPublishCenterPage();
+    if(getRoute() === 'publish-prep') renderPublishPrepPage();
   });
 }
 
@@ -4619,7 +4824,7 @@ function loadCampaigns(){
     renderCampaigns();
     renderTasksPage();
     if(getRoute() === 'calendar') renderCalendarPage();
-    if(getRoute() === 'publish-center') renderPublishCenterPage();
+    if(getRoute() === 'publish-prep') renderPublishPrepPage();
     if(getRoute() === 'reports') renderDatabasePage();
     refreshOpenTaskModal();
     renderTopbarNotifications(true);
@@ -4836,7 +5041,7 @@ function renderUsersPermissions(){
   }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
 }
 function pageLabel(page){
-  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'النشر على السوشيال','publish-center':'مركز النشر',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
+  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'النشر على السوشيال','publish-prep':'تجهيز النشر',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
 }
 function loadSystemSettings(){
   if(!mainDb) return;
@@ -5064,7 +5269,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('calendarPrevMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()-1); renderCalendarPage(); });
   document.getElementById('calendarNextMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()+1); renderCalendarPage(); });
   document.getElementById('calendarToday')?.addEventListener('click', () => { calendarCursor = new Date(); renderCalendarPage(); });
-  bindCampaignBuilder(); bindDepartments(); bindSettings(); bindSocialPublisher(); bindPublishCenter();
+  bindCampaignBuilder(); bindDepartments(); bindSettings(); bindSocialPublisher(); bindPublishPrepPage(); bindPublishCenter();
   document.getElementById('dashboard')?.addEventListener('click', async event => {
     const stageBtn = event.target.closest('[data-stage][data-campaign-id]');
     if(stageBtn){ event.stopPropagation(); await togglePublishStage(stageBtn.dataset.campaignId, stageBtn.dataset.stage); return; }
