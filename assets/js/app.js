@@ -4815,6 +4815,7 @@ function getPublishingPrepTasks(){
   return [...map.values()];
 }
 function publishPrepStatus(task, submission){
+  if(submission?.status === 'تم النشر') return 'تم النشر';
   if(submission?.readyForPublish) return 'جاهز للنشر';
   if(submission?.status) return submission.status;
   const raw = normalizeStatus(task.raw?.status || task.raw?.state || '');
@@ -4836,6 +4837,57 @@ function publishPrepHasFinalFile(task, submission){
   if(submission?.fileName || submission?.finalFileName) return true;
   const files = taskFiles(task.raw || task);
   return Array.isArray(files) && files.some(file => file?.isFinal || file?.uploadKind === 'final' || file?.kind === 'final' || file?.purpose === 'final');
+}
+
+function publishPrepFinalFileRecord(task, submission){
+  if(submission?.finalFileUrl || submission?.fileUrl || submission?.downloadURL || submission?.downloadUrl){
+    return {
+      fileUrl: submission.finalFileUrl || submission.fileUrl || submission.downloadURL || submission.downloadUrl,
+      fileName: submission.finalFileName || submission.fileName || 'final-file',
+      mimeType: submission.mimeType || submission.fileType || ''
+    };
+  }
+  const files = taskFiles(task.raw || task);
+  const found = Array.isArray(files) ? files.find(file => file?.isFinal || file?.uploadKind === 'final' || file?.kind === 'final' || file?.purpose === 'final') : null;
+  if(!found) return null;
+  return {
+    ...found,
+    fileUrl: found.fileUrl || found.downloadURL || found.downloadUrl || found.url || found.storageUrl || '',
+    fileName: found.fileName || found.name || found.title || 'final-file',
+    mimeType: found.mimeType || found.type || found.fileType || ''
+  };
+}
+function normalizePublishPlatformForApi(platform){
+  const text = normalizeText(platform).toLowerCase();
+  if(text.includes('facebook') || text.includes('فيس')) return 'facebook';
+  if(text.includes('instagram') || text.includes('انست')) return 'instagram';
+  if(text.includes('tiktok') || text.includes('تيك')) return 'tiktok';
+  return text;
+}
+async function publishPrepReadyTaskNow(task, submission){
+  const finalFile = publishPrepFinalFileRecord(task, submission);
+  if(!finalFile?.fileUrl) throw new Error('لا يوجد رابط للملف النهائي. ارفع الملف النهائي مرة أخرى.');
+  const platforms = (task.platforms || []).map(normalizePublishPlatformForApi).filter(Boolean);
+  if(!platforms.length) throw new Error('لا توجد منصات محددة للنشر.');
+  const payload = {
+    taskId: task.id,
+    title: task.title,
+    contentType: task.type || task.requiredFile || '',
+    platforms,
+    caption: publishPrepEffectiveCaption(task, submission),
+    hashtags: publishPrepEffectiveHashtags(task, submission),
+    mediaUrl: finalFile.fileUrl,
+    finalFileUrl: finalFile.fileUrl,
+    fileName: finalFile.fileName,
+    mimeType: finalFile.mimeType || finalFile.type || ''
+  };
+  const res = await fetch('/api/meta/publish/ready', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok || data.ok === false){
+    const message = data.error || (Array.isArray(data.results) ? data.results.map(x => `${x.platform || ''}: ${x.error || (x.ok ? 'OK' : 'Failed')}`).join(' | ') : '') || 'فشل النشر.';
+    throw new Error(message);
+  }
+  return data;
 }
 function publishPrepMissingFields(task, submission){
   const missing = [];
@@ -4898,7 +4950,7 @@ function renderPublishPrepCard(task, submission){
       </details>
       <div class="prep-ready-actions">
         ${completeness.complete && !submission.readyForPublish ? `<button class="btn btn-primary" type="button" data-mark-ready-publish="${escapeHtml(task.id)}">جاهز للنشر</button>` : ''}
-        ${submission.readyForPublish ? `<span class="prep-ready-badge">✅ تم تحديده كجاهز للنشر في التاريخ المحدد</span>` : ''}
+        ${submission.readyForPublish ? `<span class="prep-ready-badge">✅ جاهز للنشر في التاريخ المحدد</span><button class="btn btn-primary" type="button" data-publish-ready-task="${escapeHtml(task.id)}">نشر الآن</button>` : ''}
       </div>
     </article>`;
 }
@@ -4946,10 +4998,11 @@ function renderPublishPrepPage(){
 
 function bindPublishPrepPage(){
   document.getElementById('refreshPublishPrepBtn')?.addEventListener('click', () => { renderPublishPrepPage(); showToast('تم تحديث تاسكات تجهيز النشر.'); });
-  document.getElementById('publishPrepList')?.addEventListener('click', event => {
+  document.getElementById('publishPrepList')?.addEventListener('click', async event => {
     const saveContentBtn = event.target.closest('[data-save-prep-content]');
     const readyBtn = event.target.closest('[data-mark-ready-publish]');
-    const id = saveContentBtn?.dataset.savePrepContent || readyBtn?.dataset.markReadyPublish || '';
+    const publishBtn = event.target.closest('[data-publish-ready-task]');
+    const id = saveContentBtn?.dataset.savePrepContent || readyBtn?.dataset.markReadyPublish || publishBtn?.dataset.publishReadyTask || '';
     if(!id) return;
     const submissions = getPublishPrepSubmissions();
     const current = submissions[id] || {};
@@ -4966,6 +5019,28 @@ function bindPublishPrepPage(){
       setPublishPrepSubmissions(submissions);
       renderPublishPrepPage();
       showToast('تم حفظ الكابشن والهاشتاج.');
+      return;
+    }
+    if(publishBtn){
+      const task = getPublishingPrepTasks().find(item => item.id === id);
+      if(!task){ showToast('تعذر العثور على التاسك.'); return; }
+      try{
+        publishBtn.disabled = true;
+        publishBtn.textContent = 'جاري النشر...';
+        const result = await publishPrepReadyTaskNow(task, current);
+        submissions[id] = {
+          ...current,
+          publishedAt: result.publishedAt || new Date().toISOString(),
+          publishResult: result,
+          status: result.ok ? 'تم النشر' : 'فشل النشر'
+        };
+        setPublishPrepSubmissions(submissions);
+        renderPublishPrepPage();
+        showToast(result.ok ? 'تم إرسال المنشور للمنصات المتاحة.' : 'فشل النشر.');
+      }catch(error){
+        console.error(error);
+        showToast(error.message || 'تعذر النشر.');
+      }
       return;
     }
     if(readyBtn){
@@ -5728,6 +5803,12 @@ document.addEventListener('DOMContentLoaded', () => {
       record.purpose = uploadKind;
       record.isFinal = uploadKind === 'final';
       await updateTaskOnFirebase(task.id, { attachments: [...taskFiles(task), record] });
+      if(uploadKind === 'final'){
+        const submissions = getPublishPrepSubmissions();
+        const prepId = `task_${task.id || task.taskId || task.code || ''}`;
+        submissions[prepId] = { ...(submissions[prepId] || {}), fileName: record.fileName || record.name, finalFileName: record.fileName || record.name, fileUrl: record.fileUrl || record.downloadURL || record.downloadUrl, finalFileUrl: record.fileUrl || record.downloadURL || record.downloadUrl, mimeType: record.mimeType || record.type || '', finalUploadedAt: new Date().toISOString() };
+        setPublishPrepSubmissions(submissions);
+      }
       showToast(uploadKind === 'final' ? 'تم رفع الملف النهائي.' : 'تم رفع ملف المراجعة.');
       refreshOpenTaskModal();
     }catch(error){ console.error(error); showToast(error.message || 'تعذر رفع الملف.'); }
