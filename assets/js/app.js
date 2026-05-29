@@ -3256,7 +3256,7 @@ function renderCalendarPage(){
     date: item.scheduleDate,
     time: item.scheduleTime,
     calendarTitle: `${postTypeLabel(item.type || 'post')} · ${item.sourceLabel || 'نشر'}`,
-    calendarMeta: [(item.platforms || []).map(p => socialPlatformLabels[p] || p).join(' + '), item.scheduleTime, item.status].filter(Boolean).join(' · ')
+    calendarMeta: [(item.platforms || []).map(p => socialPlatformLabels[p] || p).join(' + '), item.scheduleTime || 'بدون وقت', item.status].filter(Boolean).join(' · ')
   }));
   const entries = [...campaignEntries, ...centerEntries];
   const byDate = entries.reduce((acc, entry) => { (acc[entry.date] ||= []).push(entry); return acc; }, {});
@@ -4260,7 +4260,6 @@ function todayIsoDate(){ const d = new Date(); return `${d.getFullYear()}-${Stri
 function publishItemMissingFields(item){
   const missing = [];
   if(!normalizeText(item?.scheduleDate)) missing.push('تاريخ النشر');
-  if(!normalizeText(item?.scheduleTime)) missing.push('وقت النشر');
   if(!normalizeText(item?.type || item?.contentType)) missing.push('نوع المحتوى');
   if(!Array.isArray(item?.platforms) || !item.platforms.length) missing.push('المنصات');
   if(!normalizeText(item?.caption)) missing.push('الكابشن');
@@ -4293,7 +4292,7 @@ function openPublishComposer(defaults = {}){
   document.getElementById('pcContentType').value = item?.type || item?.contentType || 'reel';
   document.getElementById('pcStatus').value = item?.status ? publishStatusKeyFromLabel(item.status) : (item?.status || 'draft');
   document.getElementById('pcDate').value = item?.scheduleDate || todayIsoDate();
-  document.getElementById('pcTime').value = item?.scheduleTime || '21:00';
+  document.getElementById('pcTime').value = item?.scheduleTime || ''; // الوقت اختياري
   document.getElementById('pcTitle').value = item?.title || '';
   document.getElementById('pcCaption').value = item?.caption || '';
   document.getElementById('pcHashtags').value = Array.isArray(item?.hashtags) ? item.hashtags.join(' ') : '';
@@ -4352,7 +4351,9 @@ function renderPublishComposerPreview(){
   const type = document.getElementById('pcContentType')?.value || 'reel';
   const sourceType = document.getElementById('pcSourceType')?.value || 'agenda';
   const platforms = selectedPublishCenterPlatforms();
-  const when = [document.getElementById('pcDate')?.value, document.getElementById('pcTime')?.value].filter(Boolean).join(' · ') || 'غير محدد';
+  const previewDate = document.getElementById('pcDate')?.value || '';
+  const previewTime = document.getElementById('pcTime')?.value || '';
+  const when = previewDate ? `${previewDate}${previewTime ? ' · ' + previewTime : ' · بدون وقت'}` : 'تاريخ النشر مطلوب';
   const mediaLines = String(document.getElementById('pcMediaUrls')?.value || '').split(/\n+/).map(normalizeText).filter(Boolean);
   preview.innerHTML = `<strong>${escapeHtml(title)}</strong><p>${caption ? escapeHtml(caption).slice(0, 180) + (caption.length > 180 ? '...' : '') : 'لا يوجد كابشن بعد.'}</p><div class="publish-preview-meta"><span>${escapeHtml(publishSourceLabels[sourceType] || sourceType)}</span><span>${escapeHtml(publishContentTypeLabels[type] || type)}</span><span>${escapeHtml(platforms.map(p => socialPlatformLabels[p] || p).join(' + ') || 'بدون منصة')}</span><span>${escapeHtml(when)}</span><span>${mediaLines.length} ميديا</span></div>${tags ? `<div class="publish-center-tags">${extractHashtags(tags).map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}</div>` : ''}`;
 }
@@ -4369,6 +4370,7 @@ function handlePublishCenterComposerSubmit(event){
   const caption = normalizeText(document.getElementById('pcCaption')?.value);
   if(!title){ showToast('اكتب اسم المنشور أو الحملة.'); document.getElementById('pcTitle')?.focus(); return; }
   if(!caption){ showToast('اكتب الكابشن قبل حفظ العنصر.'); document.getElementById('pcCaption')?.focus(); return; }
+  if(!normalizeText(document.getElementById('pcDate')?.value)){ showToast('حدد تاريخ النشر. الوقت اختياري.'); document.getElementById('pcDate')?.focus(); return; }
   const mediaItems = mediaLinesFromComposer();
   if(['reel','story','carousel','image'].includes(type) && !mediaItems.length){ showToast('أضف رابط ميديا واحد على الأقل مؤقتًا.'); document.getElementById('pcMediaUrls')?.focus(); return; }
   if(type === 'carousel' && mediaItems.length < 2){ showToast('Carousel يحتاج صورتين على الأقل.'); document.getElementById('pcMediaUrls')?.focus(); return; }
@@ -4475,8 +4477,8 @@ function publishCenterSocialItems(){
 }
 function getPublishCenterItems(){
   return [...publishCenterSocialItems(), ...publishCenterCampaignItems()].sort((a,b) => {
-    const da = `${a.scheduleDate || ''} ${a.scheduleTime || ''}`.trim() || a.updatedAt || '';
-    const db = `${b.scheduleDate || ''} ${b.scheduleTime || ''}`.trim() || b.updatedAt || '';
+    const da = `${a.scheduleDate || ''} ${a.scheduleTime || '99:99'}`.trim() || a.updatedAt || '';
+    const db = `${b.scheduleDate || ''} ${b.scheduleTime || '99:99'}`.trim() || b.updatedAt || '';
     return String(db).localeCompare(String(da));
   });
 }
@@ -4519,7 +4521,7 @@ function renderPublishCenterPage(){
     const platforms = (item.platforms || []).map(platform => `<span>${escapeHtml(socialPlatformLabels[platform] || platform)}</span>`).join('') || '<span>غير محدد</span>';
     const hashtags = (item.hashtags || []).length ? `<div class="publish-center-tags">${item.hashtags.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}</div>` : '<div class="publish-center-tags muted">لا توجد هاشتاجات مسجلة</div>';
     const caption = normalizeText(item.caption || item.notes || '');
-    const when = [item.scheduleDate, item.scheduleTime].filter(Boolean).join(' · ') || 'غير محدد';
+    const when = item.scheduleDate ? `${item.scheduleDate}${item.scheduleTime ? ' · ' + item.scheduleTime : ' · بدون وقت'}` : 'تاريخ غير محدد';
     const mediaCount = Array.isArray(item.mediaItems) ? item.mediaItems.length : (item.mediaUrl ? 1 : 0);
     const missingHtml = Array.isArray(item.missingFields) && item.missingFields.length ? `<div class="publish-missing-fields">ناقص: ${item.missingFields.map(field => `<span>${escapeHtml(field)}</span>`).join('')}</div>` : '';
     const isEditable = !String(item.id || '').startsWith('campaign_');
