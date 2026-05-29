@@ -2918,27 +2918,51 @@ function renderPublishAgenda(){
         <button type="button" class="mini-btn publish-copy-btn ${prev.caption ? 'filled' : ''}" data-publish-caption-btn>الكابشن${prev.caption ? ' ✓' : ''}</button>
         <button type="button" class="mini-btn publish-copy-btn ${prev.hashtagsText || prev.hashtags ? 'filled' : ''}" data-publish-hashtags-btn>الهاشتاج${prev.hashtagsText || prev.hashtags ? ' ✓' : ''}</button>
       </div>
+      <div class="publish-inline-editor hidden" data-publish-inline-editor>
+        <label><span data-publish-inline-title>الكابشن</span><textarea rows="4" data-publish-inline-text placeholder="اكتب هنا واحفظ"></textarea></label>
+        <div class="publish-inline-actions">
+          <button type="button" class="mini-btn" data-publish-inline-save>حفظ</button>
+          <button type="button" class="mini-btn" data-publish-inline-cancel>إلغاء</button>
+        </div>
+      </div>
     </article>`);
   });
   wrap.innerHTML = `<div class="publish-calendar-head"><span>الأحد</span><span>الإثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div><div class="publish-calendar-grid">${cells.join('')}</div>`;
   updatePublishOutputAvailability();
 }
-function editPublishDayText(card, kind){
+function openPublishDayInlineEditor(card, kind){
   if(!card) return;
   const isCaption = kind === 'caption';
+  const editor = card.querySelector('[data-publish-inline-editor]');
+  const textarea = editor?.querySelector('[data-publish-inline-text]');
+  const title = editor?.querySelector('[data-publish-inline-title]');
   const input = card.querySelector(isCaption ? '.js-publish-caption' : '.js-publish-hashtags');
-  const btn = card.querySelector(isCaption ? '[data-publish-caption-btn]' : '[data-publish-hashtags-btn]');
-  const title = isCaption ? 'اكتب الكابشن' : 'اكتب الهاشتاج';
-  const current = input?.value || '';
-  const value = prompt(title, current);
-  if(value === null) return;
-  const clean = normalizeText(value);
+  if(!editor || !textarea || !input) return;
+  editor.dataset.kind = kind;
+  if(title) title.textContent = isCaption ? 'الكابشن' : 'الهاشتاج';
+  textarea.value = input.value || '';
+  editor.classList.remove('hidden');
+  setTimeout(() => textarea.focus(), 0);
+}
+function savePublishDayInlineEditor(editor){
+  if(!editor) return;
+  const card = editor.closest('.publish-day-card');
+  const kind = editor.dataset.kind || 'caption';
+  const isCaption = kind === 'caption';
+  const textarea = editor.querySelector('[data-publish-inline-text]');
+  const input = card?.querySelector(isCaption ? '.js-publish-caption' : '.js-publish-hashtags');
+  const btn = card?.querySelector(isCaption ? '[data-publish-caption-btn]' : '[data-publish-hashtags-btn]');
+  const clean = normalizeText(textarea?.value || '');
   if(input) input.value = clean;
   if(btn){
     btn.classList.toggle('filled', !!clean);
     btn.textContent = `${isCaption ? 'الكابشن' : 'الهاشتاج'}${clean ? ' ✓' : ''}`;
   }
+  editor.classList.add('hidden');
   showToast(clean ? `تم حفظ ${isCaption ? 'الكابشن' : 'الهاشتاج'} لهذا اليوم.` : `تم مسح ${isCaption ? 'الكابشن' : 'الهاشتاج'} لهذا اليوم.`);
+}
+function cancelPublishDayInlineEditor(editor){
+  if(editor) editor.classList.add('hidden');
 }
 function collectPublishRows(){
   return [...document.querySelectorAll('.publish-day-card')].map(card => ({
@@ -3091,9 +3115,13 @@ function bindCampaignBuilder(){
       try{ dateInput.showPicker(); }catch(_){ }
     }
     const captionBtn = event.target.closest('[data-publish-caption-btn]');
-    if(captionBtn){ editPublishDayText(captionBtn.closest('.publish-day-card'), 'caption'); return; }
+    if(captionBtn){ openPublishDayInlineEditor(captionBtn.closest('.publish-day-card'), 'caption'); return; }
     const hashtagBtn = event.target.closest('[data-publish-hashtags-btn]');
-    if(hashtagBtn){ editPublishDayText(hashtagBtn.closest('.publish-day-card'), 'hashtags'); return; }
+    if(hashtagBtn){ openPublishDayInlineEditor(hashtagBtn.closest('.publish-day-card'), 'hashtags'); return; }
+    const inlineSave = event.target.closest('[data-publish-inline-save]');
+    if(inlineSave){ savePublishDayInlineEditor(inlineSave.closest('[data-publish-inline-editor]')); return; }
+    const inlineCancel = event.target.closest('[data-publish-inline-cancel]');
+    if(inlineCancel){ cancelPublishDayInlineEditor(inlineCancel.closest('[data-publish-inline-editor]')); return; }
     const btn = event.target.closest('.delete-row');
     if(btn){ const container = document.getElementById('creativeRows'); btn.closest('.creative-row-card')?.remove(); restoreEmptyRow(container, 1, 'ابدأ بإضافة صف كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
     const budgetDel = event.target.closest('.delete-budget-row');

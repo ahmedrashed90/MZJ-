@@ -2024,3 +2024,10 @@ body:has(.publish-composer-modal.show) .topbar{
 .prep-ready-badge{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:#eefbf4;color:#18643b;border:1px solid rgba(44,151,91,.22);font-weight:700;font-size:13px}
 .final-upload-hint{margin:8px 0 0;color:var(--muted);font-size:13px}
 @media (max-width: 900px){.prep-inline-content{grid-template-columns:1fr}.prep-status-stack{align-items:flex-start}}
+
+/* v28: inline caption/hashtag editor instead of browser prompt */
+.publish-inline-editor{margin-top:8px;padding:10px;border:1px dashed var(--line);border-radius:14px;background:#fff}
+.publish-inline-editor.hidden{display:none!important}
+.publish-inline-editor label{display:grid;gap:6px;color:var(--muted);font-size:12px;font-weight:800}
+.publish-inline-editor textarea{width:100%;min-height:72px;border:1px solid var(--line);border-radius:12px;padding:9px;font-family:inherit;resize:vertical;background:#fff;color:var(--text)}
+.publish-inline-actions{display:flex;gap:8px;margin-top:8px;justify-content:flex-end;flex-wrap:wrap}
