@@ -1,3 +1,0 @@
-MZJ Meta Secure Debug v15
-
-Debug endpoints summarize responses only. They do not return access tokens, paging URLs, appsecret_proof, or raw feed payloads.
