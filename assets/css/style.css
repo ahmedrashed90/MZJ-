@@ -2031,3 +2031,26 @@ body:has(.publish-composer-modal.show) .topbar{
 .publish-inline-editor label{display:grid;gap:6px;color:var(--muted);font-size:12px;font-weight:800}
 .publish-inline-editor textarea{width:100%;min-height:72px;border:1px solid var(--line);border-radius:12px;padding:9px;font-family:inherit;resize:vertical;background:#fff;color:var(--text)}
 .publish-inline-actions{display:flex;gap:8px;margin-top:8px;justify-content:flex-end;flex-wrap:wrap}
+
+/* v29 - تجهيز النشر Kanban */
+.publish-prep-list{display:block!important}
+.publish-prep-kanban{display:grid;grid-template-columns:repeat(4,minmax(260px,1fr));gap:14px;align-items:start;direction:rtl}
+.prep-kanban-column{background:rgba(255,255,255,.72);border:1px solid var(--line);border-radius:18px;padding:12px;min-height:360px;box-shadow:0 12px 28px rgba(90,51,41,.06)}
+.prep-kanban-head{border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px;display:grid;grid-template-columns:1fr auto;gap:4px;align-items:center}
+.prep-kanban-head h3{margin:0;color:var(--text);font-size:16px;font-weight:900}
+.prep-kanban-head span{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;background:rgba(90,51,41,.1);color:var(--primary);font-weight:900}
+.prep-kanban-head p{grid-column:1/-1;margin:0;color:var(--muted);font-size:11px;line-height:1.5}
+.prep-kanban-cards{display:grid;gap:12px}
+.publish-prep-kanban .publish-prep-task{padding:12px;border-radius:16px;box-shadow:0 8px 20px rgba(15,23,42,.05)}
+.publish-prep-kanban .prep-task-top{gap:8px;padding-bottom:8px;margin-bottom:8px}
+.publish-prep-kanban .prep-task-top h3{font-size:14px;line-height:1.5;margin:5px 0 2px}
+.publish-prep-kanban .prep-task-top p{font-size:11px}
+.publish-prep-kanban .prep-task-grid{grid-template-columns:1fr;gap:6px;margin:8px 0}
+.publish-prep-kanban .prep-task-grid div{padding:8px;border-radius:10px}
+.publish-prep-kanban .prep-inline-content{grid-template-columns:1fr;gap:8px;margin:10px 0;padding:10px}
+.publish-prep-kanban .prep-inline-content textarea{min-height:70px;font-size:12px}
+.publish-prep-kanban .prep-missing-list,.publish-prep-kanban .prep-complete-line{font-size:12px;padding:8px;margin:7px 0}
+.publish-prep-kanban .prep-ready-actions{margin-top:8px}
+.review-upload-section{border-color:#dbeafe;background:#f8fbff}
+@media(max-width:1300px){.publish-prep-kanban{grid-template-columns:repeat(2,minmax(260px,1fr))}}
+@media(max-width:760px){.publish-prep-kanban{grid-template-columns:1fr}.prep-kanban-column{min-height:auto}}

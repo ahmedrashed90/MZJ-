@@ -1730,13 +1730,21 @@ function buildZohoFileUrl(file){
   return file.fileUrl || file.url || file.viewUrl || file.webViewLink || file.permalink || file.downloadUrl || (id ? `https://workdrive.zoho.sa/file/${encodeURIComponent(id)}` : '');
 }
 function taskFiles(task){ return Array.isArray(task.attachments) ? task.attachments : []; }
-function renderAttachmentTable(task){
-  const files = taskFiles(task);
-  return `<div class="task-files-box"><div class="modal-section-title"><h3>المرفقات الحالية</h3><span>${files.length}</span></div>
-    <div class="task-files-table-wrap"><table class="task-files-table"><thead><tr><th>م</th><th>الملف</th><th>تاريخ الرفع</th><th>إجراء</th></tr></thead><tbody>${files.length ? files.map((file, i) => {
+function renderAttachmentTable(task, kind = 'all'){
+  const allFiles = taskFiles(task);
+  const isFinalFile = file => file?.isFinal || file?.uploadKind === 'final' || file?.kind === 'final' || file?.purpose === 'final';
+  const mapped = allFiles.map((file, originalIndex) => ({ file, originalIndex })).filter(item => {
+    if(kind === 'final') return isFinalFile(item.file);
+    if(kind === 'review') return !isFinalFile(item.file);
+    return true;
+  });
+  const title = kind === 'final' ? 'الملف النهائي' : (kind === 'review' ? 'ملفات المراجعة' : 'المرفقات الحالية');
+  return `<div class="task-files-box"><div class="modal-section-title"><h3>${title}</h3><span>${mapped.length}</span></div>
+    <div class="task-files-table-wrap"><table class="task-files-table"><thead><tr><th>م</th><th>الملف</th><th>تاريخ الرفع</th><th>إجراء</th></tr></thead><tbody>${mapped.length ? mapped.map((item, i) => {
+      const file = item.file;
       const url = buildZohoFileUrl(file);
       const name = escapeHtml(file.name || file.fileName || file.title || `ملف ${i+1}`);
-      return `<tr><td>${i+1}</td><td>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${name}</a>` : name}</td><td>${escapeHtml(String(file.uploadedAt || '').slice(0,16) || '—')}</td><td><button type="button" class="mini-btn danger" data-delete-task-file="${i}">حذف</button></td></tr>`;
+      return `<tr><td>${i+1}</td><td>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${name}</a>` : name}</td><td>${escapeHtml(String(file.uploadedAt || '').slice(0,16) || '—')}</td><td><button type="button" class="mini-btn danger" data-delete-task-file="${item.originalIndex}">حذف</button></td></tr>`;
     }).join('') : '<tr><td colspan="4">لا توجد مرفقات حالية.</td></tr>'}</tbody></table></div></div>`;
 }
 function fileToDataUrl(file){
@@ -2392,10 +2400,15 @@ function buildTaskDetailHtml(task){
       <div class="modal-steps-grid">${steps.map((step, index) => `<button type="button" class="workflow-step ${step.done ? 'done' : ''}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''}><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن فقط</em>' : ''}</button>`).join('')}</div>
     </div>
     ${renderStructureSection(task)}
+    <div class="modal-section attachment-section review-upload-section">
+      <div class="modal-section-title"><h3>ملفات المراجعة</h3><span>متاح دائمًا</span></div>
+      <button type="button" class="btn btn-light" data-upload-task-attachment="review">رفع ملف للمراجعة</button>
+      <p class="final-upload-hint">هذا الرفع عادي قبل 100% عشان الأدمن يراجع الملف.</p>
+      ${renderAttachmentTable(task, 'review')}
+    </div>
     <div class="modal-section attachment-section final-upload-section">
       <div class="modal-section-title"><h3>الملف النهائي</h3><span>${progress >= 100 ? 'متاح' : 'ينتظر 100%'}</span></div>
-      ${progress >= 100 ? `<button type="button" class="btn btn-primary" data-upload-task-attachment>رفع الملف النهائي</button><p class="final-upload-hint">الزر ظاهر لأن التاسك وصل 100%.</p>` : `<div class="prep-file-missing">زر رفع الملف النهائي يظهر هنا فقط عند وصول التاسك إلى 100%.</div>`}
-      ${renderAttachmentTable(task)}
+      ${progress >= 100 ? `<button type="button" class="btn btn-primary" data-upload-task-attachment="final">رفع الملف النهائي</button><p class="final-upload-hint">الزر النهائي يظهر لأن التاسك وصل 100%.</p>${renderAttachmentTable(task, 'final')}` : `<div class="prep-file-missing">زر رفع الملف النهائي يظهر هنا فقط عند وصول التاسك إلى 100%.</div>`}
     </div>`;
 }
 function renderTaskDetail(taskId, campaignId = ''){
@@ -4612,11 +4625,75 @@ function normalizePrepPlatformList(value){
 function campaignForPrepTask(task){
   return campaigns.find(c => String(c.id || c.campaignId || c.campaignCode || '') === String(task.campaignId || task.parentId || task.campaignCode || '')) || campaignForTask?.(task) || null;
 }
+
+function prepMatchText(value){
+  return normalizeText(value).toLowerCase().replace(/[\s_\-–—|\/\\]+/g, ' ').trim();
+}
+function prepScheduleCaptionValue(row){
+  return normalizeText(row?.caption || row?.postText || row?.copy || row?.text || '');
+}
+function prepScheduleHashtagValue(row){
+  const raw = row?.hashtagsText || row?.hashtags || row?.hashTags || row?.tags || '';
+  return Array.isArray(raw) ? raw.join(' ') : normalizeText(raw);
+}
+function prepScheduleRowsForCampaign(campaign){
+  return Array.isArray(campaign?.publishSchedule) ? campaign.publishSchedule : [];
+}
+function prepTaskScheduleCandidates(task, campaign){
+  const values = [
+    task.title, task.raw?.title, task.raw?.name, task.raw?.taskName, task.raw?.output,
+    task.raw?.creative, task.raw?.product, task.raw?.selectedCar, task.raw?.taskType,
+    task.type, task.requiredFile
+  ];
+  return uniqueList(values.map(prepMatchText).filter(Boolean));
+}
+function prepScheduleMatchScore(row, task, campaign){
+  const rowTexts = [row.output, row.title, row.contentType, row.type, row.platform, row.platforms, row.note, row.notes].map(prepMatchText).filter(Boolean);
+  const rowBlob = rowTexts.join(' ');
+  const candidates = prepTaskScheduleCandidates(task, campaign);
+  let score = 0;
+  candidates.forEach(c => {
+    if(!c) return;
+    if(rowBlob === c) score += 10;
+    else if(rowBlob.includes(c) || c.includes(rowBlob)) score += 6;
+    else {
+      const parts = c.split(' ').filter(x => x.length > 2);
+      const hits = parts.filter(part => rowBlob.includes(part)).length;
+      if(hits >= 2) score += hits;
+    }
+  });
+  if(row.date && task.publishDate && row.date === task.publishDate) score += 2;
+  return score;
+}
+function enrichPrepTaskFromSchedule(base, campaign, rawTask){
+  const rows = prepScheduleRowsForCampaign(campaign);
+  if(!rows.length) return base;
+  const best = rows.map((row, index) => ({ row, index, score: prepScheduleMatchScore(row, { ...base, raw: rawTask }, campaign) }))
+    .filter(item => item.score > 0)
+    .sort((a,b) => b.score - a.score)[0];
+  if(!best) return base;
+  const row = best.row;
+  const scheduleCaption = prepScheduleCaptionValue(row);
+  const scheduleHashtags = prepScheduleHashtagValue(row);
+  const schedulePlatforms = normalizePrepPlatformList(row.platforms || row.platform);
+  return {
+    ...base,
+    scheduleRowIndex: best.index,
+    scheduleOutput: row.output || row.title || base.title,
+    title: base.title || row.output || row.title || base.title,
+    caption: base.caption || scheduleCaption,
+    hashtags: base.hashtags || scheduleHashtags,
+    publishDate: base.publishDate || row.date || row.publishDate || '',
+    publishTime: base.publishTime || row.time || row.publishTime || '',
+    platforms: base.platforms?.length ? base.platforms : schedulePlatforms,
+    notes: base.notes || row.note || row.notes || ''
+  };
+}
 function publishPrepTasksFromExistingTasks(){
   const visible = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser() : campaignTasks;
   return (visible || []).filter(task => taskAssignedToCurrentUser(task)).map(task => {
     const campaign = campaignForPrepTask(task) || {};
-    return {
+    const base = {
       id: `task_${task.id || task.taskId || task.code || Math.random().toString(36).slice(2)}`,
       sourceType: task.sourceType || 'campaign',
       sourceLabel: task.sourceLabel || (campaign.campaignName || campaign.name ? 'حملة' : 'تاسك'),
@@ -4633,6 +4710,7 @@ function publishPrepTasksFromExistingTasks(){
       notes: task.notes || task.note || task.instructions || task.description || '',
       raw: task
     };
+    return enrichPrepTaskFromSchedule(base, campaign, task);
   });
 }
 function publishPrepTasksFromCampaignSchedules(){
@@ -4690,7 +4768,7 @@ function publishPrepEffectiveHashtags(task, submission){
 function publishPrepHasFinalFile(task, submission){
   if(submission?.fileName || submission?.finalFileName) return true;
   const files = taskFiles(task.raw || task);
-  return Array.isArray(files) && files.length > 0;
+  return Array.isArray(files) && files.some(file => file?.isFinal || file?.uploadKind === 'final' || file?.kind === 'final' || file?.purpose === 'final');
 }
 function publishPrepMissingFields(task, submission){
   const missing = [];
@@ -4705,41 +4783,21 @@ function publishPrepCompleteness(task, submission){
   const missing = publishPrepMissingFields(task, submission);
   return { missing, complete: !missing.length, percent: Math.max(0, Math.round(((5 - missing.length) / 5) * 100)) };
 }
-function renderPublishPrepPage(){
-  const list = document.getElementById('publishPrepList');
-  if(!list) return;
-  const tasks = getPublishingPrepTasks();
-  const submissions = getPublishPrepSubmissions();
-  const enriched = tasks.map(task => ({ task, submission: submissions[task.id] || {} }));
-  const stats = document.getElementById('publishPrepStats');
-  if(stats){
-    const delivered = enriched.filter(x => publishPrepStatus(x.task, x.submission).includes('التسليم')).length;
-    const changes = enriched.filter(x => publishPrepStatus(x.task, x.submission).includes('تعديل')).length;
-    stats.innerHTML = `
-      <article class="publish-center-stat"><span>تاسكاتي</span><strong>${enriched.length}</strong></article>
-      <article class="publish-center-stat"><span>قيد التجهيز</span><strong>${Math.max(0, enriched.length - delivered - changes)}</strong></article>
-      <article class="publish-center-stat"><span>تم التسليم</span><strong>${delivered}</strong></article>
-      <article class="publish-center-stat"><span>يحتاج تعديل</span><strong>${changes}</strong></article>`;
-  }
-  if(!enriched.length){
-    list.innerHTML = `<div class="empty-state">لا توجد تاسكات تجهيز نشر مسندة لك حاليًا. عندما يتم توليد تاسكات من الحملة أو الأجندة ستظهر هنا تلقائيًا.</div>`;
-    return;
-  }
-  list.innerHTML = enriched.map(({task, submission}) => {
-    const status = publishPrepStatus(task, submission);
-    const platforms = task.platforms?.length ? task.platforms.join(' + ') : 'غير محدد';
-    const completeness = publishPrepCompleteness(task, submission);
-    const captionValue = publishPrepEffectiveCaption(task, submission);
-    const hashtagsValue = publishPrepEffectiveHashtags(task, submission);
-    const finalFileReady = publishPrepHasFinalFile(task, submission);
-    const badgeClass = completeness.complete ? 'published' : 'failed';
-    const missingHtml = completeness.missing.length
-      ? `<div class="prep-missing-list"><b>ناقص:</b> ${completeness.missing.map(item => `<span>${escapeHtml(item)}</span>`).join('')}</div>`
-      : `<div class="prep-complete-line">✅ كل البيانات مكتملة ويمكن تجهيز التاسك للنشر.</div>`;
-    const finalFileHtml = finalFileReady
-      ? `<div class="prep-file-ready">✅ الملف النهائي موجود${submission.fileName ? `: <b>${escapeHtml(submission.fileName)}</b>` : ''}</div>`
-      : `<div class="prep-file-missing">الملف النهائي يترفع من Popup تفاصيل التاسك في داشبورد اليوزرات بعد وصول التاسك 100%.</div>`;
-    return `<article class="publish-prep-task" data-prep-task="${escapeHtml(task.id)}">
+function renderPublishPrepCard(task, submission){
+  const status = publishPrepStatus(task, submission);
+  const platforms = task.platforms?.length ? task.platforms.join(' + ') : 'غير محدد';
+  const completeness = publishPrepCompleteness(task, submission);
+  const captionValue = publishPrepEffectiveCaption(task, submission);
+  const hashtagsValue = publishPrepEffectiveHashtags(task, submission);
+  const finalFileReady = publishPrepHasFinalFile(task, submission);
+  const badgeClass = completeness.complete ? 'published' : 'failed';
+  const missingHtml = completeness.missing.length
+    ? `<div class="prep-missing-list"><b>ناقص:</b> ${completeness.missing.map(item => `<span>${escapeHtml(item)}</span>`).join('')}</div>`
+    : `<div class="prep-complete-line">✅ كل البيانات مكتملة ويمكن تجهيز التاسك للنشر.</div>`;
+  const finalFileHtml = finalFileReady
+    ? `<div class="prep-file-ready">✅ الملف النهائي موجود${submission.fileName ? `: <b>${escapeHtml(submission.fileName)}</b>` : ''}</div>`
+    : `<div class="prep-file-missing">الملف النهائي يترفع من Popup تفاصيل التاسك في داشبورد اليوزرات بعد وصول التاسك 100%.</div>`;
+  return `<article class="publish-prep-task" data-prep-task="${escapeHtml(task.id)}">
       <div class="prep-task-top">
         <div>
           <span class="source-badge ${escapeHtml(task.sourceType || 'campaign')}">${escapeHtml(task.sourceLabel || 'تاسك')}</span>
@@ -4764,7 +4822,7 @@ function renderPublishPrepPage(){
       <div class="prep-inline-content">
         <label><span>الكابشن</span><textarea data-prep-caption="${escapeHtml(task.id)}" rows="3" placeholder="اكتب الكابشن الخاص بالتاسك">${escapeHtml(captionValue)}</textarea></label>
         <label><span>الهاشتاج</span><textarea data-prep-hashtags="${escapeHtml(task.id)}" rows="2" placeholder="اكتب الهاشتاجات">${escapeHtml(hashtagsValue)}</textarea></label>
-        <button class="btn btn-light" type="button" data-save-prep-content="${escapeHtml(task.id)}">حفظ الكابشن والهاشتاج</button>
+        <button class="btn btn-light" type="button" data-save-prep-content="${escapeHtml(task.id)}">حفظ</button>
       </div>
       <details class="prep-task-details">
         <summary>عرض كل التفاصيل</summary>
@@ -4776,7 +4834,47 @@ function renderPublishPrepPage(){
         ${submission.readyForPublish ? `<span class="prep-ready-badge">✅ تم تحديده كجاهز للنشر في التاريخ المحدد</span>` : ''}
       </div>
     </article>`;
-  }).join('');
+}
+function publishPrepKanbanColumn(task, submission){
+  if(submission?.readyForPublish) return 'ready';
+  if(publishPrepHasFinalFile(task, submission)) return 'final';
+  if(publishPrepTaskProgress(task) > 0) return 'progress';
+  return 'missing';
+}
+function renderPublishPrepPage(){
+  const list = document.getElementById('publishPrepList');
+  if(!list) return;
+  const tasks = getPublishingPrepTasks();
+  const submissions = getPublishPrepSubmissions();
+  const enriched = tasks.map(task => ({ task, submission: submissions[task.id] || {} }));
+  const stats = document.getElementById('publishPrepStats');
+  if(stats){
+    const ready = enriched.filter(x => x.submission?.readyForPublish).length;
+    const finalFiles = enriched.filter(x => !x.submission?.readyForPublish && publishPrepHasFinalFile(x.task, x.submission)).length;
+    const changes = enriched.filter(x => publishPrepStatus(x.task, x.submission).includes('تعديل')).length;
+    stats.innerHTML = `
+      <article class="publish-center-stat"><span>تاسكاتي</span><strong>${enriched.length}</strong></article>
+      <article class="publish-center-stat"><span>ملف نهائي</span><strong>${finalFiles}</strong></article>
+      <article class="publish-center-stat"><span>جاهز للنشر</span><strong>${ready}</strong></article>
+      <article class="publish-center-stat"><span>يحتاج تعديل</span><strong>${changes}</strong></article>`;
+  }
+  if(!enriched.length){
+    list.innerHTML = `<div class="empty-state">لا توجد تاسكات تجهيز نشر مسندة لك حاليًا. عندما يتم توليد تاسكات من الحملة أو الأجندة ستظهر هنا تلقائيًا.</div>`;
+    return;
+  }
+  const columns = [
+    ['missing', 'ناقص', 'تاسكات ناقصها بيانات أو لم تبدأ'],
+    ['progress', 'قيد التجهيز', 'تاسكات بدأ عليها شغل ولم يتم رفع النهائي'],
+    ['final', 'الملف النهائي', 'تم رفع الملف النهائي وينتظر الاعتماد'],
+    ['ready', 'جاهز للنشر', 'تم تحديده للنشر في التاريخ المحدد']
+  ];
+  const grouped = columns.reduce((acc, [key]) => (acc[key] = [], acc), {});
+  enriched.forEach(item => grouped[publishPrepKanbanColumn(item.task, item.submission)].push(item));
+  list.innerHTML = `<div class="publish-prep-kanban">${columns.map(([key, title, hint]) => `
+    <section class="prep-kanban-column" data-prep-column="${key}">
+      <div class="prep-kanban-head"><h3>${title}</h3><span>${grouped[key].length}</span><p>${hint}</p></div>
+      <div class="prep-kanban-cards">${grouped[key].length ? grouped[key].map(({task, submission}) => renderPublishPrepCard(task, submission)).join('') : '<div class="empty-state mini-empty">لا توجد تاسكات هنا.</div>'}</div>
+    </section>`).join('')}</div>`;
 }
 
 function bindPublishPrepPage(){
@@ -5505,7 +5603,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalStepBtn = event.target.closest('#taskModal [data-task-step]');
     if(modalStepBtn){ await toggleTaskStep(modalStepBtn.dataset.taskStep, modalStepBtn.dataset.stepIndex); return; }
     const uploadBtn = event.target.closest('[data-upload-task-attachment]');
-    if(uploadBtn){ document.getElementById('taskAttachmentInput')?.click(); return; }
+    if(uploadBtn){
+      const input = document.getElementById('taskAttachmentInput');
+      if(input){ input.dataset.uploadKind = uploadBtn.dataset.uploadTaskAttachment || 'review'; input.click(); }
+      return;
+    }
     const delFile = event.target.closest('[data-delete-task-file]');
     if(delFile && activeTaskModalMeta){
       const task = findTaskById(activeTaskModalMeta.taskId, activeTaskModalMeta.campaignId);
@@ -5552,9 +5654,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!task) return;
     try{
       showToast('جاري رفع الملف...');
+      const uploadKind = event.target.dataset.uploadKind || 'review';
       const record = await uploadTaskFileToDrive(file, task);
+      record.uploadKind = uploadKind;
+      record.kind = uploadKind;
+      record.purpose = uploadKind;
+      record.isFinal = uploadKind === 'final';
       await updateTaskOnFirebase(task.id, { attachments: [...taskFiles(task), record] });
-      showToast('تم رفع الملف.');
+      showToast(uploadKind === 'final' ? 'تم رفع الملف النهائي.' : 'تم رفع ملف المراجعة.');
       refreshOpenTaskModal();
     }catch(error){ console.error(error); showToast(error.message || 'تعذر رفع الملف.'); }
   });
