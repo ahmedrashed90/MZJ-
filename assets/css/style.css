@@ -2005,3 +2005,22 @@ body:has(.publish-composer-modal.show) .topbar{
 .publish-copy-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
 .publish-copy-btn{width:100%;font-size:11px;min-height:30px;border-style:dashed;background:#fff}
 .publish-copy-btn.filled{background:#eaf2ff;border-color:#8bb7ff;color:#1f5fbf;font-weight:800;border-style:solid}
+
+/* v27 publish prep readiness */
+.prep-status-stack{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.prep-status-stack small{color:var(--muted);font-size:12px}
+.prep-progress-line{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:10px;margin:10px 0}
+.prep-progress-line strong{font-size:13px;color:var(--primary)}
+.prep-progress-line span{height:8px;border-radius:999px;background:rgba(90,51,41,.13);overflow:hidden;display:block}
+.prep-progress-line i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--primary),var(--secondary))}
+.prep-missing-list,.prep-complete-line{margin:8px 0 12px;padding:10px 12px;border-radius:14px;font-size:13px}
+.prep-missing-list{background:#fff3f0;border:1px solid rgba(184,94,79,.22);color:#7a2f25}
+.prep-missing-list span{display:inline-flex;margin:3px 4px;padding:4px 8px;border-radius:999px;background:white;border:1px solid rgba(184,94,79,.25)}
+.prep-complete-line{background:#eefbf4;border:1px solid rgba(44,151,91,.22);color:#18643b}
+.prep-inline-content{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin:14px 0;padding:12px;border-radius:16px;background:rgba(255,255,255,.58);border:1px solid var(--line)}
+.prep-inline-content label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+.prep-inline-content textarea{width:100%;min-height:58px;border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;color:var(--text);resize:vertical;font-family:inherit}
+.prep-ready-actions{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.prep-ready-badge{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:#eefbf4;color:#18643b;border:1px solid rgba(44,151,91,.22);font-weight:700;font-size:13px}
+.final-upload-hint{margin:8px 0 0;color:var(--muted);font-size:13px}
+@media (max-width: 900px){.prep-inline-content{grid-template-columns:1fr}.prep-status-stack{align-items:flex-start}}

@@ -2392,8 +2392,9 @@ function buildTaskDetailHtml(task){
       <div class="modal-steps-grid">${steps.map((step, index) => `<button type="button" class="workflow-step ${step.done ? 'done' : ''}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''}><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن فقط</em>' : ''}</button>`).join('')}</div>
     </div>
     ${renderStructureSection(task)}
-    <div class="modal-section attachment-section">
-      <button type="button" class="btn btn-primary" data-upload-task-attachment>${attachmentLabelForRole(task.departmentRole || 'other')}</button>
+    <div class="modal-section attachment-section final-upload-section">
+      <div class="modal-section-title"><h3>الملف النهائي</h3><span>${progress >= 100 ? 'متاح' : 'ينتظر 100%'}</span></div>
+      ${progress >= 100 ? `<button type="button" class="btn btn-primary" data-upload-task-attachment>رفع الملف النهائي</button><p class="final-upload-hint">الزر ظاهر لأن التاسك وصل 100%.</p>` : `<div class="prep-file-missing">زر رفع الملف النهائي يظهر هنا فقط عند وصول التاسك إلى 100%.</div>`}
       ${renderAttachmentTable(task)}
     </div>`;
 }
@@ -4641,11 +4642,40 @@ function getPublishingPrepTasks(){
   return [...map.values()];
 }
 function publishPrepStatus(task, submission){
+  if(submission?.readyForPublish) return 'جاهز للنشر';
   if(submission?.status) return submission.status;
   const raw = normalizeStatus(task.raw?.status || task.raw?.state || '');
+  if(raw.includes('جاهز') || raw.includes('ready')) return 'جاهز للنشر';
   if(raw.includes('تعديل') || raw.includes('needs')) return 'يحتاج تعديل';
-  if(submission?.fileName) return 'تم التسليم';
-  return 'بانتظار رفع الملف النهائي';
+  if(submission?.fileName || publishPrepHasFinalFile(task, submission)) return 'تم رفع الملف النهائي';
+  return 'بانتظار الاستكمال';
+}
+function publishPrepTaskProgress(task){
+  return Math.min(100, Math.max(0, Number(task.raw?.progress || task.progress || 0)));
+}
+function publishPrepEffectiveCaption(task, submission){
+  return normalizeText(submission?.caption ?? task.caption ?? '');
+}
+function publishPrepEffectiveHashtags(task, submission){
+  return normalizeText(submission?.hashtags ?? task.hashtags ?? '');
+}
+function publishPrepHasFinalFile(task, submission){
+  if(submission?.fileName || submission?.finalFileName) return true;
+  const files = taskFiles(task.raw || task);
+  return Array.isArray(files) && files.length > 0;
+}
+function publishPrepMissingFields(task, submission){
+  const missing = [];
+  if(!publishPrepEffectiveCaption(task, submission)) missing.push('الكابشن');
+  if(!publishPrepEffectiveHashtags(task, submission)) missing.push('الهاشتاج');
+  if(!normalizeText(task.publishDate)) missing.push('تاريخ النشر');
+  if(publishPrepTaskProgress(task) < 100) missing.push('اكتمال التاسك 100%');
+  if(!publishPrepHasFinalFile(task, submission)) missing.push('الملف النهائي');
+  return missing;
+}
+function publishPrepCompleteness(task, submission){
+  const missing = publishPrepMissingFields(task, submission);
+  return { missing, complete: !missing.length, percent: Math.max(0, Math.round(((5 - missing.length) / 5) * 100)) };
 }
 function renderPublishPrepPage(){
   const list = document.getElementById('publishPrepList');
@@ -4670,7 +4700,17 @@ function renderPublishPrepPage(){
   list.innerHTML = enriched.map(({task, submission}) => {
     const status = publishPrepStatus(task, submission);
     const platforms = task.platforms?.length ? task.platforms.join(' + ') : 'غير محدد';
-    const fileInfo = submission.fileName ? `<div class="prep-file-ready">✅ تم رفع: <b>${escapeHtml(submission.fileName)}</b><small>${escapeHtml(submission.fileSize || '')} · ${escapeHtml(submission.uploadedAt || '')}</small></div>` : `<div class="prep-file-missing">مطلوب رفع ${escapeHtml(task.requiredFile || 'الملف النهائي')}</div>`;
+    const completeness = publishPrepCompleteness(task, submission);
+    const captionValue = publishPrepEffectiveCaption(task, submission);
+    const hashtagsValue = publishPrepEffectiveHashtags(task, submission);
+    const finalFileReady = publishPrepHasFinalFile(task, submission);
+    const badgeClass = completeness.complete ? 'published' : 'failed';
+    const missingHtml = completeness.missing.length
+      ? `<div class="prep-missing-list"><b>ناقص:</b> ${completeness.missing.map(item => `<span>${escapeHtml(item)}</span>`).join('')}</div>`
+      : `<div class="prep-complete-line">✅ كل البيانات مكتملة ويمكن تجهيز التاسك للنشر.</div>`;
+    const finalFileHtml = finalFileReady
+      ? `<div class="prep-file-ready">✅ الملف النهائي موجود${submission.fileName ? `: <b>${escapeHtml(submission.fileName)}</b>` : ''}</div>`
+      : `<div class="prep-file-missing">الملف النهائي يترفع من Popup تفاصيل التاسك في داشبورد اليوزرات بعد وصول التاسك 100%.</div>`;
     return `<article class="publish-prep-task" data-prep-task="${escapeHtml(task.id)}">
       <div class="prep-task-top">
         <div>
@@ -4678,8 +4718,13 @@ function renderPublishPrepPage(){
           <h3>${escapeHtml(task.title || 'تاسك تجهيز')}</h3>
           <p>${escapeHtml(task.campaignName || 'بدون حملة مرتبطة')}</p>
         </div>
-        <span class="publish-center-status ${status.includes('تعديل') ? 'failed' : status.includes('التسليم') ? 'published' : 'scheduled'}">${escapeHtml(status)}</span>
+        <div class="prep-status-stack">
+          <span class="publish-center-status ${badgeClass}">${completeness.complete ? 'مكتمل' : 'ناقص'}</span>
+          <small>${escapeHtml(status)}</small>
+        </div>
       </div>
+      <div class="prep-progress-line"><strong>${completeness.percent}%</strong><span><i style="width:${completeness.percent}%"></i></span></div>
+      ${missingHtml}
       <div class="prep-task-grid">
         <div><b>نوع المحتوى</b><span>${escapeHtml(task.type)}</span></div>
         <div><b>المنصات</b><span>${escapeHtml(platforms)}</span></div>
@@ -4688,44 +4733,64 @@ function renderPublishPrepPage(){
         <div><b>ميعاد التسليم</b><span>${escapeHtml(task.deadline || 'غير محدد')}</span></div>
         <div><b>المطلوب</b><span>${escapeHtml(task.requiredFile || 'ملف نهائي')}</span></div>
       </div>
+      <div class="prep-inline-content">
+        <label><span>الكابشن</span><textarea data-prep-caption="${escapeHtml(task.id)}" rows="3" placeholder="اكتب الكابشن الخاص بالتاسك">${escapeHtml(captionValue)}</textarea></label>
+        <label><span>الهاشتاج</span><textarea data-prep-hashtags="${escapeHtml(task.id)}" rows="2" placeholder="اكتب الهاشتاجات">${escapeHtml(hashtagsValue)}</textarea></label>
+        <button class="btn btn-light" type="button" data-save-prep-content="${escapeHtml(task.id)}">حفظ الكابشن والهاشتاج</button>
+      </div>
       <details class="prep-task-details">
         <summary>عرض كل التفاصيل</summary>
-        <div class="prep-detail-block"><b>الكابشن</b><p>${escapeHtml(task.caption || 'لا يوجد كابشن محفوظ من الحملة/الأجندة. المسؤول يضيفه في بيانات التاسك أو جدول النشر.')}</p></div>
-        <div class="prep-detail-block"><b>الهاشتاجات</b><p>${escapeHtml(task.hashtags || 'لا توجد هاشتاجات محفوظة. المسؤول يضيفها في بيانات التاسك أو جدول النشر.')}</p></div>
         <div class="prep-detail-block"><b>ملاحظات المسؤول</b><p>${escapeHtml(task.notes || 'لا توجد ملاحظات.')}</p></div>
+        <div class="prep-detail-block"><b>حالة الملف النهائي</b>${finalFileHtml}</div>
       </details>
-      <div class="prep-upload-box">
-        ${fileInfo}
-        <label class="prep-upload-field"><span>رفع الملف النهائي</span><input type="file" data-prep-file="${escapeHtml(task.id)}" accept="image/*,video/*,.pdf,.zip" /></label>
-        <textarea data-prep-note="${escapeHtml(task.id)}" placeholder="ملاحظات التسليم للملف النهائي">${escapeHtml(submission.note || '')}</textarea>
-        <button class="btn btn-primary" type="button" data-submit-prep-task="${escapeHtml(task.id)}">تسليم الملف النهائي</button>
+      <div class="prep-ready-actions">
+        ${completeness.complete && !submission.readyForPublish ? `<button class="btn btn-primary" type="button" data-mark-ready-publish="${escapeHtml(task.id)}">جاهز للنشر</button>` : ''}
+        ${submission.readyForPublish ? `<span class="prep-ready-badge">✅ تم تحديده كجاهز للنشر في التاريخ المحدد</span>` : ''}
       </div>
     </article>`;
   }).join('');
 }
+
 function bindPublishPrepPage(){
   document.getElementById('refreshPublishPrepBtn')?.addEventListener('click', () => { renderPublishPrepPage(); showToast('تم تحديث تاسكات تجهيز النشر.'); });
   document.getElementById('publishPrepList')?.addEventListener('click', event => {
-    const btn = event.target.closest('[data-submit-prep-task]');
-    if(!btn) return;
-    const id = btn.dataset.submitPrepTask;
-    const fileInput = document.querySelector(`[data-prep-file="${CSS.escape(id)}"]`);
-    const noteInput = document.querySelector(`[data-prep-note="${CSS.escape(id)}"]`);
-    const file = fileInput?.files?.[0];
-    if(!file){ showToast('اختار الملف النهائي الأول.'); return; }
+    const saveContentBtn = event.target.closest('[data-save-prep-content]');
+    const readyBtn = event.target.closest('[data-mark-ready-publish]');
+    const id = saveContentBtn?.dataset.savePrepContent || readyBtn?.dataset.markReadyPublish || '';
+    if(!id) return;
     const submissions = getPublishPrepSubmissions();
-    submissions[id] = {
-      status: 'تم التسليم',
-      fileName: file.name,
-      fileType: file.type || 'file',
-      fileSize: `${Math.max(1, Math.round(file.size / 1024))} KB`,
-      note: normalizeText(noteInput?.value),
-      uploadedAt: new Date().toLocaleString('ar-SA'),
-      uploadedBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
-    };
-    setPublishPrepSubmissions(submissions);
-    renderPublishPrepPage();
-    showToast('تم تسليم الملف النهائي للتاسك.');
+    const current = submissions[id] || {};
+    if(saveContentBtn){
+      const captionInput = document.querySelector(`[data-prep-caption="${CSS.escape(id)}"]`);
+      const hashtagsInput = document.querySelector(`[data-prep-hashtags="${CSS.escape(id)}"]`);
+      submissions[id] = {
+        ...current,
+        caption: normalizeText(captionInput?.value),
+        hashtags: normalizeText(hashtagsInput?.value),
+        contentSavedAt: new Date().toISOString(),
+        contentSavedBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
+      };
+      setPublishPrepSubmissions(submissions);
+      renderPublishPrepPage();
+      showToast('تم حفظ الكابشن والهاشتاج.');
+      return;
+    }
+    if(readyBtn){
+      const task = getPublishingPrepTasks().find(item => item.id === id);
+      if(!task){ showToast('تعذر العثور على التاسك.'); return; }
+      const check = publishPrepCompleteness(task, current);
+      if(!check.complete){ showToast(`لا يمكن جعله جاهز للنشر. ناقص: ${check.missing.join('، ')}`); return; }
+      submissions[id] = {
+        ...current,
+        readyForPublish: true,
+        status: 'جاهز للنشر',
+        readyAt: new Date().toISOString(),
+        readyBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
+      };
+      setPublishPrepSubmissions(submissions);
+      renderPublishPrepPage();
+      showToast('تم تحديد التاسك كجاهز للنشر في التاريخ المحدد.');
+    }
   });
 }
 
