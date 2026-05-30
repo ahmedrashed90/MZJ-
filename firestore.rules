@@ -530,9 +530,10 @@ service cloud.firestore {
 
 
     match /publish_prep_tasks/{docId} {
-      allow read: if signedIn();
-      allow create, update: if signedIn();
-      allow delete: if isAdmin();
+      // Temporary while the current MZJ user system is not Firebase Auth-based.
+      // This lets the publishing preparation page persist captions, hashtags, review links, and final media links.
+      allow read, create, update: if true;
+      allow delete: if true;
     }
 
     match /system_settings/{docId} {

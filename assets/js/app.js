@@ -4664,11 +4664,20 @@ function cleanPublishPrepSubmissionForFirestore(taskId, submission){
   };
 }
 async function savePublishPrepSubmissionToFirestore(taskId, submission){
-  if(!mainDb || !taskId) return;
+  if(!mainDb || !taskId) return false;
   try{
     await safeCollection(window.MZJ_PUBLISH_PREP_COLLECTION).doc(safeFirestoreDocId(taskId)).set(cleanPublishPrepSubmissionForFirestore(taskId, submission), { merge: true });
+    publishPrepFirestoreReady = true;
+    return true;
   }catch(error){
+    publishPrepFirestoreReady = false;
     console.warn('Publish prep Firestore sync skipped/error', error);
+    if(error?.code === 'permission-denied'){
+      showToast('تعذر الحفظ في Firestore: راجع قواعد publish_prep_tasks. تم الحفظ محليًا فقط.');
+    } else {
+      showToast('تعذر الحفظ في Firestore مؤقتًا. تم الحفظ محليًا فقط.');
+    }
+    return false;
   }
 }
 function setPublishPrepSubmissions(data){
@@ -4710,7 +4719,8 @@ async function updatePublishPrepSubmission(taskId, patch){
   submissions[taskId] = nextRecord;
   publishPrepSubmissionsCache = submissions;
   localStorage.setItem(publishPrepSubmissionKey, JSON.stringify(submissions));
-  await savePublishPrepSubmissionToFirestore(taskId, nextRecord);
+  const savedRemote = await savePublishPrepSubmissionToFirestore(taskId, nextRecord);
+  nextRecord.__firestoreSaved = !!savedRemote;
   return nextRecord;
 }
 function currentUserMatchTokens(){
@@ -5102,7 +5112,7 @@ function bindPublishPrepPage(){
         contentSavedBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
       });
       renderPublishPrepPage();
-      showToast('تم حفظ الكابشن والهاشتاج على Firestore.');
+      showToast(publishPrepFirestoreReady ? 'تم حفظ الكابشن والهاشتاج على Firestore.' : 'تم حفظ الكابشن والهاشتاج محليًا فقط. راجع قواعد Firestore.');
       return;
     }
     if(publishBtn){
