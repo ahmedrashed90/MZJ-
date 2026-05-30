@@ -1,3 +1,16 @@
+
+function scrubSensitiveLoginUrl(){
+  try{
+    const params = new URLSearchParams(window.location.search || '');
+    if(params.has('password') || params.has('email')){
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+    }
+  }catch(error){
+    console.warn('Unable to scrub sensitive login URL', error);
+  }
+}
+scrubSensitiveLoginUrl();
+
 window.MZJ_FIREBASE_CONFIG = {
   apiKey: "AIzaSyCQYrkIcCkaNr5jJ6i0Mm_jZueMG5xxYfo",
   authDomain: "mzj-marketing.firebaseapp.com",
@@ -5537,6 +5550,8 @@ document.addEventListener('DOMContentLoaded', () => {
   overlay?.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); });
   document.getElementById('loginForm')?.addEventListener('submit', async event => {
     event.preventDefault();
+    event.stopPropagation();
+    scrubSensitiveLoginUrl();
     showMessage('loginMessage', 'جاري التحقق...');
     initFirebase();
 
@@ -5619,6 +5634,7 @@ document.addEventListener('DOMContentLoaded', () => {
         themeSettings: userDoc.themeSettings || null
       }));
       showMessage('loginMessage', '');
+      scrubSensitiveLoginUrl();
       openApp();
     }catch(error){
       console.error('Login error', error);
