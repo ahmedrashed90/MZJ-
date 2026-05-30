@@ -5723,6 +5723,7 @@ function fillSettingsForm(){
   if(document.getElementById('autoPublishFacebookHour')) autoPublishFacebookHour.value = String(Number.isFinite(Number(platformHours.facebook)) ? Number(platformHours.facebook) : 15);
   if(document.getElementById('autoPublishInstagramHour')) autoPublishInstagramHour.value = String(Number.isFinite(Number(platformHours.instagram)) ? Number(platformHours.instagram) : 18);
   if(document.getElementById('autoPublishTiktokHour')) autoPublishTiktokHour.value = String(Number.isFinite(Number(platformHours.tiktok)) ? Number(platformHours.tiktok) : 21);
+  if(document.getElementById('autoPublishYoutubeHour')) autoPublishYoutubeHour.value = String(Number.isFinite(Number(platformHours.youtube)) ? Number(platformHours.youtube) : 12);
   if(document.getElementById('autoPublishDefaultHour')) autoPublishDefaultHour.value = String(Number.isFinite(Number(platformHours.default)) ? Number(platformHours.default) : legacyHour);
   if(document.getElementById('youtubePrivacyStatus')) youtubePrivacyStatus.value = ['public','unlisted','private'].includes(String(settings.youtubePrivacyStatus || '').toLowerCase()) ? String(settings.youtubePrivacyStatus).toLowerCase() : 'unlisted';
   if(document.getElementById('autoPublishTimezone')) autoPublishTimezone.value = settings.autoPublishTimezone || 'Asia/Riyadh';
@@ -5775,6 +5776,7 @@ function bindSettings(){
       facebook: cleanHour(document.getElementById('autoPublishFacebookHour')?.value || 15),
       instagram: cleanHour(document.getElementById('autoPublishInstagramHour')?.value || 18),
       tiktok: cleanHour(document.getElementById('autoPublishTiktokHour')?.value || 21),
+      youtube: cleanHour(document.getElementById('autoPublishYoutubeHour')?.value || 12),
       default: cleanHour(document.getElementById('autoPublishDefaultHour')?.value || 12)
     };
     const enabled = document.getElementById('autoPublishEnabled')?.value !== 'false';

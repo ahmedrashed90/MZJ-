@@ -53,6 +53,7 @@ function getPlatformHours(settings = {}) {
     facebook: hour(raw.facebook, 15),
     instagram: hour(raw.instagram, 18),
     tiktok: hour(raw.tiktok, 21),
+    youtube: hour(raw.youtube, 12),
     default: hour(raw.default, oldHour)
   };
 }
