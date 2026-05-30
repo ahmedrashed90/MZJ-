@@ -4998,7 +4998,7 @@ function renderPublishPrepPage(){
 
 function bindPublishPrepPage(){
   document.getElementById('refreshPublishPrepBtn')?.addEventListener('click', () => { renderPublishPrepPage(); showToast('تم تحديث تاسكات تجهيز النشر.'); });
-  document.getElementById('publishPrepList')?.addEventListener('click', event => {
+  document.getElementById('publishPrepList')?.addEventListener('click', async event => {
     const saveContentBtn = event.target.closest('[data-save-prep-content]');
     const readyBtn = event.target.closest('[data-mark-ready-publish]');
     const publishBtn = event.target.closest('[data-publish-ready-task]');
