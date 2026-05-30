@@ -2480,12 +2480,11 @@ function buildTaskDetailHtml(task){
     <div class="modal-section attachment-section review-upload-section">
       <div class="modal-section-title"><h3>ملفات المراجعة</h3><span>متاح دائمًا</span></div>
       <button type="button" class="btn btn-light" data-upload-task-attachment="review">رفع ملف للمراجعة</button>
-      <p class="final-upload-hint">هذا الرفع عادي قبل 100% عشان الأدمن يراجع الملف.</p>
       ${renderAttachmentTable(task, 'review')}
     </div>
     <div class="modal-section attachment-section final-upload-section">
       <div class="modal-section-title"><h3>الملف النهائي</h3><span>${progress >= 100 ? 'متاح' : 'ينتظر 100%'}</span></div>
-      ${progress >= 100 ? `<button type="button" class="btn btn-primary" data-upload-task-attachment="final">رفع الملف النهائي</button><p class="final-upload-hint">الزر النهائي يظهر لأن التاسك وصل 100%.</p>${renderAttachmentTable(task, 'final')}` : `<div class="prep-file-missing">زر رفع الملف النهائي يظهر هنا فقط عند وصول التاسك إلى 100%.</div>`}
+      ${progress >= 100 ? `<button type="button" class="btn btn-primary" data-upload-task-attachment="final">رفع الملف النهائي</button>${renderAttachmentTable(task, 'final')}` : `<div class="prep-file-missing">زر رفع الملف النهائي يظهر هنا فقط عند وصول التاسك إلى 100%.</div>`}
     </div>`;
 }
 function renderTaskDetail(taskId, campaignId = ''){
@@ -5014,6 +5013,21 @@ function normalizePublishPlatformForApi(platform){
   if(text.includes('tiktok') || text.includes('تيك')) return 'tiktok';
   return text;
 }
+function publishPrepTaskSnapshot(task){
+  return {
+    title: task.title || '',
+    campaignName: task.campaignName || '',
+    sourceType: task.sourceType || '',
+    sourceLabel: task.sourceLabel || '',
+    contentType: task.type || task.requiredFile || '',
+    type: task.type || '',
+    requiredFile: task.requiredFile || '',
+    platforms: Array.isArray(task.platforms) ? task.platforms : [],
+    publishDate: task.publishDate || '',
+    publishTime: task.publishTime || ''
+  };
+}
+
 async function publishPrepReadyTaskNow(task, submission){
   const finalFile = publishPrepFinalFileRecord(task, submission);
   if(!finalFile?.fileUrl) throw new Error('لا يوجد رابط للملف النهائي. ارفع الملف النهائي مرة أخرى.');
@@ -5029,7 +5043,8 @@ async function publishPrepReadyTaskNow(task, submission){
     mediaUrl: finalFile.fileUrl,
     finalFileUrl: finalFile.fileUrl,
     fileName: finalFile.fileName,
-    mimeType: finalFile.mimeType || finalFile.type || ''
+    mimeType: finalFile.mimeType || finalFile.type || '',
+    taskSnapshot: publishPrepTaskSnapshot(task)
   };
   const res = await fetch('/api/meta/publish/ready', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
   const data = await res.json().catch(() => ({}));
@@ -5219,7 +5234,8 @@ function bindPublishPrepPage(){
         readyForPublish: true,
         status: 'جاهز للنشر',
         readyAt: new Date().toISOString(),
-        readyBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
+        readyBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user',
+        ...publishPrepTaskSnapshot(task)
       });
       renderPublishPrepPage();
       showToast('تم تحديد التاسك كجاهز للنشر في التاريخ المحدد.');
