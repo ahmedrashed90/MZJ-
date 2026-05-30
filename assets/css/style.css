@@ -2057,3 +2057,4 @@ body:has(.publish-composer-modal.show) .topbar{
 
 .settings-grid-mini{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 @media (max-width:720px){.settings-grid-mini{grid-template-columns:1fr}}
+.social-channel-icon.youtube{background:linear-gradient(135deg,#ff0000,#b91c1c);}

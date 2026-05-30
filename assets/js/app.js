@@ -4262,7 +4262,9 @@ let socialMetaPages = [];
 let socialMetaConnected = false;
 let socialTikTokConnected = false;
 let socialTikTokUser = null;
-const socialPlatformLabels = { facebook:'Facebook', instagram:'Instagram', tiktok:'TikTok' };
+let socialYouTubeConnected = false;
+let socialYouTubeChannel = null;
+const socialPlatformLabels = { facebook:'Facebook', instagram:'Instagram', tiktok:'TikTok', youtube:'YouTube' };
 function getLocalSocialPublishLog(){
   try{ return JSON.parse(localStorage.getItem(SOCIAL_PUBLISH_LOG_KEY) || '[]'); }catch(_){ return []; }
 }
@@ -4352,6 +4354,31 @@ async function loadTikTokConnection(){
   }
 }
 
+function setYouTubeStatus(text, ok = false){
+  const el = document.getElementById('youtubeChannelStatus');
+  if(el){ el.textContent = text; el.classList.toggle('ready', !!ok); el.classList.toggle('is-error', !ok); }
+}
+
+async function loadYouTubeConnection(){
+  setYouTubeStatus('جاري الفحص...', false);
+  try{
+    const response = await fetch('/api/youtube/status', { credentials:'include' });
+    const data = await response.json().catch(() => ({}));
+    socialYouTubeConnected = !!(response.ok && data.ok && data.connected);
+    socialYouTubeChannel = data.channel || null;
+    if(socialYouTubeConnected){
+      const name = socialYouTubeChannel?.title || socialYouTubeChannel?.id || 'YouTube';
+      setYouTubeStatus(`متصل: ${name}`, true);
+    } else {
+      setYouTubeStatus(data.hasClientId ? 'جاهز للربط' : 'إعدادات ناقصة', false);
+    }
+  }catch(error){
+    socialYouTubeConnected = false;
+    socialYouTubeChannel = null;
+    setYouTubeStatus('تعذر فحص YouTube', false);
+  }
+}
+
 function setSocialStatus(text, ok = false){
   const el = document.getElementById('socialMetaConnectionStatus');
   if(el){ el.textContent = text; el.classList.toggle('is-connected', !!ok); el.classList.toggle('is-error', !ok); }
@@ -4407,6 +4434,7 @@ function renderSocialPublisherPage(){
   renderSocialPublishLog();
   loadMetaConnection();
   loadTikTokConnection();
+  loadYouTubeConnection();
 }
 function renderSocialPreview(){
   const preview = document.getElementById('socialPostPreview');
@@ -5352,6 +5380,8 @@ function bindSocialPublisher(){
   document.getElementById('socialReconnectBtn')?.addEventListener('click', () => { window.location.href = '/api/meta/login'; });
   document.getElementById('socialTikTokConnectBtn')?.addEventListener('click', () => { window.location.href = '/api/tiktok/login'; });
   document.getElementById('socialTikTokDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/tiktok/logout', { credentials:'include' }); }catch(_){} socialTikTokConnected=false; socialTikTokUser=null; setTikTokStatus('تم الفصل - Sandbox', false); showToast('تم فصل TikTok.'); });
+  document.getElementById('socialYouTubeConnectBtn')?.addEventListener('click', () => { window.location.href = '/api/youtube/login'; });
+  document.getElementById('socialYouTubeDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/youtube/logout', { credentials:'include' }); }catch(_){} socialYouTubeConnected=false; socialYouTubeChannel=null; setYouTubeStatus('تم فصل YouTube', false); showToast('تم فصل YouTube.'); });
   document.getElementById('socialDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/meta/logout', { credentials:'include' }); }catch(_){} socialMetaConnected=false; socialMetaPages=[]; renderSocialPagesSelect(); setSocialStatus('تم فصل ربط Meta من هذا المتصفح.', false); showToast('تم فصل الربط.'); });
   document.getElementById('clearSocialLogBtn')?.addEventListener('click', () => { setSocialPublishLog([]); renderSocialPublishLog(); showToast('تم مسح سجل النشر المحلي.'); });
   document.getElementById('socialPublishLog')?.addEventListener('click', event => {

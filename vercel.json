@@ -9,6 +9,10 @@
       "destination": "/api/meta?path=tiktok/:path*"
     },
     {
+      "source": "/api/youtube/:path*",
+      "destination": "/api/meta?path=youtube/:path*"
+    },
+    {
       "source": "/api/publish/facebook",
       "destination": "/api/meta?path=publish/facebook"
     },
