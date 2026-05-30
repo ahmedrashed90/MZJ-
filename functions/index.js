@@ -16,6 +16,7 @@ function normalizePlatform(platform) {
   if (text.includes('facebook') || text.includes('فيس')) return 'facebook';
   if (text.includes('instagram') || text.includes('انست')) return 'instagram';
   if (text.includes('tiktok') || text.includes('تيك')) return 'tiktok';
+  if (text.includes('youtube') || text.includes('you tube') || text.includes('يوتيوب')) return 'youtube';
   return text;
 }
 

@@ -1097,6 +1097,16 @@ function restoreEmptyRow(container, colSpan, text){
 }
 function makeSelect(label, className = ''){ return `<select class="${className}" aria-label="${label}"><option value="">اختر</option></select>`; }
 function showToast(text){ let toast = document.querySelector('.save-toast'); if(!toast){ toast = document.createElement('div'); toast.className = 'save-toast'; document.body.appendChild(toast); } toast.textContent = text; toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 1800); }
+function showUploadProgressToast(percent, label = 'جاري رفع الملف'){
+  let toast = document.querySelector('.save-toast');
+  if(!toast){ toast = document.createElement('div'); toast.className = 'save-toast'; document.body.appendChild(toast); }
+  const value = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+  toast.innerHTML = `<div style="min-width:180px"><strong>${label}... ${value}%</strong><div style="height:7px;background:rgba(255,255,255,.25);border-radius:999px;margin-top:8px;overflow:hidden"><span style="display:block;height:100%;width:${value}%;background:#fff;border-radius:999px"></span></div></div>`;
+  toast.classList.add('show');
+}
+function hideUploadProgressToast(delay = 900){
+  window.setTimeout(() => { const toast = document.querySelector('.save-toast'); if(toast) toast.classList.remove('show'); }, delay);
+}
 
 function applyAppearanceMode(){
   localStorage.removeItem('mzj_appearance_mode');
@@ -1797,7 +1807,7 @@ async function uploadTaskFileToFirebaseStorage(file, task, uploadKind = 'final')
   const fileName = uniqueStorageFileName(file);
   const path = kind === 'final' ? `final-media/${fileName}` : `review-media/${fileName}`;
   const ref = mainStorage.ref().child(path);
-  const snapshot = await ref.put(file, {
+  const metadata = {
     contentType: file.type || 'application/octet-stream',
     customMetadata: {
       uploadKind: kind,
@@ -1806,7 +1816,16 @@ async function uploadTaskFileToFirebaseStorage(file, task, uploadKind = 'final')
       originalFileName: file.name || fileName,
       uploadedBy: current.email || current.name || userId
     }
+  };
+  const snapshot = await new Promise((resolve, reject) => {
+    const taskUpload = ref.put(file, metadata);
+    taskUpload.on('state_changed', snap => {
+      const percent = snap.totalBytes ? (snap.bytesTransferred / snap.totalBytes) * 100 : 0;
+      showUploadProgressToast(percent, kind === 'final' ? 'جاري رفع الملف النهائي' : 'جاري رفع الملف');
+    }, reject, () => resolve(taskUpload.snapshot));
   });
+  showUploadProgressToast(100, kind === 'final' ? 'تم رفع الملف النهائي' : 'تم رفع الملف');
+  hideUploadProgressToast();
   const downloadURL = await snapshot.ref.getDownloadURL();
   return {
     storageProvider: 'firebase',
@@ -4853,6 +4872,7 @@ function normalizePrepPlatformList(value){
     if(low.includes('facebook') || v.includes('فيس')) return 'Facebook';
     if(low.includes('instagram') || v.includes('انست')) return 'Instagram';
     if(low.includes('tiktok') || v.includes('تيك')) return 'TikTok';
+    if(low.includes('youtube') || low.includes('you tube') || v.includes('يوتيوب') || v.includes('يوتيوب')) return 'YouTube';
     return v;
   }).filter(Boolean);
 }
@@ -4927,8 +4947,8 @@ function enrichPrepTaskFromSchedule(base, campaign, rawTask){
     title: base.title || row.output || row.title || base.title,
     caption: base.caption || scheduleCaption,
     hashtags: base.hashtags || scheduleHashtags,
-    publishDate: base.publishDate || row.date || row.publishDate || '',
-    publishTime: base.publishTime || row.time || row.publishTime || '',
+    publishDate: row.date || row.publishDate || base.publishDate || '',
+    publishTime: row.time || row.publishTime || base.publishTime || '',
     platforms: base.platforms?.length ? base.platforms : schedulePlatforms,
     notes: base.notes || row.note || row.notes || ''
   };
@@ -6040,7 +6060,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const task = findTaskById(activeTaskModalMeta.taskId, activeTaskModalMeta.campaignId);
     if(!task) return;
     try{
-      showToast('جاري رفع الملف...');
+      showUploadProgressToast(0, 'جاري رفع الملف');
       const uploadKind = event.target.dataset.uploadKind || 'review';
       const record = await uploadTaskFileToDrive(file, task, uploadKind);
       record.uploadKind = uploadKind;
