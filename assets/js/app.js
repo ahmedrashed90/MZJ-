@@ -5160,6 +5160,7 @@ function normalizePublishPlatformForApi(platform){
   if(text.includes('facebook') || text.includes('فيس')) return 'facebook';
   if(text.includes('instagram') || text.includes('انست')) return 'instagram';
   if(text.includes('tiktok') || text.includes('تيك')) return 'tiktok';
+  if(text.includes('youtube') || text.includes('you tube') || text.includes('يوتيوب')) return 'youtube';
   return text;
 }
 function publishPrepTaskSnapshot(task){
@@ -5193,6 +5194,7 @@ async function publishPrepReadyTaskNow(task, submission){
     finalFileUrl: finalFile.fileUrl,
     fileName: finalFile.fileName,
     mimeType: finalFile.mimeType || finalFile.type || '',
+    youtubePrivacyStatus: ['public','unlisted','private'].includes(String(systemSettings.youtubePrivacyStatus || '').toLowerCase()) ? String(systemSettings.youtubePrivacyStatus).toLowerCase() : 'unlisted',
     taskSnapshot: publishPrepTaskSnapshot(task)
   };
   const res = await fetch('/api/meta/publish/ready', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
@@ -5722,6 +5724,7 @@ function fillSettingsForm(){
   if(document.getElementById('autoPublishInstagramHour')) autoPublishInstagramHour.value = String(Number.isFinite(Number(platformHours.instagram)) ? Number(platformHours.instagram) : 18);
   if(document.getElementById('autoPublishTiktokHour')) autoPublishTiktokHour.value = String(Number.isFinite(Number(platformHours.tiktok)) ? Number(platformHours.tiktok) : 21);
   if(document.getElementById('autoPublishDefaultHour')) autoPublishDefaultHour.value = String(Number.isFinite(Number(platformHours.default)) ? Number(platformHours.default) : legacyHour);
+  if(document.getElementById('youtubePrivacyStatus')) youtubePrivacyStatus.value = ['public','unlisted','private'].includes(String(settings.youtubePrivacyStatus || '').toLowerCase()) ? String(settings.youtubePrivacyStatus).toLowerCase() : 'unlisted';
   if(document.getElementById('autoPublishTimezone')) autoPublishTimezone.value = settings.autoPublishTimezone || 'Asia/Riyadh';
   if(settings.colors){
     if(document.getElementById('colorPrimary')) colorPrimary.value = settings.colors.primary || defaultThemeSettings.colors.primary;
@@ -5775,14 +5778,17 @@ function bindSettings(){
       default: cleanHour(document.getElementById('autoPublishDefaultHour')?.value || 12)
     };
     const enabled = document.getElementById('autoPublishEnabled')?.value !== 'false';
+    const privacyRaw = String(document.getElementById('youtubePrivacyStatus')?.value || 'unlisted').toLowerCase();
+    const youtubePrivacyStatus = ['public','unlisted','private'].includes(privacyRaw) ? privacyRaw : 'unlisted';
     await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({
       autoPublishEnabled: enabled,
       autoPublishPlatformHours: platformHours,
       autoPublishHour: platformHours.default,
       autoPublishTimezone: 'Asia/Riyadh',
+      youtubePrivacyStatus,
       updatedAt: serverTime()
     }, { merge:true });
-    showMessage('autoPublishSettingsMessage','تم حفظ مواعيد النشر: 3 / 6 / 9 / 12 لكل منصة.');
+    showMessage('autoPublishSettingsMessage','تم حفظ مواعيد النشر وخصوصية YouTube.');
   });
   document.getElementById('saveThemeColorsBtn')?.addEventListener('click', async () => {
     if(!mainDb) return;

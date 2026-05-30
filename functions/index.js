@@ -93,7 +93,12 @@ function isPlatformDue(task, platform, settings, nowInfo) {
   return nowInfo.hour >= platformHour(platform, hours);
 }
 
-function buildPayload(task, platform) {
+function normalizeYouTubePrivacyStatus(value) {
+  const text = String(value || '').trim().toLowerCase();
+  return ['public', 'unlisted', 'private'].includes(text) ? text : 'unlisted';
+}
+
+function buildPayload(task, platform, settings = {}) {
   const snapshot = task.taskSnapshot || {};
   return {
     taskId: task.taskId || task.id,
@@ -105,7 +110,8 @@ function buildPayload(task, platform) {
     mediaUrl: task.finalFileUrl || task.fileUrl || (task.finalFileRecord && task.finalFileRecord.downloadURL) || (task.finalFileRecord && task.finalFileRecord.fileUrl) || '',
     finalFileUrl: task.finalFileUrl || task.fileUrl || '',
     fileName: task.finalFileName || task.fileName || (task.finalFileRecord && task.finalFileRecord.fileName) || '',
-    mimeType: task.mimeType || (task.finalFileRecord && task.finalFileRecord.mimeType) || (task.finalFileRecord && task.finalFileRecord.type) || ''
+    mimeType: task.mimeType || (task.finalFileRecord && task.finalFileRecord.mimeType) || (task.finalFileRecord && task.finalFileRecord.type) || '',
+    youtubePrivacyStatus: normalizeYouTubePrivacyStatus(task.youtubePrivacyStatus || settings.youtubePrivacyStatus || 'unlisted')
   };
 }
 
@@ -165,7 +171,7 @@ async function runAutoPublishOnce() {
 
     const platformPublishState = { ...(task.platformPublishState || {}) };
     for (const platform of duePlatforms) {
-      const payload = buildPayload(task, platform);
+      const payload = buildPayload(task, platform, settings);
       const publishedAt = new Date().toISOString();
       try {
         const publishResponse = await callPublish(payload);
@@ -220,9 +226,9 @@ exports.runAutoPublishNow = onRequest({
 }, async (req, res) => {
   try {
     const result = await runAutoPublishOnce();
-    res.status(200).json({ ok: true, deployed: 'firebase-scheduled-auto-publish-v39', ...result });
+    res.status(200).json({ ok: true, deployed: 'firebase-youtube-privacy-v46', ...result });
   } catch (error) {
     logger.error(error);
-    res.status(500).json({ ok: false, deployed: 'firebase-scheduled-auto-publish-v39', error: error.message || String(error) });
+    res.status(500).json({ ok: false, deployed: 'firebase-youtube-privacy-v46', error: error.message || String(error) });
   }
 });
