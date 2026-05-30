@@ -227,9 +227,9 @@ exports.runAutoPublishNow = onRequest({
 }, async (req, res) => {
   try {
     const result = await runAutoPublishOnce();
-    res.status(200).json({ ok: true, deployed: 'firebase-youtube-privacy-v46', ...result });
+    res.status(200).json({ ok: true, deployed: 'youtube-privacy-function-fix-v48', ...result });
   } catch (error) {
     logger.error(error);
-    res.status(500).json({ ok: false, deployed: 'firebase-youtube-privacy-v46', error: error.message || String(error) });
+    res.status(500).json({ ok: false, deployed: 'youtube-privacy-function-fix-v48', error: error.message || String(error) });
   }
 });
