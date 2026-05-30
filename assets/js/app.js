@@ -1125,7 +1125,7 @@ function showUploadProgressToast(percent, label = 'جاري رفع الملف', 
   const remaining = speed > 0 && total > uploaded ? (total - uploaded) / speed : 0;
   const expanded = !!window.__mzjUploadDetailsOpen;
   const stats = total ? `${formatUploadBytes(uploaded)} / ${formatUploadBytes(total)}` : '';
-  toast.innerHTML = `<div class="upload-toast-box" style="min-width:230px">
+  toast.innerHTML = `<div class="upload-toast-box" style="min-width:230px;pointer-events:auto">
     <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
       <strong>${escapeHtml(label)}... ${value}%</strong>
       ${meta.cancelable ? '<button type="button" data-cancel-active-upload style="border:0;border-radius:9px;background:#fff;color:#6b3b32;padding:5px 8px;font-weight:800;cursor:pointer">إلغاء</button>' : ''}
@@ -1149,12 +1149,14 @@ document.addEventListener('click', event => {
   const cancelBtn = event.target.closest('[data-cancel-active-upload]');
   if(cancelBtn){
     event.preventDefault();
-    try{ activeUploadProgressState?.taskUpload?.cancel?.(); }catch(_){ /* ignore */ }
+    event.stopPropagation();
+    try{ activeUploadProgressState?.taskUpload?.cancel?.(); showUploadProgressToast(activeUploadProgressState?.percent || 0, 'جاري إلغاء الرفع', activeUploadProgressState); }catch(_){ /* ignore */ }
     return;
   }
   const toggleBtn = event.target.closest('[data-toggle-upload-details]');
   if(toggleBtn){
     event.preventDefault();
+    event.stopPropagation();
     window.__mzjUploadDetailsOpen = !window.__mzjUploadDetailsOpen;
     if(activeUploadProgressState) showUploadProgressToast(activeUploadProgressState.percent || 0, activeUploadProgressState.label || 'جاري رفع الملف', activeUploadProgressState);
   }
