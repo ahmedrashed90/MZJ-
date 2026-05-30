@@ -44,6 +44,7 @@ window.MZJ_STOCK_CARS_COLLECTION = "cars";
 window.MZJ_CAMPAIGNS_COLLECTION = "marketing_campaigns";
 window.MZJ_CAMPAIGN_TASKS_COLLECTION = "campaign_tasks"; // غير مستخدم في داشبورد اليوزرات
 window.MZJ_SYSTEM_SETTINGS_COLLECTION = "system_settings";
+window.MZJ_PUBLISH_PREP_COLLECTION = "publish_prep_tasks";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
@@ -108,6 +109,9 @@ let stockCarMeta = {};
 let stockFilterMode = "all";
 let systemSettings = {};
 let activeTaskModalMeta = null;
+let publishPrepSubmissionsCache = null;
+let publishPrepFirestoreReady = false;
+let publishPrepUnsubscribe = null;
 
 function isLoggedIn(){ return localStorage.getItem('mzj_logged_in') === '1'; }
 function getRoute(){ return (location.hash || '#dashboard').replace('#',''); }
@@ -4636,10 +4640,79 @@ function publishCenterStatusClass(status){
 }
 
 const publishPrepSubmissionKey = 'mzj_publish_prep_submissions_v1';
-function getPublishPrepSubmissions(){
+function safeFirestoreDocId(value){
+  return String(value || 'item').trim().replace(/[\/#?%*:|"<>\s]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 140) || 'item';
+}
+function readLocalPublishPrepSubmissions(){
   try{ return JSON.parse(localStorage.getItem(publishPrepSubmissionKey) || '{}') || {}; }catch(_){ return {}; }
 }
-function setPublishPrepSubmissions(data){ localStorage.setItem(publishPrepSubmissionKey, JSON.stringify(data || {})); }
+function getPublishPrepSubmissions(){
+  if(publishPrepSubmissionsCache) return publishPrepSubmissionsCache;
+  publishPrepSubmissionsCache = readLocalPublishPrepSubmissions();
+  return publishPrepSubmissionsCache;
+}
+function cleanPublishPrepSubmissionForFirestore(taskId, submission){
+  const jsonSafe = JSON.parse(JSON.stringify(submission || {}));
+  delete jsonSafe.__localOnly;
+  return {
+    ...jsonSafe,
+    taskId: String(taskId || ''),
+    ownerEmail: jsonSafe.ownerEmail || getCurrentUserIdentity()?.email || '',
+    ownerUid: jsonSafe.ownerUid || getCurrentUserIdentity()?.uid || getCurrentUserIdentity()?.id || '',
+    updatedAtIso: new Date().toISOString(),
+    updatedAt: serverTime()
+  };
+}
+async function savePublishPrepSubmissionToFirestore(taskId, submission){
+  if(!mainDb || !taskId) return;
+  try{
+    await safeCollection(window.MZJ_PUBLISH_PREP_COLLECTION).doc(safeFirestoreDocId(taskId)).set(cleanPublishPrepSubmissionForFirestore(taskId, submission), { merge: true });
+  }catch(error){
+    console.warn('Publish prep Firestore sync skipped/error', error);
+  }
+}
+function setPublishPrepSubmissions(data){
+  const next = data || {};
+  publishPrepSubmissionsCache = next;
+  localStorage.setItem(publishPrepSubmissionKey, JSON.stringify(next));
+  if(mainDb){
+    Object.entries(next).forEach(([taskId, submission]) => {
+      savePublishPrepSubmissionToFirestore(taskId, submission);
+    });
+  }
+}
+function loadPublishPrepSubmissions(){
+  if(!mainDb || publishPrepUnsubscribe) return;
+  const local = readLocalPublishPrepSubmissions();
+  publishPrepSubmissionsCache = { ...local };
+  publishPrepUnsubscribe = safeCollection(window.MZJ_PUBLISH_PREP_COLLECTION).onSnapshot(snapshot => {
+    const remote = {};
+    snapshot.docs.forEach(doc => {
+      const data = doc.data() || {};
+      const taskId = data.taskId || doc.id;
+      const clean = { ...data };
+      delete clean.updatedAt;
+      remote[taskId] = clean;
+    });
+    publishPrepFirestoreReady = true;
+    publishPrepSubmissionsCache = { ...readLocalPublishPrepSubmissions(), ...remote };
+    localStorage.setItem(publishPrepSubmissionKey, JSON.stringify(publishPrepSubmissionsCache));
+    if(getRoute() === 'publish-prep') renderPublishPrepPage();
+    if(getRoute() === 'calendar') renderCalendarPage();
+  }, error => {
+    publishPrepFirestoreReady = false;
+    console.warn('Publish prep Firestore load error', error);
+  });
+}
+async function updatePublishPrepSubmission(taskId, patch){
+  const submissions = getPublishPrepSubmissions();
+  const nextRecord = { ...(submissions[taskId] || {}), ...(patch || {}) };
+  submissions[taskId] = nextRecord;
+  publishPrepSubmissionsCache = submissions;
+  localStorage.setItem(publishPrepSubmissionKey, JSON.stringify(submissions));
+  await savePublishPrepSubmissionToFirestore(taskId, nextRecord);
+  return nextRecord;
+}
 function currentUserMatchTokens(){
   const user = getCurrentUserIdentity();
   return uniqueList([user.id, user.uid, user.email, user.name, getCurrentUser()?.username, getCurrentUser()?.displayName].map(v => String(v || '').toLowerCase()));
@@ -4985,7 +5058,7 @@ function renderPublishPrepPage(){
     const finalFiles = enriched.filter(x => !x.submission?.readyForPublish && publishPrepHasFinalFile(x.task, x.submission)).length;
     const changes = enriched.filter(x => publishPrepStatus(x.task, x.submission).includes('تعديل')).length;
     stats.innerHTML = `
-      <article class="publish-center-stat"><span>تاسكاتي</span><strong>${enriched.length}</strong></article>
+      <article class="publish-center-stat"><span>تاسكاتي</span><strong>${enriched.length}</strong><small>${publishPrepFirestoreReady ? 'Firestore متصل' : 'حفظ محلي احتياطي'}</small></article>
       <article class="publish-center-stat"><span>ملف نهائي</span><strong>${finalFiles}</strong></article>
       <article class="publish-center-stat"><span>جاهز للنشر</span><strong>${ready}</strong></article>
       <article class="publish-center-stat"><span>يحتاج تعديل</span><strong>${changes}</strong></article>`;
@@ -5022,16 +5095,14 @@ function bindPublishPrepPage(){
     if(saveContentBtn){
       const captionInput = document.querySelector(`[data-prep-caption="${CSS.escape(id)}"]`);
       const hashtagsInput = document.querySelector(`[data-prep-hashtags="${CSS.escape(id)}"]`);
-      submissions[id] = {
-        ...current,
+      await updatePublishPrepSubmission(id, {
         caption: normalizeText(captionInput?.value),
         hashtags: normalizeText(hashtagsInput?.value),
         contentSavedAt: new Date().toISOString(),
         contentSavedBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
-      };
-      setPublishPrepSubmissions(submissions);
+      });
       renderPublishPrepPage();
-      showToast('تم حفظ الكابشن والهاشتاج.');
+      showToast('تم حفظ الكابشن والهاشتاج على Firestore.');
       return;
     }
     if(publishBtn){
@@ -5041,13 +5112,11 @@ function bindPublishPrepPage(){
         publishBtn.disabled = true;
         publishBtn.textContent = 'جاري النشر...';
         const result = await publishPrepReadyTaskNow(task, current);
-        submissions[id] = {
-          ...current,
+        await updatePublishPrepSubmission(id, {
           publishedAt: result.publishedAt || new Date().toISOString(),
           publishResult: result,
           status: result.ok ? 'تم النشر' : 'فشل النشر'
-        };
-        setPublishPrepSubmissions(submissions);
+        });
         renderPublishPrepPage();
         showToast(result.ok ? 'تم إرسال المنشور للمنصات المتاحة.' : 'فشل النشر.');
       }catch(error){
@@ -5061,14 +5130,12 @@ function bindPublishPrepPage(){
       if(!task){ showToast('تعذر العثور على التاسك.'); return; }
       const check = publishPrepCompleteness(task, current);
       if(!check.complete){ showToast(`لا يمكن جعله جاهز للنشر. ناقص: ${check.missing.join('، ')}`); return; }
-      submissions[id] = {
-        ...current,
+      await updatePublishPrepSubmission(id, {
         readyForPublish: true,
         status: 'جاهز للنشر',
         readyAt: new Date().toISOString(),
         readyBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
-      };
-      setPublishPrepSubmissions(submissions);
+      });
       renderPublishPrepPage();
       showToast('تم تحديد التاسك كجاهز للنشر في التاريخ المحدد.');
     }
@@ -5539,6 +5606,7 @@ function bootstrapData(){
       if(getRoute() === 'dashboard') renderAdminDashboard();
     }, error => console.error(error));
   }
+  loadPublishPrepSubmissions();
   loadCampaigns();
   // loadCampaignTasks(); // تم إلغاء الاعتماد على campaign_tasks
   loadStock();
@@ -5819,13 +5887,30 @@ document.addEventListener('DOMContentLoaded', () => {
       record.purpose = uploadKind;
       record.isFinal = uploadKind === 'final';
       await updateTaskOnFirebase(task.id, { attachments: [...taskFiles(task), record] });
+      const prepId = `task_${task.id || task.taskId || task.code || ''}`;
+      const submissions = getPublishPrepSubmissions();
+      const currentPrep = submissions[prepId] || {};
       if(uploadKind === 'final'){
-        const submissions = getPublishPrepSubmissions();
-        const prepId = `task_${task.id || task.taskId || task.code || ''}`;
-        submissions[prepId] = { ...(submissions[prepId] || {}), fileName: record.fileName || record.name, finalFileName: record.fileName || record.name, fileUrl: record.fileUrl || record.downloadURL || record.downloadUrl, finalFileUrl: record.fileUrl || record.downloadURL || record.downloadUrl, mimeType: record.mimeType || record.type || '', finalUploadedAt: new Date().toISOString() };
-        setPublishPrepSubmissions(submissions);
+        await updatePublishPrepSubmission(prepId, {
+          fileName: record.fileName || record.name,
+          finalFileName: record.fileName || record.name,
+          fileUrl: record.fileUrl || record.downloadURL || record.downloadUrl,
+          finalFileUrl: record.fileUrl || record.downloadURL || record.downloadUrl,
+          mimeType: record.mimeType || record.type || '',
+          finalFileRecord: record,
+          finalUploadedAt: new Date().toISOString(),
+          status: currentPrep.readyForPublish ? 'جاهز للنشر' : (currentPrep.status || 'تم رفع الملف النهائي')
+        });
+      }else{
+        const reviewFiles = Array.isArray(currentPrep.reviewFiles) ? currentPrep.reviewFiles : [];
+        await updatePublishPrepSubmission(prepId, {
+          reviewFiles: [...reviewFiles, record],
+          lastReviewFileName: record.fileName || record.name,
+          lastReviewFileUrl: record.fileUrl || record.downloadURL || record.downloadUrl,
+          reviewUploadedAt: new Date().toISOString()
+        });
       }
-      showToast(uploadKind === 'final' ? 'تم رفع الملف النهائي.' : 'تم رفع ملف المراجعة.');
+      showToast(uploadKind === 'final' ? 'تم رفع الملف النهائي وحفظ الرابط في Firestore.' : 'تم رفع ملف المراجعة وحفظه في Firestore.');
       refreshOpenTaskModal();
     }catch(error){ console.error(error); showToast(error.message || 'تعذر رفع الملف.'); }
   });

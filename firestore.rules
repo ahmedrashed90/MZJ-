@@ -529,6 +529,11 @@ service cloud.firestore {
     }
 
 
+    match /publish_prep_tasks/{docId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+      allow delete: if isAdmin();
+    }
 
     match /system_settings/{docId} {
       allow read: if true;
