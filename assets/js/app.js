@@ -1097,16 +1097,68 @@ function restoreEmptyRow(container, colSpan, text){
 }
 function makeSelect(label, className = ''){ return `<select class="${className}" aria-label="${label}"><option value="">اختر</option></select>`; }
 function showToast(text){ let toast = document.querySelector('.save-toast'); if(!toast){ toast = document.createElement('div'); toast.className = 'save-toast'; document.body.appendChild(toast); } toast.textContent = text; toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 1800); }
-function showUploadProgressToast(percent, label = 'جاري رفع الملف'){
+function formatUploadBytes(bytes){
+  const n = Number(bytes) || 0;
+  if(n >= 1024 * 1024 * 1024) return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  if(n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  if(n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${Math.round(n)} B`;
+}
+function formatUploadTime(seconds){
+  const s = Math.max(0, Math.round(Number(seconds) || 0));
+  if(!s || !Number.isFinite(s)) return 'غير محدد';
+  if(s < 60) return `${s} ثانية`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return r ? `${m} دقيقة و ${r} ثانية` : `${m} دقيقة`;
+}
+let activeUploadProgressState = null;
+window.__mzjUploadDetailsOpen = false;
+function showUploadProgressToast(percent, label = 'جاري رفع الملف', details = null){
   let toast = document.querySelector('.save-toast');
   if(!toast){ toast = document.createElement('div'); toast.className = 'save-toast'; document.body.appendChild(toast); }
   const value = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
-  toast.innerHTML = `<div style="min-width:180px"><strong>${label}... ${value}%</strong><div style="height:7px;background:rgba(255,255,255,.25);border-radius:999px;margin-top:8px;overflow:hidden"><span style="display:block;height:100%;width:${value}%;background:#fff;border-radius:999px"></span></div></div>`;
+  const meta = details || activeUploadProgressState || {};
+  const uploaded = Number(meta.bytesTransferred || 0);
+  const total = Number(meta.totalBytes || 0);
+  const speed = Number(meta.speedBps || 0);
+  const remaining = speed > 0 && total > uploaded ? (total - uploaded) / speed : 0;
+  const expanded = !!window.__mzjUploadDetailsOpen;
+  const stats = total ? `${formatUploadBytes(uploaded)} / ${formatUploadBytes(total)}` : '';
+  toast.innerHTML = `<div class="upload-toast-box" style="min-width:230px">
+    <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+      <strong>${escapeHtml(label)}... ${value}%</strong>
+      ${meta.cancelable ? '<button type="button" data-cancel-active-upload style="border:0;border-radius:9px;background:#fff;color:#6b3b32;padding:5px 8px;font-weight:800;cursor:pointer">إلغاء</button>' : ''}
+    </div>
+    <div style="height:7px;background:rgba(255,255,255,.25);border-radius:999px;margin-top:8px;overflow:hidden"><span style="display:block;height:100%;width:${value}%;background:#fff;border-radius:999px"></span></div>
+    ${stats ? `<button type="button" data-toggle-upload-details style="margin-top:7px;border:0;background:transparent;color:#fff;text-decoration:underline;cursor:pointer;font-weight:800">${expanded ? 'إخفاء التفاصيل' : 'عرض سرعة الرفع'}</button>` : ''}
+    ${expanded && stats ? `<div style="margin-top:6px;font-size:12px;line-height:1.8;text-align:right;color:#fff">
+      <div>الملف: ${escapeHtml(meta.fileName || '')}</div>
+      <div>المرفوع: ${escapeHtml(stats)}</div>
+      <div>السرعة: ${speed ? `${formatUploadBytes(speed)}/ث` : 'جاري الحساب'}</div>
+      <div>المتبقي: ${escapeHtml(formatUploadTime(remaining))}</div>
+    </div>` : ''}
+  </div>`;
   toast.classList.add('show');
 }
 function hideUploadProgressToast(delay = 900){
+  activeUploadProgressState = null;
   window.setTimeout(() => { const toast = document.querySelector('.save-toast'); if(toast) toast.classList.remove('show'); }, delay);
 }
+document.addEventListener('click', event => {
+  const cancelBtn = event.target.closest('[data-cancel-active-upload]');
+  if(cancelBtn){
+    event.preventDefault();
+    try{ activeUploadProgressState?.taskUpload?.cancel?.(); }catch(_){ /* ignore */ }
+    return;
+  }
+  const toggleBtn = event.target.closest('[data-toggle-upload-details]');
+  if(toggleBtn){
+    event.preventDefault();
+    window.__mzjUploadDetailsOpen = !window.__mzjUploadDetailsOpen;
+    if(activeUploadProgressState) showUploadProgressToast(activeUploadProgressState.percent || 0, activeUploadProgressState.label || 'جاري رفع الملف', activeUploadProgressState);
+  }
+});
 
 function applyAppearanceMode(){
   localStorage.removeItem('mzj_appearance_mode');
@@ -1817,12 +1869,53 @@ async function uploadTaskFileToFirebaseStorage(file, task, uploadKind = 'final')
       uploadedBy: current.email || current.name || userId
     }
   };
+  const label = kind === 'final' ? 'جاري رفع الملف النهائي' : 'جاري رفع الملف';
   const snapshot = await new Promise((resolve, reject) => {
     const taskUpload = ref.put(file, metadata);
+    const startedAt = Date.now();
+    let lastBytes = 0;
+    let lastTime = startedAt;
+    activeUploadProgressState = {
+      taskUpload,
+      fileName: file.name || fileName,
+      totalBytes: file.size || 0,
+      bytesTransferred: 0,
+      speedBps: 0,
+      percent: 5,
+      label,
+      cancelable: true
+    };
+    showUploadProgressToast(5, label, activeUploadProgressState);
     taskUpload.on('state_changed', snap => {
-      const percent = snap.totalBytes ? (snap.bytesTransferred / snap.totalBytes) * 100 : 0;
-      showUploadProgressToast(percent, kind === 'final' ? 'جاري رفع الملف النهائي' : 'جاري رفع الملف');
-    }, reject, () => resolve(taskUpload.snapshot));
+      const now = Date.now();
+      const deltaBytes = Math.max(0, snap.bytesTransferred - lastBytes);
+      const deltaTime = Math.max(1, now - lastTime) / 1000;
+      const instantSpeed = deltaBytes / deltaTime;
+      const prevSpeed = Number(activeUploadProgressState?.speedBps || 0);
+      const speedBps = prevSpeed ? (prevSpeed * 0.65 + instantSpeed * 0.35) : instantSpeed;
+      lastBytes = snap.bytesTransferred;
+      lastTime = now;
+      const realPercent = snap.totalBytes ? (snap.bytesTransferred / snap.totalBytes) * 100 : 0;
+      const percent = Math.max(5, realPercent);
+      activeUploadProgressState = {
+        ...activeUploadProgressState,
+        taskUpload,
+        bytesTransferred: snap.bytesTransferred,
+        totalBytes: snap.totalBytes || file.size || 0,
+        speedBps,
+        percent,
+        label,
+        cancelable: true
+      };
+      showUploadProgressToast(percent, label, activeUploadProgressState);
+    }, error => {
+      activeUploadProgressState = null;
+      if(error && (error.code === 'storage/canceled' || String(error.message || '').toLowerCase().includes('cancel'))){
+        reject(new Error('تم إلغاء رفع الملف.'));
+      } else {
+        reject(error);
+      }
+    }, () => resolve(taskUpload.snapshot));
   });
   showUploadProgressToast(100, kind === 'final' ? 'تم رفع الملف النهائي' : 'تم رفع الملف');
   hideUploadProgressToast();
@@ -2959,7 +3052,11 @@ function dateRange(start, end){
   for(let d = new Date(a); d <= b && days.length < 62; d.setDate(d.getDate() + 1)) days.push(new Date(d));
   return days;
 }
-function formatInputDate(date){ return date.toISOString().slice(0,10); }
+function formatInputDate(date){
+  if(!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  // نستخدم التاريخ المحلي بدل UTC عشان جدول النشر ماينقصش يوم بسبب فرق التوقيت.
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
 function todayInputDate(){
   const d = new Date();
   const offset = d.getTimezoneOffset();
@@ -4046,7 +4143,7 @@ function firstImportValue(row, keys){
 }
 function excelDateToIso(value){
   if(!value) return '';
-  if(value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0,10);
+  if(value instanceof Date && !Number.isNaN(value.getTime())) return formatInputDate(value);
   if(typeof value === 'number' && window.XLSX){
     const parsed = XLSX.SSF.parse_date_code(value);
     if(parsed && parsed.y) return `${parsed.y}-${String(parsed.m).padStart(2,'0')}-${String(parsed.d).padStart(2,'0')}`;
@@ -4057,7 +4154,7 @@ function excelDateToIso(value){
     return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   }
   const date = new Date(text);
-  if(!Number.isNaN(date.getTime())) return date.toISOString().slice(0,10);
+  if(!Number.isNaN(date.getTime())) return formatInputDate(date);
   return text;
 }
 function normalizeImportPlatforms(value){
@@ -4863,7 +4960,9 @@ function prepTaskRequiredFileLabel(task){
   return 'الملف النهائي';
 }
 function prepTaskDate(task, campaign){
-  return task.publishDate || task.scheduleDate || task.requiredDate || task.dueDate || task.deadline || campaign?.campaignEndDate || campaign?.endDate || '';
+  // تاريخ النشر في تجهيز النشر لازم ييجي من جدول النشر أو حقول النشر فقط.
+  // لا نستخدم التاريخ المطلوب/ميعاد التسليم أو نهاية الحملة كبديل حتى لا يظهر تاريخ نشر غلط.
+  return task.publishDate || task.scheduleDate || task.scheduledDate || task.dayDate || task.postDate || task.raw?.publishDate || task.raw?.scheduleDate || '';
 }
 function normalizePrepPlatformList(value){
   const list = Array.isArray(value) ? value : String(value || '').split(/[,،+]/);
