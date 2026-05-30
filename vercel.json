@@ -16,11 +16,5 @@
       "source": "/api/zoho-upload",
       "destination": "/api/meta?path=zoho-upload"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/meta/auto-publish",
-      "schedule": "*/15 * * * *"
-    }
   ]
 }

@@ -5564,6 +5564,14 @@ function fillSettingsForm(){
   if(document.getElementById('settingSystemName')) settingSystemName.value = settings.systemName || '';
   if(document.getElementById('settingFontFamily')) settingFontFamily.value = settings.fontFamily || 'Tajawal';
   if(document.getElementById('settingDirection')) settingDirection.value = settings.direction || 'rtl';
+  if(document.getElementById('autoPublishEnabled')) autoPublishEnabled.value = settings.autoPublishEnabled === false ? 'false' : 'true';
+  const platformHours = settings.autoPublishPlatformHours || {};
+  const legacyHour = Number.isFinite(Number(settings.autoPublishHour)) ? Number(settings.autoPublishHour) : 12;
+  if(document.getElementById('autoPublishFacebookHour')) autoPublishFacebookHour.value = String(Number.isFinite(Number(platformHours.facebook)) ? Number(platformHours.facebook) : 15);
+  if(document.getElementById('autoPublishInstagramHour')) autoPublishInstagramHour.value = String(Number.isFinite(Number(platformHours.instagram)) ? Number(platformHours.instagram) : 18);
+  if(document.getElementById('autoPublishTiktokHour')) autoPublishTiktokHour.value = String(Number.isFinite(Number(platformHours.tiktok)) ? Number(platformHours.tiktok) : 21);
+  if(document.getElementById('autoPublishDefaultHour')) autoPublishDefaultHour.value = String(Number.isFinite(Number(platformHours.default)) ? Number(platformHours.default) : legacyHour);
+  if(document.getElementById('autoPublishTimezone')) autoPublishTimezone.value = settings.autoPublishTimezone || 'Asia/Riyadh';
   if(settings.colors){
     if(document.getElementById('colorPrimary')) colorPrimary.value = settings.colors.primary || defaultThemeSettings.colors.primary;
     if(document.getElementById('colorSecondary')) colorSecondary.value = settings.colors.secondary || defaultThemeSettings.colors.secondary;
@@ -5603,6 +5611,27 @@ function bindSettings(){
     const payload = { systemName: normalizeText(document.getElementById('settingSystemName')?.value), fontFamily: normalizeText(document.getElementById('settingFontFamily')?.value) || 'Tajawal', direction: document.getElementById('settingDirection')?.value || 'rtl', updatedAt: serverTime() };
     await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set(payload, { merge:true });
     showMessage('systemSettingsMessage','تم حفظ الإعدادات.');
+  });
+  document.getElementById('autoPublishSettingsForm')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if(!mainDb) return;
+    const allowedPublishHours = [15,18,21,12];
+    const cleanHour = value => { const n = Number(value); return allowedPublishHours.includes(n) ? n : 12; };
+    const platformHours = {
+      facebook: cleanHour(document.getElementById('autoPublishFacebookHour')?.value || 15),
+      instagram: cleanHour(document.getElementById('autoPublishInstagramHour')?.value || 18),
+      tiktok: cleanHour(document.getElementById('autoPublishTiktokHour')?.value || 21),
+      default: cleanHour(document.getElementById('autoPublishDefaultHour')?.value || 12)
+    };
+    const enabled = document.getElementById('autoPublishEnabled')?.value !== 'false';
+    await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({
+      autoPublishEnabled: enabled,
+      autoPublishPlatformHours: platformHours,
+      autoPublishHour: platformHours.default,
+      autoPublishTimezone: 'Asia/Riyadh',
+      updatedAt: serverTime()
+    }, { merge:true });
+    showMessage('autoPublishSettingsMessage','تم حفظ مواعيد النشر: 3 / 6 / 9 / 12 لكل منصة.');
   });
   document.getElementById('saveThemeColorsBtn')?.addEventListener('click', async () => {
     if(!mainDb) return;

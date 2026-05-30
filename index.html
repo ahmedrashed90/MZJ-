@@ -175,7 +175,7 @@
         <div class="page-head social-publisher-head">
           <div class="page-title">
             <h1>ربط المنصات</h1>
-            <p>صفحة متابعة الربط وحالة المنصات وسجل النشر فقط. إنشاء المنشورات وتجهيز الملفات يتم من تجهيز النشر والحملات/الأجندات.</p>
+            <p>متابعة حالة الربط وسجل النشر للمنصات.</p>
             <div id="socialMetaConnectionStatus" class="social-meta-status">جاري فحص ربط Meta...</div>
           </div>
           <div class="social-publisher-actions">
@@ -225,9 +225,6 @@
             <label class="field"><span>صفحة Facebook المرتبطة</span><select id="socialMetaPageSelect"><option value="">سيتم تحميل الصفحات بعد الربط</option></select></label>
             <label class="field"><span>حالة Instagram</span><input type="text" id="socialInstagramStatus" value="غير مفحوص" readonly></label>
           </div>
-          <div class="social-warning-box">
-            <strong>تنبيه:</strong> تم إلغاء إنشاء المنشور من صفحة الربط. هذه الصفحة للربط، الحالة، وسجل النشر فقط. الكابشن والهاشتاجات والميديا تأتي من تاسكات تجهيز النشر والحملات/الأجندات.
-          </div>
         </div>
 
         <div class="card social-log-card">
@@ -243,14 +240,16 @@
         <div class="page-head publish-prep-head">
           <div class="page-title">
             <h1>تجهيز النشر</h1>
-            
+            <p>متابعة تاسكات النشر ورفع الملفات النهائية وتجهيزها للنشر.</p>
           </div>
           <div class="social-publisher-actions">
             <button class="btn btn-light" type="button" id="refreshPublishPrepBtn">تحديث التاسكات</button>
             <a class="btn btn-light" href="#calendar">عرض التقويم</a>
           </div>
         </div>
-<div class="publish-prep-stats" id="publishPrepStats">
+
+
+        <div class="publish-prep-stats" id="publishPrepStats">
           <article class="publish-center-stat"><span>تاسكاتي</span><strong>0</strong></article>
           <article class="publish-center-stat"><span>قيد التجهيز</span><strong>0</strong></article>
           <article class="publish-center-stat"><span>تم التسليم</span><strong>0</strong></article>
@@ -261,7 +260,7 @@
           <div class="section-toolbar small-toolbar">
             <div>
               <h2>تاسكاتي المطلوبة</h2>
-              
+              <p>تابع حالة كل تاسك، النواقص، والملف النهائي.</p>
             </div>
             <div class="publish-center-filters">
               <span>حملات</span>
@@ -511,6 +510,63 @@
               <p class="form-message" id="systemSettingsMessage"></p>
             </form>
           </div>
+          <div class="card settings-card">
+            <h2>إعدادات مواعيد النشر التلقائي</h2>
+            <form class="form" id="autoPublishSettingsForm">
+              <label class="field">
+                <span>تشغيل النشر التلقائي</span>
+                <select id="autoPublishEnabled">
+                  <option value="true">تشغيل</option>
+                  <option value="false">إيقاف</option>
+                </select>
+              </label>
+              <div class="settings-grid-mini">
+                <label class="field">
+                  <span>ساعة Facebook</span>
+                  <select id="autoPublishFacebookHour">
+                  <option value="15">3 مساءً</option>
+                  <option value="18">6 مساءً</option>
+                  <option value="21">9 مساءً</option>
+                  <option value="12">12 ظهرًا</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>ساعة Instagram</span>
+                  <select id="autoPublishInstagramHour">
+                  <option value="15">3 مساءً</option>
+                  <option value="18">6 مساءً</option>
+                  <option value="21">9 مساءً</option>
+                  <option value="12">12 ظهرًا</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>ساعة TikTok</span>
+                  <select id="autoPublishTiktokHour">
+                  <option value="15">3 مساءً</option>
+                  <option value="18">6 مساءً</option>
+                  <option value="21">9 مساءً</option>
+                  <option value="12">12 ظهرًا</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>ساعة افتراضية لأي منصة أخرى</span>
+                  <select id="autoPublishDefaultHour">
+                  <option value="15">3 مساءً</option>
+                  <option value="18">6 مساءً</option>
+                  <option value="21">9 مساءً</option>
+                  <option value="12">12 ظهرًا</option>
+                  </select>
+                </label>
+              </div>
+              <label class="field">
+                <span>المنطقة الزمنية</span>
+                <input type="text" id="autoPublishTimezone" value="Asia/Riyadh" readonly />
+              </label>
+              <button class="btn btn-primary full" type="submit">حفظ إعدادات مواعيد النشر التلقائي</button>
+              <p class="form-message" id="autoPublishSettingsMessage"></p>
+            </form>
+          </div>
+
           <div class="card settings-card wide">
             <h2>ألوان الثيم</h2>
             <div class="theme-color-grid" id="themeColorGrid">

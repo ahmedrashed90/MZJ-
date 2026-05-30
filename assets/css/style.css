@@ -2054,3 +2054,6 @@ body:has(.publish-composer-modal.show) .topbar{
 .review-upload-section{border-color:#dbeafe;background:#f8fbff}
 @media(max-width:1300px){.publish-prep-kanban{grid-template-columns:repeat(2,minmax(260px,1fr))}}
 @media(max-width:760px){.publish-prep-kanban{grid-template-columns:1fr}.prep-kanban-column{min-height:auto}}
+
+.settings-grid-mini{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:720px){.settings-grid-mini{grid-template-columns:1fr}}
