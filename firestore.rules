@@ -536,6 +536,13 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    match /publish_logs/{docId} {
+      // Temporary while the current MZJ user system is not Firebase Auth-based.
+      // Stores publish status logs for Facebook/Instagram/TikTok attempts.
+      allow read, create, update: if true;
+      allow delete: if true;
+    }
+
     match /system_settings/{docId} {
       allow read: if true;
       allow create, update: if systemSettingsKeysValid();

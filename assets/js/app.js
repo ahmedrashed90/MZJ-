@@ -45,6 +45,7 @@ window.MZJ_CAMPAIGNS_COLLECTION = "marketing_campaigns";
 window.MZJ_CAMPAIGN_TASKS_COLLECTION = "campaign_tasks"; // غير مستخدم في داشبورد اليوزرات
 window.MZJ_SYSTEM_SETTINGS_COLLECTION = "system_settings";
 window.MZJ_PUBLISH_PREP_COLLECTION = "publish_prep_tasks";
+window.MZJ_PUBLISH_LOGS_COLLECTION = "publish_logs";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
@@ -112,6 +113,8 @@ let activeTaskModalMeta = null;
 let publishPrepSubmissionsCache = null;
 let publishPrepFirestoreReady = false;
 let publishPrepUnsubscribe = null;
+let publishLogsCache = [];
+let publishLogsUnsubscribe = null;
 
 function isLoggedIn(){ return localStorage.getItem('mzj_logged_in') === '1'; }
 function getRoute(){ return (location.hash || '#dashboard').replace('#',''); }
@@ -4261,15 +4264,63 @@ let socialMetaConnected = false;
 let socialTikTokConnected = false;
 let socialTikTokUser = null;
 const socialPlatformLabels = { facebook:'Facebook', instagram:'Instagram', tiktok:'TikTok' };
-function getSocialPublishLog(){
+function getLocalSocialPublishLog(){
   try{ return JSON.parse(localStorage.getItem(SOCIAL_PUBLISH_LOG_KEY) || '[]'); }catch(_){ return []; }
 }
-function setSocialPublishLog(items){ localStorage.setItem(SOCIAL_PUBLISH_LOG_KEY, JSON.stringify(Array.isArray(items) ? items.slice(0, 60) : [])); }
+function mergePublishLogs(localItems, remoteItems){
+  const map = new Map();
+  [...(remoteItems || []), ...(localItems || [])].forEach(item => {
+    const id = String(item?.id || item?.logId || `${item?.taskId || 'log'}-${item?.platform || 'all'}-${item?.createdAt || item?.publishedAt || Date.now()}`);
+    if(!map.has(id)) map.set(id, { ...item, id });
+  });
+  return [...map.values()].sort((a,b) => String(b.publishedAt || b.createdAt || b.updatedAtIso || '').localeCompare(String(a.publishedAt || a.createdAt || a.updatedAtIso || ''))).slice(0, 100);
+}
+function getSocialPublishLog(){
+  return mergePublishLogs(getLocalSocialPublishLog(), publishLogsCache);
+}
+function setSocialPublishLog(items){
+  localStorage.setItem(SOCIAL_PUBLISH_LOG_KEY, JSON.stringify(Array.isArray(items) ? items.slice(0, 60) : []));
+}
+function cleanPublishLogForFirestore(item){
+  const jsonSafe = JSON.parse(JSON.stringify(item || {}));
+  return {
+    ...jsonSafe,
+    id: String(jsonSafe.id || `log_${Date.now()}`),
+    ownerEmail: jsonSafe.ownerEmail || getCurrentUserIdentity()?.email || '',
+    ownerUid: jsonSafe.ownerUid || getCurrentUserIdentity()?.uid || getCurrentUserIdentity()?.id || '',
+    updatedAtIso: new Date().toISOString(),
+    updatedAt: serverTime()
+  };
+}
+async function savePublishLogToFirestore(item){
+  if(!mainDb || !item) return false;
+  try{
+    const data = cleanPublishLogForFirestore(item);
+    await safeCollection(window.MZJ_PUBLISH_LOGS_COLLECTION).doc(safeFirestoreDocId(data.id)).set(data, { merge: true });
+    return true;
+  }catch(error){
+    console.warn('Publish log Firestore save error', error);
+    return false;
+  }
+}
+function loadPublishLogs(){
+  if(!mainDb || publishLogsUnsubscribe) return;
+  try{
+    publishLogsUnsubscribe = safeCollection(window.MZJ_PUBLISH_LOGS_COLLECTION).orderBy('createdAt','desc').limit(80).onSnapshot(snapshot => {
+      publishLogsCache = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: data.id || doc.id, ...data }; });
+      if(getRoute() === 'social-publisher') renderSocialPublishLog();
+    }, error => console.warn('Publish logs load error', error));
+  }catch(error){
+    console.warn('Publish logs init error', error);
+  }
+}
 function selectedSocialPlatforms(){
   return [...document.querySelectorAll('input[name="platforms"]:checked')].map(input => input.value).filter(Boolean);
 }
 function appendSocialLog(item){
-  setSocialPublishLog([item, ...getSocialPublishLog()]);
+  const stamped = { createdAt: item?.createdAt || new Date().toISOString(), ...item };
+  setSocialPublishLog([stamped, ...getLocalSocialPublishLog()]);
+  savePublishLogToFirestore(stamped);
   renderSocialPublishLog();
   if(getRoute() === 'publish-prep') renderPublishPrepPage();
 }
@@ -4384,10 +4435,13 @@ function renderSocialPublishLog(){
   const items = getSocialPublishLog();
   if(!items.length){ wrap.innerHTML = '<div class="empty-state">لا توجد منشورات محفوظة حتى الآن.</div>'; return; }
   wrap.innerHTML = items.map(item => {
-    const platforms = (item.platforms || []).map(platform => `<span>${escapeHtml(socialPlatformLabels[platform] || platform)}</span>`).join('');
+    const platforms = (item.platforms || (item.platform ? [item.platform] : [])).map(platform => `<span>${escapeHtml(socialPlatformLabels[platform] || platform)}</span>`).join('');
     const schedule = item.mode === 'schedule' ? `${escapeHtml(item.scheduleDate || '')} ${escapeHtml(item.scheduleTime || '')}`.trim() : publishModeLabel(item.mode);
     const error = item.error ? `<p class="social-log-error">${escapeHtml(item.error)}</p>` : '';
-    return `<article class="social-log-item"><div class="social-log-main"><div class="preview-platforms">${platforms || '<span>بدون قناة</span>'}</div><h3>${escapeHtml(item.title || 'منشور بدون عنوان')}</h3><p>${escapeHtml(item.caption || '').slice(0, 180)}${String(item.caption || '').length > 180 ? '...' : ''}</p>${error}<small>${escapeHtml(postTypeLabel(item.type))} · ${escapeHtml(schedule || 'غير محدد')}</small></div><div class="social-log-side"><span class="social-log-status">${escapeHtml(socialStatusLabel(item))}</span><button class="btn btn-light" type="button" data-delete-social-log="${escapeHtml(item.id)}">حذف</button></div></article>`;
+    const url = item.publishedUrl || item.permalinkUrl || item.postUrl || item.resultUrl || '';
+    const resultId = item.resultId || item.postId || item.platformPostId || '';
+    const meta = [postTypeLabel(item.type), schedule || item.publishedAt || item.createdAt || 'غير محدد', resultId ? `ID: ${resultId}` : ''].filter(Boolean).join(' · ');
+    return `<article class="social-log-item"><div class="social-log-main"><div class="preview-platforms">${platforms || '<span>بدون قناة</span>'}</div><h3>${escapeHtml(item.title || 'منشور بدون عنوان')}</h3><p>${escapeHtml(item.caption || '').slice(0, 180)}${String(item.caption || '').length > 180 ? '...' : ''}</p>${error}${url ? `<a class="social-log-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">فتح المنشور</a>` : ''}<small>${escapeHtml(meta)}</small></div><div class="social-log-side"><span class="social-log-status">${escapeHtml(socialStatusLabel(item))}</span><button class="btn btn-light" type="button" data-delete-social-log="${escapeHtml(item.id)}">حذف محلي</button></div></article>`;
   }).join('');
 }
 
@@ -5122,13 +5176,34 @@ function bindPublishPrepPage(){
         publishBtn.disabled = true;
         publishBtn.textContent = 'جاري النشر...';
         const result = await publishPrepReadyTaskNow(task, current);
+        const publishedAt = result.publishedAt || new Date().toISOString();
+        (Array.isArray(result.results) ? result.results : []).forEach(platformResult => {
+          appendSocialLog({
+            id: `prep_${safeFirestoreDocId(id)}_${safeFirestoreDocId(platformResult.platform || 'platform')}_${Date.now()}`,
+            taskId: id,
+            sourceType: 'publish-prep',
+            title: task.title || task.campaignName || 'تاسك تجهيز نشر',
+            caption: publishPrepEffectiveCaption(task, current),
+            hashtags: publishPrepEffectiveHashtags(task, current),
+            platforms: [platformResult.platform || ''],
+            platform: platformResult.platform || '',
+            type: task.type || task.requiredFile || 'post',
+            mode: 'now',
+            status: platformResult.ok ? 'تم النشر' : (platformResult.skipped ? 'تم التخطي' : 'فشل النشر'),
+            error: platformResult.error || '',
+            resultId: platformResult.id || platformResult.postId || platformResult?.result?.id || platformResult?.publish?.id || '',
+            publishedUrl: platformResult.url || platformResult.permalink_url || platformResult.permalinkUrl || '',
+            createdAt: publishedAt,
+            publishedAt
+          });
+        });
         await updatePublishPrepSubmission(id, {
-          publishedAt: result.publishedAt || new Date().toISOString(),
+          publishedAt,
           publishResult: result,
           status: result.ok ? 'تم النشر' : 'فشل النشر'
         });
         renderPublishPrepPage();
-        showToast(result.ok ? 'تم إرسال المنشور للمنصات المتاحة.' : 'فشل النشر.');
+        showToast(result.ok ? 'تم إرسال المنشور للمنصات المتاحة وتم تسجيل النتيجة.' : 'فشل النشر وتم تسجيل النتيجة.');
       }catch(error){
         console.error(error);
         showToast(error.message || 'تعذر النشر.');
@@ -5617,6 +5692,7 @@ function bootstrapData(){
     }, error => console.error(error));
   }
   loadPublishPrepSubmissions();
+  loadPublishLogs();
   loadCampaigns();
   // loadCampaignTasks(); // تم إلغاء الاعتماد على campaign_tasks
   loadStock();
