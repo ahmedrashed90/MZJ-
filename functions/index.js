@@ -25,6 +25,20 @@ function parsePlatforms(value) {
   return [...new Set(arr.map(normalizePlatform).filter(Boolean))];
 }
 
+function normalizePostType(value) {
+  const text = String(value || '').trim().toLowerCase();
+  if (text.includes('photo') || text.includes('image') || text.includes('بوست صور') || text.includes('صورة')) return 'photo_post';
+  if (text.includes('story') || text.includes('ستوري')) return 'story';
+  if (text.includes('hd') || text.includes('فيديو hd')) return 'hd_video';
+  if (text.includes('reel') || text.includes('short') || text.includes('ريل')) return 'reel';
+  return text;
+}
+
+function postTypeLabel(value) {
+  const type = normalizePostType(value);
+  return ({ photo_post: 'بوست صور', reel: 'ريل', story: 'ستوري', hd_video: 'فيديو HD' })[type] || type || '';
+}
+
 function riyadhParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: TZ,
@@ -105,6 +119,9 @@ function buildPayload(task, platform, settings = {}) {
     taskId: task.taskId || task.id,
     title: task.title || snapshot.title || task.campaignName || snapshot.campaignName || 'تاسك تجهيز نشر',
     contentType: task.contentType || task.type || snapshot.contentType || snapshot.type || task.requiredFile || '',
+    postType: normalizePostType(task.postType || snapshot.postType || ''),
+    postTypeLabel: task.postTypeLabel || snapshot.postTypeLabel || postTypeLabel(task.postType || snapshot.postType || ''),
+    requiredDimensions: task.requiredDimensions || snapshot.requiredDimensions || null,
     platforms: [platform],
     caption: String(task.caption || '').trim(),
     hashtags: String(task.hashtags || '').trim(),
@@ -141,7 +158,10 @@ async function writeLog(taskId, task, platform, result, mode = 'scheduled') {
     hashtags: task.hashtags || '',
     platform,
     platforms: [platform],
-    type: task.contentType || (task.taskSnapshot && task.taskSnapshot.contentType) || task.type || '',
+    type: task.postType || (task.taskSnapshot && task.taskSnapshot.postType) || task.contentType || (task.taskSnapshot && task.taskSnapshot.contentType) || task.type || '',
+    postType: normalizePostType(task.postType || (task.taskSnapshot && task.taskSnapshot.postType) || ''),
+    postTypeLabel: task.postTypeLabel || (task.taskSnapshot && task.taskSnapshot.postTypeLabel) || postTypeLabel(task.postType || (task.taskSnapshot && task.taskSnapshot.postType) || ''),
+    requiredDimensions: task.requiredDimensions || (task.taskSnapshot && task.taskSnapshot.requiredDimensions) || null,
     mode,
     status: ok ? 'تم النشر' : (skipped ? 'تم التخطي' : 'فشل النشر'),
     error: (result && result.error) || '',
@@ -227,9 +247,9 @@ exports.runAutoPublishNow = onRequest({
 }, async (req, res) => {
   try {
     const result = await runAutoPublishOnce();
-    res.status(200).json({ ok: true, deployed: 'youtube-privacy-function-fix-v48', ...result });
+    res.status(200).json({ ok: true, deployed: 'post-type-dimensions-v49', ...result });
   } catch (error) {
     logger.error(error);
-    res.status(500).json({ ok: false, deployed: 'youtube-privacy-function-fix-v48', error: error.message || String(error) });
+    res.status(500).json({ ok: false, deployed: 'post-type-dimensions-v49', error: error.message || String(error) });
   }
 });

@@ -375,6 +375,69 @@ function platformCheckboxList(selected = []){
 function selectedPlatformValues(card){
   return [...(card?.querySelectorAll('.js-platform-checkbox:checked') || [])].map(input => input.value).filter(Boolean);
 }
+
+const publishPostTypeConfig = {
+  facebook: [
+    { value:'photo_post', label:'بوست صور', width:1080, height:1080 },
+    { value:'reel', label:'ريل', width:1080, height:1920 },
+    { value:'story', label:'ستوري', width:1080, height:1920 }
+  ],
+  instagram: [
+    { value:'photo_post', label:'بوست صور', width:1080, height:1080 },
+    { value:'reel', label:'ريل', width:1080, height:1920 },
+    { value:'story', label:'ستوري', width:1080, height:1920 }
+  ],
+  tiktok: [
+    { value:'reel', label:'ريل', width:1080, height:1920 },
+    { value:'story', label:'ستوري', width:1080, height:1920 }
+  ],
+  youtube: [
+    { value:'reel', label:'ريل', width:1080, height:1920 },
+    { value:'hd_video', label:'فيديو HD', width:1920, height:1080 }
+  ]
+};
+function normalizePublishPlatformName(value){
+  const text = normalizeText(value).toLowerCase();
+  if(text.includes('facebook') || text.includes('فيس')) return 'facebook';
+  if(text.includes('instagram') || text.includes('انست')) return 'instagram';
+  if(text.includes('tiktok') || text.includes('تيك')) return 'tiktok';
+  if(text.includes('youtube') || text.includes('you tube') || text.includes('يوتيوب')) return 'youtube';
+  return text;
+}
+function publishPostTypesForPlatforms(selected = []){
+  const raw = Array.isArray(selected) ? selected : String(selected || '').split(/[،,+]/);
+  const keys = uniqueList(raw.map(normalizePublishPlatformName).filter(Boolean));
+  const list = [];
+  keys.forEach(key => (publishPostTypeConfig[key] || []).forEach(item => {
+    if(!list.some(x => x.value === item.value && x.width === item.width && x.height === item.height)) list.push(item);
+  }));
+  return list;
+}
+function publishPostTypeByValue(value, selected = []){
+  const options = publishPostTypesForPlatforms(selected);
+  return options.find(item => item.value === value) || null;
+}
+function publishPostTypeSelectHtml(selectedPlatforms = [], currentValue = ''){
+  const options = publishPostTypesForPlatforms(selectedPlatforms);
+  const current = options.some(item => item.value === currentValue) ? currentValue : '';
+  if(!options.length) return '<select class="js-publish-post-type-select compact-select" aria-label="نوع المنشور"><option value="">نوع المنشور</option></select>';
+  return '<select class="js-publish-post-type-select compact-select" aria-label="نوع المنشور"><option value="">نوع المنشور</option>' + options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width}" data-height="${item.height}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label)}</option>`).join('') + '</select>';
+}
+function updatePublishPostTypeOptions(card){
+  if(!card) return;
+  const select = card.querySelector('.js-publish-post-type-select');
+  if(!select) return;
+  const current = select.value || '';
+  const selected = selectedPlatformValues(card);
+  const fresh = document.createElement('div');
+  fresh.innerHTML = publishPostTypeSelectHtml(selected, current);
+  select.replaceWith(fresh.firstChild);
+}
+function selectedPublishPostType(card){
+  const value = card?.querySelector('.js-publish-post-type-select')?.value || '';
+  const data = publishPostTypeByValue(value, selectedPlatformValues(card));
+  return data ? { value:data.value, label:data.label, width:data.width, height:data.height } : { value:'', label:'', width:null, height:null };
+}
 function funnelOptions(selectedValue = ''){
   return '<option value="">اختر Funnel</option>' + funnels.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
 }
@@ -3078,6 +3141,9 @@ function getPublishSelections(){
       output: card.querySelector('.js-publish-output-select')?.value || '',
       platforms: selectedPlatformValues(card),
       platform: selectedPlatformValues(card).join('، '),
+      postType: selectedPublishPostType(card).value,
+      postTypeLabel: selectedPublishPostType(card).label,
+      requiredDimensions: selectedPublishPostType(card).value ? { width: selectedPublishPostType(card).width, height: selectedPublishPostType(card).height } : null,
       time: '',
       caption: normalizeText(card.querySelector('.js-publish-caption')?.value),
       hashtagsText: normalizeText(card.querySelector('.js-publish-hashtags')?.value),
@@ -3119,6 +3185,7 @@ function renderPublishAgenda(){
       <div class="publish-day-date">${iso}</div>
       <select class="js-publish-output-select compact-select" aria-label="اختيار النشر">${makePublishOutputOptions(outputs, currentOutput)}</select>
       <div class="publish-platform-checks" aria-label="المنصات">${platformCheckboxList(prev.platforms || prev.platform || [])}</div>
+      ${publishPostTypeSelectHtml(prev.platforms || prev.platform || [], prev.postType || '')}
       <input type="hidden" class="js-publish-caption" value="${escapeHtml(prev.caption || '')}" />
       <input type="hidden" class="js-publish-hashtags" value="${escapeHtml(prev.hashtagsText || prev.hashtags || '')}" />
       <div class="publish-copy-buttons">
@@ -3178,12 +3245,15 @@ function collectPublishRows(){
     output: card.querySelector('.js-publish-output-select')?.value || '',
     platforms: selectedPlatformValues(card),
     platform: selectedPlatformValues(card).join('، '),
+    postType: selectedPublishPostType(card).value,
+    postTypeLabel: selectedPublishPostType(card).label,
+    requiredDimensions: selectedPublishPostType(card).value ? { width: selectedPublishPostType(card).width, height: selectedPublishPostType(card).height } : null,
     time: '',
     caption: normalizeText(card.querySelector('.js-publish-caption')?.value),
     hashtagsText: normalizeText(card.querySelector('.js-publish-hashtags')?.value),
     hashtags: extractHashtags(`${card.querySelector('.js-publish-hashtags')?.value || ''} ${card.querySelector('.js-publish-caption')?.value || ''}`),
     note: ''
-  })).filter(item => item.date || item.output || item.platform || item.caption || item.hashtagsText);
+  })).filter(item => item.date || item.output || item.platform || item.postType || item.caption || item.hashtagsText);
 }
 function budgetRowTotalFromCard(card){
   if(!card) return 0;
@@ -3368,7 +3438,8 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.closest('#stockAdvancedFilters')){ renderStock(); return; }
-    if(event.target.matches('.js-platform-checkbox')){ return; }
+    if(event.target.matches('.js-platform-checkbox')){ updatePublishPostTypeOptions(event.target.closest('.publish-day-card')); return; }
+    if(event.target.matches('.js-publish-post-type-select')){ return; }
     if(event.target.matches('.js-creative-select,.js-creative-check,.js-task-type,.js-task-required-date')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
   document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<div class="empty-state">ابدأ بإضافة صف كريتيف للحملة.</div>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; updateBudgetGrandTotal(); generateCampaignCode(); });
@@ -4566,7 +4637,7 @@ function renderSocialPreview(){
   const platformHtml = platforms.length ? platforms.map(platform => `<span>${escapeHtml(socialPlatformLabels[platform] || platform)}</span>`).join('') : '<span>لم يتم اختيار قناة</span>';
   preview.innerHTML = `<div class="preview-platforms">${platformHtml}</div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(caption).replace(/\n/g,'<br>')}</p><div class="preview-media-placeholder">${mediaUrl ? `ميديا مرفقة: ${escapeHtml(mediaUrl)}` : 'صورة / فيديو'}</div><small>${link ? `الرابط: ${escapeHtml(link)}` : 'لم يتم تحديد رابط بعد'} · ${escapeHtml(postTypeLabel(postType))}</small>`;
 }
-function postTypeLabel(type){ return {post:'منشور عادي',reel:'Reel / Short Video',story:'Story',draft:'مسودة فقط'}[type] || type; }
+function postTypeLabel(type){ return {post:'منشور عادي',photo_post:'بوست صور',reel:'ريل',story:'ستوري',hd_video:'فيديو HD',draft:'مسودة فقط'}[type] || type; }
 function publishModeLabel(mode){ return {now:'نشر الآن',schedule:'جدولة',draft:'مسودة'}[mode] || mode; }
 function socialStatusLabel(item){
   if(item.status) return item.status;
@@ -4991,6 +5062,19 @@ function prepScheduleHashtagValue(row){
   const raw = row?.hashtagsText || row?.hashtags || row?.hashTags || row?.tags || row?.['الهاشتاج'] || row?.['الهاشتاجات'] || row?.['هاشتاجات'] || '';
   return Array.isArray(raw) ? raw.join(' ') : normalizeText(raw);
 }
+
+function prepSchedulePostTypeData(row){
+  const platforms = normalizePrepPlatformList(row?.platforms || row?.platform || []);
+  const raw = normalizeText(row?.postType || row?.publishType || row?.contentType || row?.type || '');
+  let value = raw;
+  const low = raw.toLowerCase();
+  if(low.includes('photo') || raw.includes('بوست صور') || raw.includes('صورة')) value = 'photo_post';
+  else if(low.includes('story') || raw.includes('ستوري')) value = 'story';
+  else if(low.includes('hd') || raw.includes('فيديو HD')) value = 'hd_video';
+  else if(low.includes('reel') || raw.includes('ريل') || low.includes('short')) value = 'reel';
+  const found = publishPostTypeByValue(value, platforms) || { value: row?.postType || '', label: row?.postTypeLabel || '', width: row?.requiredDimensions?.width || null, height: row?.requiredDimensions?.height || null };
+  return found.value ? { value:found.value, label:found.label || row?.postTypeLabel || '', width:found.width || row?.requiredDimensions?.width || null, height:found.height || row?.requiredDimensions?.height || null } : { value:'', label:'', width:null, height:null };
+}
 function prepScheduleRowsForCampaign(campaign){
   return Array.isArray(campaign?.publishSchedule) ? campaign.publishSchedule : [];
 }
@@ -5041,6 +5125,7 @@ function enrichPrepTaskFromSchedule(base, campaign, rawTask){
   const scheduleCaption = prepScheduleCaptionValue(row);
   const scheduleHashtags = prepScheduleHashtagValue(row);
   const schedulePlatforms = normalizePrepPlatformList(row.platforms || row.platform);
+  const schedulePostType = prepSchedulePostTypeData(row);
   return {
     ...base,
     scheduleRowIndex: best.index,
@@ -5051,6 +5136,9 @@ function enrichPrepTaskFromSchedule(base, campaign, rawTask){
     publishDate: row.date || row.publishDate || base.publishDate || '',
     publishTime: row.time || row.publishTime || base.publishTime || '',
     platforms: base.platforms?.length ? base.platforms : schedulePlatforms,
+    postType: base.postType || schedulePostType.value || '',
+    postTypeLabel: base.postTypeLabel || schedulePostType.label || '',
+    requiredDimensions: base.requiredDimensions || (schedulePostType.value ? { width: schedulePostType.width, height: schedulePostType.height } : null),
     notes: base.notes || row.note || row.notes || ''
   };
 }
@@ -5067,6 +5155,9 @@ function publishPrepTasksFromExistingTasks(){
       type: prepTaskTypeLabel(task),
       requiredFile: prepTaskRequiredFileLabel(task),
       platforms: normalizePrepPlatformList(task.platforms || task.platform || campaign.platforms || campaign.platform),
+      postType: task.postType || task.publishType || '',
+      postTypeLabel: task.postTypeLabel || '',
+      requiredDimensions: task.requiredDimensions || null,
       caption: task.caption || task.copy || task.description || campaign.caption || campaign.description || '',
       hashtags: task.hashtags || campaign.hashtags || '',
       publishDate: prepTaskDate(task, campaign),
@@ -5093,6 +5184,9 @@ function publishPrepTasksFromCampaignSchedules(){
       type: prepTaskTypeLabel(row),
       requiredFile: prepTaskRequiredFileLabel(row),
       platforms: normalizePrepPlatformList(row.platforms || row.platform),
+      postType: row.postType || '',
+      postTypeLabel: row.postTypeLabel || '',
+      requiredDimensions: row.requiredDimensions || null,
       caption: row.caption || '',
       hashtags: row.hashtags || '',
       publishDate: row.date || row.publishDate || '',
@@ -5172,6 +5266,9 @@ function publishPrepTaskSnapshot(task){
     contentType: task.type || task.requiredFile || '',
     type: task.type || '',
     requiredFile: task.requiredFile || '',
+    postType: task.postType || '',
+    postTypeLabel: task.postTypeLabel || postTypeLabel(task.postType || ''),
+    requiredDimensions: task.requiredDimensions || null,
     platforms: Array.isArray(task.platforms) ? task.platforms : [],
     publishDate: task.publishDate || '',
     publishTime: task.publishTime || ''
@@ -5187,6 +5284,9 @@ async function publishPrepReadyTaskNow(task, submission){
     taskId: task.id,
     title: task.title,
     contentType: task.type || task.requiredFile || '',
+    postType: task.postType || '',
+    postTypeLabel: task.postTypeLabel || postTypeLabel(task.postType || ''),
+    requiredDimensions: task.requiredDimensions || null,
     platforms,
     caption: publishPrepEffectiveCaption(task, submission),
     hashtags: publishPrepEffectiveHashtags(task, submission),
@@ -5353,7 +5453,10 @@ function bindPublishPrepPage(){
             hashtags: publishPrepEffectiveHashtags(task, current),
             platforms: [platformResult.platform || ''],
             platform: platformResult.platform || '',
-            type: task.type || task.requiredFile || 'post',
+            type: task.postType || task.type || task.requiredFile || 'post',
+            postType: task.postType || '',
+            postTypeLabel: task.postTypeLabel || postTypeLabel(task.postType || ''),
+            requiredDimensions: task.requiredDimensions || null,
             mode: 'now',
             status: platformResult.ok ? 'تم النشر' : (platformResult.skipped ? 'تم التخطي' : 'فشل النشر'),
             error: platformResult.error || '',
