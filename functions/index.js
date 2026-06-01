@@ -247,9 +247,9 @@ exports.runAutoPublishNow = onRequest({
 }, async (req, res) => {
   try {
     const result = await runAutoPublishOnce();
-    res.status(200).json({ ok: true, deployed: 'post-type-dimensions-v49', ...result });
+    res.status(200).json({ ok: true, deployed: 'order-status-dropdown-v52', ...result });
   } catch (error) {
     logger.error(error);
-    res.status(500).json({ ok: false, deployed: 'post-type-dimensions-v49', error: error.message || String(error) });
+    res.status(500).json({ ok: false, deployed: 'order-status-dropdown-v52', error: error.message || String(error) });
   }
 });

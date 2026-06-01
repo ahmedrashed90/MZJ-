@@ -359,6 +359,10 @@ service cloud.firestore {
       allow read, create, update, delete: if true;
     }
 
+    match /marketing_order_statuses/{docId} {
+      allow read, create, update, delete: if true;
+    }
+
     match /marketing_platforms/{docId} {
       allow read, create, update, delete: if true;
     }

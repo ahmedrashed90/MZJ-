@@ -38,6 +38,7 @@ window.MZJ_TASK_TYPES_COLLECTION = "marketing_task_types";
 window.MZJ_CONTENT_SECTIONS_COLLECTION = "content_categories";
 window.MZJ_CAMPAIGN_CODES_COLLECTION = "marketing_campaign_codes";
 window.MZJ_CAMPAIGN_TYPES_COLLECTION = "marketing_campaign_types";
+window.MZJ_ORDER_STATUSES_COLLECTION = "marketing_order_statuses";
 window.MZJ_FUNNELS_COLLECTION = "marketing_funnels";
 window.MZJ_PLATFORMS_COLLECTION = "marketing_platforms";
 window.MZJ_STOCK_CARS_COLLECTION = "cars";
@@ -100,6 +101,7 @@ let taskTypes = [];
 let contentSections = [];
 let campaignCodes = [];
 let campaignTypes = [];
+let orderStatuses = [];
 let funnels = [];
 let platforms = [];
 let campaigns = [];
@@ -289,6 +291,21 @@ function updateRolePickerLabel(picker){
 }
 function contentSectionOptions(selectedValue = ''){
   return '<option value="">اختار المحتوى</option>' + contentSections.map(item => `<option value="${escapeHtml(item.id)}"${selectedValue === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
+}
+
+function orderStatusOptions(selectedValue = ''){
+  const current = normalizeText(selectedValue || '');
+  let options = '<option value="">اختر الحالة</option>' + orderStatuses.map(item => {
+    const value = item.name || item.id || '';
+    return `<option value="${escapeHtml(value)}"${current === value || selectedValue === item.id ? ' selected' : ''}>${escapeHtml(item.name || value)}</option>`;
+  }).join('');
+  if(current && !orderStatuses.some(item => item.name === current || item.id === current)){
+    options += `<option value="${escapeHtml(current)}" selected>${escapeHtml(current)}</option>`;
+  }
+  return options;
+}
+function refreshOrderStatusSelects(){
+  document.querySelectorAll('.js-order-status-select').forEach(select => { const value = select.value; select.innerHTML = orderStatusOptions(value); });
 }
 function taskTypeOptionsForSection(sectionId, selectedValue = ''){
   const section = contentSections.find(item => item.id === sectionId);
@@ -480,6 +497,7 @@ function refreshDynamicSelects(){
     select.innerHTML = multiUserOptionsForRole(select.dataset.role, selected);
   });
   document.querySelectorAll('.js-campaign-code-select').forEach(select => { const value = select.value; select.innerHTML = campaignCodeOptions(value); });
+  refreshOrderStatusSelects();
   document.querySelectorAll('.js-campaign-type-select').forEach(select => { const value = select.value; select.innerHTML = campaignTypeOptions(value); });
   document.querySelectorAll('.publish-platform-checks').forEach(box => {
     const card = box.closest('.publish-day-card');
@@ -564,6 +582,7 @@ function renderCampaignTypes(){
   }).join('');
 }
 function renderPlatforms(){ renderNameList('platformsList', platforms, 'data-edit-platform', 'data-delete-platform', 'لا توجد منصات حتى الآن.'); }
+function renderOrderStatuses(){ renderNameList('orderStatusesList', orderStatuses, 'data-edit-order-status', 'data-delete-order-status', 'لا توجد حالات طلب حتى الآن.'); }
 function renderCampaignCodes(){
   const list = document.getElementById('campaignCodesList'); if(!list) return;
   if(!campaignCodes.length){ list.innerHTML = '<div class="empty-state">لا توجد أكواد حملات حتى الآن.</div>'; return; }
@@ -675,11 +694,14 @@ function campaignTaskCars(){
   const used = [];
   campaigns.forEach(campaign => {
     (campaign.departmentTasks || []).forEach(task => {
-      if(task.selectedCar) used.push({ label: normalizeText(task.selectedCar), campaign, task });
-      (task.selectedCars || []).forEach(car => used.push({ id: normalizeText(car.id), label: normalizeText(car.label || car.name || car.carName), campaign, task }));
+      if(task.selectedCar) used.push({ label: normalizeText(task.selectedCar), campaign, task, sourceType:'departmentTask' });
+      (task.selectedCars || []).forEach(car => used.push({ id: normalizeText(car.id || car.groupKey), groupKey: normalizeText(car.groupKey || ''), label: normalizeText(car.label || car.name || car.carName), campaign, task, sourceType:'departmentTask' }));
     });
     (campaign.creatives || []).forEach(creative => {
-      (creative.selectedCars || []).forEach(car => used.push({ id: normalizeText(car.id), label: normalizeText(car.label || car.name || car.carName), campaign, task: null }));
+      (creative.selectedCars || []).forEach(car => used.push({ id: normalizeText(car.id || car.groupKey), groupKey: normalizeText(car.groupKey || ''), label: normalizeText(car.label || car.name || car.carName), campaign, task: null, creative, sourceType:'creative' }));
+      (creative.tasks || []).forEach(task => {
+        (task.selectedCars || []).forEach(car => used.push({ id: normalizeText(car.id || car.groupKey), groupKey: normalizeText(car.groupKey || ''), label: normalizeText(car.label || car.name || car.carName), campaign, task, creative, sourceType:'creativeTask' }));
+      });
     });
   });
   return used;
@@ -688,13 +710,86 @@ function stockGroupUsage(group){
   const used = campaignTaskCars();
   const ids = new Set((group.carIds || []).map(normalizeText).filter(Boolean));
   const keyParts = [group.carName, group.statement, group.exteriorColor, group.interiorColor].map(normalizeText).filter(Boolean);
+  const groupKey = normalizeText(group.key || '');
   const hits = used.filter(item => {
     const idHit = item.id && ids.has(item.id);
+    const groupHit = item.groupKey && groupKey && item.groupKey === groupKey;
     const label = normalizeText(item.label);
     const labelHit = label && keyParts.every(part => label.includes(part) || part === '—');
-    return idHit || labelHit;
+    return idHit || groupHit || labelHit;
   });
   return hits;
+}
+function stockUsageContentTitle(item){
+  const task = item?.task || {};
+  const creative = item?.creative || {};
+  return normalizeText(task.taskType || task.contentType || task.content_type || task.structureTaskLabel || task.product || creative.creative || creative.product || item?.label || '');
+}
+function stockUsageSectionTitle(item){
+  const task = item?.task || {};
+  return normalizeText(task.contentSectionName || task.assignedDepartmentName || task.departmentName || task.contentSection || task.departmentRole || '');
+}
+function stockScheduleRowText(row){
+  return normalizeText([row?.output, row?.title, row?.contentType, row?.type, row?.postTypeLabel, row?.postType, row?.platform, Array.isArray(row?.platforms) ? row.platforms.join(' ') : '', row?.caption, row?.hashtagsText].filter(Boolean).join(' '));
+}
+function stockUsageMatchesSchedule(item, row){
+  const rowText = identityClean(stockScheduleRowText(row));
+  if(!rowText) return false;
+  const task = item?.task || {};
+  const creative = item?.creative || {};
+  const candidates = uniqueList([
+    stockUsageContentTitle(item),
+    stockUsageSectionTitle(item),
+    task.product,
+    task.creative,
+    creative.creative,
+    creative.product,
+    item?.label
+  ].map(normalizeText).filter(value => value && value !== '—'));
+  if(!candidates.length) return false;
+  return candidates.some(value => {
+    const clean = identityClean(value);
+    return clean && clean.length >= 2 && (rowText.includes(clean) || clean.includes(rowText));
+  });
+}
+function formatStockMonth(dateText){
+  const raw = normalizeText(dateText || '');
+  const match = raw.match(/^(\d{4})-(\d{1,2})/);
+  if(match) return `${match[1]}-${String(Number(match[2])).padStart(2,'0')}`;
+  const d = raw ? new Date(raw) : null;
+  if(d && !Number.isNaN(d.getTime())) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  return '';
+}
+function stockGroupPublishDetails(group){
+  const rows = [];
+  const seen = new Set();
+  (group.usage || []).forEach((hit, hitIndex) => {
+    const campaign = hit.campaign || {};
+    const schedule = Array.isArray(campaign.publishSchedule) ? campaign.publishSchedule : [];
+    schedule.forEach((row, rowIndex) => {
+      if(!row || !row.date) return;
+      if(!stockUsageMatchesSchedule(hit, row)) return;
+      const platformList = Array.isArray(row.platforms) ? row.platforms : normalizeMaybeArray(row.platform || '');
+      const key = [campaign.id || campaign.campaignCode || campaign.campaignName || hitIndex, rowIndex, row.date, row.output || row.title || '', platformList.join('|'), row.postType || row.type || ''].join('::');
+      if(seen.has(key)) return;
+      seen.add(key);
+      rows.push({
+        campaign,
+        hit,
+        row,
+        rowIndex,
+        campaignName: campaign.campaignName || campaign.name || '—',
+        campaignCode: campaign.campaignCode || campaign.campaign_code || '—',
+        contentType: stockUsageSectionTitle(hit) || stockUsageContentTitle(hit) || row.contentType || row.type || '—',
+        output: row.output || row.title || stockUsageContentTitle(hit) || '—',
+        platform: platformList.join('، ') || row.platform || '—',
+        postType: row.postTypeLabel || postTypeLabel(row.postType || row.type || row.contentType || '') || '—',
+        date: row.date || row.publishDate || '',
+        month: formatStockMonth(row.date || row.publishDate || '')
+      });
+    });
+  });
+  return rows.sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.output || '').localeCompare(String(b.output || ''), 'ar'));
 }
 
 function carFieldValue(car, keys){
@@ -719,24 +814,22 @@ function stockRowMontageDetails(group){
 }
 function stockRowHasMontage(group){ return stockRowMontageDetails(group).length > 0; }
 function stockRowInsideAgenda(group){
-  return (group.usage || []).some(item => Array.isArray(item?.campaign?.publishSchedule) && item.campaign.publishSchedule.some(row => row && row.date));
+  return stockGroupPublishDetails(group).length > 0;
 }
 function stockRowAgendaMonths(group){
-  const months = [];
-  (group.usage || []).forEach(item => {
-    const list = Array.isArray(item?.campaign?.publishSchedule) ? item.campaign.publishSchedule : [];
-    list.forEach(row => {
-      const d = row?.date || row?.publishDate || row?.dayDate || '';
-      const date = d ? new Date(`${d}T00:00:00`) : null;
-      if(date && !Number.isNaN(date.getTime())) months.push(String(date.getMonth() + 1));
-    });
-  });
-  return uniqueList(months);
+  return uniqueList(stockGroupPublishDetails(group).map(item => item.month ? String(Number(item.month.slice(5,7))) : '').filter(Boolean)).sort((a,b) => Number(a) - Number(b));
+}
+function stockRowPublishTypes(group){
+  return uniqueList(stockGroupPublishDetails(group).map(item => item.postType).filter(Boolean));
+}
+function stockRowPublishOutputs(group){
+  return uniqueList(stockGroupPublishDetails(group).map(item => item.output).filter(Boolean));
 }
 function stockSearchText(group){
   const years = stockRowModelYears(group).join(' ');
-  const usageText = (group.usage || []).map(item => [item?.campaign?.campaignName, item?.campaign?.campaignCode, stockTaskTypeText(item), item?.label].filter(Boolean).join(' ')).join(' ');
-  return identityClean([group.key, group.carName, group.statement, group.exteriorColor, group.interiorColor, years, usageText].join(' '));
+  const usageText = (group.usage || []).map(item => [item?.campaign?.campaignName, item?.campaign?.campaignCode, stockUsageSectionTitle(item), stockUsageContentTitle(item), item?.label].filter(Boolean).join(' ')).join(' ');
+  const publishText = stockGroupPublishDetails(group).map(item => [item.output, item.platform, item.postType, item.date, item.month].filter(Boolean).join(' ')).join(' ');
+  return identityClean([group.key, group.carName, group.statement, group.exteriorColor, group.interiorColor, years, usageText, publishText].join(' '));
 }
 function stockSystemMontageDetailOptions(){
   const fromSections = contentSections.filter(section => normalizeDepartmentRole(section.name || section.slug || section.departmentId || '') === 'montage')
@@ -810,7 +903,7 @@ function clearStockFilters(){
 function exportStockRowsToExcel(){
   const rows = currentFilteredStockRows();
   if(!rows.length) return showToast('لا توجد بيانات لتصديرها.');
-  const headers = ['م','Unique Spec Key','السيارة','البيان','اللون الخارجي','اللون الداخلي','الموديل','العدد','تم التصوير','الاستخدام','تفاصيل المونتاج','داخل الأجندة','شهور الأجندة'];
+  const headers = ['م','Unique Spec Key','السيارة','البيان','اللون الخارجي','اللون الداخلي','الموديل','العدد','تم التصوير','الاستخدام','تفاصيل المونتاج','أنواع النشر','منشورات مرتبطة','داخل الأجندة','شهور الأجندة'];
   const body = rows.map((group, index) => [
     index + 1,
     [group.carName, group.statement].filter(Boolean).join(' - '),
@@ -823,6 +916,8 @@ function exportStockRowsToExcel(){
     group.isPhotographed ? 'نعم' : 'لا',
     group.isUsed ? `مستخدمة في ${group.usage.length} تاسك` : 'غير مستخدمة',
     stockRowMontageDetails(group).join('، '),
+    stockRowPublishTypes(group).join('، '),
+    stockRowPublishOutputs(group).join('، '),
     stockRowInsideAgenda(group) ? 'نعم' : 'لا',
     stockRowAgendaMonths(group).join('، ')
   ]);
@@ -1111,7 +1206,9 @@ function renderStock(){
   if(!rows.length){ tbody.innerHTML = '<tr class="empty-row"><td colspan="8">لا توجد سيارات مطابقة للفلتر الحالي.</td></tr>'; return; }
   tbody.innerHTML = rows.map((group, index) => {
     const photographedValue = group.isPhotographed ? 'yes' : (group.meta.photographedValue || 'no');
-    const usageText = group.isUsed ? `مستخدمة في ${group.usage.length} تاسك` : 'غير مستخدمة';
+    const publishDetails = stockGroupPublishDetails(group);
+    const usageText = publishDetails.length ? `مستخدمة في ${publishDetails.length} منشور` : (group.isUsed ? `مستخدمة في ${group.usage.length} تاسك` : 'غير مستخدمة');
+    const publishMini = publishDetails.length ? `<small>${escapeHtml(uniqueList(publishDetails.map(item => item.month).filter(Boolean)).join('، '))}</small>` : '';
     return `<tr data-stock-group="${escapeHtml(group.key)}">
       <td>${index + 1}</td>
       <td class="stock-key"><strong>${escapeHtml([group.carName, group.statement].filter(Boolean).join(' - '))}</strong></td>
@@ -1119,8 +1216,8 @@ function renderStock(){
       <td>${escapeHtml(group.interiorColor || '—')}</td>
       <td><span class="stock-count">${group.count}</span></td>
       <td><select class="stock-shot-select ${stockShotSavingKeys.has(stockGroupDocId(group.key)) ? 'is-saving' : ''}" data-stock-shot="${escapeHtml(group.key)}" onchange="window.mzjHandleStockShotChange && window.mzjHandleStockShotChange(this)"><option value="no"${photographedValue !== 'yes' ? ' selected' : ''}>لا</option><option value="yes"${photographedValue === 'yes' ? ' selected' : ''}>نعم</option></select></td>
-      <td><span class="stock-use-badge ${group.isUsed ? 'is-used' : 'is-unused'}">${escapeHtml(usageText)}</span></td>
-      <td><button class="mini-btn" type="button" data-stock-usage="${escapeHtml(group.key)}">استخدام السيارة</button></td>
+      <td><span class="stock-use-badge ${group.isUsed ? 'is-used' : 'is-unused'}">${escapeHtml(usageText)}</span>${publishMini}</td>
+      <td><button class="mini-btn" type="button" data-stock-usage="${escapeHtml(group.key)}">سجل الاستخدام</button></td>
     </tr>`;
   }).join('');
 }
@@ -1136,20 +1233,34 @@ function showStockUsageModal(groupKey){
     document.body.appendChild(modal);
   }
   const title = [group.carName, group.statement, group.exteriorColor, group.interiorColor].filter(Boolean).join(' - ');
-  const rows = hits.length ? hits.map((hit, index) => {
+  const publishDetails = stockGroupPublishDetails(group);
+  const rows = publishDetails.length ? publishDetails.map((item, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${escapeHtml(item.campaignName)}</td>
+      <td>${escapeHtml(item.campaignCode)}</td>
+      <td>${escapeHtml(item.contentType || '—')}</td>
+      <td>${escapeHtml(item.output || '—')}</td>
+      <td>${escapeHtml(item.platform || '—')}</td>
+      <td>${escapeHtml(item.postType || '—')}</td>
+      <td>${escapeHtml(item.date || '—')}</td>
+      <td>${escapeHtml(item.month || '—')}</td>
+    </tr>`).join('') : (hits.length ? hits.map((hit, index) => {
     const campaign = hit.campaign || {};
     const task = hit.task || {};
     return `<tr>
       <td>${index + 1}</td>
       <td>${escapeHtml(campaign.campaignName || campaign.name || '—')}</td>
       <td>${escapeHtml(campaign.campaignCode || campaign.campaign_code || '—')}</td>
-      <td>${escapeHtml(task.contentSectionName || '—')}</td>
-      <td>${escapeHtml(task.taskType || '—')}</td>
+      <td>${escapeHtml(stockUsageSectionTitle(hit) || '—')}</td>
+      <td>${escapeHtml(stockUsageContentTitle(hit) || '—')}</td>
       <td>${escapeHtml(task.userName || task.assignedToName || task.assigneeName || '—')}</td>
       <td>${escapeHtml(task.selectedCar || hit.label || '—')}</td>
+      <td>—</td>
+      <td>—</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="7">السيارة غير مستخدمة في أي تاسك.</td></tr>`;
-  modal.innerHTML = `<div class="task-modal-backdrop" data-close-stock-usage></div><div class="task-modal-dialog stock-usage-dialog"><button class="task-modal-close" type="button" data-close-stock-usage>×</button><div class="task-modal-head"><div><span>استخدام السيارة</span><h2>${escapeHtml(title)}</h2><p>${hits.length ? `مستخدمة في ${hits.length} تاسك` : 'غير مستخدمة'}</p></div></div><div class="stock-usage-table-wrap"><table class="stock-usage-table"><thead><tr><th>م</th><th>الحملة</th><th>كود الحملة</th><th>نوع المحتوى</th><th>نوع التاسك</th><th>اليوزر</th><th>السيارة</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  }).join('') : `<tr><td colspan="9">السيارة غير مستخدمة في أي نوع محتوى.</td></tr>`);
+  modal.innerHTML = `<div class="task-modal-backdrop" data-close-stock-usage></div><div class="task-modal-dialog stock-usage-dialog"><button class="task-modal-close" type="button" data-close-stock-usage>×</button><div class="task-modal-head"><div><span>سجل استخدام السيارة</span><h2>${escapeHtml(title)}</h2><p>${publishDetails.length ? `مستخدمة في ${publishDetails.length} منشور` : (hits.length ? `مستخدمة في ${hits.length} نوع محتوى` : 'غير مستخدمة')}</p></div></div><div class="stock-usage-table-wrap"><table class="stock-usage-table"><thead><tr><th>م</th><th>الحملة</th><th>كود الحملة</th><th>نوع المحتوى</th><th>المنشور</th><th>المنصة</th><th>نوع النشر</th><th>التاريخ</th><th>الشهر</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   modal.classList.add('show');
 }
 function clearEmptyRow(container){ container?.querySelector('.empty-row, .empty-state')?.remove(); }
@@ -3447,7 +3558,7 @@ function bindCampaignBuilder(){
 }
 
 function resetForm(ids){ ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; }); }
-function collectionByKind(kind){ return {department: window.MZJ_DEPARTMENTS_COLLECTION, creative: window.MZJ_CREATIVES_COLLECTION, taskType: window.MZJ_TASK_TYPES_COLLECTION, contentSection: window.MZJ_CONTENT_SECTIONS_COLLECTION, campaignCode: window.MZJ_CAMPAIGN_CODES_COLLECTION, campaignType: window.MZJ_CAMPAIGN_TYPES_COLLECTION, platform: window.MZJ_PLATFORMS_COLLECTION}[kind]; }
+function collectionByKind(kind){ return {department: window.MZJ_DEPARTMENTS_COLLECTION, creative: window.MZJ_CREATIVES_COLLECTION, taskType: window.MZJ_TASK_TYPES_COLLECTION, contentSection: window.MZJ_CONTENT_SECTIONS_COLLECTION, campaignCode: window.MZJ_CAMPAIGN_CODES_COLLECTION, campaignType: window.MZJ_CAMPAIGN_TYPES_COLLECTION, orderStatus: window.MZJ_ORDER_STATUSES_COLLECTION, platform: window.MZJ_PLATFORMS_COLLECTION}[kind]; }
 async function deleteDoc(kind, id){ if(!mainDb || !id) return; if(!confirm('تأكيد الحذف؟')) return; await safeCollection(collectionByKind(kind)).doc(id).delete(); }
 async function deleteCampaignWithTasks(campaignId){
   if(!mainDb || !campaignId) return;
@@ -3504,6 +3615,7 @@ function bindDepartments(){
     }catch(error){ console.error(error); showMessage('campaignTypeMessage', 'تعذر حفظ نوع الحملة والكود.'); }
   });
   bindNamedForm('platformForm', 'platformEditId', 'platformName', 'platformMessage', window.MZJ_PLATFORMS_COLLECTION, 'تم حفظ المنصة.');
+  bindNamedForm('orderStatusForm', 'orderStatusEditId', 'orderStatusName', 'orderStatusMessage', window.MZJ_ORDER_STATUSES_COLLECTION, 'تم حفظ حالة الطلب.');
   document.getElementById('contentSectionForm')?.addEventListener('submit', async event => {
     event.preventDefault(); const id = document.getElementById('contentSectionEditId')?.value; const name = normalizeText(document.getElementById('contentSectionName')?.value); const types = uniqueList((document.getElementById('contentSectionTypes')?.value || '').split('\n')); if(!name) return; if(!mainDb){ showMessage('contentSectionMessage', 'اتصال Firebase غير متاح.'); return; }
     try{ const payload = { name, types, updatedAt: serverTime() }; if(id) await safeCollection(window.MZJ_CONTENT_SECTIONS_COLLECTION).doc(id).update(payload); else await safeCollection(window.MZJ_CONTENT_SECTIONS_COLLECTION).add({ ...payload, createdAt: serverTime() }); event.target.reset(); resetForm(['contentSectionEditId']); showMessage('contentSectionMessage', 'تم حفظ قسم المحتوى.'); }
@@ -3523,6 +3635,8 @@ function bindDepartments(){
     const ctDel = event.target.closest('[data-delete-campaign-type]'); if(ctDel){ await deleteDoc('campaignType', ctDel.dataset.deleteCampaignType); return; }
     const pEdit = event.target.closest('[data-edit-platform]'); if(pEdit){ const item = platforms.find(x => x.id === pEdit.dataset.editPlatform); if(item){ document.getElementById('platformEditId').value = item.id; document.getElementById('platformName').value = item.name; } return; }
     const pDel = event.target.closest('[data-delete-platform]'); if(pDel){ await deleteDoc('platform', pDel.dataset.deletePlatform); return; }
+    const osEdit = event.target.closest('[data-edit-order-status]'); if(osEdit){ const item = orderStatuses.find(x => x.id === osEdit.dataset.editOrderStatus); if(item){ document.getElementById('orderStatusEditId').value = item.id; document.getElementById('orderStatusName').value = item.name; } return; }
+    const osDel = event.target.closest('[data-delete-order-status]'); if(osDel){ await deleteDoc('orderStatus', osDel.dataset.deleteOrderStatus); return; }
     const csEdit = event.target.closest('[data-edit-content-section]'); if(csEdit){ const item = contentSections.find(x => x.id === csEdit.dataset.editContentSection); if(item){ document.getElementById('contentSectionEditId').value = item.id; document.getElementById('contentSectionName').value = item.name; document.getElementById('contentSectionTypes').value = (item.types || []).join('\n'); } return; }
     const csDel = event.target.closest('[data-delete-content-section]'); if(csDel){ await deleteDoc('contentSection', csDel.dataset.deleteContentSection); }
   });
@@ -3531,8 +3645,9 @@ function bindDepartments(){
   document.getElementById('cancelTaskTypeEdit')?.addEventListener('click', () => { document.getElementById('taskTypeForm')?.reset(); resetForm(['taskTypeEditId']); });
   document.getElementById('cancelCampaignTypeEdit')?.addEventListener('click', () => { document.getElementById('campaignTypeForm')?.reset(); document.getElementById('campaignTypePrefix').value = 'MZJ'; resetForm(['campaignTypeEditId']); });
   document.getElementById('cancelPlatformEdit')?.addEventListener('click', () => { document.getElementById('platformForm')?.reset(); resetForm(['platformEditId']); });
+  document.getElementById('cancelOrderStatusEdit')?.addEventListener('click', () => { document.getElementById('orderStatusForm')?.reset(); resetForm(['orderStatusEditId']); });
   document.getElementById('cancelContentSectionEdit')?.addEventListener('click', () => { document.getElementById('contentSectionForm')?.reset(); resetForm(['contentSectionEditId']); });
-  document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignTypes(); renderContentSections(); });
+  document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignTypes(); renderOrderStatuses(); renderContentSections(); });
   document.getElementById('refreshStockBtn')?.addEventListener('click', renderStock);
   document.getElementById('exportStockExcelBtn')?.addEventListener('click', exportStockRowsToExcel);
   document.getElementById('clearStockFiltersBtn')?.addEventListener('click', clearStockFilters);
@@ -3741,8 +3856,13 @@ function renderUserDashboard(){
   setDashboardMode('user');
   applyEffectiveTheme();
   const myTasks = getVisibleTasksForCurrentUser();
-  const activeTasks = myTasks.filter(task => taskProgress(task) < 100);
-  const completedTasks = myTasks.filter(task => taskProgress(task) >= 100);
+  const taskFinalFileUploaded = task => {
+    const prepId = `task_${task.id || task.taskId || task.code || ''}`;
+    const submission = getPublishPrepSubmissions()[prepId] || {};
+    return publishPrepHasFinalFile(task, submission);
+  };
+  const activeTasks = myTasks.filter(task => !taskFinalFileUploaded(task));
+  const completedTasks = myTasks.filter(task => taskFinalFileUploaded(task));
   const received = activeTasks.filter(task => task.received || task.receivedConfirmed).length;
   const done = completedTasks.length;
   const buildGroups = tasks => {
@@ -3756,14 +3876,22 @@ function renderUserDashboard(){
   };
   const groups = buildGroups(activeTasks);
   const completedGroups = buildGroups(completedTasks);
-  const taskCard = (task, completed = false) => `<article class="content-task-card ${completed ? 'completed' : ''}">
-    <h3>${escapeHtml(task.campaignName || 'حملة')}</h3>
-    <p>${shortTaskName(task)}</p>
-    <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>${completed ? `<span class="btn btn-light done static-chip">مكتمل 100%</span>` : `<button type="button" class="btn btn-light ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">تم الاستلام</button>`}</div>
-    <div class="task-metric-row"><span>نسبة الإنجاز</span><b>${taskProgress(task)}%</b></div>
-    <div class="task-metric-row"><span>حالة التاسك</span><b>${completed ? 'مكتمل' : (task.received || task.receivedConfirmed ? 'مستلم' : 'قيد التنفيذ')}</b></div>
-    <div class="task-card-progress"><span style="width:${Math.min(100,taskProgress(task))}%"></span></div>
-  </article>`;
+  const taskCard = (task, completed = false) => {
+    const progress = taskProgress(task);
+    const waitingFinal = !completed && progress >= 100;
+    const statusText = completed ? 'تم رفع الملف النهائي' : (waitingFinal ? 'ينتظر رفع الملف النهائي' : (task.received || task.receivedConfirmed ? 'مستلم' : 'قيد التنفيذ'));
+    const actionHtml = completed
+      ? `<span class="btn btn-light done static-chip">تم رفع النهائي</span>`
+      : (waitingFinal ? `<span class="btn btn-light done static-chip">ارفع الملف النهائي</span>` : `<button type="button" class="btn btn-light ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">تم الاستلام</button>`);
+    return `<article class="content-task-card ${completed ? 'completed' : ''} ${waitingFinal ? 'waiting-final-file' : ''}">
+      <h3>${escapeHtml(task.campaignName || 'حملة')}</h3>
+      <p>${shortTaskName(task)}</p>
+      <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>${actionHtml}</div>
+      <div class="task-metric-row"><span>نسبة الإنجاز</span><b>${progress}%</b></div>
+      <div class="task-metric-row"><span>حالة التاسك</span><b>${statusText}</b></div>
+      <div class="task-card-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
+    </article>`;
+  };
   const renderGroups = (items, completed = false) => items.length ? `<div class="content-type-board">${items.map(group => `<section class="content-type-col"><div class="content-type-title"><h3>${escapeHtml(group.label)}</h3><span>${group.tasks.length} تاسك</span></div><div class="content-type-list">${group.tasks.map(task => taskCard(task, completed)).join('')}</div></section>`).join('')}</div>` : '';
   board.innerHTML = `<section class="user-content-dashboard user-content-dashboard-clean">
     <div class="user-dashboard-toolbar user-dashboard-toolbar-clean">
@@ -3773,10 +3901,10 @@ function renderUserDashboard(){
         <button type="button" class="mini-btn" id="toggleCompletedTasksBtn" data-open="0" data-count="${done}">عرض التاسكات المنتهية (${done})</button>
       </div>
     </div>
-    <div class="user-pro-hero user-pro-hero-clean"><div><span class="pro-kicker">MZJ Workspace</span><h2>أهلاً ${escapeHtml(getCurrentUserIdentity().name || 'بيك')}</h2><p>تاسكاتك الحالية حسب نوع المحتوى والحملات المسندة لك فقط.</p></div><div class="exec-stats"><span>📌 ${activeTasks.length} تاسك</span><span>✅ ${received} مستلم</span><span>🏁 ${done} مكتمل</span></div></div>
+    <div class="user-pro-hero user-pro-hero-clean"><div><span class="pro-kicker">MZJ Workspace</span><h2>أهلاً ${escapeHtml(getCurrentUserIdentity().name || 'بيك')}</h2><p>تاسكاتك الحالية حسب نوع المحتوى والحملات المسندة لك فقط.</p></div><div class="exec-stats"><span>📌 ${activeTasks.length} تاسك</span><span>✅ ${received} مستلم</span><span>🏁 ${done} ملف نهائي</span></div></div>
     ${renderGroups(groups, false)}
     <section class="completed-tasks-panel" id="completedTasksPanel" hidden>
-      <div class="completed-tasks-head"><h3>التاسكات المنتهية</h3><span>${done} تاسك مكتمل</span></div>
+      <div class="completed-tasks-head"><h3>التاسكات المنتهية</h3><span>${done} تاسك تم رفع ملفه النهائي</span></div>
       ${renderGroups(completedGroups, true) || '<div class="dashboard-empty-note dashboard-empty-note-inline">لا توجد تاسكات منتهية حالياً.</div>'}
     </section>
   </section>`;
@@ -4089,8 +4217,9 @@ function campaignNameText(campaign){ return campaign.campaignName || campaign.na
 function campaignTypeText(campaign){ return campaign.campaignType || campaign.campaign_type || campaign.campaignTypeName || ''; }
 function campaignStatusText(campaign){
   const status = campaign.request_status || campaign.status || '';
+  const found = orderStatuses.find(item => item.name === status || item.id === status);
   const map = { draft:'مسودة', pending:'قيد الانتظار', active:'نشطة', archived:'مؤرشفة', done:'منتهية', completed:'مكتملة' };
-  return map[status] || status || '—';
+  return found?.name || map[status] || status || '—';
 }
 function campaignInfoCell(label, value, isDate = false){
   const text = isDate ? formatDateShort(value) : (normalizeText(value || '') || '—');
@@ -5988,6 +6117,7 @@ function bootstrapData(){
   loadSimpleCollection(window.MZJ_TASK_TYPES_COLLECTION, taskTypes, renderTaskTypes);
   loadSimpleCollection(window.MZJ_CAMPAIGN_CODES_COLLECTION, campaignCodes, renderCampaignCodes);
   loadSimpleCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION, campaignTypes, renderCampaignTypes);
+  loadSimpleCollection(window.MZJ_ORDER_STATUSES_COLLECTION, orderStatuses, renderOrderStatuses);
   loadSimpleCollection(window.MZJ_FUNNELS_COLLECTION, funnels, function(){}, true);
   loadSimpleCollection(window.MZJ_PLATFORMS_COLLECTION, platforms, renderPlatforms);
   if(mainDb){

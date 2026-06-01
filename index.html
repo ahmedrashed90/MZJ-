@@ -130,7 +130,7 @@
               <label class="field field-wide"><span>هدف الإدارة</span><textarea name="management_goal"></textarea></label>
               <label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief"></textarea></label>
               <label class="field"><span>موعد تسليم الهيكل</span><input type="datetime-local" name="structure_deadline" /></label>
-              <label class="field"><span>حالة الطلب</span><select name="request_status"><option value="">اختر الحالة</option></select></label>
+              <label class="field"><span>حالة الطلب</span><select name="request_status" class="js-order-status-select"><option value="">اختر الحالة</option></select></label>
             </form>
           </section>
 
@@ -352,6 +352,16 @@
             </details>
 
             <details class="accordion-card admin-form-card">
+              <summary><span>حالة الطلب</span><strong>فتح / إغلاق</strong></summary>
+              <form class="form" id="orderStatusForm">
+                <input type="hidden" id="orderStatusEditId" />
+                <label class="field"><span>حالة الطلب</span><input type="text" id="orderStatusName" required /></label>
+                <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ حالة الطلب</button><button class="btn btn-light" type="button" id="cancelOrderStatusEdit">إلغاء</button></div>
+                <p class="form-message" id="orderStatusMessage"></p>
+              </form>
+            </details>
+
+            <details class="accordion-card admin-form-card">
               <summary><span>إضافة قسم محتوى</span><strong>فتح / إغلاق</strong></summary>
               <form class="form" id="contentSectionForm">
                 <input type="hidden" id="contentSectionEditId" />
@@ -393,6 +403,11 @@
             <details class="accordion-card">
               <summary><span>المنصات</span><strong>فتح / إغلاق</strong></summary>
               <div id="platformsList" class="departments-list"><div class="empty-state">جاري تحميل المنصات...</div></div>
+            </details>
+
+            <details class="accordion-card">
+              <summary><span>حالات الطلب</span><strong>فتح / إغلاق</strong></summary>
+              <div id="orderStatusesList" class="departments-list"><div class="empty-state">جاري تحميل حالات الطلب...</div></div>
             </details>
             <details class="accordion-card">
               <summary><span>أقسام المحتوى وأنواعها</span><strong>فتح / إغلاق</strong></summary>
