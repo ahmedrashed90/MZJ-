@@ -2720,7 +2720,11 @@ function renderStructureSection(task){
   const status = structure.status || '';
   const notes = Array.isArray(structure.notes) ? structure.notes : [];
   const rows = Array.isArray(structure.parsedRows) ? structure.parsedRows : [];
+  const sheetTables = structureSheetTables(structure);
+  const distributionRows = structureDistributionRows(structure);
+  const hasStructureFile = Boolean(structure.fileData || structure.fileName || sheetTables.length || rows.length || distributionRows.length);
   const canUpload = !admin && (!status || status === 'needs_changes' || status === 'revised');
+  const canApproveStructure = admin && hasStructureFile && status !== 'approved' && status !== 'distributed';
   const notesHtml = notes.length ? `<div class="structure-notes-list"><h4>ملاحظات الأدمن</h4>${notes.map(note => `<div class="structure-note"><b>${escapeHtml(note.field || 'ملاحظة')}</b><p>${escapeHtml(note.note || '')}</p></div>`).join('')}</div>` : '';
   return `<div class="modal-section structure-section"><div class="modal-section-title"><h3>هيكل الحملة</h3><span>${escapeHtml(structureStatusLabel(status))}</span></div>
     <div class="structure-actions">
@@ -2730,7 +2734,7 @@ function renderStructureSection(task){
       ${structure.fileData ? `<a class="btn btn-light" href="${escapeHtml(structure.fileData)}" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل الملف المرفوع</a>` : ''}
     </div>
     ${notesHtml}
-    ${admin && rows.length && status !== 'approved' && status !== 'distributed' ? `<div class="structure-admin-tools"><button class="btn btn-primary" type="button" data-structure-approve="${escapeHtml(task.id)}">اعتماد الهيكل</button></div>` : ''}
+    ${canApproveStructure ? `<div class="structure-admin-tools"><button class="btn btn-primary" type="button" data-structure-approve="${escapeHtml(task.id)}">اعتماد الهيكل</button></div>` : ''}
     ${status === 'approved' || status === 'distributed' ? '' : renderStructureWorkbookTable(task, structure, admin)}
     ${admin && (status === 'approved' || status === 'distributed') ? `<div class="structure-approved-distribution"><div class="structure-approved-message">تم اعتماد الهيكل. ابدأ توزيع تاسكات الهيكل على اليوزرات.</div>${structureAssigneeTable(task)}</div>` : ''}
   </div>`;
