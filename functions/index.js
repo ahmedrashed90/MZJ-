@@ -247,9 +247,9 @@ exports.runAutoPublishNow = onRequest({
 }, async (req, res) => {
   try {
     const result = await runAutoPublishOnce();
-    res.status(200).json({ ok: true, deployed: 'structure-approve-button-restore-v54', ...result });
+    res.status(200).json({ ok: true, deployed: 'structure-distribution-rows-fix-v55', ...result });
   } catch (error) {
     logger.error(error);
-    res.status(500).json({ ok: false, deployed: 'structure-approve-button-restore-v54', error: error.message || String(error) });
+    res.status(500).json({ ok: false, deployed: 'structure-distribution-rows-fix-v55', error: error.message || String(error) });
   }
 });

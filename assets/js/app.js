@@ -2461,6 +2461,22 @@ function headerIndex(headers, patterns){
 function cellByHeader(row, index){
   return index >= 0 ? normalizeText((row || [])[index] || '') : '';
 }
+function normalizeStructureHeaderCell(value){
+  return normalizeText(value).replace(/[ةه]/g, 'ه').replace(/[ىي]/g, 'ي').toLowerCase();
+}
+function rowHasAnyHeader(row, patterns){
+  return (row || []).some(cell => {
+    const clean = normalizeStructureHeaderCell(cell);
+    return patterns.some(pattern => clean.includes(normalizeStructureHeaderCell(pattern)));
+  });
+}
+function firstFilledCell(row, fromIndex = 0){
+  for(let i = Math.max(0, fromIndex); i < (row || []).length; i += 1){
+    const value = normalizeText(row[i] || '');
+    if(value) return value;
+  }
+  return '';
+}
 function parseExecutionRowsFromSheetTables(structure){
   const sheetTables = structureSheetTables(structure);
   const parsed = [];
@@ -2468,16 +2484,19 @@ function parseExecutionRowsFromSheetTables(structure){
     const rows = tableRowsFromMergedSheet(sheet);
     let headerIndexNo = -1;
     for(let i = 0; i < rows.length; i += 1){
-      const normalizedRow = (rows[i] || []).map(v => normalizeText(v));
-      const hasTaskNo = normalizedRow.some(cell => cell.includes('رقم التاسك') || cell.toLowerCase().includes('task no'));
-      const hasContentType = normalizedRow.some(cell => cell.includes('نوع المحتوى') || cell.toLowerCase().includes('content type'));
-      if(hasTaskNo && hasContentType){ headerIndexNo = i; break; }
+      const row = rows[i] || [];
+      const hasTaskNo = rowHasAnyHeader(row, ['رقم التاسك','task no','task']);
+      const hasContentType = rowHasAnyHeader(row, ['نوع المحتوى','نوع المحتوي','content type']);
+      const hasIdea = rowHasAnyHeader(row, ['الفكرة','idea']);
+      const hasDescription = rowHasAnyHeader(row, ['وصف المحتوى','وصف المحتوي','description']);
+      const hasWriter = rowHasAnyHeader(row, ['المطلوب من الكاتب','writer']);
+      if((hasTaskNo && hasContentType) || (hasContentType && (hasIdea || hasDescription || hasWriter)) || (hasTaskNo && (hasIdea || hasDescription || hasWriter))){ headerIndexNo = i; break; }
     }
     if(headerIndexNo < 0) return;
     const headers = (rows[headerIndexNo] || []).map(h => normalizeText(h));
     const idx = {
       campaignType: headerIndex(headers, ['نوع الحمله','نوع الحملة','campaign type']),
-      contentType: headerIndex(headers, ['نوع المحتوى','content type']),
+      contentType: headerIndex(headers, ['نوع المحتوى','نوع المحتوي','content type']),
       taskNo: headerIndex(headers, ['رقم التاسك','task no','task']),
       goal: headerIndex(headers, ['الهدف','goal']),
       tangibleGoal: headerIndex(headers, ['الهدف الملموس']),
@@ -2485,29 +2504,39 @@ function parseExecutionRowsFromSheetTables(structure){
       contentName: headerIndex(headers, ['اسم المحتوي','اسم المحتوى','content name']),
       description: headerIndex(headers, ['وصف المحتوي','وصف المحتوى','description']),
       message: headerIndex(headers, ['الرسالة','message']),
-      writerRequest: headerIndex(headers, ['المطلوب من الكاتب','required from writer']),
+      writerRequest: headerIndex(headers, ['المطلوب من الكاتب','required from writer','writer']),
       cta: headerIndex(headers, ['cta','الدعوة لاتخاذ إجراء'])
     };
+    if(idx.contentType < 0) idx.contentType = 1;
+    if(idx.taskNo < 0) idx.taskNo = 2;
     for(let r = headerIndexNo + 1; r < rows.length; r += 1){
       const row = rows[r] || [];
       if(!row.some(v => normalizeText(v))) continue;
-      const contentType = cellByHeader(row, idx.contentType);
-      const taskNo = cellByHeader(row, idx.taskNo);
-      // التوزيع يكون من صفوف عمود نوع المحتوى فقط.
-      // أي صف لا يحتوي على نوع محتوى حقيقي لا يتحول لتاسك.
-      if(!contentType) continue;
+      if(rowHasAnyHeader(row, ['writing rules','قواعد كتابة المحتوى','campaign logic','آلية تنفيذ المحتوى','content execution direction'])) continue;
+      let contentType = cellByHeader(row, idx.contentType);
+      let taskNo = cellByHeader(row, idx.taskNo);
+      const idea = cellByHeader(row, idx.idea);
+      const description = cellByHeader(row, idx.description);
+      const contentName = cellByHeader(row, idx.contentName);
+      const writerRequest = cellByHeader(row, idx.writerRequest);
+      const message = cellByHeader(row, idx.message);
+      if(!contentType){
+        const fallback = firstFilledCell(row, 0);
+        if(fallback && !fallback.includes('حمله') && !fallback.toLowerCase().includes('campaign')) contentType = fallback;
+      }
+      if(!contentType && !(idea || description || contentName || writerRequest || message)) continue;
       const item = { sheetName: sheet.sheetName, rowNumber: r + 1, raw: {} };
       headers.forEach((h, i) => { if(h) item.raw[h] = normalizeText(row[i]); });
       item.campaignType = cellByHeader(row, idx.campaignType);
-      item.contentType = contentType;
+      item.contentType = contentType || contentName || idea || description || 'نوع محتوى';
       item.taskNo = taskNo;
       item.goal = cellByHeader(row, idx.goal);
       item.tangibleGoal = cellByHeader(row, idx.tangibleGoal);
-      item.idea = cellByHeader(row, idx.idea);
-      item.contentName = cellByHeader(row, idx.contentName);
-      item.description = cellByHeader(row, idx.description);
-      item.message = cellByHeader(row, idx.message);
-      item.writerRequest = cellByHeader(row, idx.writerRequest);
+      item.idea = idea;
+      item.contentName = contentName;
+      item.description = description;
+      item.message = message;
+      item.writerRequest = writerRequest;
       item.cta = cellByHeader(row, idx.cta);
       parsed.push(item);
     }
@@ -2518,8 +2547,8 @@ function structureDistributionRows(structure){
   const fromTables = parseExecutionRowsFromSheetTables(structure);
   const source = fromTables.length ? fromTables : (Array.isArray(structure?.parsedRows) ? structure.parsedRows : []);
   return source
-    .filter(row => normalizeText(row?.contentType || ''))
-    .map((row, index) => ({ ...row, taskNo: normalizeText(row?.taskNo || '') || `T${String(index + 1).padStart(2, '0')}` }));
+    .filter(row => normalizeText(row?.contentType || row?.idea || row?.contentName || row?.description || ''))
+    .map((row, index) => ({ ...row, contentType: normalizeText(row?.contentType || row?.contentName || row?.idea || row?.description || 'نوع محتوى'), taskNo: normalizeText(row?.taskNo || '') || `T${String(index + 1).padStart(2, '0')}` }));
 }
 function structureTaskNumber(task){
   return normalizeText(task?.structureTaskNo || task?.taskNo || task?.structureRow?.taskNo || '');
@@ -2710,7 +2739,10 @@ function structureRowsTable(rows, notes = []){
 function structureAssigneeTable(task){
   const structure = taskStructure(task);
   const rows = structureDistributionRows(structure);
-  if(!rows.length) return '<div class="empty-state mini-empty">لا توجد صفوف لتوزيعها.</div>';
+  if(!rows.length){
+    const reloadBtn = structure.fileData ? `<button class="btn btn-light" type="button" data-reload-structure-sheet="${escapeHtml(task.id)}">إعادة قراءة الشيت واستخراج الصفوف</button>` : '';
+    return `<div class="empty-state mini-empty">لا توجد صفوف لتوزيعها.${reloadBtn}</div>`;
+  }
   return `<div class="structure-distribution"><h4>توزيع تاسكات الهيكل</h4><div class="structure-assign-list">${rows.map((row, index) => `<div class="structure-assign-row" data-structure-row="${index}"><div><strong>${escapeHtml(structureContentTaskLabel(row, 'نوع محتوى'))}</strong><p>${escapeHtml(row.idea || row.contentName || row.description || row.goal || '')}</p></div><select class="js-structure-assignee"><option value="">اختر اليوزر</option>${users.map(u => `<option value="${escapeHtml(u.id || u.uid || u.email || u.name)}">${escapeHtml(userName(u))}</option>`).join('')}</select></div>`).join('')}</div><button class="btn btn-primary" type="button" data-save-structure-assignees="${escapeHtml(task.id)}">حفظ توزيع تاسكات الهيكل</button></div>`;
 }
 function renderStructureSection(task){
@@ -3136,9 +3168,19 @@ async function addStructureNote(taskId){
 async function setStructureStatus(taskId, status){
   const task = findTaskById(taskId);
   if(!task) return;
-  const structure = taskStructure(task);
+  let structure = taskStructure(task);
+  if(status === 'approved' && structure.fileData && !structureDistributionRows(structure).length){
+    try{
+      showToast('جاري قراءة صفوف الهيكل...');
+      const parsed = await parseStructureDataUrl(structure.fileData);
+      structure = { ...structure, sheetTables: parsed.sheetTables || structureSheetTables(structure), parsedRows: parsed.parsedRows || [], reparsedAt: new Date().toISOString() };
+    }catch(error){
+      console.error('Structure approve parse error', error);
+    }
+  }
+  const rowsCount = status === 'approved' ? structureDistributionRows(structure).length : 0;
   await updateTaskOnFirebase(task.id, { structure: encodeStructureWorkbookForFirestore({ ...structure, status, reviewedAt: new Date().toISOString(), reviewedBy: getCurrentUser().email || getCurrentUser().name || '' }) });
-  if(status === 'approved') showToast('تم اعتماد الهيكل. ابدأ توزيع تاسكات الهيكل.');
+  if(status === 'approved') showToast(rowsCount ? `تم اعتماد الهيكل واستخراج ${rowsCount} صف للتوزيع.` : 'تم اعتماد الهيكل، لكن لم يتم استخراج صفوف. اضغط إعادة قراءة الشيت أو راجع صفوف نوع المحتوى.');
 }
 
 function getFormData(form){
