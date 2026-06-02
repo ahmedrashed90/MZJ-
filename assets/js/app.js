@@ -825,18 +825,31 @@ function stockRowPublishTypes(group){
 function stockRowPublishOutputs(group){
   return uniqueList(stockGroupPublishDetails(group).map(item => item.output).filter(Boolean));
 }
+function stockGroupCampaignNames(group){
+  const fromPublish = stockGroupPublishDetails(group).map(item => item.campaignName).filter(Boolean);
+  const fromUsage = (group.usage || []).map(item => {
+    const campaign = item?.campaign || {};
+    return normalizeText(campaign.campaignName || campaign.name || '');
+  }).filter(Boolean);
+  return uniqueList([...fromPublish, ...fromUsage].map(normalizeText).filter(value => value && value !== '—'));
+}
+function stockRowContentTypes(group){
+  const fromPublish = stockGroupPublishDetails(group).map(item => item.contentType).filter(Boolean);
+  const fromUsage = (group.usage || []).flatMap(item => [stockUsageContentTitle(item), stockUsageSectionTitle(item)]).filter(Boolean);
+  return uniqueList([...fromPublish, ...fromUsage].map(normalizeText).filter(value => value && value !== '—'));
+}
 function stockSearchText(group){
   const years = stockRowModelYears(group).join(' ');
+  const campaignsText = stockGroupCampaignNames(group).join(' ');
+  const contentTypesText = stockRowContentTypes(group).join(' ');
   const usageText = (group.usage || []).map(item => [item?.campaign?.campaignName, item?.campaign?.campaignCode, stockUsageSectionTitle(item), stockUsageContentTitle(item), item?.label].filter(Boolean).join(' ')).join(' ');
-  const publishText = stockGroupPublishDetails(group).map(item => [item.output, item.platform, item.postType, item.date, item.month].filter(Boolean).join(' ')).join(' ');
-  return identityClean([group.key, group.carName, group.statement, group.exteriorColor, group.interiorColor, years, usageText, publishText].join(' '));
+  const publishText = stockGroupPublishDetails(group).map(item => [item.campaignName, item.campaignCode, item.contentType, item.output, item.platform, item.postType, item.date, item.month].filter(Boolean).join(' ')).join(' ');
+  return identityClean([group.key, group.carName, group.statement, group.exteriorColor, group.interiorColor, years, campaignsText, contentTypesText, usageText, publishText].join(' '));
 }
-function stockSystemMontageDetailOptions(){
-  const fromSections = contentSections.filter(section => normalizeDepartmentRole(section.name || section.slug || section.departmentId || '') === 'montage')
-    .flatMap(section => Array.isArray(section.types) ? section.types : []);
-  const fromTasks = taskTypes.map(item => item.name).filter(Boolean);
-  const fromUsage = stockRowsWithMeta().flatMap(row => stockRowMontageDetails(row));
-  return uniqueList([...fromSections, ...fromUsage, ...fromTasks].map(normalizeText).filter(Boolean)).sort((a,b) => a.localeCompare(b, 'ar'));
+function stockSystemContentTypeOptions(){
+  const fromSections = contentSections.flatMap(section => Array.isArray(section.types) ? section.types : []);
+  const fromRows = stockRowsWithMeta().flatMap(row => stockRowContentTypes(row));
+  return uniqueList([...fromSections, ...fromRows].map(normalizeText).filter(Boolean)).sort((a,b) => a.localeCompare(b, 'ar'));
 }
 function updateStockDynamicFilterOptions(rows){
   const fill = (id, placeholder, values) => {
@@ -848,7 +861,8 @@ function updateStockDynamicFilterOptions(rows){
   };
   fill('stockCarFilter', 'السيارة (الكل)', rows.map(row => row.carName));
   fill('stockStatementFilter', 'البيان (الكل)', rows.map(row => row.statement));
-  fill('stockMontageDetailFilter', 'تفاصيل المونتاج (الكل)', stockSystemMontageDetailOptions());
+  fill('stockCampaignFilter', 'الحملة (الكل)', rows.flatMap(row => stockGroupCampaignNames(row)));
+  fill('stockContentTypeFilter', 'نوع المحتوى (الكل)', stockSystemContentTypeOptions());
 }
 function stockAdvancedFilterValues(){
   const val = id => normalizeText(document.getElementById(id)?.value || '');
@@ -856,11 +870,9 @@ function stockAdvancedFilterValues(){
     search: val('stockSearchInput'),
     car: val('stockCarFilter'),
     statement: val('stockStatementFilter'),
+    campaign: val('stockCampaignFilter'),
+    contentType: val('stockContentTypeFilter'),
     shot: val('stockShotFilter'),
-    montage: val('stockMontageFilter'),
-    montageDetail: val('stockMontageDetailFilter'),
-    exterior: val('stockExteriorFilter'),
-    interior: val('stockInteriorFilter'),
     insideAgenda: val('stockAgendaInsideFilter'),
     agendaMonth: val('stockAgendaMonthFilter')
   };
@@ -871,14 +883,10 @@ function filterStockRowsAdvanced(rows){
     if(f.search && !stockSearchText(group).includes(identityClean(f.search))) return false;
     if(f.car && normalizeText(group.carName) !== f.car) return false;
     if(f.statement && normalizeText(group.statement) !== f.statement) return false;
+    if(f.campaign && !stockGroupCampaignNames(group).includes(f.campaign)) return false;
+    if(f.contentType && !stockRowContentTypes(group).includes(f.contentType)) return false;
     if(f.shot === 'yes' && !group.isPhotographed) return false;
     if(f.shot === 'no' && group.isPhotographed) return false;
-    const hasMontage = stockRowHasMontage(group);
-    if(f.montage === 'yes' && !hasMontage) return false;
-    if(f.montage === 'no' && hasMontage) return false;
-    if(f.montageDetail && !stockRowMontageDetails(group).includes(f.montageDetail)) return false;
-    if(f.exterior && !identityClean(group.exteriorColor).includes(identityClean(f.exterior))) return false;
-    if(f.interior && !identityClean(group.interiorColor).includes(identityClean(f.interior))) return false;
     const inside = stockRowInsideAgenda(group);
     if(f.insideAgenda === 'yes' && !inside) return false;
     if(f.insideAgenda === 'no' && inside) return false;
@@ -891,7 +899,7 @@ function currentFilteredStockRows(){
   return filterStockRowsAdvanced(filterStockRows(stockRowsWithMeta(), mode));
 }
 function clearStockFilters(){
-  ['stockSearchInput','stockCarFilter','stockStatementFilter','stockShotFilter','stockMontageFilter','stockMontageDetailFilter','stockExteriorFilter','stockInteriorFilter','stockAgendaInsideFilter','stockAgendaMonthFilter'].forEach(id => {
+  ['stockSearchInput','stockCarFilter','stockStatementFilter','stockCampaignFilter','stockContentTypeFilter','stockShotFilter','stockAgendaInsideFilter','stockAgendaMonthFilter'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.value = '';
   });
@@ -903,7 +911,7 @@ function clearStockFilters(){
 function exportStockRowsToExcel(){
   const rows = currentFilteredStockRows();
   if(!rows.length) return showToast('لا توجد بيانات لتصديرها.');
-  const headers = ['م','Unique Spec Key','السيارة','البيان','اللون الخارجي','اللون الداخلي','الموديل','العدد','تم التصوير','الاستخدام','تفاصيل المونتاج','أنواع النشر','منشورات مرتبطة','داخل الأجندة','شهور الأجندة'];
+  const headers = ['م','Unique Spec Key','السيارة','البيان','اللون الخارجي','اللون الداخلي','الموديل','العدد','تم التصوير','الاستخدام','الحملات المرتبطة','أنواع المحتوى','أنواع النشر','منشورات مرتبطة','داخل الأجندة','شهور الأجندة'];
   const body = rows.map((group, index) => [
     index + 1,
     [group.carName, group.statement].filter(Boolean).join(' - '),
@@ -915,7 +923,8 @@ function exportStockRowsToExcel(){
     group.count || 0,
     group.isPhotographed ? 'نعم' : 'لا',
     group.isUsed ? `مستخدمة في ${group.usage.length} تاسك` : 'غير مستخدمة',
-    stockRowMontageDetails(group).join('، '),
+    stockGroupCampaignNames(group).join('، '),
+    stockRowContentTypes(group).join('، '),
     stockRowPublishTypes(group).join('، '),
     stockRowPublishOutputs(group).join('، '),
     stockRowInsideAgenda(group) ? 'نعم' : 'لا',
