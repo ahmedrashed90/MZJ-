@@ -254,9 +254,9 @@ exports.runAutoPublishNow = onRequest({
 }, async (req, res) => {
   try {
     const result = await runAutoPublishOnce();
-    res.status(200).json({ ok: true, deployed: 'whatsapp-caption-icons-v70', ...result });
+    res.status(200).json({ ok: true, deployed: 'whatsapp-template-caption-v71', ...result });
   } catch (error) {
     logger.error(error);
-    res.status(500).json({ ok: false, deployed: 'whatsapp-caption-icons-v70', error: error.message || String(error) });
+    res.status(500).json({ ok: false, deployed: 'whatsapp-template-caption-v71', error: error.message || String(error) });
   }
 });

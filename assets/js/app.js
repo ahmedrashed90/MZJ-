@@ -6568,7 +6568,7 @@ function fillSettingsForm(){
   const mersal = settings.mersal || settings.whatsappMersal || {};
   if(document.getElementById('mersalApiEndpoint')) mersalApiEndpoint.value = mersal.apiEndpoint || settings.mersalApiEndpoint || 'https://w-mersal.com';
   if(document.getElementById('mersalToken')) mersalToken.value = (mersal.token || settings.mersalToken) ? '********' : '';
-  if(document.getElementById('mersalImageTemplate')) mersalImageTemplate.value = mersal.imageTemplate || settings.mersalImageTemplate || 'mzj_image_campaign';
+  if(document.getElementById('mersalImageTemplate')) mersalImageTemplate.value = mersal.imageTemplate || settings.mersalImageTemplate || 'mzj_image_caption_v2';
   if(document.getElementById('mersalVideoTemplate')) mersalVideoTemplate.value = mersal.videoTemplate || settings.mersalVideoTemplate || 'mzj_video_campaign';
   if(document.getElementById('mersalTemplateLanguage')) mersalTemplateLanguage.value = mersal.templateLanguage || settings.mersalTemplateLanguage || 'ar';
   if(document.getElementById('whatsappChannelStatus')) whatsappChannelStatus.textContent = (mersal.status === 'connected' || mersal.connected || mersal.token || settings.mersalToken) ? 'متصل' : 'جاهز بعد حفظ إعدادات مرسال';
@@ -6660,7 +6660,7 @@ function bindSettings(){
       token,
       connected,
       status: connected ? 'connected' : 'disconnected',
-      imageTemplate: normalizeText(document.getElementById('mersalImageTemplate')?.value || 'mzj_image_campaign'),
+      imageTemplate: normalizeText(document.getElementById('mersalImageTemplate')?.value || 'mzj_image_caption_v2'),
       videoTemplate: normalizeText(document.getElementById('mersalVideoTemplate')?.value || 'mzj_video_campaign'),
       templateLanguage: normalizeText(document.getElementById('mersalTemplateLanguage')?.value || 'ar'),
       updatedAt: new Date().toISOString()
