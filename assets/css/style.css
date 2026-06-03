@@ -1830,15 +1830,16 @@ body.has-user-dashboard-theme #dashboard.user-mode{
 .social-channel-card h3{margin:0 0 6px;font-size:20px;}
 .social-channel-card p{margin:0 0 10px;color:var(--muted);line-height:1.7;}
 .social-channel-icon{width:54px;height:54px;border-radius:18px;display:grid;place-items:center;font-weight:900;font-size:24px;color:#fff;box-shadow:0 16px 30px rgba(15,23,42,.14);flex:0 0 auto;}
+.social-channel-icon svg{width:30px;height:30px;display:block;color:#fff;position:relative;z-index:2;}
 .social-channel-icon.facebook{background:linear-gradient(135deg,#1877f2,#0f4fb6);}
 .social-channel-icon.instagram{background:linear-gradient(135deg,#f58529,#dd2a7b,#8134af,#515bd4);}
 .social-channel-icon.tiktok{background:#050505;position:relative;color:#fff;font-size:30px;overflow:hidden;}
-.social-channel-icon.tiktok::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 35% 35%,rgba(37,244,238,.55),transparent 32%),radial-gradient(circle at 68% 65%,rgba(254,44,85,.55),transparent 34%);opacity:.9;}
-.social-channel-icon.tiktok .tiktok-glyph{position:relative;z-index:1;font-weight:900;text-shadow:-2px 0 #25f4ee,2px 0 #fe2c55;transform:translateY(-1px);}
-.social-channel-icon.whatsapp{background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;position:relative;font-size:27px;border-radius:18px;}
-.social-channel-icon.whatsapp::before{content:"";position:absolute;inset:8px;border:3px solid rgba(255,255,255,.95);border-radius:50%;}
-.social-channel-icon.whatsapp::after{content:"";position:absolute;width:12px;height:12px;background:#25D366;border-left:3px solid rgba(255,255,255,.95);border-bottom:3px solid rgba(255,255,255,.95);right:12px;bottom:10px;transform:rotate(-18deg);border-radius:2px;}
-.social-channel-icon.whatsapp .whatsapp-glyph{position:relative;z-index:1;font-size:21px;transform:rotate(18deg);display:block;margin-top:1px;}
+.social-channel-icon.tiktok svg{width:32px;height:32px;}
+.social-channel-icon.tiktok .tk-cyan{fill:#25F4EE;transform:translate(-1px,1px);}
+.social-channel-icon.tiktok .tk-red{fill:#FE2C55;transform:translate(1px,-1px);}
+.social-channel-icon.tiktok .tk-main{fill:#fff;}
+.social-channel-icon.whatsapp{background:#25D366;color:#fff;position:relative;font-size:27px;border-radius:18px;}
+.social-channel-icon.whatsapp svg{width:34px;height:34px;}
 .channel-status{display:inline-flex;align-items:center;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;background:rgba(34,197,94,.12);color:#15803d;}
 .social-publisher-layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(320px,.75fr);gap:16px;align-items:start;}
 .social-composer,.social-preview-card,.social-log-card{overflow:hidden;}

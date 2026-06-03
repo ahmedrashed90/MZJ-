@@ -6152,11 +6152,17 @@ function bindPublishPrepPage(){
       if(!task){ showToast('تعذر العثور على التاسك.'); return; }
       const check = publishPrepCompleteness(task, current);
       if(!check.complete){ showToast(`لا يمكن جعله جاهز للنشر. ناقص: ${check.missing.join('، ')}`); return; }
+      const captionInput = document.querySelector(`[data-prep-caption="${CSS.escape(id)}"]`);
+      const hashtagsInput = document.querySelector(`[data-prep-hashtags="${CSS.escape(id)}"]`);
+      const liveCaption = normalizeText(captionInput?.value || publishPrepEffectiveCaption(task, current));
+      const liveHashtags = normalizeText(hashtagsInput?.value || publishPrepEffectiveHashtags(task, current));
       await updatePublishPrepSubmission(id, {
         readyForPublish: true,
         status: 'جاهز للنشر',
         readyAt: new Date().toISOString(),
         readyBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user',
+        caption: liveCaption,
+        hashtags: liveHashtags,
         ...publishPrepTaskSnapshot(task)
       });
       renderPublishPrepPage();
