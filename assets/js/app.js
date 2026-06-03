@@ -2458,6 +2458,61 @@ function headerIndex(headers, patterns){
   const list = Array.isArray(patterns) ? patterns : [patterns];
   return (headers || []).findIndex(header => list.some(pattern => normalizeText(header).includes(pattern)));
 }
+function structureHeaderKey(value){
+  return normalizeText(value)
+    .replace(/[ً-ٰٟ]/g,'')
+    .replace(/[أإآا]/g,'ا')
+    .replace(/[ىي]/g,'ي')
+    .replace(/ة/g,'ه')
+    .replace(/\s+/g,' ')
+    .trim()
+    .toLowerCase();
+}
+function structureHeaderIndex(headers, patterns){
+  const list = (Array.isArray(patterns) ? patterns : [patterns]).map(structureHeaderKey).filter(Boolean);
+  return (headers || []).findIndex(header => {
+    const clean = structureHeaderKey(header);
+    if(!clean) return false;
+    return list.some(pattern => clean === pattern || clean.includes(pattern));
+  });
+}
+function structureHeaderIndexStrict(headers, patterns){
+  const list = (Array.isArray(patterns) ? patterns : [patterns]).map(structureHeaderKey).filter(Boolean);
+  return (headers || []).findIndex(header => {
+    const clean = structureHeaderKey(header);
+    if(!clean) return false;
+    return list.some(pattern => clean === pattern || clean.includes(pattern));
+  });
+}
+function inferStructureContentTypeFromContext(sheet, rows, headerIndexNo){
+  const candidates = [];
+  const maxRow = Math.max(0, Math.min(Number(headerIndexNo) || 0, (rows || []).length));
+  for(let r = maxRow - 1; r >= 0; r -= 1){
+    (rows[r] || []).forEach(cell => {
+      const value = normalizeText(cell);
+      if(!value) return;
+      const key = structureHeaderKey(value);
+      if(key.includes('brand') || key.includes('reel') || key.includes('film') || key.includes('static') || key.includes('carousel') || key.includes('story') || key.includes('post') || key.includes('نوع المحتوي') || key.includes('نوع المحتوى')){
+        candidates.push(value);
+      }
+    });
+    if(candidates.length) break;
+  }
+  if(candidates.length){
+    const best = candidates.find(v => /brand|reel|film|static|carousel|story|post/i.test(v)) || candidates[0];
+    return best.replace(/^(نوع المحتوى|نوع المحتوي)\s*[:：-]?\s*/i,'').trim();
+  }
+  return normalizeText(sheet?.sourceSheetName || sheet?.sheetName || '');
+}
+function valueLooksLikeStructureTaskNo(value){
+  const clean = normalizeText(value);
+  if(!clean) return false;
+  return /^[A-Z]{1,6}\d{1,4}[-_][A-Z]{1,6}\d{1,4}$/i.test(clean) || /^[A-Z]{1,6}[-_]?\d{1,4}[-_][A-Z]{1,6}[-_]?\d{1,4}$/i.test(clean) || /^T\d{1,4}$/i.test(clean);
+}
+function firstLikelyStructureTaskNo(row){
+  const cells = (row || []).map(normalizeText).filter(Boolean);
+  return cells.find(valueLooksLikeStructureTaskNo) || '';
+}
 function cellByHeader(row, index){
   return index >= 0 ? normalizeText((row || [])[index] || '') : '';
 }
@@ -2485,59 +2540,65 @@ function parseExecutionRowsFromSheetTables(structure){
     let headerIndexNo = -1;
     for(let i = 0; i < rows.length; i += 1){
       const row = rows[i] || [];
-      const hasTaskNo = rowHasAnyHeader(row, ['رقم التاسك','task no','task']);
-      const hasContentType = rowHasAnyHeader(row, ['نوع المحتوى','نوع المحتوي','content type']);
+      const hasTaskNo = rowHasAnyHeader(row, ['رقم التاسك','task no','task code']);
+      const hasGoal = rowHasAnyHeader(row, ['الهدف','goal']);
+      const hasTangibleGoal = rowHasAnyHeader(row, ['الهدف الملموس']);
       const hasIdea = rowHasAnyHeader(row, ['الفكرة','idea']);
       const hasDescription = rowHasAnyHeader(row, ['وصف المحتوى','وصف المحتوي','description']);
+      const hasMessage = rowHasAnyHeader(row, ['الرسالة','message']);
       const hasWriter = rowHasAnyHeader(row, ['المطلوب من الكاتب','writer']);
-      if((hasTaskNo && hasContentType) || (hasContentType && (hasIdea || hasDescription || hasWriter)) || (hasTaskNo && (hasIdea || hasDescription || hasWriter))){ headerIndexNo = i; break; }
+      const hasCta = rowHasAnyHeader(row, ['cta','الدعوة لاتخاذ إجراء']);
+      const score = [hasTaskNo, hasGoal, hasTangibleGoal, hasIdea, hasDescription, hasMessage, hasWriter, hasCta].filter(Boolean).length;
+      if((hasTaskNo && score >= 3) || score >= 5){ headerIndexNo = i; break; }
     }
     if(headerIndexNo < 0) return;
     const headers = (rows[headerIndexNo] || []).map(h => normalizeText(h));
     const idx = {
-      campaignType: headerIndex(headers, ['نوع الحمله','نوع الحملة','campaign type']),
-      contentType: headerIndex(headers, ['نوع المحتوى','نوع المحتوي','content type']),
-      taskNo: headerIndex(headers, ['رقم التاسك','task no','task']),
-      goal: headerIndex(headers, ['الهدف','goal']),
-      tangibleGoal: headerIndex(headers, ['الهدف الملموس']),
-      idea: headerIndex(headers, ['الفكرة','idea']),
-      contentName: headerIndex(headers, ['اسم المحتوي','اسم المحتوى','content name']),
-      description: headerIndex(headers, ['وصف المحتوي','وصف المحتوى','description']),
-      message: headerIndex(headers, ['الرسالة','message']),
-      writerRequest: headerIndex(headers, ['المطلوب من الكاتب','required from writer','writer']),
-      cta: headerIndex(headers, ['cta','الدعوة لاتخاذ إجراء'])
+      campaignType: structureHeaderIndexStrict(headers, ['نوع الحمله','نوع الحملة','campaign type']),
+      contentType: structureHeaderIndexStrict(headers, ['نوع المحتوى','نوع المحتوي','content type']),
+      taskNo: structureHeaderIndexStrict(headers, ['رقم التاسك','task no','task code']),
+      goal: structureHeaderIndexStrict(headers, ['الهدف','goal']),
+      tangibleGoal: structureHeaderIndexStrict(headers, ['الهدف الملموس','tangible goal']),
+      idea: structureHeaderIndexStrict(headers, ['الفكرة','idea']),
+      contentName: structureHeaderIndexStrict(headers, ['اسم المحتوي','اسم المحتوى','content name']),
+      description: structureHeaderIndexStrict(headers, ['وصف المحتوي','وصف المحتوى','description']),
+      message: structureHeaderIndexStrict(headers, ['الرسالة','message']),
+      writerRequest: structureHeaderIndexStrict(headers, ['المطلوب من الكاتب','required from writer','writer request']),
+      cta: structureHeaderIndexStrict(headers, ['cta','الدعوة لاتخاذ إجراء'])
     };
-    if(idx.contentType < 0) idx.contentType = 1;
-    if(idx.taskNo < 0) idx.taskNo = 2;
+    // بعض قوالب الهيكل RTL بتظهر في Excel من اليمين للشمال، لكن مكتبة XLSX تقرأها من الشمال لليمين.
+    // لو مفيش عمود "نوع المحتوى" مستقل، نحافظ على ترتيب الأعمدة الظاهر في القالب: CTA ← المطلوب من الكاتب ← الرسالة ← وصف المحتوى ← الفكرة ← الهدف الملموس ← الهدف ← رقم التاسك.
+    const hasKnownExecutionLayout = idx.taskNo >= 0 && idx.goal >= 0 && idx.idea >= 0 && idx.writerRequest >= 0;
+    const inferredContentType = inferStructureContentTypeFromContext(sheet, rows, headerIndexNo);
     for(let r = headerIndexNo + 1; r < rows.length; r += 1){
       const row = rows[r] || [];
       if(!row.some(v => normalizeText(v))) continue;
       if(rowHasAnyHeader(row, ['writing rules','قواعد كتابة المحتوى','campaign logic','آلية تنفيذ المحتوى','content execution direction'])) continue;
-      let contentType = cellByHeader(row, idx.contentType);
-      let taskNo = cellByHeader(row, idx.taskNo);
-      const idea = cellByHeader(row, idx.idea);
-      const description = cellByHeader(row, idx.description);
-      const contentName = cellByHeader(row, idx.contentName);
-      const writerRequest = cellByHeader(row, idx.writerRequest);
-      const message = cellByHeader(row, idx.message);
-      if(!contentType){
-        const fallback = firstFilledCell(row, 0);
-        if(fallback && !fallback.includes('حمله') && !fallback.toLowerCase().includes('campaign')) contentType = fallback;
-      }
-      if(!contentType && !(idea || description || contentName || writerRequest || message)) continue;
       const item = { sheetName: sheet.sheetName, rowNumber: r + 1, raw: {} };
       headers.forEach((h, i) => { if(h) item.raw[h] = normalizeText(row[i]); });
       item.campaignType = cellByHeader(row, idx.campaignType);
-      item.contentType = contentType || contentName || idea || description || 'نوع محتوى';
-      item.taskNo = taskNo;
+      item.taskNo = cellByHeader(row, idx.taskNo) || firstLikelyStructureTaskNo(row);
       item.goal = cellByHeader(row, idx.goal);
       item.tangibleGoal = cellByHeader(row, idx.tangibleGoal);
-      item.idea = idea;
-      item.contentName = contentName;
-      item.description = description;
-      item.message = message;
-      item.writerRequest = writerRequest;
+      item.idea = cellByHeader(row, idx.idea);
+      item.contentName = cellByHeader(row, idx.contentName);
+      item.description = cellByHeader(row, idx.description);
+      item.message = cellByHeader(row, idx.message);
+      item.writerRequest = cellByHeader(row, idx.writerRequest);
       item.cta = cellByHeader(row, idx.cta);
+      if(hasKnownExecutionLayout){
+        // fallback آمن للصفوف اللي بعض خلاياها المدمجة بتسيب قيم فاضية أو بتزحزح القراءة.
+        item.cta = item.cta || normalizeText(row[0] || '');
+        item.writerRequest = item.writerRequest || normalizeText(row[1] || '');
+        item.message = item.message || normalizeText(row[2] || '');
+        item.description = item.description || normalizeText(row[3] || '');
+        item.idea = item.idea || normalizeText(row[4] || '');
+        item.tangibleGoal = item.tangibleGoal || normalizeText(row[5] || '');
+        item.goal = item.goal || normalizeText(row[6] || '');
+        item.taskNo = item.taskNo || normalizeText(row[7] || '');
+      }
+      item.contentType = cellByHeader(row, idx.contentType) || inferredContentType || item.contentName || 'نوع محتوى';
+      if(!normalizeText(item.taskNo || item.goal || item.tangibleGoal || item.idea || item.description || item.message || item.writerRequest || item.cta)) continue;
       parsed.push(item);
     }
   });
