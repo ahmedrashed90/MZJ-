@@ -2197,3 +2197,32 @@ body:has(.publish-composer-modal.show) .topbar{
 @media(max-width:900px){
   .structure-publish-small-grid,.structure-platform-checks{grid-template-columns:1fr;}
 }
+
+/* v60: structure distribution popup and one-line rows */
+.structure-assign-row.structure-assign-row-compact{
+  grid-template-columns:minmax(260px,1fr) minmax(260px,420px) !important;
+  align-items:center !important;
+}
+.structure-assign-compact{display:grid;gap:8px;align-items:center}
+.structure-open-popup-btn{width:100%;justify-content:center}
+.structure-assign-summary{border:1px dashed var(--border);border-radius:12px;background:#fffaf6;padding:9px 10px;font-weight:800;color:var(--muted);font-size:12px;line-height:1.6}
+.structure-assign-summary small{display:block;color:var(--primary);font-weight:900;margin-top:2px}
+.structure-distribution-popup{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:.18s ease}
+.structure-distribution-popup.open{opacity:1;pointer-events:auto}
+.structure-popup-backdrop{position:absolute;inset:0;background:rgba(35,24,18,.45);backdrop-filter:blur(3px)}
+.structure-popup-dialog{position:relative;width:min(980px,96vw);max-height:90vh;overflow:auto;background:#fffaf6;border:1px solid var(--border);border-radius:22px;box-shadow:0 28px 80px rgba(20,12,8,.22);padding:18px;direction:rtl}
+.structure-popup-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:14px}
+.structure-popup-head h3{margin:0;color:var(--text);font-size:20px;line-height:1.5}
+.structure-popup-head p{margin:4px 0 0;color:var(--muted);font-weight:800;font-size:12px}
+.structure-popup-body{display:grid;gap:14px}
+.structure-popup-section{border:1px solid var(--border);border-radius:18px;background:#fff;padding:12px}
+.structure-popup-section h4{margin:0 0 10px;color:var(--text)}
+.structure-popup-section .structure-user-checkbox-grid.task-user-checkbox-grid{display:grid !important;grid-template-columns:repeat(3,minmax(150px,1fr)) !important;max-height:260px !important;overflow:auto !important;gap:8px !important;padding:4px !important}
+.structure-popup-platform-list{display:grid;grid-template-columns:repeat(2,minmax(230px,1fr));gap:10px}
+.structure-popup-platform-row{display:grid;grid-template-columns:1fr 150px;gap:8px;align-items:center;border:1px solid var(--border);border-radius:14px;background:#fffaf6;padding:9px}
+.structure-popup-platform-row label{display:flex;align-items:center;gap:8px;font-weight:900;color:var(--text)}
+.structure-popup-platform-row select,.structure-popup-grid input,.structure-popup-grid textarea{width:100%;border:1px solid var(--border);border-radius:12px;background:#fff;padding:10px 12px;font-weight:800}
+.structure-popup-grid{display:grid;grid-template-columns:minmax(180px,.6fr) 1fr 1fr;gap:10px}
+.structure-popup-grid .field{margin:0}.structure-popup-grid textarea{min-height:84px;resize:vertical}
+.structure-popup-actions{display:flex;justify-content:flex-start;gap:10px;margin-top:14px;border-top:1px solid var(--border);padding-top:14px}
+@media(max-width:900px){.structure-assign-row.structure-assign-row-compact{grid-template-columns:1fr !important}.structure-popup-section .structure-user-checkbox-grid.task-user-checkbox-grid,.structure-popup-platform-list,.structure-popup-grid{grid-template-columns:1fr !important}.structure-popup-platform-row{grid-template-columns:1fr}}

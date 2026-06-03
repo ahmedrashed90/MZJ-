@@ -2822,59 +2822,127 @@ function structureRowsTable(rows, notes = []){
     return `<tr class="${rowNotes.length ? 'has-note' : ''}"><td>${escapeHtml(row.taskNo || index + 1)}</td><td>${escapeHtml(row.contentType || '—')}</td><td>${escapeHtml(row.idea || row.contentName || '—')}</td><td>${escapeHtml(row.description || '—')}</td><td>${escapeHtml(row.writerRequest || '—')}</td><td>${rowNotes.map(n => `<div class="structure-note-chip">${escapeHtml(n.note || '')}</div>`).join('') || '—'}</td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
-function structureAssigneeCheckboxes(rowIndex){
+function structureUserPickerHtml(selected = []){
+  const selectedSet = new Set((Array.isArray(selected) ? selected : []).map(String));
   if(!Array.isArray(users) || !users.length) return '<div class="multi-empty task-user-empty">لا توجد يوزرات</div>';
-  const list = users.map(u => {
+  return users.map(u => {
     const value = u.id || u.uid || u.email || u.name || '';
     const name = userName(u);
-    return `<label class="task-user-check-card structure-user-check-card" data-structure-user-name="${escapeHtml(identityClean(name))}"><input type="checkbox" class="js-structure-assignee-checkbox" value="${escapeHtml(value)}" data-name="${escapeHtml(name)}"> <span>${escapeHtml(name)}</span></label>`;
+    const checked = selectedSet.has(String(value)) ? ' checked' : '';
+    return `<label class="task-user-check-card structure-user-check-card" data-structure-user-name="${escapeHtml(identityClean(name))}"><input type="checkbox" class="js-structure-assignee-checkbox" value="${escapeHtml(value)}" data-name="${escapeHtml(name)}"${checked}> <span>${escapeHtml(name)}</span></label>`;
   }).join('');
-  return `<details class="structure-assignee-picker" data-structure-user-grid="${rowIndex}"><summary><span>اختيار اليوزرات</span><strong class="js-structure-assignee-count">0 مختار</strong></summary><div class="structure-assignee-panel"><input type="search" class="structure-assignee-search" placeholder="بحث عن يوزر" autocomplete="off"><div class="js-structure-assignee structure-user-checkbox-grid task-user-checkbox-grid">${list}</div></div></details>`;
 }
-function updateStructureAssigneePicker(picker){
-  if(!picker) return;
-  const count = picker.querySelectorAll('.js-structure-assignee-checkbox:checked').length;
-  const badge = picker.querySelector('.js-structure-assignee-count');
-  if(badge) badge.textContent = count ? `${count} مختار` : '0 مختار';
+function structurePlatformTypeOptions(platformName, currentValue = ''){
+  const options = publishPostTypesForPlatforms([platformName]);
+  const current = options.some(item => item.value === currentValue) ? currentValue : '';
+  return `<select class="js-structure-platform-type-select compact-select" data-platform-type-for="${escapeHtml(platformName)}" aria-label="نوع منشور ${escapeHtml(platformName)}"><option value="">نوع المنشور</option>${options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width}" data-height="${item.height}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select>`;
 }
-function filterStructureAssigneePicker(input){
-  const picker = input?.closest('.structure-assignee-picker');
-  if(!picker) return;
-  const q = identityClean(input.value || '');
-  picker.querySelectorAll('.structure-user-check-card').forEach(card => {
-    const name = card.dataset.structureUserName || '';
-    card.hidden = !!q && !name.includes(q);
-  });
+function structurePlatformRowsHtml(meta = {}){
+  const selected = new Set((meta.platforms || []).map(String));
+  const typeMap = meta.platformTypes || {};
+  return platforms.length ? platforms.map(item => {
+    const name = item.name || '';
+    const checked = selected.has(name) ? ' checked' : '';
+    return `<div class="structure-popup-platform-row" data-structure-popup-platform-row="${escapeHtml(name)}"><label><input type="checkbox" class="js-structure-popup-platform" value="${escapeHtml(name)}"${checked}> <span>${escapeHtml(name)}</span></label>${structurePlatformTypeOptions(name, typeMap[name] || '')}</div>`;
+  }).join('') : '<div class="multi-empty">لا توجد منصات</div>';
+}
+function defaultStructurePublishMeta(){
+  return { assignees:[], platforms:[], platformTypes:{}, platformPublishing:[], publishDate:'', date:'', caption:'', hashtags:'', hashtagsText:'' };
+}
+function readStructureRowMeta(rowEl){
+  const raw = rowEl?.querySelector('.js-structure-publish-meta')?.value || '';
+  const parsed = safeJsonParse(raw, null);
+  return parsed && typeof parsed === 'object' ? { ...defaultStructurePublishMeta(), ...parsed } : defaultStructurePublishMeta();
+}
+function writeStructureRowMeta(rowEl, meta){
+  const input = rowEl?.querySelector('.js-structure-publish-meta');
+  if(input) input.value = JSON.stringify(meta || defaultStructurePublishMeta());
+  updateStructureAssignSummary(rowEl);
+}
+function structureMetaSummary(meta){
+  const usersCount = (meta.assignees || []).length;
+  const platformCount = (meta.platforms || []).length;
+  const date = meta.publishDate || meta.date || 'بدون تاريخ';
+  const content = [usersCount ? `${usersCount} يوزر` : 'لم يتم اختيار يوزرات', platformCount ? `${platformCount} منصة` : 'لم يتم اختيار منصات', date].join(' · ');
+  const typeText = (meta.platformPublishing || []).map(item => `${item.platform}: ${item.postTypeLabel || postTypeLabel(item.postType || '')}`).filter(Boolean).join(' / ');
+  return `${content}${typeText ? `<br><small>${escapeHtml(typeText)}</small>` : ''}`;
+}
+function updateStructureAssignSummary(rowEl){
+  const target = rowEl?.querySelector('.js-structure-assign-summary');
+  if(!target) return;
+  target.innerHTML = structureMetaSummary(readStructureRowMeta(rowEl));
 }
 function structureDistributionPlatformControls(rowIndex){
-  return `<div class="structure-publish-fields" data-structure-publish-fields="${rowIndex}">
-    <div class="structure-publish-platforms"><span>المنصات</span><div class="publish-platform-checks structure-platform-checks">${platformCheckboxList([])}</div></div>
-    <div class="structure-publish-small-grid">
-      ${publishPostTypeSelectHtml([], '')}
-      <input type="date" class="js-structure-publish-date" aria-label="تاريخ النشر">
-    </div>
-    <textarea class="js-structure-caption" rows="2" placeholder="الكابشن"></textarea>
-    <textarea class="js-structure-hashtags" rows="2" placeholder="الهاشتاج"></textarea>
-  </div>`;
+  return `<div class="structure-assign-compact"><input type="hidden" class="js-structure-publish-meta" value=""><button class="btn btn-light structure-open-popup-btn" type="button" data-open-structure-distribution-popup="${rowIndex}">اختيار اليوزرات والمنصات</button><div class="structure-assign-summary js-structure-assign-summary">لم يتم تجهيز التوزيع</div></div>`;
 }
-function selectedStructurePublishMeta(rowEl){
-  const platforms = selectedPlatformValues(rowEl);
-  const selectedType = selectedPublishPostType(rowEl);
-  const publishDate = normalizeText(rowEl.querySelector('.js-structure-publish-date')?.value || '');
-  const caption = normalizeText(rowEl.querySelector('.js-structure-caption')?.value || '');
-  const hashtags = normalizeText(rowEl.querySelector('.js-structure-hashtags')?.value || '');
+function collectStructurePopupMeta(popup){
+  const assignees = uniqueList([...popup.querySelectorAll('.js-structure-assignee-checkbox:checked')].map(input => input.value).filter(Boolean));
+  const publishDate = normalizeText(popup.querySelector('.js-structure-publish-date')?.value || '');
+  const caption = normalizeText(popup.querySelector('.js-structure-caption')?.value || '');
+  const hashtags = normalizeText(popup.querySelector('.js-structure-hashtags')?.value || '');
+  const platformPublishing = [...popup.querySelectorAll('.structure-popup-platform-row')].map(row => {
+    const checked = row.querySelector('.js-structure-popup-platform')?.checked;
+    if(!checked) return null;
+    const platform = row.querySelector('.js-structure-popup-platform')?.value || '';
+    const select = row.querySelector('.js-structure-platform-type-select');
+    const value = select?.value || '';
+    const opt = select?.selectedOptions?.[0];
+    return {
+      platform,
+      postType: value,
+      postTypeLabel: opt && value ? opt.textContent.trim() : '',
+      requiredDimensions: value ? { width: Number(opt?.dataset.width || 0) || null, height: Number(opt?.dataset.height || 0) || null } : null
+    };
+  }).filter(Boolean);
+  const platforms = platformPublishing.map(item => item.platform);
+  const platformTypes = {};
+  platformPublishing.forEach(item => { platformTypes[item.platform] = item.postType || ''; });
+  const firstType = platformPublishing.find(item => item.postType) || {};
   return {
+    assignees,
     platforms,
     platform: platforms.join('، '),
-    postType: selectedType.value,
-    postTypeLabel: selectedType.label,
-    requiredDimensions: selectedType.value ? { width: selectedType.width, height: selectedType.height } : null,
+    platformTypes,
+    platformPublishing,
+    postType: platformPublishing.length === 1 ? (firstType.postType || '') : '',
+    postTypeLabel: platformPublishing.length === 1 ? (firstType.postTypeLabel || '') : (platformPublishing.length > 1 ? 'أنواع متعددة' : ''),
+    requiredDimensions: platformPublishing.length === 1 ? (firstType.requiredDimensions || null) : null,
     publishDate,
     date: publishDate,
     caption,
     hashtags,
     hashtagsText: hashtags
   };
+}
+function openStructureDistributionPopup(rowEl){
+  if(!rowEl) return;
+  closeStructureDistributionPopup();
+  const rowIndex = Number(rowEl.dataset.structureRow || 0);
+  const meta = readStructureRowMeta(rowEl);
+  const title = rowEl.querySelector('.structure-assign-info strong')?.textContent || 'تاسك الهيكل';
+  const popup = document.createElement('div');
+  popup.className = 'structure-distribution-popup';
+  popup.innerHTML = `<div class="structure-popup-backdrop" data-close-structure-distribution-popup></div><section class="structure-popup-dialog" role="dialog" aria-modal="true"><div class="structure-popup-head"><div><h3>${escapeHtml(title)}</h3><p>اختار اليوزرات والمنصات وتاريخ النشر والكابشن والهاشتاج.</p></div><button type="button" class="task-modal-close" data-close-structure-distribution-popup>×</button></div><div class="structure-popup-body" data-structure-popup-row="${rowIndex}"><div class="structure-popup-section"><h4>اليوزرات</h4><input type="search" class="structure-assignee-search" placeholder="بحث عن يوزر" autocomplete="off"><div class="structure-user-checkbox-grid task-user-checkbox-grid">${structureUserPickerHtml(meta.assignees || [])}</div></div><div class="structure-popup-section"><h4>المنصات ونوع المنشور</h4><div class="structure-popup-platform-list">${structurePlatformRowsHtml(meta)}</div></div><div class="structure-popup-grid"><label class="field"><span>تاريخ النشر</span><input type="date" class="js-structure-publish-date" value="${escapeHtml(meta.publishDate || meta.date || '')}"></label><label class="field"><span>الكابشن</span><textarea class="js-structure-caption" rows="3">${escapeHtml(meta.caption || '')}</textarea></label><label class="field"><span>الهاشتاج</span><textarea class="js-structure-hashtags" rows="3">${escapeHtml(meta.hashtagsText || meta.hashtags || '')}</textarea></label></div></div><div class="structure-popup-actions"><button type="button" class="btn btn-light" data-close-structure-distribution-popup>إلغاء</button><button type="button" class="btn btn-primary" data-save-structure-distribution-popup>حفظ بيانات التاسك</button></div></section>`;
+  popup._structureRowEl = rowEl;
+  document.body.appendChild(popup);
+  setTimeout(() => popup.classList.add('open'), 0);
+}
+function closeStructureDistributionPopup(){
+  document.querySelectorAll('.structure-distribution-popup').forEach(el => el.remove());
+}
+function saveStructureDistributionPopup(){
+  const popup = document.querySelector('.structure-distribution-popup');
+  if(!popup) return;
+  const meta = collectStructurePopupMeta(popup);
+  if(!meta.assignees.length) return showToast('اختار يوزر واحد على الأقل.');
+  if(!meta.platforms.length) return showToast('اختار منصة واحدة على الأقل.');
+  const missingType = (meta.platformPublishing || []).some(item => !item.postType);
+  if(missingType) return showToast('اختار نوع المنشور لكل منصة.');
+  writeStructureRowMeta(popup._structureRowEl, meta);
+  closeStructureDistributionPopup();
+}
+function selectedStructurePublishMeta(rowEl){
+  return readStructureRowMeta(rowEl);
 }
 function structureAssigneeTable(task){
   const structure = taskStructure(task);
@@ -2883,7 +2951,7 @@ function structureAssigneeTable(task){
     const reloadBtn = structure.fileData ? `<button class="btn btn-light" type="button" data-reload-structure-sheet="${escapeHtml(task.id)}">إعادة قراءة الشيت واستخراج الصفوف</button>` : '';
     return `<div class="empty-state mini-empty">لا توجد صفوف لتوزيعها.${reloadBtn}</div>`;
   }
-  return `<div class="structure-distribution"><h4>توزيع تاسكات الهيكل</h4><div class="structure-assign-list">${rows.map((row, index) => `<div class="structure-assign-row" data-structure-row="${index}"><div class="structure-assign-info"><strong>${escapeHtml(structureContentTaskLabel(row, 'نوع محتوى'))}</strong><p>${escapeHtml(row.idea || row.contentName || row.description || row.goal || '')}</p></div><div class="structure-assign-controls">${structureAssigneeCheckboxes(index)}${structureDistributionPlatformControls(index)}</div></div>`).join('')}</div><button class="btn btn-primary" type="button" data-save-structure-assignees="${escapeHtml(task.id)}">حفظ توزيع تاسكات الهيكل</button></div>`;
+  return `<div class="structure-distribution"><h4>توزيع تاسكات الهيكل</h4><div class="structure-assign-list">${rows.map((row, index) => `<div class="structure-assign-row structure-assign-row-compact" data-structure-row="${index}"><div class="structure-assign-info"><strong>${escapeHtml(structureContentTaskLabel(row, 'نوع محتوى'))}</strong><p>${escapeHtml(row.idea || row.contentName || row.description || row.goal || '')}</p></div><div class="structure-assign-controls">${structureDistributionPlatformControls(index)}</div></div>`).join('')}</div><button class="btn btn-primary" type="button" data-save-structure-assignees="${escapeHtml(task.id)}">حفظ توزيع تاسكات الهيكل</button></div>`;
 }
 function renderStructureSection(task){
   if(!isCampaignStructureTask(task)) return '';
@@ -3125,6 +3193,8 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
     structureRow: row,
     platforms: publishMeta.platforms || [],
     platform: publishMeta.platform || '',
+    platformTypes: publishMeta.platformTypes || {},
+    platformPublishing: publishMeta.platformPublishing || [],
     postType: publishMeta.postType || '',
     postTypeLabel: publishMeta.postTypeLabel || '',
     requiredDimensions: publishMeta.requiredDimensions || null,
@@ -3174,10 +3244,9 @@ async function saveStructureDistribution(taskId){
     const index = Number(rowEl.dataset.structureRow || 0);
     const sourceRow = structureDistributionRows(taskStructure(task))[index];
     if(!sourceRow) return;
-    const checked = [...rowEl.querySelectorAll('.js-structure-assignee-checkbox:checked')].map(input => input.value).filter(Boolean);
-    const legacyAssignee = rowEl.querySelector('select.js-structure-assignee')?.value || '';
-    const assignees = uniqueList(checked.length ? checked : [legacyAssignee].filter(Boolean));
     const publishMeta = selectedStructurePublishMeta(rowEl);
+    const legacyAssignee = rowEl.querySelector('select.js-structure-assignee')?.value || '';
+    const assignees = uniqueList((publishMeta.assignees || []).length ? publishMeta.assignees : [legacyAssignee].filter(Boolean));
     assignees.forEach((assignee) => additions.push(buildStructureTaskFromRow(campaign, task, sourceRow, assignee, index, publishMeta)));
   });
   if(!additions.length) return showToast('اختار يوزر واحد على الأقل.');
@@ -3719,6 +3788,10 @@ function bindCampaignBuilder(){
     if(inlineSave){ savePublishDayInlineEditor(inlineSave.closest('[data-publish-inline-editor]')); return; }
     const inlineCancel = event.target.closest('[data-publish-inline-cancel]');
     if(inlineCancel){ cancelPublishDayInlineEditor(inlineCancel.closest('[data-publish-inline-editor]')); return; }
+    const structurePopupBtn = event.target.closest('[data-open-structure-distribution-popup]');
+    if(structurePopupBtn){ openStructureDistributionPopup(structurePopupBtn.closest('.structure-assign-row')); return; }
+    if(event.target.closest('[data-close-structure-distribution-popup]')){ closeStructureDistributionPopup(); return; }
+    if(event.target.closest('[data-save-structure-distribution-popup]')){ saveStructureDistributionPopup(); return; }
     const btn = event.target.closest('.delete-row');
     if(btn){ const container = document.getElementById('creativeRows'); btn.closest('.creative-row-card')?.remove(); restoreEmptyRow(container, 1, 'ابدأ بإضافة صف كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
     const budgetDel = event.target.closest('.delete-budget-row');
@@ -5497,7 +5570,7 @@ function publishPrepSearchText(task, submission = {}){
     task.taskNo, task.structureTaskNo, task.raw?.taskNo, task.raw?.structureTaskNo,
     row.taskNo, row.structureTaskNo, row.idea, row.description, row.message, row.cta,
     Array.isArray(task.platforms) ? task.platforms.join(' ') : task.platforms,
-    task.postTypeLabel, task.publishDate, publishPrepEffectiveCaption?.(task, submission), publishPrepEffectiveHashtags?.(task, submission)
+    task.postTypeLabel, publishPrepPlatformTypeDetails(task), task.publishDate, publishPrepEffectiveCaption?.(task, submission), publishPrepEffectiveHashtags?.(task, submission)
   ].filter(Boolean).join(' '));
 }
 function isCampaignContentWritingPrepTask(task){
@@ -5526,6 +5599,8 @@ function publishPrepTasksFromExistingTasks(){
       type: prepTaskTypeLabel(task),
       requiredFile: prepTaskRequiredFileLabel(task),
       platforms: normalizePrepPlatformList(task.platforms || task.platform || campaign.platforms || campaign.platform),
+      platformTypes: task.platformTypes || {},
+      platformPublishing: Array.isArray(task.platformPublishing) ? task.platformPublishing : [],
       postType: task.postType || task.publishType || '',
       postTypeLabel: task.postTypeLabel || '',
       requiredDimensions: task.requiredDimensions || null,
@@ -5555,6 +5630,8 @@ function publishPrepTasksFromCampaignSchedules(){
       type: prepTaskTypeLabel(row),
       requiredFile: prepTaskRequiredFileLabel(row),
       platforms: normalizePrepPlatformList(row.platforms || row.platform),
+      platformTypes: row.platformTypes || {},
+      platformPublishing: Array.isArray(row.platformPublishing) ? row.platformPublishing : [],
       postType: row.postType || '',
       postTypeLabel: row.postTypeLabel || '',
       requiredDimensions: row.requiredDimensions || null,
@@ -5595,6 +5672,16 @@ function publishPrepEffectiveCaption(task, submission){
 }
 function publishPrepEffectiveHashtags(task, submission){
   return normalizeText(submission?.hashtags ?? task.hashtags ?? '');
+}
+function publishPrepPlatformTypeDetails(task){
+  const list = Array.isArray(task.platformPublishing) ? task.platformPublishing : [];
+  if(list.length) return list.map(item => `${item.platform || 'منصة'}: ${item.postTypeLabel || postTypeLabel(item.postType || '') || 'نوع غير محدد'}`).join(' / ');
+  return task.postTypeLabel || postTypeLabel(task.postType || '') || '';
+}
+function publishPrepHasPlatformTypeData(task){
+  const list = Array.isArray(task.platformPublishing) ? task.platformPublishing : [];
+  if(list.length) return list.every(item => item.platform && item.postType);
+  return !!(task.platforms?.length && (task.postType || task.postTypeLabel));
 }
 function publishPrepHasFinalFile(task, submission){
   if(submission?.fileName || submission?.finalFileName) return true;
@@ -5658,6 +5745,8 @@ async function publishPrepReadyTaskNow(task, submission){
     postType: task.postType || '',
     postTypeLabel: task.postTypeLabel || postTypeLabel(task.postType || ''),
     requiredDimensions: task.requiredDimensions || null,
+    platformTypes: task.platformTypes || {},
+    platformPublishing: Array.isArray(task.platformPublishing) ? task.platformPublishing : [],
     platforms,
     caption: publishPrepEffectiveCaption(task, submission),
     hashtags: publishPrepEffectiveHashtags(task, submission),
@@ -5681,17 +5770,21 @@ function publishPrepMissingFields(task, submission){
   if(!publishPrepEffectiveCaption(task, submission)) missing.push('الكابشن');
   if(!publishPrepEffectiveHashtags(task, submission)) missing.push('الهاشتاج');
   if(!normalizeText(task.publishDate)) missing.push('تاريخ النشر');
+  if(!task.platforms?.length) missing.push('المنصات');
+  if(!publishPrepHasPlatformTypeData(task)) missing.push('نوع المنشور لكل منصة');
   if(publishPrepTaskProgress(task) < 100) missing.push('اكتمال التاسك 100%');
   if(!publishPrepHasFinalFile(task, submission)) missing.push('الملف النهائي');
   return missing;
 }
 function publishPrepCompleteness(task, submission){
   const missing = publishPrepMissingFields(task, submission);
-  return { missing, complete: !missing.length, percent: Math.max(0, Math.round(((5 - missing.length) / 5) * 100)) };
+  const total = 7;
+  return { missing, complete: !missing.length, percent: Math.max(0, Math.round(((total - missing.length) / total) * 100)) };
 }
 function renderPublishPrepCard(task, submission){
   const status = publishPrepStatus(task, submission);
   const platforms = task.platforms?.length ? task.platforms.join(' + ') : 'غير محدد';
+  const platformTypeDetails = publishPrepPlatformTypeDetails(task);
   const completeness = publishPrepCompleteness(task, submission);
   const captionValue = publishPrepEffectiveCaption(task, submission);
   const hashtagsValue = publishPrepEffectiveHashtags(task, submission);
@@ -5720,6 +5813,7 @@ function renderPublishPrepCard(task, submission){
       <div class="prep-task-grid">
         <div><b>نوع المحتوى</b><span>${escapeHtml(task.type)}</span></div>
         <div><b>المنصات</b><span>${escapeHtml(platforms)}</span></div>
+        <div><b>أنواع النشر</b><span>${escapeHtml(platformTypeDetails || 'غير محدد')}</span></div>
         <div><b>تاريخ النشر</b><span>${escapeHtml(task.publishDate || 'غير محدد')}</span></div>
         <div><b>وقت النشر</b><span>${escapeHtml(task.publishTime || 'بدون وقت')}</span></div>
         <div><b>ميعاد التسليم</b><span>${escapeHtml(task.deadline || 'غير محدد')}</span></div>
@@ -5827,9 +5921,9 @@ function bindPublishPrepPage(){
             platforms: [platformResult.platform || ''],
             platform: platformResult.platform || '',
             type: task.postType || task.type || task.requiredFile || 'post',
-            postType: task.postType || '',
-            postTypeLabel: task.postTypeLabel || postTypeLabel(task.postType || ''),
-            requiredDimensions: task.requiredDimensions || null,
+            postType: (task.platformPublishing || []).find(x => x.platform === platformResult.platform)?.postType || task.postType || '',
+            postTypeLabel: (task.platformPublishing || []).find(x => x.platform === platformResult.platform)?.postTypeLabel || task.postTypeLabel || postTypeLabel(task.postType || ''),
+            requiredDimensions: (task.platformPublishing || []).find(x => x.platform === platformResult.platform)?.requiredDimensions || task.requiredDimensions || null,
             mode: 'now',
             status: platformResult.ok ? 'تم النشر' : (platformResult.skipped ? 'تم التخطي' : 'فشل النشر'),
             error: platformResult.error || '',
