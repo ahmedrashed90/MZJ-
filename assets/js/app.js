@@ -2414,10 +2414,11 @@ function buildMergedStructureSheet(sheet, sheetName){
     originalCols.forEach((c) => {
       if(insideMergeButNotAnchor(merges, r, c)){
         const parent = mergeAnchorForCell(merges, r, c);
+        const inheritedValue = parent ? sheetCellText(sheet, parent.s.r, parent.s.c) : '';
         if(parent && rowMap.has(parent.s.r) && colMap.has(parent.s.c)){
-          cells.push({ skip:true, sourceRow:r, sourceCol:c });
+          cells.push({ skip:true, value: inheritedValue, sourceRow:r, sourceCol:c, mergeStartRow: parent.s.r, mergeEndRow: parent.e.r, mergeStartCol: parent.s.c, mergeEndCol: parent.e.c });
         }else{
-          cells.push({ value:'', sourceRow:r, sourceCol:c });
+          cells.push({ value: inheritedValue, sourceRow:r, sourceCol:c });
         }
         return;
       }
@@ -2450,9 +2451,9 @@ function buildMergedStructureSheet(sheet, sheetName){
 }
 function tableRowsFromMergedSheet(sheetTable){
   if(sheetTable?.mode !== 'merged') return Array.isArray(sheetTable?.rows) ? sheetTable.rows : [];
-  // مهم: لا نحذف خلايا الـ merge الفارغة/skip أثناء القراءة.
-  // حذفها كان بيزحزح الأعمدة في الصفوف التالية، فـ نوع المحتوى كان بيتقرأ غلط.
-  return (sheetTable.rows || []).map(row => (row || []).map(c => c?.skip ? '' : normalizeText(c?.value || '')));
+  // مهم: نكرر قيمة الخلايا المدمجة وقت القراءة فقط، من غير ما نغير شكل عرض الشيت.
+  // ده بيخلي أعمدة زي رقم التاسك و CTA توصل صح حتى لو الخلية مدمجة في Excel.
+  return (sheetTable.rows || []).map(row => (row || []).map(c => normalizeText(c?.value || '')));
 }
 function headerIndex(headers, patterns){
   const list = Array.isArray(patterns) ? patterns : [patterns];
@@ -2512,6 +2513,27 @@ function valueLooksLikeStructureTaskNo(value){
 function firstLikelyStructureTaskNo(row){
   const cells = (row || []).map(normalizeText).filter(Boolean);
   return cells.find(valueLooksLikeStructureTaskNo) || '';
+}
+
+function cellLooksLikeStructureTitle(value){
+  const clean = normalizeText(value);
+  if(!clean) return false;
+  if(valueLooksLikeStructureTaskNo(clean)) return false;
+  return clean.length > 18 && /[اأإآء-ي]/.test(clean);
+}
+function strongestStructureTaskNo(row, current = ''){
+  const cells = (row || []).map(normalizeText).filter(Boolean);
+  const explicit = cells.find(valueLooksLikeStructureTaskNo);
+  if(explicit) return explicit;
+  const cleanCurrent = normalizeText(current);
+  return valueLooksLikeStructureTaskNo(cleanCurrent) ? cleanCurrent : '';
+}
+function strongestStructureCta(row, current = ''){
+  const cleanCurrent = normalizeText(current);
+  if(cleanCurrent && !valueLooksLikeStructureTaskNo(cleanCurrent)) return cleanCurrent;
+  const cells = (row || []).map(normalizeText);
+  const candidates = [cells[0], cells[cells.length - 1], ...cells].filter(Boolean);
+  return candidates.find(value => !valueLooksLikeStructureTaskNo(value) && !cellLooksLikeStructureTitle(value)) || '';
 }
 function cellByHeader(row, index){
   return index >= 0 ? normalizeText((row || [])[index] || '') : '';
@@ -2597,6 +2619,8 @@ function parseExecutionRowsFromSheetTables(structure){
         item.goal = item.goal || normalizeText(row[6] || '');
         item.taskNo = item.taskNo || normalizeText(row[7] || '');
       }
+      item.taskNo = strongestStructureTaskNo(row, item.taskNo) || item.taskNo;
+      item.cta = strongestStructureCta(row, item.cta) || item.cta;
       item.contentType = cellByHeader(row, idx.contentType) || inferredContentType || item.contentName || 'نوع محتوى';
       if(!normalizeText(item.taskNo || item.goal || item.tangibleGoal || item.idea || item.description || item.message || item.writerRequest || item.cta)) continue;
       parsed.push(item);
@@ -2799,10 +2823,27 @@ function structureRowsTable(rows, notes = []){
 }
 function structureAssigneeCheckboxes(rowIndex){
   if(!Array.isArray(users) || !users.length) return '<div class="multi-empty task-user-empty">لا توجد يوزرات</div>';
-  return `<div class="js-structure-assignee structure-user-checkbox-grid task-user-checkbox-grid" data-structure-user-grid="${rowIndex}">${users.map(u => {
+  const list = users.map(u => {
     const value = u.id || u.uid || u.email || u.name || '';
-    return `<label class="task-user-check-card structure-user-check-card"><input type="checkbox" class="js-structure-assignee-checkbox" value="${escapeHtml(value)}" data-name="${escapeHtml(userName(u))}"> <span>${escapeHtml(userName(u))}</span></label>`;
-  }).join('')}</div>`;
+    const name = userName(u);
+    return `<label class="task-user-check-card structure-user-check-card" data-structure-user-name="${escapeHtml(identityClean(name))}"><input type="checkbox" class="js-structure-assignee-checkbox" value="${escapeHtml(value)}" data-name="${escapeHtml(name)}"> <span>${escapeHtml(name)}</span></label>`;
+  }).join('');
+  return `<details class="structure-assignee-picker" data-structure-user-grid="${rowIndex}"><summary><span>اختيار اليوزرات</span><strong class="js-structure-assignee-count">0 مختار</strong></summary><div class="structure-assignee-panel"><input type="search" class="structure-assignee-search" placeholder="بحث عن يوزر" autocomplete="off"><div class="js-structure-assignee structure-user-checkbox-grid task-user-checkbox-grid">${list}</div></div></details>`;
+}
+function updateStructureAssigneePicker(picker){
+  if(!picker) return;
+  const count = picker.querySelectorAll('.js-structure-assignee-checkbox:checked').length;
+  const badge = picker.querySelector('.js-structure-assignee-count');
+  if(badge) badge.textContent = count ? `${count} مختار` : '0 مختار';
+}
+function filterStructureAssigneePicker(input){
+  const picker = input?.closest('.structure-assignee-picker');
+  if(!picker) return;
+  const q = identityClean(input.value || '');
+  picker.querySelectorAll('.structure-user-check-card').forEach(card => {
+    const name = card.dataset.structureUserName || '';
+    card.hidden = !!q && !name.includes(q);
+  });
 }
 function structureAssigneeTable(task){
   const structure = taskStructure(task);
@@ -3040,7 +3081,7 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
     campaignId: campaign.id,
     campaignName: campaign.campaignName || campaign.name || '',
     campaignCode: campaign.campaignCode || campaign.campaign_code || '',
-    creative: taskLabel,
+    creative: parentTask.creative || parentTask.product || taskLabel,
     product: row.idea || row.contentName || row.description || row.contentType || parentTask.product || '',
     taskNo,
     structureTaskNo: taskNo,
@@ -3653,6 +3694,7 @@ function bindCampaignBuilder(){
 
   document.addEventListener('input', event => {
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')) updateBudgetGrandTotal();
+    if(event.target.matches('.structure-assignee-search')) filterStructureAssigneePicker(event.target);
     if(event.target.closest('#stockAdvancedFilters')) renderStock();
   });
   document.addEventListener('focusin', event => {
@@ -3671,6 +3713,7 @@ function bindCampaignBuilder(){
       if(userSelect) userSelect.innerHTML = multiTaskUserOptions(event.target.value, []);
       updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return;
     }
+    if(event.target.matches('.js-structure-assignee-checkbox')){ updateStructureAssigneePicker(event.target.closest('.structure-assignee-picker')); return; }
     if(event.target.matches('.js-task-user-checkbox,.js-task-user,.js-car-checkbox,.js-creative-check')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }

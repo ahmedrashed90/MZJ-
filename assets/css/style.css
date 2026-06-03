@@ -2078,3 +2078,62 @@ body:has(.publish-composer-modal.show) .topbar{
   .structure-assign-row{grid-template-columns:1fr !important;}
   .structure-user-checkbox-grid.task-user-checkbox-grid{grid-template-columns:1fr !important;}
 }
+
+/* v58: compact structure assignee picker */
+.structure-assign-row{
+  align-items:start !important;
+}
+.structure-assignee-picker{
+  width:100%;
+  max-width:420px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:#fff;
+  overflow:hidden;
+}
+.structure-assignee-picker summary{
+  cursor:pointer;
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:12px 14px;
+  font-weight:900;
+  color:var(--text);
+}
+.structure-assignee-picker summary::-webkit-details-marker{display:none}
+.structure-assignee-picker summary strong{
+  background:#f4e5db;
+  color:var(--primary);
+  border-radius:999px;
+  padding:5px 10px;
+  font-size:12px;
+  white-space:nowrap;
+}
+.structure-assignee-panel{
+  border-top:1px solid var(--border);
+  padding:10px;
+}
+.structure-assignee-search{
+  width:100%;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px 12px;
+  margin-bottom:8px;
+  font-weight:800;
+  background:#fffaf5;
+}
+.structure-assignee-picker .structure-user-checkbox-grid.task-user-checkbox-grid{
+  display:grid !important;
+  grid-template-columns:1fr !important;
+  gap:6px !important;
+  max-height:230px !important;
+  overflow:auto !important;
+  padding-inline-end:4px;
+}
+.structure-assignee-picker .structure-user-check-card{
+  min-height:38px;
+  padding:8px 10px !important;
+  border-radius:12px !important;
+}
