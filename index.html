@@ -286,7 +286,7 @@
 
       <section class="view" id="departments" data-title="الأقسام">
         <div class="page-head">
-          <div class="page-title"><h1>الأقسام</h1><p>إدارة الأقسام، اليوزرات داخل كل قسم، الكريتيفات، أنواع التاسك، أنواع الحملات وأكوادها، وأقسام المحتوى.</p></div>
+          <div class="page-title"><h1>الأقسام</h1><p>إدارة الأقسام، اليوزرات داخل كل قسم، الكريتيفات، أنواع الحملات وأكوادها، المنصات، حالات الطلب، وأقسام المحتوى.</p></div>
         </div>
 
         <div class="departments-control-panel">
@@ -316,16 +316,6 @@
                 <label class="field"><span>اسم الكريتيف</span><input type="text" id="creativeName" required /></label>
                 <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ الكريتيف</button><button class="btn btn-light" type="button" id="cancelCreativeEdit">إلغاء</button></div>
                 <p class="form-message" id="creativeMessage"></p>
-              </form>
-            </details>
-
-            <details class="accordion-card admin-form-card">
-              <summary><span>إضافة نوع التاسك</span><strong>فتح / إغلاق</strong></summary>
-              <form class="form" id="taskTypeForm">
-                <input type="hidden" id="taskTypeEditId" />
-                <label class="field"><span>نوع التاسك</span><input type="text" id="taskTypeName" required /></label>
-                <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ نوع التاسك</button><button class="btn btn-light" type="button" id="cancelTaskTypeEdit">إلغاء</button></div>
-                <p class="form-message" id="taskTypeMessage"></p>
               </form>
             </details>
 
@@ -400,10 +390,6 @@
             <details class="accordion-card">
               <summary><span>قائمة الكريتيفات</span><strong>فتح / إغلاق</strong></summary>
               <div id="creativesList" class="departments-list"><div class="empty-state">جاري تحميل الكريتيفات...</div></div>
-            </details>
-            <details class="accordion-card">
-              <summary><span>أنواع التاسك</span><strong>فتح / إغلاق</strong></summary>
-              <div id="taskTypesList" class="departments-list"><div class="empty-state">جاري تحميل أنواع التاسك...</div></div>
             </details>
             <details class="accordion-card">
               <summary><span>أنواع الحملات وأكوادها</span><strong>فتح / إغلاق</strong></summary>
