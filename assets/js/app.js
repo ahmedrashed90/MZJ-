@@ -5931,6 +5931,12 @@ function publishPrepTaskSnapshot(task){
 async function publishPrepReadyTaskNow(task, submission){
   const finalFile = publishPrepFinalFileRecord(task, submission);
   if(!finalFile?.fileUrl) throw new Error('لا يوجد رابط للملف النهائي. ارفع الملف النهائي مرة أخرى.');
+  const liveCaptionInput = document.querySelector(`[data-prep-caption="${CSS.escape(task.id)}"]`);
+  const liveHashtagsInput = document.querySelector(`[data-prep-hashtags="${CSS.escape(task.id)}"]`);
+  const liveCaption = liveCaptionInput ? normalizeText(liveCaptionInput.value) : '';
+  const liveHashtags = liveHashtagsInput ? normalizeText(liveHashtagsInput.value) : '';
+  const effectiveCaption = liveCaption || publishPrepEffectiveCaption(task, submission);
+  const effectiveHashtags = liveHashtags || publishPrepEffectiveHashtags(task, submission);
   const platforms = (task.platforms || []).map(normalizePublishPlatformForApi).filter(Boolean);
   if(!platforms.length) throw new Error('لا توجد منصات محددة للنشر.');
   const payload = {
@@ -5943,8 +5949,8 @@ async function publishPrepReadyTaskNow(task, submission){
     platformTypes: task.platformTypes || {},
     platformPublishing: Array.isArray(task.platformPublishing) ? task.platformPublishing : [],
     platforms,
-    caption: publishPrepEffectiveCaption(task, submission),
-    hashtags: publishPrepEffectiveHashtags(task, submission),
+    caption: effectiveCaption,
+    hashtags: effectiveHashtags,
     mediaUrl: finalFile.fileUrl,
     finalFileUrl: finalFile.fileUrl,
     fileName: finalFile.fileName,
