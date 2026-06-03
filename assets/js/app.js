@@ -2832,18 +2832,21 @@ function structureUserPickerHtml(selected = []){
     return `<label class="task-user-check-card structure-user-check-card" data-structure-user-name="${escapeHtml(identityClean(name))}"><input type="checkbox" class="js-structure-assignee-checkbox" value="${escapeHtml(value)}" data-name="${escapeHtml(name)}"${checked}> <span>${escapeHtml(name)}</span></label>`;
   }).join('');
 }
-function structurePlatformTypeOptions(platformName, currentValue = ''){
+function structurePlatformTypeOptions(platformName, currentValue = '', checked = false){
   const options = publishPostTypesForPlatforms([platformName]);
   const current = options.some(item => item.value === currentValue) ? currentValue : '';
-  return `<select class="js-structure-platform-type-select compact-select" data-platform-type-for="${escapeHtml(platformName)}" aria-label="نوع منشور ${escapeHtml(platformName)}"><option value="">نوع المنشور</option>${options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width}" data-height="${item.height}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select>`;
+  const disabled = checked ? '' : ' disabled';
+  const emptyLabel = options.length ? 'اختر نوع المنشور' : 'لا توجد أنواع لهذه المنصة';
+  return `<div class="structure-platform-type-wrap"><span class="structure-platform-type-label">نوع المنشور</span><select class="js-structure-platform-type-select structure-platform-type-select" data-platform-type-for="${escapeHtml(platformName)}" aria-label="نوع منشور ${escapeHtml(platformName)}"${disabled}><option value="">${emptyLabel}</option>${options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width}" data-height="${item.height}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label)} - ${item.width}×${item.height}</option>`).join('')}</select></div>`;
 }
 function structurePlatformRowsHtml(meta = {}){
   const selected = new Set((meta.platforms || []).map(String));
   const typeMap = meta.platformTypes || {};
   return platforms.length ? platforms.map(item => {
     const name = item.name || '';
-    const checked = selected.has(name) ? ' checked' : '';
-    return `<div class="structure-popup-platform-row" data-structure-popup-platform-row="${escapeHtml(name)}"><label><input type="checkbox" class="js-structure-popup-platform" value="${escapeHtml(name)}"${checked}> <span>${escapeHtml(name)}</span></label>${structurePlatformTypeOptions(name, typeMap[name] || '')}</div>`;
+    const isChecked = selected.has(name);
+    const checked = isChecked ? ' checked' : '';
+    return `<div class="structure-popup-platform-row${isChecked ? ' is-selected' : ''}" data-structure-popup-platform-row="${escapeHtml(name)}"><label><input type="checkbox" class="js-structure-popup-platform" value="${escapeHtml(name)}"${checked}> <span>${escapeHtml(name)}</span></label>${structurePlatformTypeOptions(name, typeMap[name] || '', isChecked)}</div>`;
   }).join('') : '<div class="multi-empty">لا توجد منصات</div>';
 }
 function defaultStructurePublishMeta(){
@@ -3830,6 +3833,7 @@ function bindCampaignBuilder(){
       updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return;
     }
     if(event.target.matches('.js-structure-assignee-checkbox')){ updateStructureAssigneePicker(event.target.closest('.structure-assignee-picker')); return; }
+    if(event.target.matches('.js-structure-popup-platform')){ refreshStructurePlatformRow(event.target.closest('.structure-popup-platform-row')); return; }
     if(event.target.matches('.js-task-user-checkbox,.js-task-user,.js-car-checkbox,.js-creative-check')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
