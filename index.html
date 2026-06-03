@@ -641,12 +641,22 @@
             <form class="form" id="mersalSettingsForm">
               <label class="field"><span>API Endpoint</span><input type="url" id="mersalApiEndpoint" placeholder="https://w-mersal.com" /></label>
               <label class="field"><span>Token</span><input type="password" id="mersalToken" placeholder="اكتب التوكن أو اتركه كما هو" autocomplete="new-password" /></label>
+              <div class="settings-inline-status"><span>حالة مرسال</span><strong id="mersalConnectionStatus">غير متصل</strong></div>
               <label class="field"><span>قالب الصور</span><input type="text" id="mersalImageTemplate" value="mzj_image_campaign" /></label>
               <label class="field"><span>قالب الفيديو</span><input type="text" id="mersalVideoTemplate" value="mzj_video_campaign" /></label>
               <label class="field"><span>لغة القوالب</span><input type="text" id="mersalTemplateLanguage" value="ar" /></label>
               <button class="btn btn-primary full" type="submit">حفظ إعدادات مرسال</button>
               <p class="form-message" id="mersalSettingsMessage"></p>
             </form>
+            <div class="settings-divider"></div>
+            <div class="form" id="whatsappContactsImportBox">
+              <h3>أرقام عملاء واتساب</h3>
+              <p class="muted small">استيراد أرقام الجوال من Excel. كل استيراد جديد يضيف على الموجود، والأرقام لا تظهر في صفحة الإعدادات.</p>
+              <label class="field"><span>استيراد شيت أرقام الجوال</span><input type="file" id="whatsappContactsExcelInput" accept=".xlsx,.xls,.csv" /></label>
+              <button class="btn btn-light full" type="button" id="importWhatsappContactsBtn">استيراد الأرقام</button>
+              <p class="form-message" id="whatsappContactsImportMessage"></p>
+              <div class="settings-inline-status"><span>إجمالي الأرقام المحفوظة</span><strong id="whatsappContactsCount">0</strong></div>
+            </div>
           </div>
 
           <div class="card settings-card wide">

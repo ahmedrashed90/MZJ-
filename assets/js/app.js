@@ -47,6 +47,7 @@ window.MZJ_CAMPAIGN_TASKS_COLLECTION = "campaign_tasks"; // غير مستخدم 
 window.MZJ_SYSTEM_SETTINGS_COLLECTION = "system_settings";
 window.MZJ_PUBLISH_PREP_COLLECTION = "publish_prep_tasks";
 window.MZJ_PUBLISH_LOGS_COLLECTION = "publish_logs";
+window.MZJ_WHATSAPP_CONTACTS_COLLECTION = "whatsapp_contacts";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
@@ -6476,6 +6477,66 @@ function applyThemeSettings(settings = {}){
   if(settings.fontFamily) document.documentElement.style.setProperty('--font-family', settings.fontFamily === 'system-ui' ? 'system-ui, -apple-system, Segoe UI, sans-serif' : `'${settings.fontFamily}', sans-serif`);
   if(settings.direction){ document.documentElement.dir = settings.direction; document.body.dir = settings.direction; }
 }
+
+function setMersalConnectionUi(status, label){
+  const el = document.getElementById('mersalConnectionStatus');
+  if(!el) return;
+  el.classList.remove('is-connected','is-disconnected');
+  if(status === 'connected'){ el.classList.add('is-connected'); el.textContent = label || 'متصل'; }
+  else { el.classList.add('is-disconnected'); el.textContent = label || 'غير متصل'; }
+}
+function isMaskedToken(value){
+  return /^\*{4,}$/.test(String(value || '').trim());
+}
+function normalizeWhatsappPhoneLocal(value = ''){
+  let text = String(value || '').trim();
+  if(!text) return '';
+  text = text.replace(/[\s\-()]/g, '').replace(/^\+/, '').replace(/[^0-9]/g, '');
+  if(/^05\d{8}$/.test(text)) return `966${text.slice(1)}`;
+  if(/^5\d{8}$/.test(text)) return `966${text}`;
+  return text;
+}
+function extractPhoneValuesFromWorksheet(ws){
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  const phones = [];
+  const phoneHeaderWords = ['phone','mobile','whatsapp','جوال','الجوال','هاتف','الهاتف','رقم','موبايل','واتساب'];
+  const header = (rows[0] || []).map(cell => String(cell || '').trim().toLowerCase());
+  const phoneColumns = header.map((cell, index) => phoneHeaderWords.some(word => cell.includes(word)) ? index : -1).filter(index => index >= 0);
+  rows.forEach((row, rowIndex) => {
+    const cells = phoneColumns.length && rowIndex > 0 ? phoneColumns.map(index => row[index]) : row;
+    cells.forEach(cell => {
+      const raw = String(cell || '').trim();
+      const matches = raw.match(/\+?\d[\d\s\-()]{7,}\d/g) || [];
+      matches.forEach(match => {
+        const phone = normalizeWhatsappPhoneLocal(match);
+        if(phone && phone.length >= 9) phones.push(phone);
+      });
+    });
+  });
+  return [...new Set(phones)];
+}
+async function updateWhatsappContactsCount(){
+  const el = document.getElementById('whatsappContactsCount');
+  if(!el || !mainDb) return;
+  try{
+    const snap = await safeCollection(window.MZJ_WHATSAPP_CONTACTS_COLLECTION).limit(1000).get();
+    el.textContent = String(snap.size || 0);
+  }catch(error){
+    console.warn('WhatsApp contacts count error', error);
+  }
+}
+async function validateMersalToken(apiEndpoint, token){
+  if(!apiEndpoint || !token || isMaskedToken(token)) return false;
+  const response = await fetch('/api/meta/mersal/validate', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ apiEndpoint, token })
+  });
+  const data = await response.json().catch(() => ({}));
+  if(!response.ok || !data.ok) throw new Error(data.error || 'تعذر التحقق من التوكن.');
+  return true;
+}
+
 function fillSettingsForm(){
   const settings = { ...defaultThemeSettings, ...(systemSettings || {}), colors: { ...defaultThemeSettings.colors, ...((systemSettings || {}).colors || {}) } };
   if(document.getElementById('settingSystemName')) settingSystemName.value = settings.systemName || '';
@@ -6494,11 +6555,13 @@ function fillSettingsForm(){
   if(document.getElementById('autoPublishWhatsappHour')) autoPublishWhatsappHour.value = String(Number.isFinite(Number(platformHours.whatsapp)) ? Number(platformHours.whatsapp) : 18);
   const mersal = settings.mersal || settings.whatsappMersal || {};
   if(document.getElementById('mersalApiEndpoint')) mersalApiEndpoint.value = mersal.apiEndpoint || settings.mersalApiEndpoint || 'https://w-mersal.com';
-  if(document.getElementById('mersalToken')) mersalToken.value = '';
+  if(document.getElementById('mersalToken')) mersalToken.value = (mersal.token || settings.mersalToken) ? '********' : '';
   if(document.getElementById('mersalImageTemplate')) mersalImageTemplate.value = mersal.imageTemplate || settings.mersalImageTemplate || 'mzj_image_campaign';
   if(document.getElementById('mersalVideoTemplate')) mersalVideoTemplate.value = mersal.videoTemplate || settings.mersalVideoTemplate || 'mzj_video_campaign';
   if(document.getElementById('mersalTemplateLanguage')) mersalTemplateLanguage.value = mersal.templateLanguage || settings.mersalTemplateLanguage || 'ar';
-  if(document.getElementById('whatsappChannelStatus')) whatsappChannelStatus.textContent = (mersal.token || settings.mersalToken) ? 'مرسال محفوظ' : 'جاهز بعد حفظ إعدادات مرسال';
+  if(document.getElementById('whatsappChannelStatus')) whatsappChannelStatus.textContent = (mersal.status === 'connected' || mersal.connected || mersal.token || settings.mersalToken) ? 'متصل' : 'جاهز بعد حفظ إعدادات مرسال';
+  setMersalConnectionUi((mersal.status === 'connected' || mersal.connected || mersal.token || settings.mersalToken) ? 'connected' : 'disconnected');
+  updateWhatsappContactsCount();
   if(document.getElementById('autoPublishTimezone')) autoPublishTimezone.value = settings.autoPublishTimezone || 'Asia/Riyadh';
   if(settings.colors){
     if(document.getElementById('colorPrimary')) colorPrimary.value = settings.colors.primary || defaultThemeSettings.colors.primary;
@@ -6571,19 +6634,60 @@ function bindSettings(){
     event.preventDefault();
     if(!mainDb) return;
     const existing = (systemSettings && (systemSettings.mersal || systemSettings.whatsappMersal)) || {};
-    const tokenInput = normalizeText(document.getElementById('mersalToken')?.value || '');
+    const rawTokenInput = normalizeText(document.getElementById('mersalToken')?.value || '');
+    const tokenInput = isMaskedToken(rawTokenInput) ? '' : rawTokenInput;
+    const apiEndpoint = normalizeText(document.getElementById('mersalApiEndpoint')?.value || 'https://w-mersal.com').replace(/\/$/, '');
+    const token = tokenInput || existing.token || systemSettings.mersalToken || '';
+    let connected = Boolean(existing.connected || existing.status === 'connected') && Boolean(token);
+    if(tokenInput){
+      showMessage('mersalSettingsMessage','جاري التحقق من التوكن...');
+      connected = await validateMersalToken(apiEndpoint, tokenInput);
+    }
     const payload = {
-      apiEndpoint: normalizeText(document.getElementById('mersalApiEndpoint')?.value || 'https://w-mersal.com').replace(/\/$/, ''),
-      token: tokenInput || existing.token || systemSettings.mersalToken || '',
+      apiEndpoint,
+      token,
+      connected,
+      status: connected ? 'connected' : 'disconnected',
       imageTemplate: normalizeText(document.getElementById('mersalImageTemplate')?.value || 'mzj_image_campaign'),
       videoTemplate: normalizeText(document.getElementById('mersalVideoTemplate')?.value || 'mzj_video_campaign'),
       templateLanguage: normalizeText(document.getElementById('mersalTemplateLanguage')?.value || 'ar'),
-      updatedAt: new Date().toISOString(),
-      status: 'configured'
+      updatedAt: new Date().toISOString()
     };
     await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({ mersal: payload, updatedAt: serverTime() }, { merge:true });
-    if(document.getElementById('mersalToken')) mersalToken.value = '';
-    showMessage('mersalSettingsMessage','تم حفظ إعدادات مرسال.');
+    if(document.getElementById('mersalToken')) mersalToken.value = token ? '********' : '';
+    setMersalConnectionUi(connected ? 'connected' : 'disconnected');
+    showMessage('mersalSettingsMessage', connected ? 'تم حفظ إعدادات مرسال. الحالة: متصل.' : 'تم حفظ إعدادات مرسال، لكن لم يتم تأكيد الاتصال.');
+  });
+  document.getElementById('importWhatsappContactsBtn')?.addEventListener('click', async () => {
+    if(!mainDb) return;
+    const input = document.getElementById('whatsappContactsExcelInput');
+    const file = input?.files?.[0];
+    if(!file){ showMessage('whatsappContactsImportMessage','اختار ملف Excel أولاً.'); return; }
+    try{
+      showMessage('whatsappContactsImportMessage','جاري استيراد الأرقام...');
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type:'array' });
+      const phones = workbook.SheetNames.flatMap(name => extractPhoneValuesFromWorksheet(workbook.Sheets[name]));
+      const uniquePhones = [...new Set(phones.map(normalizeWhatsappPhoneLocal).filter(Boolean))];
+      if(!uniquePhones.length){ showMessage('whatsappContactsImportMessage','لم يتم العثور على أرقام جوال في الملف.'); return; }
+      const batchLimit = 450;
+      let saved = 0;
+      for(let i = 0; i < uniquePhones.length; i += batchLimit){
+        const batch = mainDb.batch();
+        uniquePhones.slice(i, i + batchLimit).forEach(phone => {
+          const ref = safeCollection(window.MZJ_WHATSAPP_CONTACTS_COLLECTION).doc(phone);
+          batch.set(ref, { phone, source:'excel', active:true, importedAt: serverTime(), updatedAt: serverTime() }, { merge:true });
+          saved += 1;
+        });
+        await batch.commit();
+      }
+      input.value = '';
+      await updateWhatsappContactsCount();
+      showMessage('whatsappContactsImportMessage', `تم استيراد ${saved} رقم. الأرقام محفوظة ومش ظاهرة في الإعدادات.`);
+    }catch(error){
+      console.error('WhatsApp contacts import error', error);
+      showMessage('whatsappContactsImportMessage', error.message || 'تعذر استيراد الأرقام.');
+    }
   });
   document.getElementById('saveThemeColorsBtn')?.addEventListener('click', async () => {
     if(!mainDb) return;

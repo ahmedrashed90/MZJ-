@@ -553,6 +553,10 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    match /whatsapp_contacts/{docId} {
+      allow read, create, update, delete: if true;
+    }
+
     match /{document=**} {
       allow read, create, update, delete: if false;
     }
