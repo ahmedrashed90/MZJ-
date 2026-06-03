@@ -412,11 +412,16 @@ const publishPostTypeConfig = {
   youtube: [
     { value:'reel', label:'ريل/Short', width:1080, height:1920 },
     { value:'hd_video', label:'فيديو HD', width:1920, height:1080 }
+  ],
+  snapchat: [
+    { value:'story', label:'Story', width:1080, height:1920 },
+    { value:'spotlight', label:'Spotlight', width:1080, height:1920 }
   ]
 };
 function slugifyPostTypeLabel(label){
   const text = normalizeText(label).toLowerCase();
   if(text.includes('hd') || text.includes('فيديو')) return 'hd_video';
+  if(text.includes('spotlight') || text.includes('سبوت') || text.includes('اضواء') || text.includes('أضواء')) return 'spotlight';
   if(text.includes('short') || text.includes('ريل') || text.includes('reel')) return 'reel';
   if(text.includes('story') || text.includes('ستوري')) return 'story';
   if(text.includes('photo') || text.includes('صور') || text.includes('بوست')) return 'photo_post';
@@ -499,6 +504,7 @@ function normalizePublishPlatformName(value){
   if(text.includes('instagram') || text.includes('insta') || text.includes('انست')) return 'instagram';
   if(text.includes('tiktok') || text.includes('tik tok') || text.includes('تيك') || text.includes('تيك توك')) return 'tiktok';
   if(text.includes('youtube') || text.includes('you tube') || text.includes('يوتيوب')) return 'youtube';
+  if(text.includes('snapchat') || text.includes('snap chat') || text.includes('snap') || text.includes('سناب')) return 'snapchat';
   return text;
 }
 function platformRecordByName(value){
@@ -673,6 +679,26 @@ function renderCampaignTypes(){
     </article>`;
   }).join('');
 }
+
+async function ensureSnapchatPlatformSeed(){
+  if(!mainDb) return;
+  const exists = platforms.some(item => normalizePublishPlatformName(item.name) === 'snapchat');
+  if(exists) return;
+  try{
+    await safeCollection(window.MZJ_PLATFORMS_COLLECTION).add({
+      name:'Snapchat',
+      postTypes: defaultPostTypesForPlatform('Snapchat'),
+      integrationStatus:'pending_approval',
+      oauthClientId:'02fc6e20-d592-44fe-bc09-51abc1bcd237',
+      redirectUri:'https://mzj.vercel.app/snapchat/callback',
+      updatedAt: serverTime(),
+      createdAt: serverTime()
+    });
+  }catch(error){
+    console.warn('Snapchat platform seed error', error);
+  }
+}
+
 function renderPlatforms(){
   const list = document.getElementById('platformsList'); if(!list) return;
   if(!platforms.length){ list.innerHTML = '<div class="empty-state">لا توجد منصات حتى الآن.</div>'; return; }
@@ -5006,7 +5032,7 @@ let socialTikTokConnected = false;
 let socialTikTokUser = null;
 let socialYouTubeConnected = false;
 let socialYouTubeChannel = null;
-const socialPlatformLabels = { facebook:'Facebook', instagram:'Instagram', tiktok:'TikTok', youtube:'YouTube' };
+const socialPlatformLabels = { facebook:'Facebook', instagram:'Instagram', tiktok:'TikTok', youtube:'YouTube', snapchat:'Snapchat' };
 function getLocalSocialPublishLog(){
   try{ return JSON.parse(localStorage.getItem(SOCIAL_PUBLISH_LOG_KEY) || '[]'); }catch(_){ return []; }
 }
@@ -5598,6 +5624,7 @@ function normalizePrepPlatformList(value){
     if(low.includes('instagram') || v.includes('انست')) return 'Instagram';
     if(low.includes('tiktok') || v.includes('تيك')) return 'TikTok';
     if(low.includes('youtube') || low.includes('you tube') || v.includes('يوتيوب') || v.includes('يوتيوب')) return 'YouTube';
+    if(low.includes('snapchat') || low.includes('snap chat') || low.includes('snap') || v.includes('سناب')) return 'Snapchat';
     return v;
   }).filter(Boolean);
 }
@@ -5852,6 +5879,7 @@ function normalizePublishPlatformForApi(platform){
   if(text.includes('instagram') || text.includes('انست')) return 'instagram';
   if(text.includes('tiktok') || text.includes('تيك')) return 'tiktok';
   if(text.includes('youtube') || text.includes('you tube') || text.includes('يوتيوب')) return 'youtube';
+  if(text.includes('snapchat') || text.includes('snap chat') || text.includes('snap') || text.includes('سناب')) return 'snapchat';
   return text;
 }
 function publishPrepTaskSnapshot(task){
@@ -6433,6 +6461,7 @@ function fillSettingsForm(){
   if(document.getElementById('autoPublishInstagramHour')) autoPublishInstagramHour.value = String(Number.isFinite(Number(platformHours.instagram)) ? Number(platformHours.instagram) : 18);
   if(document.getElementById('autoPublishTiktokHour')) autoPublishTiktokHour.value = String(Number.isFinite(Number(platformHours.tiktok)) ? Number(platformHours.tiktok) : 21);
   if(document.getElementById('autoPublishYoutubeHour')) autoPublishYoutubeHour.value = String(Number.isFinite(Number(platformHours.youtube)) ? Number(platformHours.youtube) : 12);
+  if(document.getElementById('autoPublishSnapchatHour')) autoPublishSnapchatHour.value = String(Number.isFinite(Number(platformHours.snapchat)) ? Number(platformHours.snapchat) : 18);
   if(document.getElementById('autoPublishDefaultHour')) autoPublishDefaultHour.value = String(Number.isFinite(Number(platformHours.default)) ? Number(platformHours.default) : legacyHour);
   if(document.getElementById('youtubePrivacyStatus')) youtubePrivacyStatus.value = ['public','unlisted','private'].includes(String(settings.youtubePrivacyStatus || '').toLowerCase()) ? String(settings.youtubePrivacyStatus).toLowerCase() : 'unlisted';
   if(document.getElementById('autoPublishTimezone')) autoPublishTimezone.value = settings.autoPublishTimezone || 'Asia/Riyadh';
@@ -6486,6 +6515,7 @@ function bindSettings(){
       instagram: cleanHour(document.getElementById('autoPublishInstagramHour')?.value || 18),
       tiktok: cleanHour(document.getElementById('autoPublishTiktokHour')?.value || 21),
       youtube: cleanHour(document.getElementById('autoPublishYoutubeHour')?.value || 12),
+      snapchat: cleanHour(document.getElementById('autoPublishSnapchatHour')?.value || 18),
       default: cleanHour(document.getElementById('autoPublishDefaultHour')?.value || 12)
     };
     const enabled = document.getElementById('autoPublishEnabled')?.value !== 'false';
@@ -6596,7 +6626,7 @@ function bootstrapData(){
   loadSimpleCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION, campaignTypes, renderCampaignTypes);
   loadSimpleCollection(window.MZJ_ORDER_STATUSES_COLLECTION, orderStatuses, renderOrderStatuses);
   loadSimpleCollection(window.MZJ_FUNNELS_COLLECTION, funnels, function(){}, true);
-  loadSimpleCollection(window.MZJ_PLATFORMS_COLLECTION, platforms, renderPlatforms);
+  loadSimpleCollection(window.MZJ_PLATFORMS_COLLECTION, platforms, () => { renderPlatforms(); ensureSnapchatPlatformSeed(); refreshDynamicSelects(); });
   if(mainDb){
     safeCollection(window.MZJ_CONTENT_SECTIONS_COLLECTION).orderBy('name').onSnapshot(snapshot => {
       contentSections = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, slug: data.slug || '', types: Array.isArray(data.types) ? data.types.map(normalizeText).filter(Boolean) : [], userIds: Array.isArray(data.userIds) ? data.userIds : [], users: Array.isArray(data.users) ? data.users : [], members: Array.isArray(data.members) ? data.members : [], memberUids: Array.isArray(data.memberUids) ? data.memberUids : [], memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails : [], memberNames: Array.isArray(data.memberNames) ? data.memberNames : [], departmentId: data.departmentId || data.department || data.contentDepartmentId || '' }; });

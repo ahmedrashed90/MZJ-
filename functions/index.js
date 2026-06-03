@@ -17,6 +17,7 @@ function normalizePlatform(platform) {
   if (text.includes('instagram') || text.includes('انست')) return 'instagram';
   if (text.includes('tiktok') || text.includes('تيك')) return 'tiktok';
   if (text.includes('youtube') || text.includes('you tube') || text.includes('يوتيوب')) return 'youtube';
+  if (text.includes('snapchat') || text.includes('snap chat') || text.includes('snap') || text.includes('سناب')) return 'snapchat';
   return text;
 }
 
@@ -68,6 +69,7 @@ function getPlatformHours(settings = {}) {
     instagram: hour(raw.instagram, 18),
     tiktok: hour(raw.tiktok, 21),
     youtube: hour(raw.youtube, 12),
+    snapchat: hour(raw.snapchat, 18),
     default: hour(raw.default, oldHour)
   };
 }

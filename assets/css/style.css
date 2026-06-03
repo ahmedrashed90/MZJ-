@@ -2272,3 +2272,6 @@ body:has(.publish-composer-modal.show) .topbar{
   .platform-type-row .platform-type-label{grid-column:1 / -1;}
   .platform-type-row [data-remove-platform-post-type]{grid-column:1 / -1;}
 }
+
+.social-channel-icon.snapchat{background:#fffc00;color:#111;}
+.social-channel-card[data-channel-card="snapchat"] .channel-status{background:#fff8db;color:#7a5a00;border-color:#f1d36a;}
