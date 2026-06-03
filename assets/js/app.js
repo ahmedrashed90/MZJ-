@@ -490,6 +490,9 @@ function ensurePlatformPostTypesUi(){
   const box = document.getElementById('platformPostTypesRows');
   if(box && !box.children.length) setPlatformPostTypesRows([]);
 }
+window.MZJAddPlatformPostTypeRow = addPlatformPostTypeRow;
+window.MZJSetPlatformPostTypesRows = setPlatformPostTypesRows;
+window.MZJSyncPlatformPostTypesTextarea = syncPlatformPostTypesTextarea;
 function normalizePublishPlatformName(value){
   const text = normalizeText(value).toLowerCase();
   if(text.includes('facebook') || text.includes('فيس')) return 'facebook';
@@ -4021,15 +4024,15 @@ function bindDepartments(){
       const payload = { name, postTypes, updatedAt: serverTime() };
       if(id) await safeCollection(window.MZJ_PLATFORMS_COLLECTION).doc(id).update(payload);
       else await safeCollection(window.MZJ_PLATFORMS_COLLECTION).add({ ...payload, createdAt: serverTime() });
-      event.target.reset(); resetForm(['platformEditId']); showMessage('platformMessage', 'تم حفظ المنصة.');
+      event.target.reset(); resetForm(['platformEditId']); setPlatformPostTypesRows([]); showMessage('platformMessage', 'تم حفظ المنصة.');
     }catch(error){ console.error(error); showMessage('platformMessage', 'تعذر حفظ المنصة.'); }
   });
   ensurePlatformPostTypesUi();
-  document.getElementById('addPlatformPostType')?.addEventListener('click', () => addPlatformPostTypeRow());
   document.getElementById('platformPostTypesRows')?.addEventListener('input', syncPlatformPostTypesTextarea);
   document.getElementById('platformPostTypesRows')?.addEventListener('click', event => {
     const remove = event.target.closest('[data-remove-platform-post-type]');
     if(!remove) return;
+    event.preventDefault();
     const row = remove.closest('.platform-type-row');
     row?.remove();
     const box = document.getElementById('platformPostTypesRows');
@@ -4054,7 +4057,7 @@ function bindDepartments(){
     const ccDel = event.target.closest('[data-delete-campaign-code]'); if(ccDel){ await deleteDoc('campaignCode', ccDel.dataset.deleteCampaignCode); return; }
     const ctEdit = event.target.closest('[data-edit-campaign-type]'); if(ctEdit){ const item = campaignTypes.find(x => x.id === ctEdit.dataset.editCampaignType); if(item){ document.getElementById('campaignTypeEditId').value = item.id; document.getElementById('campaignTypeName').value = item.name || ''; document.getElementById('campaignTypeCode').value = item.code || ''; document.getElementById('campaignTypePrefix').value = item.prefix || 'MZJ'; } return; }
     const ctDel = event.target.closest('[data-delete-campaign-type]'); if(ctDel){ await deleteDoc('campaignType', ctDel.dataset.deleteCampaignType); return; }
-    const pEdit = event.target.closest('[data-edit-platform]'); if(pEdit){ const item = platforms.find(x => x.id === pEdit.dataset.editPlatform); if(item){ document.getElementById('platformEditId').value = item.id; document.getElementById('platformName').value = item.name; setPlatformPostTypesRows(item.postTypes?.length ? item.postTypes : defaultPostTypesForPlatform(item.name)); } return; }
+    const pEdit = event.target.closest('[data-edit-platform]'); if(pEdit){ const item = platforms.find(x => x.id === pEdit.dataset.editPlatform); if(item){ const form = document.getElementById('platformForm'); const details = form?.closest('details'); if(details) details.open = true; document.getElementById('platformEditId').value = item.id; document.getElementById('platformName').value = item.name; setPlatformPostTypesRows(normalizePlatformPostTypes(item.postTypes || item.publishTypes || item.types || []).length ? normalizePlatformPostTypes(item.postTypes || item.publishTypes || item.types || []) : defaultPostTypesForPlatform(item.name)); form?.scrollIntoView({ behavior:'smooth', block:'start' }); } return; }
     const pDel = event.target.closest('[data-delete-platform]'); if(pDel){ await deleteDoc('platform', pDel.dataset.deletePlatform); return; }
     const osEdit = event.target.closest('[data-edit-order-status]'); if(osEdit){ const item = orderStatuses.find(x => x.id === osEdit.dataset.editOrderStatus); if(item){ document.getElementById('orderStatusEditId').value = item.id; document.getElementById('orderStatusName').value = item.name; } return; }
     const osDel = event.target.closest('[data-delete-order-status]'); if(osDel){ await deleteDoc('orderStatus', osDel.dataset.deleteOrderStatus); return; }
@@ -6611,6 +6614,25 @@ function bootstrapData(){
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('click', event => {
+    const addTypeBtn = event.target.closest('#addPlatformPostType, [data-add-platform-post-type]');
+    if(addTypeBtn){
+      event.preventDefault();
+      event.stopPropagation();
+      addPlatformPostTypeRow();
+      return;
+    }
+    const removeTypeBtn = event.target.closest('[data-remove-platform-post-type]');
+    if(removeTypeBtn){
+      event.preventDefault();
+      event.stopPropagation();
+      const row = removeTypeBtn.closest('.platform-type-row');
+      row?.remove();
+      const box = document.getElementById('platformPostTypesRows');
+      if(box && !box.children.length) addPlatformPostTypeRow();
+      syncPlatformPostTypesTextarea();
+    }
+  }, true);
   document.querySelector('[data-menu]')?.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('show'); });
   overlay?.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); });
   document.getElementById('loginForm')?.addEventListener('submit', async event => {
