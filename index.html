@@ -229,6 +229,14 @@
               <span class="channel-status" id="snapchatChannelStatus">بانتظار موافقة Snapchat</span>
             </div>
           </article>
+          <article class="card social-channel-card is-ready" data-channel-card="whatsapp">
+            <div class="social-channel-icon whatsapp">☘</div>
+            <div>
+              <h3>WhatsApp / مرسال</h3>
+              <p>إرسال رسائل وصور واتساب عبر مرسال. الفيديو وقوالب الميديا قيد التحقق.</p>
+              <span class="channel-status ready" id="whatsappChannelStatus">جاهز بعد حفظ إعدادات مرسال</span>
+            </div>
+          </article>
         </div>
 
         <div class="card social-linking-status-card">
@@ -593,6 +601,15 @@
                   </select>
                 </label>
                 <label class="field">
+                  <span>ساعة WhatsApp / مرسال</span>
+                  <select id="autoPublishWhatsappHour">
+                  <option value="15">3 مساءً</option>
+                  <option value="18">6 مساءً</option>
+                  <option value="21">9 مساءً</option>
+                  <option value="12">12 ظهرًا</option>
+                  </select>
+                </label>
+                <label class="field">
                   <span>ساعة افتراضية لأي منصة أخرى</span>
                   <select id="autoPublishDefaultHour">
                   <option value="15">3 مساءً</option>
@@ -616,6 +633,19 @@
               </label>
               <button class="btn btn-primary full" type="submit">حفظ إعدادات مواعيد النشر التلقائي</button>
               <p class="form-message" id="autoPublishSettingsMessage"></p>
+            </form>
+          </div>
+
+          <div class="card settings-card">
+            <h2>إعدادات مرسال واتساب</h2>
+            <form class="form" id="mersalSettingsForm">
+              <label class="field"><span>API Endpoint</span><input type="url" id="mersalApiEndpoint" placeholder="https://w-mersal.com" /></label>
+              <label class="field"><span>Token</span><input type="password" id="mersalToken" placeholder="اكتب التوكن أو اتركه كما هو" autocomplete="new-password" /></label>
+              <label class="field"><span>قالب الصور</span><input type="text" id="mersalImageTemplate" value="mzj_image_campaign" /></label>
+              <label class="field"><span>قالب الفيديو</span><input type="text" id="mersalVideoTemplate" value="mzj_video_campaign" /></label>
+              <label class="field"><span>لغة القوالب</span><input type="text" id="mersalTemplateLanguage" value="ar" /></label>
+              <button class="btn btn-primary full" type="submit">حفظ إعدادات مرسال</button>
+              <p class="form-message" id="mersalSettingsMessage"></p>
             </form>
           </div>
 

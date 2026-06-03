@@ -328,7 +328,7 @@ service cloud.firestore {
 
     function systemSettingsKeysValid() {
       return request.resource.data.keys().hasOnly([
-        "systemName", "fontFamily", "direction", "colors", "themeImageName", "themeImageData", "backgroundImageData", "backgroundImageUrl", "stockCarStatusMap", "stockCarMeta", "autoPublishEnabled", "autoPublishHour", "autoPublishPlatformHours", "autoPublishTimezone", "youtubePrivacyStatus", "createdAt", "createdBy", "updatedAt", "updatedBy"
+        "systemName", "fontFamily", "direction", "colors", "themeImageName", "themeImageData", "backgroundImageData", "backgroundImageUrl", "stockCarStatusMap", "stockCarMeta", "autoPublishEnabled", "autoPublishHour", "autoPublishPlatformHours", "autoPublishTimezone", "youtubePrivacyStatus", "mersal", "whatsappMersal", "mersalApiEndpoint", "mersalToken", "mersalImageTemplate", "mersalVideoTemplate", "mersalTemplateLanguage", "createdAt", "createdBy", "updatedAt", "updatedBy"
       ]);
     }
 

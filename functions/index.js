@@ -18,6 +18,7 @@ function normalizePlatform(platform) {
   if (text.includes('tiktok') || text.includes('تيك')) return 'tiktok';
   if (text.includes('youtube') || text.includes('you tube') || text.includes('يوتيوب')) return 'youtube';
   if (text.includes('snapchat') || text.includes('snap chat') || text.includes('snap') || text.includes('سناب')) return 'snapchat';
+  if (text.includes('whatsapp') || text.includes('واتساب') || text.includes('مرسال')) return 'whatsapp';
   return text;
 }
 
@@ -70,6 +71,7 @@ function getPlatformHours(settings = {}) {
     tiktok: hour(raw.tiktok, 21),
     youtube: hour(raw.youtube, 12),
     snapchat: hour(raw.snapchat, 18),
+    whatsapp: hour(raw.whatsapp, 18),
     default: hour(raw.default, oldHour)
   };
 }
@@ -131,7 +133,10 @@ function buildPayload(task, platform, settings = {}) {
     finalFileUrl: task.finalFileUrl || task.fileUrl || '',
     fileName: task.finalFileName || task.fileName || (task.finalFileRecord && task.finalFileRecord.fileName) || '',
     mimeType: task.mimeType || (task.finalFileRecord && task.finalFileRecord.mimeType) || (task.finalFileRecord && task.finalFileRecord.type) || '',
-    youtubePrivacyStatus: normalizeYouTubePrivacyStatus(task.youtubePrivacyStatus || settings.youtubePrivacyStatus || 'unlisted')
+    youtubePrivacyStatus: normalizeYouTubePrivacyStatus(task.youtubePrivacyStatus || settings.youtubePrivacyStatus || 'unlisted'),
+    phone: task.phone || task.customerPhone || task.clientPhone || snapshot.phone || snapshot.customerPhone || '',
+    phones: task.phones || task.recipients || snapshot.phones || snapshot.recipients || [],
+    mersal: settings.mersal || settings.whatsappMersal || {}
   };
 }
 
@@ -249,9 +254,9 @@ exports.runAutoPublishNow = onRequest({
 }, async (req, res) => {
   try {
     const result = await runAutoPublishOnce();
-    res.status(200).json({ ok: true, deployed: 'structure-distribution-rows-fix-v55', ...result });
+    res.status(200).json({ ok: true, deployed: 'whatsapp-mersal-image-send-v67', ...result });
   } catch (error) {
     logger.error(error);
-    res.status(500).json({ ok: false, deployed: 'structure-distribution-rows-fix-v55', error: error.message || String(error) });
+    res.status(500).json({ ok: false, deployed: 'whatsapp-mersal-image-send-v67', error: error.message || String(error) });
   }
 });

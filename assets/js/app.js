@@ -416,10 +416,18 @@ const publishPostTypeConfig = {
   snapchat: [
     { value:'story', label:'Story', width:1080, height:1920 },
     { value:'spotlight', label:'Spotlight', width:1080, height:1920 }
+  ],
+  whatsapp: [
+    { value:'whatsapp_text', label:'رسالة نصية', width:'', height:'' },
+    { value:'whatsapp_image', label:'صورة واتساب', width:1080, height:1080 },
+    { value:'whatsapp_video_pending', label:'فيديو واتساب - قيد التحقق', width:1080, height:1920 }
   ]
 };
 function slugifyPostTypeLabel(label){
   const text = normalizeText(label).toLowerCase();
+  if(text.includes('واتساب') && text.includes('صورة')) return 'whatsapp_image';
+  if(text.includes('واتساب') && text.includes('رسالة')) return 'whatsapp_text';
+  if(text.includes('واتساب') && text.includes('فيديو')) return 'whatsapp_video_pending';
   if(text.includes('hd') || text.includes('فيديو')) return 'hd_video';
   if(text.includes('spotlight') || text.includes('سبوت') || text.includes('اضواء') || text.includes('أضواء')) return 'spotlight';
   if(text.includes('short') || text.includes('ريل') || text.includes('reel')) return 'reel';
@@ -505,6 +513,7 @@ function normalizePublishPlatformName(value){
   if(text.includes('tiktok') || text.includes('tik tok') || text.includes('تيك') || text.includes('تيك توك')) return 'tiktok';
   if(text.includes('youtube') || text.includes('you tube') || text.includes('يوتيوب')) return 'youtube';
   if(text.includes('snapchat') || text.includes('snap chat') || text.includes('snap') || text.includes('سناب')) return 'snapchat';
+  if(text.includes('whatsapp') || text.includes('واتساب') || text.includes('مرسال')) return 'whatsapp';
   return text;
 }
 function platformRecordByName(value){
@@ -696,6 +705,23 @@ async function ensureSnapchatPlatformSeed(){
     });
   }catch(error){
     console.warn('Snapchat platform seed error', error);
+  }
+}
+async function ensureWhatsAppPlatformSeed(){
+  if(!mainDb) return;
+  const exists = platforms.some(item => normalizePublishPlatformName(item.name) === 'whatsapp');
+  if(exists) return;
+  try{
+    await safeCollection(window.MZJ_PLATFORMS_COLLECTION).add({
+      name:'حملات واتساب',
+      postTypes: defaultPostTypesForPlatform('حملات واتساب'),
+      integrationStatus:'mersal_ready',
+      provider:'mersal',
+      updatedAt: serverTime(),
+      createdAt: serverTime()
+    });
+  }catch(error){
+    console.warn('WhatsApp platform seed error', error);
   }
 }
 
@@ -5880,6 +5906,7 @@ function normalizePublishPlatformForApi(platform){
   if(text.includes('tiktok') || text.includes('تيك')) return 'tiktok';
   if(text.includes('youtube') || text.includes('you tube') || text.includes('يوتيوب')) return 'youtube';
   if(text.includes('snapchat') || text.includes('snap chat') || text.includes('snap') || text.includes('سناب')) return 'snapchat';
+  if(text.includes('whatsapp') || text.includes('واتساب') || text.includes('مرسال')) return 'whatsapp';
   return text;
 }
 function publishPrepTaskSnapshot(task){
@@ -6464,6 +6491,14 @@ function fillSettingsForm(){
   if(document.getElementById('autoPublishSnapchatHour')) autoPublishSnapchatHour.value = String(Number.isFinite(Number(platformHours.snapchat)) ? Number(platformHours.snapchat) : 18);
   if(document.getElementById('autoPublishDefaultHour')) autoPublishDefaultHour.value = String(Number.isFinite(Number(platformHours.default)) ? Number(platformHours.default) : legacyHour);
   if(document.getElementById('youtubePrivacyStatus')) youtubePrivacyStatus.value = ['public','unlisted','private'].includes(String(settings.youtubePrivacyStatus || '').toLowerCase()) ? String(settings.youtubePrivacyStatus).toLowerCase() : 'unlisted';
+  if(document.getElementById('autoPublishWhatsappHour')) autoPublishWhatsappHour.value = String(Number.isFinite(Number(platformHours.whatsapp)) ? Number(platformHours.whatsapp) : 18);
+  const mersal = settings.mersal || settings.whatsappMersal || {};
+  if(document.getElementById('mersalApiEndpoint')) mersalApiEndpoint.value = mersal.apiEndpoint || settings.mersalApiEndpoint || 'https://w-mersal.com';
+  if(document.getElementById('mersalToken')) mersalToken.value = '';
+  if(document.getElementById('mersalImageTemplate')) mersalImageTemplate.value = mersal.imageTemplate || settings.mersalImageTemplate || 'mzj_image_campaign';
+  if(document.getElementById('mersalVideoTemplate')) mersalVideoTemplate.value = mersal.videoTemplate || settings.mersalVideoTemplate || 'mzj_video_campaign';
+  if(document.getElementById('mersalTemplateLanguage')) mersalTemplateLanguage.value = mersal.templateLanguage || settings.mersalTemplateLanguage || 'ar';
+  if(document.getElementById('whatsappChannelStatus')) whatsappChannelStatus.textContent = (mersal.token || settings.mersalToken) ? 'مرسال محفوظ' : 'جاهز بعد حفظ إعدادات مرسال';
   if(document.getElementById('autoPublishTimezone')) autoPublishTimezone.value = settings.autoPublishTimezone || 'Asia/Riyadh';
   if(settings.colors){
     if(document.getElementById('colorPrimary')) colorPrimary.value = settings.colors.primary || defaultThemeSettings.colors.primary;
@@ -6516,6 +6551,7 @@ function bindSettings(){
       tiktok: cleanHour(document.getElementById('autoPublishTiktokHour')?.value || 21),
       youtube: cleanHour(document.getElementById('autoPublishYoutubeHour')?.value || 12),
       snapchat: cleanHour(document.getElementById('autoPublishSnapchatHour')?.value || 18),
+      whatsapp: cleanHour(document.getElementById('autoPublishWhatsappHour')?.value || 18),
       default: cleanHour(document.getElementById('autoPublishDefaultHour')?.value || 12)
     };
     const enabled = document.getElementById('autoPublishEnabled')?.value !== 'false';
@@ -6530,6 +6566,24 @@ function bindSettings(){
       updatedAt: serverTime()
     }, { merge:true });
     showMessage('autoPublishSettingsMessage','تم حفظ مواعيد النشر وخصوصية YouTube.');
+  });
+  document.getElementById('mersalSettingsForm')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if(!mainDb) return;
+    const existing = (systemSettings && (systemSettings.mersal || systemSettings.whatsappMersal)) || {};
+    const tokenInput = normalizeText(document.getElementById('mersalToken')?.value || '');
+    const payload = {
+      apiEndpoint: normalizeText(document.getElementById('mersalApiEndpoint')?.value || 'https://w-mersal.com').replace(/\/$/, ''),
+      token: tokenInput || existing.token || systemSettings.mersalToken || '',
+      imageTemplate: normalizeText(document.getElementById('mersalImageTemplate')?.value || 'mzj_image_campaign'),
+      videoTemplate: normalizeText(document.getElementById('mersalVideoTemplate')?.value || 'mzj_video_campaign'),
+      templateLanguage: normalizeText(document.getElementById('mersalTemplateLanguage')?.value || 'ar'),
+      updatedAt: new Date().toISOString(),
+      status: 'configured'
+    };
+    await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({ mersal: payload, updatedAt: serverTime() }, { merge:true });
+    if(document.getElementById('mersalToken')) mersalToken.value = '';
+    showMessage('mersalSettingsMessage','تم حفظ إعدادات مرسال.');
   });
   document.getElementById('saveThemeColorsBtn')?.addEventListener('click', async () => {
     if(!mainDb) return;
@@ -6626,7 +6680,7 @@ function bootstrapData(){
   loadSimpleCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION, campaignTypes, renderCampaignTypes);
   loadSimpleCollection(window.MZJ_ORDER_STATUSES_COLLECTION, orderStatuses, renderOrderStatuses);
   loadSimpleCollection(window.MZJ_FUNNELS_COLLECTION, funnels, function(){}, true);
-  loadSimpleCollection(window.MZJ_PLATFORMS_COLLECTION, platforms, () => { renderPlatforms(); ensureSnapchatPlatformSeed(); refreshDynamicSelects(); });
+  loadSimpleCollection(window.MZJ_PLATFORMS_COLLECTION, platforms, () => { renderPlatforms(); ensureSnapchatPlatformSeed(); ensureWhatsAppPlatformSeed(); refreshDynamicSelects(); });
   if(mainDb){
     safeCollection(window.MZJ_CONTENT_SECTIONS_COLLECTION).orderBy('name').onSnapshot(snapshot => {
       contentSections = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || doc.id, slug: data.slug || '', types: Array.isArray(data.types) ? data.types.map(normalizeText).filter(Boolean) : [], userIds: Array.isArray(data.userIds) ? data.userIds : [], users: Array.isArray(data.users) ? data.users : [], members: Array.isArray(data.members) ? data.members : [], memberUids: Array.isArray(data.memberUids) ? data.memberUids : [], memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails : [], memberNames: Array.isArray(data.memberNames) ? data.memberNames : [], departmentId: data.departmentId || data.department || data.contentDepartmentId || '' }; });
