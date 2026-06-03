@@ -406,27 +406,77 @@ const publishPostTypeConfig = {
     { value:'story', label:'ستوري', width:1080, height:1920 }
   ],
   tiktok: [
-    { value:'reel', label:'ريل', width:1080, height:1920 },
+    { value:'reel', label:'ريل/فيديو', width:1080, height:1920 },
     { value:'story', label:'ستوري', width:1080, height:1920 }
   ],
   youtube: [
-    { value:'reel', label:'ريل', width:1080, height:1920 },
+    { value:'reel', label:'ريل/Short', width:1080, height:1920 },
     { value:'hd_video', label:'فيديو HD', width:1920, height:1080 }
   ]
 };
+function slugifyPostTypeLabel(label){
+  const text = normalizeText(label).toLowerCase();
+  if(text.includes('hd') || text.includes('فيديو')) return 'hd_video';
+  if(text.includes('short') || text.includes('ريل') || text.includes('reel')) return 'reel';
+  if(text.includes('story') || text.includes('ستوري')) return 'story';
+  if(text.includes('photo') || text.includes('صور') || text.includes('بوست')) return 'photo_post';
+  return text.replace(/\s+/g, '_').replace(/[^\w؀-ۿ-]/g, '') || 'post_type';
+}
+function normalizePostTypeItem(item){
+  if(!item || typeof item !== 'object') return null;
+  const label = normalizeText(item.label || item.name || item.type || item.title || item.postTypeLabel || '');
+  const width = Number(item.width || item.w || item.requiredWidth || item?.dimensions?.width || 0) || null;
+  const height = Number(item.height || item.h || item.requiredHeight || item?.dimensions?.height || 0) || null;
+  if(!label) return null;
+  return { value: normalizeText(item.value || item.key || slugifyPostTypeLabel(label)), label, width, height };
+}
+function normalizePlatformPostTypes(list){
+  if(!Array.isArray(list)) return [];
+  const out = [];
+  list.forEach(item => {
+    const normalized = normalizePostTypeItem(item);
+    if(normalized && !out.some(x => x.value === normalized.value && x.width === normalized.width && x.height === normalized.height)) out.push(normalized);
+  });
+  return out;
+}
+function parsePlatformPostTypesText(text){
+  return String(text || '').split('\n').map(line => normalizeText(line)).filter(Boolean).map(line => {
+    const parts = line.split(/[|،,]/).map(normalizeText).filter(Boolean);
+    const label = parts[0] || '';
+    const numbers = line.match(/\d+/g) || [];
+    const width = Number(parts[1] || numbers[0] || 0) || null;
+    const height = Number(parts[2] || numbers[1] || 0) || null;
+    return normalizePostTypeItem({ label, width, height });
+  }).filter(Boolean);
+}
+function platformPostTypesText(list){
+  return normalizePlatformPostTypes(list).map(item => [item.label, item.width || '', item.height || ''].join(' | ')).join('\n');
+}
 function normalizePublishPlatformName(value){
   const text = normalizeText(value).toLowerCase();
   if(text.includes('facebook') || text.includes('فيس')) return 'facebook';
-  if(text.includes('instagram') || text.includes('انست')) return 'instagram';
-  if(text.includes('tiktok') || text.includes('تيك')) return 'tiktok';
+  if(text.includes('instagram') || text.includes('insta') || text.includes('انست')) return 'instagram';
+  if(text.includes('tiktok') || text.includes('tik tok') || text.includes('تيك') || text.includes('تيك توك')) return 'tiktok';
   if(text.includes('youtube') || text.includes('you tube') || text.includes('يوتيوب')) return 'youtube';
   return text;
 }
+function platformRecordByName(value){
+  const target = normalizeText(value);
+  const key = normalizePublishPlatformName(target);
+  return platforms.find(item => normalizeText(item.name) === target || normalizePublishPlatformName(item.name) === key) || null;
+}
+function defaultPostTypesForPlatform(value){
+  return publishPostTypeConfig[normalizePublishPlatformName(value)] || [];
+}
+function postTypesForPlatform(value){
+  const platform = platformRecordByName(value);
+  const custom = normalizePlatformPostTypes(platform?.postTypes || platform?.publishTypes || platform?.types || []);
+  return custom.length ? custom : defaultPostTypesForPlatform(value);
+}
 function publishPostTypesForPlatforms(selected = []){
   const raw = Array.isArray(selected) ? selected : String(selected || '').split(/[،,+]/);
-  const keys = uniqueList(raw.map(normalizePublishPlatformName).filter(Boolean));
   const list = [];
-  keys.forEach(key => (publishPostTypeConfig[key] || []).forEach(item => {
+  raw.map(normalizeText).filter(Boolean).forEach(name => postTypesForPlatform(name).forEach(item => {
     if(!list.some(x => x.value === item.value && x.width === item.width && x.height === item.height)) list.push(item);
   }));
   return list;
@@ -582,7 +632,15 @@ function renderCampaignTypes(){
     </article>`;
   }).join('');
 }
-function renderPlatforms(){ renderNameList('platformsList', platforms, 'data-edit-platform', 'data-delete-platform', 'لا توجد منصات حتى الآن.'); }
+function renderPlatforms(){
+  const list = document.getElementById('platformsList'); if(!list) return;
+  if(!platforms.length){ list.innerHTML = '<div class="empty-state">لا توجد منصات حتى الآن.</div>'; return; }
+  list.innerHTML = platforms.map(item => {
+    const types = postTypesForPlatform(item.name);
+    const chips = types.length ? types.map(type => `<span class="chip">${escapeHtml(type.label)}${type.width && type.height ? ` <small>${escapeHtml(type.width)}×${escapeHtml(type.height)}</small>` : ''}</span>`).join('') : '<span class="chip"><small>لا توجد أنواع نشر</small></span>';
+    return `<article class="department-item"><div class="item-head"><h3>${escapeHtml(item.name)}</h3><div class="item-actions"><button type="button" class="mini-btn" data-edit-platform="${escapeHtml(item.id)}">تعديل</button><button type="button" class="mini-btn danger" data-delete-platform="${escapeHtml(item.id)}">حذف</button></div></div><div class="chip-list">${chips}</div></article>`;
+  }).join('');
+}
 function renderOrderStatuses(){ renderNameList('orderStatusesList', orderStatuses, 'data-edit-order-status', 'data-delete-order-status', 'لا توجد حالات طلب حتى الآن.'); }
 function renderCampaignCodes(){
   const list = document.getElementById('campaignCodesList'); if(!list) return;
@@ -2878,6 +2936,17 @@ function updateStructureAssignSummary(rowEl){
 function structureDistributionPlatformControls(rowIndex){
   return `<div class="structure-assign-compact"><input type="hidden" class="js-structure-publish-meta" value=""><button class="btn btn-light structure-open-popup-btn" type="button" data-open-structure-distribution-popup="${rowIndex}">اختيار اليوزرات والمنصات</button><div class="structure-assign-summary js-structure-assign-summary">لم يتم تجهيز التوزيع</div></div>`;
 }
+function refreshStructurePlatformRow(row){
+  if(!row) return;
+  const checkbox = row.querySelector('.js-structure-popup-platform');
+  const select = row.querySelector('.js-structure-platform-type-select');
+  const checked = !!checkbox?.checked;
+  row.classList.toggle('is-selected', checked);
+  if(select){
+    select.disabled = !checked;
+    if(!checked) select.value = '';
+  }
+}
 function collectStructurePopupMeta(popup){
   const assignees = uniqueList([...popup.querySelectorAll('.js-structure-assignee-checkbox:checked')].map(input => input.value).filter(Boolean));
   const publishDate = normalizeText(popup.querySelector('.js-structure-publish-date')?.value || '');
@@ -3903,7 +3972,20 @@ function bindDepartments(){
       event.target.reset(); document.getElementById('campaignTypePrefix').value = 'MZJ'; resetForm(['campaignTypeEditId']); showMessage('campaignTypeMessage', 'تم حفظ نوع الحملة والكود.');
     }catch(error){ console.error(error); showMessage('campaignTypeMessage', 'تعذر حفظ نوع الحملة والكود.'); }
   });
-  bindNamedForm('platformForm', 'platformEditId', 'platformName', 'platformMessage', window.MZJ_PLATFORMS_COLLECTION, 'تم حفظ المنصة.');
+  document.getElementById('platformForm')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const id = document.getElementById('platformEditId')?.value;
+    const name = normalizeText(document.getElementById('platformName')?.value);
+    const postTypes = parsePlatformPostTypesText(document.getElementById('platformPostTypes')?.value || '');
+    if(!name) return;
+    if(!mainDb){ showMessage('platformMessage', 'اتصال Firebase غير متاح.'); return; }
+    try{
+      const payload = { name, postTypes, updatedAt: serverTime() };
+      if(id) await safeCollection(window.MZJ_PLATFORMS_COLLECTION).doc(id).update(payload);
+      else await safeCollection(window.MZJ_PLATFORMS_COLLECTION).add({ ...payload, createdAt: serverTime() });
+      event.target.reset(); resetForm(['platformEditId']); showMessage('platformMessage', 'تم حفظ المنصة.');
+    }catch(error){ console.error(error); showMessage('platformMessage', 'تعذر حفظ المنصة.'); }
+  });
   bindNamedForm('orderStatusForm', 'orderStatusEditId', 'orderStatusName', 'orderStatusMessage', window.MZJ_ORDER_STATUSES_COLLECTION, 'تم حفظ حالة الطلب.');
   document.getElementById('contentSectionForm')?.addEventListener('submit', async event => {
     event.preventDefault(); const id = document.getElementById('contentSectionEditId')?.value; const name = normalizeText(document.getElementById('contentSectionName')?.value); const types = uniqueList((document.getElementById('contentSectionTypes')?.value || '').split('\n')); if(!name) return; if(!mainDb){ showMessage('contentSectionMessage', 'اتصال Firebase غير متاح.'); return; }
@@ -3922,7 +4004,7 @@ function bindDepartments(){
     const ccDel = event.target.closest('[data-delete-campaign-code]'); if(ccDel){ await deleteDoc('campaignCode', ccDel.dataset.deleteCampaignCode); return; }
     const ctEdit = event.target.closest('[data-edit-campaign-type]'); if(ctEdit){ const item = campaignTypes.find(x => x.id === ctEdit.dataset.editCampaignType); if(item){ document.getElementById('campaignTypeEditId').value = item.id; document.getElementById('campaignTypeName').value = item.name || ''; document.getElementById('campaignTypeCode').value = item.code || ''; document.getElementById('campaignTypePrefix').value = item.prefix || 'MZJ'; } return; }
     const ctDel = event.target.closest('[data-delete-campaign-type]'); if(ctDel){ await deleteDoc('campaignType', ctDel.dataset.deleteCampaignType); return; }
-    const pEdit = event.target.closest('[data-edit-platform]'); if(pEdit){ const item = platforms.find(x => x.id === pEdit.dataset.editPlatform); if(item){ document.getElementById('platformEditId').value = item.id; document.getElementById('platformName').value = item.name; } return; }
+    const pEdit = event.target.closest('[data-edit-platform]'); if(pEdit){ const item = platforms.find(x => x.id === pEdit.dataset.editPlatform); if(item){ document.getElementById('platformEditId').value = item.id; document.getElementById('platformName').value = item.name; document.getElementById('platformPostTypes').value = platformPostTypesText(item.postTypes?.length ? item.postTypes : defaultPostTypesForPlatform(item.name)); } return; }
     const pDel = event.target.closest('[data-delete-platform]'); if(pDel){ await deleteDoc('platform', pDel.dataset.deletePlatform); return; }
     const osEdit = event.target.closest('[data-edit-order-status]'); if(osEdit){ const item = orderStatuses.find(x => x.id === osEdit.dataset.editOrderStatus); if(item){ document.getElementById('orderStatusEditId').value = item.id; document.getElementById('orderStatusName').value = item.name; } return; }
     const osDel = event.target.closest('[data-delete-order-status]'); if(osDel){ await deleteDoc('orderStatus', osDel.dataset.deleteOrderStatus); return; }
