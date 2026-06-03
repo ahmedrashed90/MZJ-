@@ -2058,3 +2058,23 @@ body:has(.publish-composer-modal.show) .topbar{
 .settings-grid-mini{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 @media (max-width:720px){.settings-grid-mini{grid-template-columns:1fr}}
 .social-channel-icon.youtube{background:linear-gradient(135deg,#ff0000,#b91c1c);}
+
+/* v56: multiple users per structure distribution row */
+.structure-assign-row{
+  grid-template-columns:minmax(220px,1fr) minmax(320px,1.4fr) !important;
+  align-items:start !important;
+}
+.structure-user-checkbox-grid.task-user-checkbox-grid{
+  min-height:96px !important;
+  max-height:190px !important;
+  grid-template-columns:repeat(2,minmax(130px,1fr)) !important;
+  padding:10px !important;
+}
+.structure-user-check-card.task-user-check-card{
+  min-height:36px !important;
+  padding:8px 10px !important;
+}
+@media(max-width:900px){
+  .structure-assign-row{grid-template-columns:1fr !important;}
+  .structure-user-checkbox-grid.task-user-checkbox-grid{grid-template-columns:1fr !important;}
+}

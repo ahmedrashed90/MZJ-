@@ -2736,6 +2736,13 @@ function structureRowsTable(rows, notes = []){
     return `<tr class="${rowNotes.length ? 'has-note' : ''}"><td>${escapeHtml(row.taskNo || index + 1)}</td><td>${escapeHtml(row.contentType || '—')}</td><td>${escapeHtml(row.idea || row.contentName || '—')}</td><td>${escapeHtml(row.description || '—')}</td><td>${escapeHtml(row.writerRequest || '—')}</td><td>${rowNotes.map(n => `<div class="structure-note-chip">${escapeHtml(n.note || '')}</div>`).join('') || '—'}</td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
+function structureAssigneeCheckboxes(rowIndex){
+  if(!Array.isArray(users) || !users.length) return '<div class="multi-empty task-user-empty">لا توجد يوزرات</div>';
+  return `<div class="js-structure-assignee structure-user-checkbox-grid task-user-checkbox-grid" data-structure-user-grid="${rowIndex}">${users.map(u => {
+    const value = u.id || u.uid || u.email || u.name || '';
+    return `<label class="task-user-check-card structure-user-check-card"><input type="checkbox" class="js-structure-assignee-checkbox" value="${escapeHtml(value)}" data-name="${escapeHtml(userName(u))}"> <span>${escapeHtml(userName(u))}</span></label>`;
+  }).join('')}</div>`;
+}
 function structureAssigneeTable(task){
   const structure = taskStructure(task);
   const rows = structureDistributionRows(structure);
@@ -2743,7 +2750,7 @@ function structureAssigneeTable(task){
     const reloadBtn = structure.fileData ? `<button class="btn btn-light" type="button" data-reload-structure-sheet="${escapeHtml(task.id)}">إعادة قراءة الشيت واستخراج الصفوف</button>` : '';
     return `<div class="empty-state mini-empty">لا توجد صفوف لتوزيعها.${reloadBtn}</div>`;
   }
-  return `<div class="structure-distribution"><h4>توزيع تاسكات الهيكل</h4><div class="structure-assign-list">${rows.map((row, index) => `<div class="structure-assign-row" data-structure-row="${index}"><div><strong>${escapeHtml(structureContentTaskLabel(row, 'نوع محتوى'))}</strong><p>${escapeHtml(row.idea || row.contentName || row.description || row.goal || '')}</p></div><select class="js-structure-assignee"><option value="">اختر اليوزر</option>${users.map(u => `<option value="${escapeHtml(u.id || u.uid || u.email || u.name)}">${escapeHtml(userName(u))}</option>`).join('')}</select></div>`).join('')}</div><button class="btn btn-primary" type="button" data-save-structure-assignees="${escapeHtml(task.id)}">حفظ توزيع تاسكات الهيكل</button></div>`;
+  return `<div class="structure-distribution"><h4>توزيع تاسكات الهيكل</h4><div class="structure-assign-list">${rows.map((row, index) => `<div class="structure-assign-row" data-structure-row="${index}"><div><strong>${escapeHtml(structureContentTaskLabel(row, 'نوع محتوى'))}</strong><p>${escapeHtml(row.idea || row.contentName || row.description || row.goal || '')}</p></div>${structureAssigneeCheckboxes(index)}</div>`).join('')}</div><button class="btn btn-primary" type="button" data-save-structure-assignees="${escapeHtml(task.id)}">حفظ توزيع تاسكات الهيكل</button></div>`;
 }
 function renderStructureSection(task){
   if(!isCampaignStructureTask(task)) return '';
@@ -2968,7 +2975,7 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
   const taskLabel = structureContentTaskLabel(row, taskType);
   const searchKeys = uniqueList([resolvedUserId, user.id, user.uid, user.email, user.emailLower, resolvedUserName, user.name, user.displayName, user.username].filter(Boolean));
   return normalizeCampaignTask({
-    id: `${campaign.id}-structure-${Date.now()}-${rowIndex + 1}`,
+    id: `${campaign.id}-structure-${Date.now()}-${rowIndex + 1}-${identityClean(resolvedUserId || assigneeId).replace(/[^a-zA-Z0-9_-]/g,'').slice(0,24) || Math.random().toString(36).slice(2)}`,
     campaignId: campaign.id,
     campaignName: campaign.campaignName || campaign.name || '',
     campaignCode: campaign.campaignCode || campaign.campaign_code || '',
@@ -3022,9 +3029,12 @@ async function saveStructureDistribution(taskId){
   const additions = [];
   rows.forEach((rowEl) => {
     const index = Number(rowEl.dataset.structureRow || 0);
-    const assignee = rowEl.querySelector('.js-structure-assignee')?.value || '';
     const sourceRow = structureDistributionRows(taskStructure(task))[index];
-    if(assignee && sourceRow) additions.push(buildStructureTaskFromRow(campaign, task, sourceRow, assignee, index));
+    if(!sourceRow) return;
+    const checked = [...rowEl.querySelectorAll('.js-structure-assignee-checkbox:checked')].map(input => input.value).filter(Boolean);
+    const legacyAssignee = rowEl.querySelector('select.js-structure-assignee')?.value || '';
+    const assignees = uniqueList(checked.length ? checked : [legacyAssignee].filter(Boolean));
+    assignees.forEach((assignee) => additions.push(buildStructureTaskFromRow(campaign, task, sourceRow, assignee, index)));
   });
   if(!additions.length) return showToast('اختار يوزر واحد على الأقل.');
   const nextTasks = (campaign.departmentTasks || []).map(item => item.id === task.id ? { ...item, structure: { ...taskStructure(item), status: 'distributed', distributedAt: new Date().toISOString() } } : item).concat(additions);
