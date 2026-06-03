@@ -452,6 +452,44 @@ function parsePlatformPostTypesText(text){
 function platformPostTypesText(list){
   return normalizePlatformPostTypes(list).map(item => [item.label, item.width || '', item.height || ''].join(' | ')).join('\n');
 }
+function platformPostTypeRowHtml(item = {}){
+  const normalized = normalizePostTypeItem(item) || { label:'', width:'', height:'' };
+  return `<div class="platform-type-row">
+    <input class="control platform-type-label" type="text" placeholder="مثال: ريل" value="${escapeHtml(normalized.label || '')}" />
+    <input class="control platform-type-width" type="number" min="1" inputmode="numeric" placeholder="1080" value="${escapeHtml(normalized.width || '')}" />
+    <input class="control platform-type-height" type="number" min="1" inputmode="numeric" placeholder="1920" value="${escapeHtml(normalized.height || '')}" />
+    <button class="mini-btn danger" type="button" data-remove-platform-post-type>حذف</button>
+  </div>`;
+}
+function syncPlatformPostTypesTextarea(){
+  const textarea = document.getElementById('platformPostTypes');
+  if(textarea) textarea.value = platformPostTypesText(getPlatformPostTypesFromRows());
+}
+function getPlatformPostTypesFromRows(){
+  const rows = [...document.querySelectorAll('#platformPostTypesRows .platform-type-row')];
+  return normalizePlatformPostTypes(rows.map(row => ({
+    label: row.querySelector('.platform-type-label')?.value || '',
+    width: row.querySelector('.platform-type-width')?.value || '',
+    height: row.querySelector('.platform-type-height')?.value || ''
+  })));
+}
+function setPlatformPostTypesRows(list = []){
+  const box = document.getElementById('platformPostTypesRows');
+  if(!box) return;
+  const items = normalizePlatformPostTypes(list);
+  box.innerHTML = (items.length ? items : [{}]).map(platformPostTypeRowHtml).join('');
+  syncPlatformPostTypesTextarea();
+}
+function addPlatformPostTypeRow(item = {}){
+  const box = document.getElementById('platformPostTypesRows');
+  if(!box) return;
+  box.insertAdjacentHTML('beforeend', platformPostTypeRowHtml(item));
+  syncPlatformPostTypesTextarea();
+}
+function ensurePlatformPostTypesUi(){
+  const box = document.getElementById('platformPostTypesRows');
+  if(box && !box.children.length) setPlatformPostTypesRows([]);
+}
 function normalizePublishPlatformName(value){
   const text = normalizeText(value).toLowerCase();
   if(text.includes('facebook') || text.includes('فيس')) return 'facebook';
@@ -3976,7 +4014,7 @@ function bindDepartments(){
     event.preventDefault();
     const id = document.getElementById('platformEditId')?.value;
     const name = normalizeText(document.getElementById('platformName')?.value);
-    const postTypes = parsePlatformPostTypesText(document.getElementById('platformPostTypes')?.value || '');
+    const postTypes = getPlatformPostTypesFromRows();
     if(!name) return;
     if(!mainDb){ showMessage('platformMessage', 'اتصال Firebase غير متاح.'); return; }
     try{
@@ -3985,6 +4023,18 @@ function bindDepartments(){
       else await safeCollection(window.MZJ_PLATFORMS_COLLECTION).add({ ...payload, createdAt: serverTime() });
       event.target.reset(); resetForm(['platformEditId']); showMessage('platformMessage', 'تم حفظ المنصة.');
     }catch(error){ console.error(error); showMessage('platformMessage', 'تعذر حفظ المنصة.'); }
+  });
+  ensurePlatformPostTypesUi();
+  document.getElementById('addPlatformPostType')?.addEventListener('click', () => addPlatformPostTypeRow());
+  document.getElementById('platformPostTypesRows')?.addEventListener('input', syncPlatformPostTypesTextarea);
+  document.getElementById('platformPostTypesRows')?.addEventListener('click', event => {
+    const remove = event.target.closest('[data-remove-platform-post-type]');
+    if(!remove) return;
+    const row = remove.closest('.platform-type-row');
+    row?.remove();
+    const box = document.getElementById('platformPostTypesRows');
+    if(box && !box.children.length) addPlatformPostTypeRow();
+    syncPlatformPostTypesTextarea();
   });
   bindNamedForm('orderStatusForm', 'orderStatusEditId', 'orderStatusName', 'orderStatusMessage', window.MZJ_ORDER_STATUSES_COLLECTION, 'تم حفظ حالة الطلب.');
   document.getElementById('contentSectionForm')?.addEventListener('submit', async event => {
@@ -4004,7 +4054,7 @@ function bindDepartments(){
     const ccDel = event.target.closest('[data-delete-campaign-code]'); if(ccDel){ await deleteDoc('campaignCode', ccDel.dataset.deleteCampaignCode); return; }
     const ctEdit = event.target.closest('[data-edit-campaign-type]'); if(ctEdit){ const item = campaignTypes.find(x => x.id === ctEdit.dataset.editCampaignType); if(item){ document.getElementById('campaignTypeEditId').value = item.id; document.getElementById('campaignTypeName').value = item.name || ''; document.getElementById('campaignTypeCode').value = item.code || ''; document.getElementById('campaignTypePrefix').value = item.prefix || 'MZJ'; } return; }
     const ctDel = event.target.closest('[data-delete-campaign-type]'); if(ctDel){ await deleteDoc('campaignType', ctDel.dataset.deleteCampaignType); return; }
-    const pEdit = event.target.closest('[data-edit-platform]'); if(pEdit){ const item = platforms.find(x => x.id === pEdit.dataset.editPlatform); if(item){ document.getElementById('platformEditId').value = item.id; document.getElementById('platformName').value = item.name; document.getElementById('platformPostTypes').value = platformPostTypesText(item.postTypes?.length ? item.postTypes : defaultPostTypesForPlatform(item.name)); } return; }
+    const pEdit = event.target.closest('[data-edit-platform]'); if(pEdit){ const item = platforms.find(x => x.id === pEdit.dataset.editPlatform); if(item){ document.getElementById('platformEditId').value = item.id; document.getElementById('platformName').value = item.name; setPlatformPostTypesRows(item.postTypes?.length ? item.postTypes : defaultPostTypesForPlatform(item.name)); } return; }
     const pDel = event.target.closest('[data-delete-platform]'); if(pDel){ await deleteDoc('platform', pDel.dataset.deletePlatform); return; }
     const osEdit = event.target.closest('[data-edit-order-status]'); if(osEdit){ const item = orderStatuses.find(x => x.id === osEdit.dataset.editOrderStatus); if(item){ document.getElementById('orderStatusEditId').value = item.id; document.getElementById('orderStatusName').value = item.name; } return; }
     const osDel = event.target.closest('[data-delete-order-status]'); if(osDel){ await deleteDoc('orderStatus', osDel.dataset.deleteOrderStatus); return; }
@@ -4015,7 +4065,7 @@ function bindDepartments(){
   document.getElementById('cancelCreativeEdit')?.addEventListener('click', () => { document.getElementById('creativeForm')?.reset(); resetForm(['creativeEditId']); });
   document.getElementById('cancelTaskTypeEdit')?.addEventListener('click', () => { document.getElementById('taskTypeForm')?.reset(); resetForm(['taskTypeEditId']); });
   document.getElementById('cancelCampaignTypeEdit')?.addEventListener('click', () => { document.getElementById('campaignTypeForm')?.reset(); document.getElementById('campaignTypePrefix').value = 'MZJ'; resetForm(['campaignTypeEditId']); });
-  document.getElementById('cancelPlatformEdit')?.addEventListener('click', () => { document.getElementById('platformForm')?.reset(); resetForm(['platformEditId']); });
+  document.getElementById('cancelPlatformEdit')?.addEventListener('click', () => { document.getElementById('platformForm')?.reset(); resetForm(['platformEditId']); setPlatformPostTypesRows([]); });
   document.getElementById('cancelOrderStatusEdit')?.addEventListener('click', () => { document.getElementById('orderStatusForm')?.reset(); resetForm(['orderStatusEditId']); });
   document.getElementById('cancelContentSectionEdit')?.addEventListener('click', () => { document.getElementById('contentSectionForm')?.reset(); resetForm(['contentSectionEditId']); });
   document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignTypes(); renderOrderStatuses(); renderContentSections(); });

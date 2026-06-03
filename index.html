@@ -346,7 +346,15 @@
               <form class="form" id="platformForm">
                 <input type="hidden" id="platformEditId" />
                 <label class="field"><span>اسم المنصة</span><input type="text" id="platformName" required /></label>
-                <label class="field"><span>أنواع النشر والأبعاد</span><textarea id="platformPostTypes" placeholder="اكتب كل نوع في سطر: نوع النشر | العرض | الارتفاع"></textarea></label>
+                <div class="platform-types-builder">
+                  <div class="builder-head">
+                    <div><strong>أنواع النشر والأبعاد</strong><small>كل نوع في صف مستقل</small></div>
+                    <button class="mini-btn" type="button" id="addPlatformPostType">+ إضافة نوع</button>
+                  </div>
+                  <div class="platform-types-labels"><span>نوع النشر</span><span>العرض</span><span>الارتفاع</span><span></span></div>
+                  <div id="platformPostTypesRows" class="platform-types-rows"></div>
+                  <textarea id="platformPostTypes" hidden></textarea>
+                </div>
                 <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ المنصة</button><button class="btn btn-light" type="button" id="cancelPlatformEdit">إلغاء</button></div>
                 <p class="form-message" id="platformMessage"></p>
               </form>
