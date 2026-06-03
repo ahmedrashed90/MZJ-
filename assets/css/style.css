@@ -2137,3 +2137,63 @@ body:has(.publish-composer-modal.show) .topbar{
   padding:8px 10px !important;
   border-radius:12px !important;
 }
+
+/* v59: structure distribution publish data + compact controls */
+.structure-assign-row{
+  grid-template-columns:minmax(240px,1fr) minmax(360px,1.6fr) !important;
+}
+.structure-assign-controls{
+  display:grid;
+  gap:10px;
+}
+.structure-publish-fields{
+  display:grid;
+  gap:8px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:10px;
+  background:#fffaf6;
+}
+.structure-publish-platforms>span{
+  display:block;
+  font-size:12px;
+  font-weight:900;
+  color:var(--muted);
+  margin-bottom:6px;
+}
+.structure-platform-checks{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(120px,1fr));
+  gap:6px;
+  max-height:130px;
+  overflow:auto;
+}
+.structure-platform-checks .platform-check-card{
+  min-height:34px;
+  padding:7px 9px;
+  border-radius:12px;
+  background:#fff;
+}
+.structure-publish-small-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.structure-publish-small-grid select,
+.structure-publish-small-grid input,
+.structure-publish-fields textarea{
+  width:100%;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#fff;
+  padding:10px 12px;
+  font-weight:800;
+}
+.structure-publish-fields textarea{
+  resize:vertical;
+  min-height:58px;
+  font-size:12px;
+}
+@media(max-width:900px){
+  .structure-publish-small-grid,.structure-platform-checks{grid-template-columns:1fr;}
+}

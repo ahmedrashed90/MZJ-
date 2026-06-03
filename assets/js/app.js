@@ -117,6 +117,7 @@ let publishPrepFirestoreReady = false;
 let publishPrepUnsubscribe = null;
 let publishLogsCache = [];
 let publishLogsUnsubscribe = null;
+let publishPrepSearchQuery = '';
 
 function isLoggedIn(){ return localStorage.getItem('mzj_logged_in') === '1'; }
 function getRoute(){ return (location.hash || '#dashboard').replace('#',''); }
@@ -2845,6 +2846,36 @@ function filterStructureAssigneePicker(input){
     card.hidden = !!q && !name.includes(q);
   });
 }
+function structureDistributionPlatformControls(rowIndex){
+  return `<div class="structure-publish-fields" data-structure-publish-fields="${rowIndex}">
+    <div class="structure-publish-platforms"><span>المنصات</span><div class="publish-platform-checks structure-platform-checks">${platformCheckboxList([])}</div></div>
+    <div class="structure-publish-small-grid">
+      ${publishPostTypeSelectHtml([], '')}
+      <input type="date" class="js-structure-publish-date" aria-label="تاريخ النشر">
+    </div>
+    <textarea class="js-structure-caption" rows="2" placeholder="الكابشن"></textarea>
+    <textarea class="js-structure-hashtags" rows="2" placeholder="الهاشتاج"></textarea>
+  </div>`;
+}
+function selectedStructurePublishMeta(rowEl){
+  const platforms = selectedPlatformValues(rowEl);
+  const selectedType = selectedPublishPostType(rowEl);
+  const publishDate = normalizeText(rowEl.querySelector('.js-structure-publish-date')?.value || '');
+  const caption = normalizeText(rowEl.querySelector('.js-structure-caption')?.value || '');
+  const hashtags = normalizeText(rowEl.querySelector('.js-structure-hashtags')?.value || '');
+  return {
+    platforms,
+    platform: platforms.join('، '),
+    postType: selectedType.value,
+    postTypeLabel: selectedType.label,
+    requiredDimensions: selectedType.value ? { width: selectedType.width, height: selectedType.height } : null,
+    publishDate,
+    date: publishDate,
+    caption,
+    hashtags,
+    hashtagsText: hashtags
+  };
+}
 function structureAssigneeTable(task){
   const structure = taskStructure(task);
   const rows = structureDistributionRows(structure);
@@ -2852,7 +2883,7 @@ function structureAssigneeTable(task){
     const reloadBtn = structure.fileData ? `<button class="btn btn-light" type="button" data-reload-structure-sheet="${escapeHtml(task.id)}">إعادة قراءة الشيت واستخراج الصفوف</button>` : '';
     return `<div class="empty-state mini-empty">لا توجد صفوف لتوزيعها.${reloadBtn}</div>`;
   }
-  return `<div class="structure-distribution"><h4>توزيع تاسكات الهيكل</h4><div class="structure-assign-list">${rows.map((row, index) => `<div class="structure-assign-row" data-structure-row="${index}"><div><strong>${escapeHtml(structureContentTaskLabel(row, 'نوع محتوى'))}</strong><p>${escapeHtml(row.idea || row.contentName || row.description || row.goal || '')}</p></div>${structureAssigneeCheckboxes(index)}</div>`).join('')}</div><button class="btn btn-primary" type="button" data-save-structure-assignees="${escapeHtml(task.id)}">حفظ توزيع تاسكات الهيكل</button></div>`;
+  return `<div class="structure-distribution"><h4>توزيع تاسكات الهيكل</h4><div class="structure-assign-list">${rows.map((row, index) => `<div class="structure-assign-row" data-structure-row="${index}"><div class="structure-assign-info"><strong>${escapeHtml(structureContentTaskLabel(row, 'نوع محتوى'))}</strong><p>${escapeHtml(row.idea || row.contentName || row.description || row.goal || '')}</p></div><div class="structure-assign-controls">${structureAssigneeCheckboxes(index)}${structureDistributionPlatformControls(index)}</div></div>`).join('')}</div><button class="btn btn-primary" type="button" data-save-structure-assignees="${escapeHtml(task.id)}">حفظ توزيع تاسكات الهيكل</button></div>`;
 }
 function renderStructureSection(task){
   if(!isCampaignStructureTask(task)) return '';
@@ -3066,7 +3097,7 @@ function buildDepartmentTasks(campaignId, payload){
   });
 }
 
-function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowIndex){
+function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowIndex, publishMeta = {}){
   const user = findUserByAnyIdentity([assigneeId]) || {};
   const resolvedUserId = user.id || user.uid || assigneeId || '';
   const resolvedUserName = userName(user) || assigneeId || 'غير محدد';
@@ -3092,6 +3123,16 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
     structureGenerated: true,
     parentStructureTaskId: parentTask.id,
     structureRow: row,
+    platforms: publishMeta.platforms || [],
+    platform: publishMeta.platform || '',
+    postType: publishMeta.postType || '',
+    postTypeLabel: publishMeta.postTypeLabel || '',
+    requiredDimensions: publishMeta.requiredDimensions || null,
+    publishDate: publishMeta.publishDate || '',
+    date: publishMeta.date || publishMeta.publishDate || '',
+    caption: publishMeta.caption || '',
+    hashtags: publishMeta.hashtags || publishMeta.hashtagsText || '',
+    hashtagsText: publishMeta.hashtagsText || publishMeta.hashtags || '',
     selectedCar: '',
     selectedCars: [],
     userId: resolvedUserId,
@@ -3136,7 +3177,8 @@ async function saveStructureDistribution(taskId){
     const checked = [...rowEl.querySelectorAll('.js-structure-assignee-checkbox:checked')].map(input => input.value).filter(Boolean);
     const legacyAssignee = rowEl.querySelector('select.js-structure-assignee')?.value || '';
     const assignees = uniqueList(checked.length ? checked : [legacyAssignee].filter(Boolean));
-    assignees.forEach((assignee) => additions.push(buildStructureTaskFromRow(campaign, task, sourceRow, assignee, index)));
+    const publishMeta = selectedStructurePublishMeta(rowEl);
+    assignees.forEach((assignee) => additions.push(buildStructureTaskFromRow(campaign, task, sourceRow, assignee, index, publishMeta)));
   });
   if(!additions.length) return showToast('اختار يوزر واحد على الأقل.');
   const nextTasks = (campaign.departmentTasks || []).map(item => item.id === task.id ? { ...item, structure: { ...taskStructure(item), status: 'distributed', distributedAt: new Date().toISOString() } } : item).concat(additions);
@@ -3695,6 +3737,7 @@ function bindCampaignBuilder(){
   document.addEventListener('input', event => {
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')) updateBudgetGrandTotal();
     if(event.target.matches('.structure-assignee-search')) filterStructureAssigneePicker(event.target);
+    if(event.target === publishPrepGlobalSearchInput() && getRoute() === 'publish-prep') renderPublishPrepPage();
     if(event.target.closest('#stockAdvancedFilters')) renderStock();
   });
   document.addEventListener('focusin', event => {
@@ -3718,7 +3761,7 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.closest('#stockAdvancedFilters')){ renderStock(); return; }
-    if(event.target.matches('.js-platform-checkbox')){ updatePublishPostTypeOptions(event.target.closest('.publish-day-card')); return; }
+    if(event.target.matches('.js-platform-checkbox')){ updatePublishPostTypeOptions(event.target.closest('.publish-day-card') || event.target.closest('.structure-assign-row')); return; }
     if(event.target.matches('.js-publish-post-type-select')){ return; }
     if(event.target.matches('.js-creative-select,.js-creative-check,.js-task-type,.js-task-required-date')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
@@ -5440,9 +5483,39 @@ function enrichPrepTaskFromSchedule(base, campaign, rawTask){
     notes: base.notes || row.note || row.notes || ''
   };
 }
+function publishPrepGlobalSearchInput(){
+  return document.querySelector('.topbar .search input[type="search"]') || document.querySelector('.search input[type="search"]');
+}
+function syncPublishPrepSearchQuery(){
+  const input = publishPrepGlobalSearchInput();
+  publishPrepSearchQuery = normalizeText(input?.value || '');
+}
+function publishPrepSearchText(task, submission = {}){
+  const row = task.raw?.structureRow || task.structureRow || {};
+  return identityClean([
+    task.id, task.title, task.campaignName, task.type, task.requiredFile, task.sourceLabel,
+    task.taskNo, task.structureTaskNo, task.raw?.taskNo, task.raw?.structureTaskNo,
+    row.taskNo, row.structureTaskNo, row.idea, row.description, row.message, row.cta,
+    Array.isArray(task.platforms) ? task.platforms.join(' ') : task.platforms,
+    task.postTypeLabel, task.publishDate, publishPrepEffectiveCaption?.(task, submission), publishPrepEffectiveHashtags?.(task, submission)
+  ].filter(Boolean).join(' '));
+}
+function isCampaignContentWritingPrepTask(task){
+  if(task?.raw?.structureGenerated || task?.raw?.source === 'campaign-structure-distribution') return false;
+  const text = identityClean([
+    task.title, task.name, task.taskName, task.taskType, task.requiredFile, task.contentSectionName,
+    task.assignedDepartmentName, task.departmentRole, task.source, task.raw?.taskType, task.raw?.title
+  ].filter(Boolean).join(' '));
+  return text.includes(identityClean('كتابة محتوى حملة')) || text.includes('campaigncontentwriting') || text.includes('contentwritingcampaign');
+}
+function publishPrepTaskMatchesSearch(task, submission = {}){
+  const q = identityClean(publishPrepSearchQuery || '');
+  if(!q) return true;
+  return publishPrepSearchText(task, submission).includes(q);
+}
 function publishPrepTasksFromExistingTasks(){
   const visible = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser() : campaignTasks;
-  return (visible || []).filter(task => taskAssignedToCurrentUser(task)).map(task => {
+  return (visible || []).filter(task => taskAssignedToCurrentUser(task) && !isCampaignContentWritingPrepTask(task)).map(task => {
     const campaign = campaignForPrepTask(task) || {};
     const base = {
       id: `task_${task.id || task.taskId || task.code || Math.random().toString(36).slice(2)}`,
@@ -5677,9 +5750,11 @@ function publishPrepKanbanColumn(task, submission){
 function renderPublishPrepPage(){
   const list = document.getElementById('publishPrepList');
   if(!list) return;
+  syncPublishPrepSearchQuery();
   const tasks = getPublishingPrepTasks();
   const submissions = getPublishPrepSubmissions();
-  const enriched = tasks.map(task => ({ task, submission: submissions[task.id] || {} }));
+  const enrichedAll = tasks.map(task => ({ task, submission: submissions[task.id] || {} }));
+  const enriched = enrichedAll.filter(({ task, submission }) => publishPrepTaskMatchesSearch(task, submission));
   const stats = document.getElementById('publishPrepStats');
   if(stats){
     const ready = enriched.filter(x => x.submission?.readyForPublish).length;
@@ -5692,7 +5767,7 @@ function renderPublishPrepPage(){
       <article class="publish-center-stat"><span>يحتاج تعديل</span><strong>${changes}</strong></article>`;
   }
   if(!enriched.length){
-    list.innerHTML = `<div class="empty-state">لا توجد تاسكات تجهيز نشر مسندة لك حاليًا. عندما يتم توليد تاسكات من الحملة أو الأجندة ستظهر هنا تلقائيًا.</div>`;
+    list.innerHTML = `<div class="empty-state">${publishPrepSearchQuery ? 'لا توجد نتيجة مطابقة للبحث الحالي.' : 'لا توجد تاسكات تجهيز نشر مسندة لك حاليًا. عندما يتم توليد تاسكات من الحملة أو الأجندة ستظهر هنا تلقائيًا.'}</div>`;
     return;
   }
   const columns = [
