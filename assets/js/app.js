@@ -642,6 +642,7 @@ function updatePublishPostTypeOptions(card){
 }
 
 
+// v84 hard fix: refreshDynamicSelects no longer removes platform post-type controls
 // v83 hard fix: جدول النشر - إظهار نوع النشر والأبعاد فور اختيار المنصة بدون الحاجة لتحديث الجدول
 function forceRefreshPublishAgendaPlatformTypes(root = document){
   try{
@@ -749,7 +750,13 @@ function refreshDynamicSelects(){
   document.querySelectorAll('.publish-platform-checks').forEach(box => {
     const card = box.closest('.publish-day-card');
     const selected = selectedPlatformValues(card);
-    box.innerHTML = platformCheckboxList(selected);
+    const publishing = (typeof collectPublishPlatformPublishing === 'function') ? collectPublishPlatformPublishing(card) : [];
+    const platformTypes = {};
+    publishing.forEach(item => { if(item && item.platform) platformTypes[item.platform] = item.postType || ''; });
+    box.innerHTML = (typeof publishPlatformRowsHtml === 'function')
+      ? publishPlatformRowsHtml({ platforms: selected, platformPublishing: publishing, platformTypes })
+      : platformCheckboxList(selected);
+    if(typeof forceRefreshPublishAgendaPlatformTypes === 'function') forceRefreshPublishAgendaPlatformTypes(card || box);
   });
   document.querySelectorAll('.js-funnel-select').forEach(select => { const value = select.value; select.innerHTML = funnelOptions(value); });
   document.querySelectorAll('.js-product-select').forEach(select => { const value = select.value; select.innerHTML = productOptions(value); });
@@ -4149,9 +4156,19 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.closest('#stockAdvancedFilters')){ renderStock(); return; }
     if(event.target.matches('.js-platform-checkbox')){
-      const row = event.target.closest('.publish-platform-type-row');
-      refreshPublishPlatformTypeRow(row);
-      updatePublishPostTypeOptions(event.target.closest('.publish-day-card') || event.target.closest('.structure-assign-row'));
+      const card = event.target.closest('.publish-day-card');
+      let row = event.target.closest('.publish-platform-type-row');
+      if(card && !row){
+        const box = event.target.closest('.publish-platform-checks');
+        const selected = selectedPlatformValues(card);
+        if(box && typeof publishPlatformRowsHtml === 'function'){
+          box.innerHTML = publishPlatformRowsHtml({ platforms: selected });
+          row = [...box.querySelectorAll('.publish-platform-type-row')].find(item => item.querySelector('.js-platform-checkbox')?.value === event.target.value) || null;
+        }
+      }
+      if(row) refreshPublishPlatformTypeRow(row);
+      updatePublishPostTypeOptions(card || event.target.closest('.structure-assign-row'));
+      if(typeof forceRefreshPublishAgendaPlatformTypes === 'function') forceRefreshPublishAgendaPlatformTypes(card || document);
       const select = row?.querySelector('.js-publish-platform-type-select');
       if(event.target.checked && select){
         select.classList.add('platform-type-flash');
