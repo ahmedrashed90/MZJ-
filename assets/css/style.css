@@ -2443,3 +2443,57 @@ body:has(.publish-composer-modal.show) .topbar{
 .publish-platform-type-control.is-visible{display:block!important;}
 .publish-platform-type-select{display:block!important;width:100%!important;min-height:36px!important;height:36px!important;padding:0 10px!important;border:1px solid #c99483!important;border-radius:10px!important;background:#fff!important;color:#3b241f!important;font-size:11.5px!important;font-weight:900!important;opacity:1!important;visibility:visible!important;}
 .publish-platform-type-select:disabled{display:none!important;}
+
+/* v81 - جدول النشر: إظهار أنواع النشر والأبعاد فعلياً تحت كل منصة مختارة */
+.publish-platform-type-list{
+  max-height:390px!important;
+  overflow:auto!important;
+}
+.publish-platform-type-row{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:7px!important;
+  min-height:auto!important;
+}
+.publish-platform-type-row .publish-platform-check-card{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  width:100%!important;
+}
+.publish-platform-type-control{
+  display:none!important;
+  width:100%!important;
+  padding:7px!important;
+  border:1px dashed rgba(128,77,61,.32)!important;
+  border-radius:10px!important;
+  background:#fffaf6!important;
+}
+.publish-platform-type-row.is-selected .publish-platform-type-control,
+.publish-platform-type-row:has(.js-platform-checkbox:checked) .publish-platform-type-control{
+  display:block!important;
+}
+.publish-platform-type-title{
+  display:block!important;
+  margin:0 0 5px!important;
+  font-size:11px!important;
+  font-weight:900!important;
+  color:#7b4a3d!important;
+  text-align:right!important;
+}
+.publish-platform-type-select,
+.publish-platform-type-select:disabled{
+  display:block!important;
+  width:100%!important;
+  min-height:38px!important;
+  height:38px!important;
+  padding:0 10px!important;
+  border:1px solid #c99483!important;
+  border-radius:10px!important;
+  background:#fff!important;
+  color:#3b241f!important;
+  font-size:12px!important;
+  font-weight:900!important;
+  opacity:1!important;
+  visibility:visible!important;
+}

@@ -550,11 +550,15 @@ function publishPostTypeSelectHtml(selectedPlatforms = [], currentValue = ''){
 }
 function publishPlatformTypeOptions(platformName, currentValue = '', checked = false){
   const options = postTypesForPlatform(platformName);
-  const current = options.some(item => item.value === currentValue) ? currentValue : '';
-  const disabled = checked ? '' : ' disabled';
-  const emptyLabel = options.length ? 'اختر نوع النشر' : 'لا توجد أنواع نشر لهذه المنصة';
-  const opts = options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width || ''}" data-height="${item.height || ''}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label || item.name || item.value)}${item.width && item.height ? ` - ${escapeHtml(item.width)}×${escapeHtml(item.height)}` : ''}</option>`).join('');
-  return `<div class="publish-platform-type-control${checked ? ' is-visible' : ''}" data-platform-type-control="${escapeHtml(platformName)}"><select class="js-publish-platform-type-select publish-platform-type-select" data-publish-platform-type-for="${escapeHtml(platformName)}" aria-label="نوع نشر ${escapeHtml(platformName)}"${disabled}><option value="">${emptyLabel}</option>${opts}</select></div>`;
+  const fallbackValue = checked && options.length ? options[0].value : '';
+  const current = options.some(item => item.value === currentValue) ? currentValue : fallbackValue;
+  const emptyLabel = options.length ? 'اختر نوع النشر والأبعاد' : 'لا توجد أنواع نشر لهذه المنصة';
+  const opts = options.map(item => {
+    const label = item.label || item.name || item.value;
+    const dims = item.width && item.height ? ` - ${item.width}×${item.height}` : '';
+    return `<option value="${escapeHtml(item.value)}" data-width="${item.width || ''}" data-height="${item.height || ''}"${current === item.value ? ' selected' : ''}>${escapeHtml(label)}${escapeHtml(dims)}</option>`;
+  }).join('');
+  return `<div class="publish-platform-type-control${checked ? ' is-visible' : ''}" data-platform-type-control="${escapeHtml(platformName)}"><span class="publish-platform-type-title">نوع النشر والأبعاد</span><select class="js-publish-platform-type-select publish-platform-type-select" data-publish-platform-type-for="${escapeHtml(platformName)}" aria-label="نوع نشر ${escapeHtml(platformName)}"><option value="">${emptyLabel}</option>${opts}</select></div>`;
 }
 function publishPlatformRowsHtml(meta = {}){
   const selectedList = Array.isArray(meta.platforms) ? meta.platforms : normalizeMaybeArray(meta.platform || '');
@@ -578,7 +582,7 @@ function refreshPublishPlatformTypeRow(row){
   row.classList.toggle('is-selected', checked);
   if(control) control.classList.toggle('is-visible', checked);
   if(select){
-    select.disabled = !checked;
+    select.disabled = false;
     if(!checked){
       select.value = '';
     }else if(!select.value){
