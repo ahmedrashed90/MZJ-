@@ -573,16 +573,36 @@ function publishPlatformRowsHtml(meta = {}){
     return `<div class="publish-platform-type-row${isChecked ? ' is-selected' : ''}" data-publish-platform-type-row="${escapeHtml(name)}"><label class="platform-check-card publish-platform-check-card"><input type="checkbox" class="js-platform-checkbox" value="${escapeHtml(name)}"${checked}> <span>${escapeHtml(name)}</span></label>${publishPlatformTypeOptions(name, typeMap[name] || '', isChecked)}</div>`;
   }).join('') : '<div class="multi-empty">لا توجد منصات</div>';
 }
+function ensurePublishPlatformTypeControl(row){
+  if(!row) return null;
+  const checkbox = row.querySelector('.js-platform-checkbox');
+  const platformName = checkbox?.value || row.dataset.publishPlatformTypeRow || '';
+  if(!platformName) return row.querySelector('.publish-platform-type-control');
+  let control = row.querySelector('.publish-platform-type-control');
+  if(!control){
+    row.insertAdjacentHTML('beforeend', publishPlatformTypeOptions(platformName, '', !!checkbox?.checked));
+    control = row.querySelector('.publish-platform-type-control');
+  }
+  let select = control?.querySelector('.js-publish-platform-type-select');
+  const options = postTypesForPlatform(platformName);
+  const missingOptions = select && options.length && ![...select.options].some(option => option.value);
+  if(!select || missingOptions){
+    const oldValue = select?.value || '';
+    control.outerHTML = publishPlatformTypeOptions(platformName, oldValue, !!checkbox?.checked);
+    control = row.querySelector('.publish-platform-type-control');
+  }
+  return control;
+}
 function refreshPublishPlatformTypeRow(row){
   if(!row) return;
   const checkbox = row.querySelector('.js-platform-checkbox');
-  const select = row.querySelector('.js-publish-platform-type-select');
-  const control = row.querySelector('.publish-platform-type-control');
   const checked = !!checkbox?.checked;
+  const control = ensurePublishPlatformTypeControl(row);
+  const select = row.querySelector('.js-publish-platform-type-select');
   row.classList.toggle('is-selected', checked);
   if(control) control.classList.toggle('is-visible', checked);
   if(select){
-    select.disabled = false;
+    select.disabled = !checked;
     if(!checked){
       select.value = '';
     }else if(!select.value){
@@ -4066,7 +4086,17 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.closest('#stockAdvancedFilters')){ renderStock(); return; }
-    if(event.target.matches('.js-platform-checkbox')){ refreshPublishPlatformTypeRow(event.target.closest('.publish-platform-type-row')); updatePublishPostTypeOptions(event.target.closest('.publish-day-card') || event.target.closest('.structure-assign-row')); return; }
+    if(event.target.matches('.js-platform-checkbox')){
+      const row = event.target.closest('.publish-platform-type-row');
+      refreshPublishPlatformTypeRow(row);
+      updatePublishPostTypeOptions(event.target.closest('.publish-day-card') || event.target.closest('.structure-assign-row'));
+      const select = row?.querySelector('.js-publish-platform-type-select');
+      if(event.target.checked && select){
+        select.classList.add('platform-type-flash');
+        setTimeout(() => select.classList.remove('platform-type-flash'), 650);
+      }
+      return;
+    }
     if(event.target.matches('.js-publish-platform-type-select,.js-publish-post-type-select')){ return; }
     if(event.target.matches('.js-creative-select,.js-creative-check,.js-task-type,.js-task-required-date')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });

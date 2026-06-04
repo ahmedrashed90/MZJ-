@@ -2497,3 +2497,19 @@ body:has(.publish-composer-modal.show) .topbar{
   opacity:1!important;
   visibility:visible!important;
 }
+
+
+/* v82 - جدول النشر: إظهار نوع النشر فور اختيار المنصة بدون تحديث الجدول */
+.publish-platform-type-row.is-selected .publish-platform-type-control,
+.publish-platform-type-row:has(.js-platform-checkbox:checked) .publish-platform-type-control,
+.publish-platform-type-control.is-visible{
+  display:block!important;
+}
+.publish-platform-type-row.is-selected .publish-platform-type-select,
+.publish-platform-type-row:has(.js-platform-checkbox:checked) .publish-platform-type-select{
+  display:block!important;
+}
+.publish-platform-type-select.platform-type-flash{
+  outline:2px solid #8a4f3f!important;
+  box-shadow:0 0 0 4px rgba(138,79,63,.16)!important;
+}
