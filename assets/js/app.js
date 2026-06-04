@@ -392,6 +392,11 @@ function platformCheckboxList(selected = []){
   return platforms.length ? platforms.map(item => `<label class="platform-check-card"><input type="checkbox" class="js-platform-checkbox" value="${escapeHtml(item.name)}"${chosen.includes(item.name) ? ' checked' : ''}> <span>${escapeHtml(item.name)}</span></label>`).join('') : '<div class="multi-empty">لا توجد منصات</div>';
 }
 function selectedPlatformValues(card){
+  const jsonInput = card?.querySelector('.js-publish-platform-publishing-json');
+  const saved = safeJsonParse(jsonInput?.value || '', []);
+  if(Array.isArray(saved) && saved.length){
+    return uniqueList(saved.map(item => item?.platform || '').filter(Boolean));
+  }
   return [...(card?.querySelectorAll('.js-platform-checkbox:checked') || [])].map(input => input.value).filter(Boolean);
 }
 
@@ -612,6 +617,16 @@ function refreshPublishPlatformTypeRow(row){
   }
 }
 function collectPublishPlatformPublishing(card){
+  const jsonInput = card?.querySelector('.js-publish-platform-publishing-json');
+  const saved = safeJsonParse(jsonInput?.value || '', []);
+  if(Array.isArray(saved) && saved.length){
+    return saved.map(item => ({
+      platform: item.platform || '',
+      postType: item.postType || '',
+      postTypeLabel: item.postTypeLabel || item.label || '',
+      requiredDimensions: item.requiredDimensions || (item.width || item.height ? { width: Number(item.width || 0) || null, height: Number(item.height || 0) || null } : null)
+    })).filter(item => item.platform);
+  }
   return [...(card?.querySelectorAll('.publish-platform-type-row') || [])].map(row => {
     const checked = row.querySelector('.js-platform-checkbox')?.checked;
     if(!checked) return null;
@@ -639,6 +654,98 @@ function selectedPublishPostType(card){
 function updatePublishPostTypeOptions(card){
   if(!card) return;
   card.querySelectorAll('.publish-platform-type-row').forEach(refreshPublishPlatformTypeRow);
+}
+
+function publishPlatformSummaryHtml(metaOrCard = {}){
+  const list = metaOrCard?.nodeType ? collectPublishPlatformPublishing(metaOrCard) : (Array.isArray(metaOrCard.platformPublishing) ? metaOrCard.platformPublishing : []);
+  if(!list.length) return '<span class="publish-platform-summary-empty">لم يتم اختيار منصات وأنواع نشر</span>';
+  const grouped = new Map();
+  list.forEach(item => {
+    if(!item?.platform) return;
+    if(!grouped.has(item.platform)) grouped.set(item.platform, []);
+    grouped.get(item.platform).push(item);
+  });
+  return [...grouped.entries()].map(([platform, items]) => {
+    const types = items.map(item => {
+      const label = item.postTypeLabel || postTypeLabel(item.postType || '') || 'نوع غير محدد';
+      const dims = item.requiredDimensions?.width && item.requiredDimensions?.height ? ` ${item.requiredDimensions.width}×${item.requiredDimensions.height}` : '';
+      return `${label}${dims}`;
+    }).join('، ');
+    return `<span class="publish-platform-summary-chip"><strong>${escapeHtml(platform)}</strong><small>${escapeHtml(types)}</small></span>`;
+  }).join('');
+}
+function updatePublishPlatformSummary(card){
+  if(!card) return;
+  const target = card.querySelector('.js-publish-platform-summary');
+  if(target) target.innerHTML = publishPlatformSummaryHtml(card);
+}
+function syncHiddenPublishRowsFromPublishing(card, publishing = []){
+  if(!card) return;
+  const platformTypes = {};
+  publishing.forEach(item => { if(item.platform && !platformTypes[item.platform]) platformTypes[item.platform] = item.postType || ''; });
+  const hiddenBox = card.querySelector('.publish-platform-checks');
+  if(hiddenBox){
+    hiddenBox.innerHTML = publishPlatformRowsHtml({ platforms: uniqueList(publishing.map(item => item.platform).filter(Boolean)), platformPublishing: publishing, platformTypes });
+    hiddenBox.querySelectorAll('.publish-platform-type-row').forEach(refreshPublishPlatformTypeRow);
+  }
+  const input = card.querySelector('.js-publish-platform-publishing-json');
+  if(input) input.value = JSON.stringify(publishing || []);
+  updatePublishPlatformSummary(card);
+}
+function publishPlatformPopupRows(card){
+  const current = collectPublishPlatformPublishing(card);
+  const selectedByPlatform = new Map();
+  current.forEach(item => {
+    if(!item.platform) return;
+    if(!selectedByPlatform.has(item.platform)) selectedByPlatform.set(item.platform, new Set());
+    if(item.postType) selectedByPlatform.get(item.platform).add(item.postType);
+  });
+  return platforms.length ? platforms.map(platform => {
+    const name = platform.name || '';
+    const selectedTypes = selectedByPlatform.get(name) || new Set();
+    const isChecked = selectedTypes.size > 0;
+    const types = postTypesForPlatform(name);
+    const typeHtml = types.length ? types.map(type => {
+      const dims = type.width && type.height ? `${type.width}×${type.height}` : 'بدون أبعاد';
+      const checked = selectedTypes.has(type.value) ? ' checked' : '';
+      return `<label class="publish-modal-type-card"><input type="checkbox" class="js-publish-modal-type" data-platform="${escapeHtml(name)}" value="${escapeHtml(type.value)}" data-label="${escapeHtml(type.label || type.value)}" data-width="${type.width || ''}" data-height="${type.height || ''}"${checked}> <span>${escapeHtml(type.label || type.value)}</span><small>${escapeHtml(dims)}</small></label>`;
+    }).join('') : '<div class="multi-empty">لا توجد أنواع نشر لهذه المنصة</div>';
+    return `<div class="publish-modal-platform-row${isChecked ? ' is-selected' : ''}" data-publish-modal-platform-row="${escapeHtml(name)}"><label class="publish-modal-platform-head"><input type="checkbox" class="js-publish-modal-platform" value="${escapeHtml(name)}"${isChecked ? ' checked' : ''}> <strong>${escapeHtml(name)}</strong></label><div class="publish-modal-types">${typeHtml}</div></div>`;
+  }).join('') : '<div class="multi-empty">لا توجد منصات في صفحة الأقسام</div>';
+}
+function openPublishPlatformPopup(card){
+  if(!card) return;
+  closePublishPlatformPopup();
+  const output = card.querySelector('.js-publish-output-select')?.selectedOptions?.[0]?.textContent || card.querySelector('.js-publish-output-select')?.value || 'منشور';
+  const popup = document.createElement('div');
+  popup.className = 'publish-platform-popup';
+  popup.innerHTML = `<div class="publish-popup-backdrop" data-close-publish-platform-popup></div><section class="publish-popup-dialog" role="dialog" aria-modal="true"><div class="publish-popup-head"><div><h3>اختيار المنصات وأنواع النشر والأبعاد</h3><p>${escapeHtml(output)}</p></div><button type="button" class="task-modal-close" data-close-publish-platform-popup>×</button></div><div class="publish-popup-body"><div class="publish-modal-platform-list">${publishPlatformPopupRows(card)}</div></div><div class="publish-popup-actions"><button type="button" class="btn btn-light" data-close-publish-platform-popup>إلغاء</button><button type="button" class="btn btn-primary" data-save-publish-platform-popup>حفظ</button></div></section>`;
+  popup._publishCard = card;
+  document.body.appendChild(popup);
+  setTimeout(() => popup.classList.add('open'), 0);
+}
+function closePublishPlatformPopup(){
+  document.querySelectorAll('.publish-platform-popup').forEach(el => el.remove());
+}
+function savePublishPlatformPopup(){
+  const popup = document.querySelector('.publish-platform-popup');
+  if(!popup) return;
+  const publishing = [];
+  popup.querySelectorAll('.publish-modal-platform-row').forEach(row => {
+    const platformName = row.querySelector('.js-publish-modal-platform')?.value || '';
+    if(!platformName) return;
+    row.querySelectorAll('.js-publish-modal-type:checked').forEach(input => {
+      publishing.push({
+        platform: platformName,
+        postType: input.value || '',
+        postTypeLabel: input.dataset.label || input.value || '',
+        requiredDimensions: { width: Number(input.dataset.width || 0) || null, height: Number(input.dataset.height || 0) || null }
+      });
+    });
+  });
+  if(!publishing.length) return showToast('اختار منصة واحدة ونوع نشر واحد على الأقل.');
+  syncHiddenPublishRowsFromPublishing(popup._publishCard, publishing);
+  closePublishPlatformPopup();
 }
 
 
@@ -680,6 +787,22 @@ function forceRefreshPublishAgendaPlatformTypes(root = document){
 window.MZJForceRefreshPublishAgendaPlatformTypes = forceRefreshPublishAgendaPlatformTypes;
 
 document.addEventListener('change', event => {
+  if(event.target && event.target.matches && event.target.matches('.js-publish-modal-platform')){
+    const row = event.target.closest('.publish-modal-platform-row');
+    row?.classList.toggle('is-selected', event.target.checked);
+    const boxes = row?.querySelectorAll('.js-publish-modal-type') || [];
+    if(event.target.checked && boxes.length && ![...boxes].some(input => input.checked)) boxes[0].checked = true;
+    if(!event.target.checked) boxes.forEach(input => { input.checked = false; });
+    return;
+  }
+  if(event.target && event.target.matches && event.target.matches('.js-publish-modal-type')){
+    const row = event.target.closest('.publish-modal-platform-row');
+    const platformCheck = row?.querySelector('.js-publish-modal-platform');
+    const any = !!row?.querySelector('.js-publish-modal-type:checked');
+    if(platformCheck) platformCheck.checked = any;
+    row?.classList.toggle('is-selected', any);
+    return;
+  }
   if(event.target && event.target.matches && event.target.matches('.publish-agenda .js-platform-checkbox, #publishAgenda .js-platform-checkbox')){
     const card = event.target.closest('.publish-day-card');
     forceRefreshPublishAgendaPlatformTypes(card || document);
@@ -689,6 +812,10 @@ document.addEventListener('change', event => {
 }, true);
 
 document.addEventListener('click', event => {
+  const openPublishPlatformBtn = event.target.closest?.('[data-open-publish-platform-popup]');
+  if(openPublishPlatformBtn){ openPublishPlatformPopup(openPublishPlatformBtn.closest('.publish-day-card')); return; }
+  if(event.target.closest?.('[data-close-publish-platform-popup]')){ closePublishPlatformPopup(); return; }
+  if(event.target.closest?.('[data-save-publish-platform-popup]')){ savePublishPlatformPopup(); return; }
   const row = event.target && event.target.closest ? event.target.closest('.publish-platform-type-row') : null;
   if(row){
     const card = row.closest('.publish-day-card');
@@ -749,14 +876,15 @@ function refreshDynamicSelects(){
   document.querySelectorAll('.js-campaign-type-select').forEach(select => { const value = select.value; select.innerHTML = campaignTypeOptions(value); });
   document.querySelectorAll('.publish-platform-checks').forEach(box => {
     const card = box.closest('.publish-day-card');
-    const selected = selectedPlatformValues(card);
     const publishing = (typeof collectPublishPlatformPublishing === 'function') ? collectPublishPlatformPublishing(card) : [];
+    const selected = uniqueList(publishing.map(item => item.platform).filter(Boolean));
     const platformTypes = {};
-    publishing.forEach(item => { if(item && item.platform) platformTypes[item.platform] = item.postType || ''; });
+    publishing.forEach(item => { if(item && item.platform && !platformTypes[item.platform]) platformTypes[item.platform] = item.postType || ''; });
     box.innerHTML = (typeof publishPlatformRowsHtml === 'function')
       ? publishPlatformRowsHtml({ platforms: selected, platformPublishing: publishing, platformTypes })
       : platformCheckboxList(selected);
     if(typeof forceRefreshPublishAgendaPlatformTypes === 'function') forceRefreshPublishAgendaPlatformTypes(card || box);
+    if(typeof updatePublishPlatformSummary === 'function') updatePublishPlatformSummary(card);
   });
   document.querySelectorAll('.js-funnel-select').forEach(select => { const value = select.value; select.innerHTML = funnelOptions(value); });
   document.querySelectorAll('.js-product-select').forEach(select => { const value = select.value; select.innerHTML = productOptions(value); });
@@ -3891,14 +4019,14 @@ function renderPublishAgenda(){
       <div class="publish-day-head"><strong>${dayName(date)}</strong></div>
       <div class="publish-day-number">${date.getDate()}</div>
       <div class="publish-day-date">${iso}</div>
-      <select class="js-publish-output-select compact-select" aria-label="اختيار النشر">${makePublishOutputOptions(outputs, currentOutput)}</select>
-      <div class="publish-platform-checks publish-platform-type-list" aria-label="المنصات ونوع المنشور">${publishPlatformRowsHtml(prev)}</div>
-      <input type="hidden" class="js-publish-caption" value="${escapeHtml(prev.caption || '')}" />
+      <div class="publish-card-section publish-card-section-output"><span class="publish-section-label">1. اختيار البوست</span><select class="js-publish-output-select compact-select" aria-label="اختيار النشر">${makePublishOutputOptions(outputs, currentOutput)}</select></div>
+      <div class="publish-card-section publish-card-section-platforms"><span class="publish-section-label">2. المنصات وأنواع النشر والأبعاد</span><button type="button" class="mini-btn publish-platform-popup-btn" data-open-publish-platform-popup>اختيار المنصات</button><div class="publish-platform-summary js-publish-platform-summary">${publishPlatformSummaryHtml(prev)}</div><input type="hidden" class="js-publish-platform-publishing-json" value="${escapeHtml(JSON.stringify(prev.platformPublishing || []))}"><div class="publish-platform-checks publish-platform-type-list hidden" aria-label="المنصات ونوع المنشور">${publishPlatformRowsHtml(prev)}</div></div>
+      <div class="publish-card-section publish-card-section-caption"><span class="publish-section-label">3. الكابشن والهاشتاج</span><input type="hidden" class="js-publish-caption" value="${escapeHtml(prev.caption || '')}" />
       <input type="hidden" class="js-publish-hashtags" value="${escapeHtml(prev.hashtagsText || prev.hashtags || '')}" />
       <div class="publish-copy-buttons">
         <button type="button" class="mini-btn publish-copy-btn ${prev.caption ? 'filled' : ''}" data-publish-caption-btn>الكابشن${prev.caption ? ' ✓' : ''}</button>
         <button type="button" class="mini-btn publish-copy-btn ${prev.hashtagsText || prev.hashtags ? 'filled' : ''}" data-publish-hashtags-btn>الهاشتاج${prev.hashtagsText || prev.hashtags ? ' ✓' : ''}</button>
-      </div>
+      </div></div>
       <div class="publish-inline-editor hidden" data-publish-inline-editor>
         <label><span data-publish-inline-title>الكابشن</span><textarea rows="4" data-publish-inline-text placeholder="اكتب هنا واحفظ"></textarea></label>
         <div class="publish-inline-actions">
