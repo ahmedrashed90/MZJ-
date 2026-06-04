@@ -4171,6 +4171,76 @@ function publishEntriesFromCampaigns(){
     campaignCode: campaign.campaignCode || campaign.campaign_code || ''
   })));
 }
+function calendarPlatformKeysForEntry(entry = {}){
+  const raw = [];
+  if(Array.isArray(entry.platforms)) raw.push(...entry.platforms);
+  if(entry.platform) raw.push(...String(entry.platform).split(/[،,+\/]/));
+  if(entry.calendarMeta) raw.push(...String(entry.calendarMeta).split(/[،,+·]/));
+  const keys = raw.map(item => normalizePublishPlatformName(item)).filter(Boolean).filter(key => key && key !== 'غير محدد' && key !== 'بدون منصة');
+  return [...new Set(keys.length ? keys : ['unknown'])];
+}
+function calendarPlatformLabel(key){
+  if(key === 'whatsapp') return 'WhatsApp';
+  if(key === 'unknown') return 'غير محدد';
+  return socialPlatformLabels[key] || key;
+}
+function calendarPlatformIcon(key){
+  const icons = { facebook:'f', instagram:'◎', tiktok:'♪', youtube:'▶', snapchat:'👻', whatsapp:'☘', unknown:'•' };
+  return icons[key] || icons.unknown;
+}
+function calendarDayPlatformSummary(entries = []){
+  const map = {};
+  entries.forEach(entry => calendarPlatformKeysForEntry(entry).forEach(key => { map[key] = (map[key] || 0) + 1; }));
+  return Object.entries(map).sort((a,b) => b[1] - a[1]);
+}
+function calendarEntryTitle(entry = {}){
+  return normalizeText(entry.calendarTitle || entry.output || entry.title || entry.name || entry.campaignName || 'منشور');
+}
+function calendarEntryMeta(entry = {}){
+  return normalizeText(entry.calendarMeta || [entry.platform, entry.time, entry.campaignName].filter(Boolean).join(' · '));
+}
+function calendarDayPopupHtml(dateIso, entries = []){
+  const date = new Date(`${dateIso}T00:00:00`);
+  const title = Number.isNaN(date.getTime()) ? dateIso : date.toLocaleDateString('ar-SA', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const summary = calendarDayPlatformSummary(entries);
+  const summaryHtml = summary.length ? summary.map(([key,count]) => `<span class="calendar-popup-platform platform-${escapeHtml(key)}"><i>${calendarPlatformIcon(key)}</i>${escapeHtml(calendarPlatformLabel(key))}<b>${count}</b></span>`).join('') : '<span class="calendar-popup-empty">لا توجد منشورات في هذا اليوم.</span>';
+  const itemsHtml = entries.length ? entries.map((entry, index) => {
+    const keys = calendarPlatformKeysForEntry(entry);
+    const platformsHtml = keys.map(key => `<span class="calendar-popup-mini platform-${escapeHtml(key)}"><i>${calendarPlatformIcon(key)}</i>${escapeHtml(calendarPlatformLabel(key))}</span>`).join('');
+    const caption = normalizeText(entry.caption || entry.hashtagsText || entry.note || '');
+    return `<article class="calendar-popup-item">
+      <div class="calendar-popup-item-head"><strong>${index + 1}. ${escapeHtml(calendarEntryTitle(entry))}</strong><span>${escapeHtml(entry.time || entry.scheduleTime || 'بدون وقت')}</span></div>
+      <p>${escapeHtml(calendarEntryMeta(entry) || entry.campaignName || 'نشر مجدول')}</p>
+      ${caption ? `<small>${escapeHtml(caption).slice(0, 180)}${caption.length > 180 ? '...' : ''}</small>` : ''}
+      <div class="calendar-popup-platforms">${platformsHtml}</div>
+    </article>`;
+  }).join('') : '<div class="empty-state">لا توجد منشورات في هذا اليوم.</div>';
+  return `<div class="calendar-popup-backdrop" data-close-calendar-popup></div>
+    <section class="calendar-popup-dialog" role="dialog" aria-modal="true" aria-label="منشورات اليوم">
+      <button class="calendar-popup-close" type="button" data-close-calendar-popup>×</button>
+      <div class="calendar-popup-head"><span>${escapeHtml(dateIso)}</span><h2>${escapeHtml(title)}</h2><p>${entries.length} منشور مجدول</p></div>
+      <div class="calendar-popup-summary">${summaryHtml}</div>
+      <div class="calendar-popup-list">${itemsHtml}</div>
+    </section>`;
+}
+function openCalendarDayPopup(dateIso){
+  const entries = (window.__MZJ_CALENDAR_ENTRIES_BY_DATE__ || {})[dateIso] || [];
+  let modal = document.getElementById('calendarDayPopup');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'calendarDayPopup';
+    modal.className = 'calendar-popup';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = calendarDayPopupHtml(dateIso, entries);
+  modal.classList.add('show');
+  document.body.classList.add('modal-open');
+}
+function closeCalendarDayPopup(){
+  const modal = document.getElementById('calendarDayPopup');
+  if(modal){ modal.classList.remove('show'); modal.innerHTML = ''; }
+  document.body.classList.remove('modal-open');
+}
 function renderCalendarPage(){
   const board = document.getElementById('calendarBoard');
   const title = document.getElementById('calendarMonthTitle');
@@ -4190,13 +4260,21 @@ function renderCalendarPage(){
   }));
   const entries = [...campaignEntries, ...centerEntries];
   const byDate = entries.reduce((acc, entry) => { (acc[entry.date] ||= []).push(entry); return acc; }, {});
+  window.__MZJ_CALENDAR_ENTRIES_BY_DATE__ = byDate;
   const cells = [];
   for(let i = 0; i < first.getDay(); i += 1) cells.push('<article class="calendar-day empty"></article>');
   for(let d = 1; d <= last.getDate(); d += 1){
     const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const date = new Date(year, month, d);
     const dayEntries = byDate[iso] || [];
-    cells.push(`<article class="calendar-day"><div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div><small>${iso}</small><div class="calendar-day-items">${dayEntries.length ? dayEntries.map(item => `<div class="calendar-publish-item"><b>${escapeHtml(item.calendarTitle || item.output || 'نشر')}</b><span>${escapeHtml(item.calendarMeta || [item.platform, item.time, item.campaignName].filter(Boolean).join(' · '))}</span></div>`).join('') : ''}</div></article>`);
+    const summary = calendarDayPlatformSummary(dayEntries);
+    const summaryHtml = summary.map(([key,count]) => `<button type="button" class="calendar-platform-badge platform-${escapeHtml(key)}" title="${escapeHtml(calendarPlatformLabel(key))}"><i>${calendarPlatformIcon(key)}</i><b>${count}</b></button>`).join('');
+    cells.push(`<article class="calendar-day${dayEntries.length ? ' has-items' : ''}" data-calendar-day="${escapeHtml(iso)}" tabindex="${dayEntries.length ? '0' : '-1'}">
+      <div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div>
+      <small>${iso}</small>
+      <div class="calendar-day-summary">${summaryHtml}</div>
+      ${dayEntries.length ? `<button type="button" class="calendar-day-open" data-calendar-day-open="${escapeHtml(iso)}">عرض ${dayEntries.length} منشور</button>` : ''}
+    </article>`);
   }
   board.innerHTML = `<div class="calendar-week-head"><span>الأحد</span><span>الإثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div><div class="calendar-month-grid">${cells.join('')}</div>`;
 }
@@ -6933,10 +7011,22 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('notificationToggle')?.addEventListener('click', event => { event.stopPropagation(); unlockNotificationAudio(); renderTopbarNotifications(); document.getElementById('notificationPanel')?.classList.toggle('is-hidden'); });
   document.addEventListener('click', event => { if(!event.target.closest('.notification-wrap')) document.getElementById('notificationPanel')?.classList.add('is-hidden'); });
   window.addEventListener('hashchange', () => { if(isLoggedIn()) renderRoute(); });
-  document.addEventListener('keydown', event => { if(event.key === 'Escape'){ closeTaskModal(); closeCampaignModal(); closePublishComposer(); } });
+  document.addEventListener('keydown', event => { if(event.key === 'Escape'){ closeTaskModal(); closeCampaignModal(); closePublishComposer(); closeCalendarDayPopup(); } });
   document.getElementById('calendarPrevMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()-1); renderCalendarPage(); });
   document.getElementById('calendarNextMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()+1); renderCalendarPage(); });
   document.getElementById('calendarToday')?.addEventListener('click', () => { calendarCursor = new Date(); renderCalendarPage(); });
+  document.getElementById('calendarBoard')?.addEventListener('click', event => {
+    const openBtn = event.target.closest('[data-calendar-day-open]');
+    const dayCard = event.target.closest('.calendar-day.has-items[data-calendar-day]');
+    const iso = openBtn?.dataset.calendarDayOpen || dayCard?.dataset.calendarDay || '';
+    if(iso) openCalendarDayPopup(iso);
+  });
+  document.getElementById('calendarBoard')?.addEventListener('keydown', event => {
+    if(event.key !== 'Enter' && event.key !== ' ') return;
+    const dayCard = event.target.closest('.calendar-day.has-items[data-calendar-day]');
+    if(dayCard){ event.preventDefault(); openCalendarDayPopup(dayCard.dataset.calendarDay); }
+  });
+  document.addEventListener('click', event => { if(event.target.closest('[data-close-calendar-popup]')) closeCalendarDayPopup(); });
   bindCampaignBuilder(); bindDepartments(); bindSettings(); bindSocialPublisher(); bindPublishPrepPage(); bindPublishCenter();
   document.getElementById('dashboard')?.addEventListener('click', async event => {
     const stageBtn = event.target.closest('[data-stage][data-campaign-id]');
