@@ -2432,3 +2432,14 @@ body:has(.publish-composer-modal.show) .topbar{
   color:#92766d!important;
   opacity:.72!important;
 }
+
+/* v80 - جدول النشر: إظهار نوع النشر أسفل كل منصة مختارة بوضوح */
+.publish-day-card{overflow:visible!important;min-height:260px!important;}
+.publish-platform-type-list{max-height:340px!important;overflow:auto!important;padding:8px!important;gap:7px!important;background:#fffaf7!important;border:1px solid rgba(128,77,61,.28)!important;border-radius:12px!important;}
+.publish-platform-type-row{display:flex!important;flex-direction:column!important;gap:6px!important;padding:7px!important;border:1px solid rgba(128,77,61,.18)!important;border-radius:12px!important;background:#fff!important;}
+.publish-platform-type-row.is-selected{border-color:#8a4f3f!important;background:#fff8f3!important;box-shadow:0 6px 14px rgba(128,77,61,.12)!important;}
+.publish-platform-type-row .publish-platform-check-card{display:flex!important;align-items:center!important;justify-content:space-between!important;width:100%!important;min-height:30px!important;padding:5px 8px!important;font-size:12px!important;font-weight:900!important;background:transparent!important;border:0!important;}
+.publish-platform-type-control{display:none!important;width:100%!important;margin-top:2px!important;}
+.publish-platform-type-control.is-visible{display:block!important;}
+.publish-platform-type-select{display:block!important;width:100%!important;min-height:36px!important;height:36px!important;padding:0 10px!important;border:1px solid #c99483!important;border-radius:10px!important;background:#fff!important;color:#3b241f!important;font-size:11.5px!important;font-weight:900!important;opacity:1!important;visibility:visible!important;}
+.publish-platform-type-select:disabled{display:none!important;}

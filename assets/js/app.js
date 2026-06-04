@@ -553,7 +553,8 @@ function publishPlatformTypeOptions(platformName, currentValue = '', checked = f
   const current = options.some(item => item.value === currentValue) ? currentValue : '';
   const disabled = checked ? '' : ' disabled';
   const emptyLabel = options.length ? 'اختر نوع النشر' : 'لا توجد أنواع نشر لهذه المنصة';
-  return `<div class="publish-platform-type-control" data-platform-type-control="${escapeHtml(platformName)}"><div class="publish-platform-type-title">نوع النشر للمنصة</div><select class="js-publish-platform-type-select publish-platform-type-select" data-publish-platform-type-for="${escapeHtml(platformName)}" aria-label="نوع نشر ${escapeHtml(platformName)}"${disabled}><option value="">${emptyLabel}</option>${options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width || ''}" data-height="${item.height || ''}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label || item.name || item.value)}</option>`).join('')}</select></div>`;
+  const opts = options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width || ''}" data-height="${item.height || ''}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label || item.name || item.value)}${item.width && item.height ? ` - ${escapeHtml(item.width)}×${escapeHtml(item.height)}` : ''}</option>`).join('');
+  return `<div class="publish-platform-type-control${checked ? ' is-visible' : ''}" data-platform-type-control="${escapeHtml(platformName)}"><select class="js-publish-platform-type-select publish-platform-type-select" data-publish-platform-type-for="${escapeHtml(platformName)}" aria-label="نوع نشر ${escapeHtml(platformName)}"${disabled}><option value="">${emptyLabel}</option>${opts}</select></div>`;
 }
 function publishPlatformRowsHtml(meta = {}){
   const selectedList = Array.isArray(meta.platforms) ? meta.platforms : normalizeMaybeArray(meta.platform || '');
@@ -572,8 +573,10 @@ function refreshPublishPlatformTypeRow(row){
   if(!row) return;
   const checkbox = row.querySelector('.js-platform-checkbox');
   const select = row.querySelector('.js-publish-platform-type-select');
+  const control = row.querySelector('.publish-platform-type-control');
   const checked = !!checkbox?.checked;
   row.classList.toggle('is-selected', checked);
+  if(control) control.classList.toggle('is-visible', checked);
   if(select){
     select.disabled = !checked;
     if(!checked){
