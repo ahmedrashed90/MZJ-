@@ -2327,3 +2327,12 @@ body:has(.publish-composer-modal.show) .topbar{
 .calendar-day.is-today .calendar-day-top span{padding-left:58px!important}
 .calendar-today-badge,.calendar-day.is-today:before{content:'اليوم';position:absolute!important;top:10px!important;left:10px!important;background:#7b3f35!important;color:#fff!important;border-radius:999px!important;padding:5px 12px!important;font-size:11px!important;font-weight:900!important;box-shadow:0 8px 18px rgba(123,63,53,.24)!important;z-index:2!important;line-height:1!important}
 .calendar-popup-platform.is-selected{box-shadow:0 0 0 3px rgba(123,63,53,.18),0 10px 20px rgba(45,23,19,.10)!important;transform:translateY(-1px)}
+
+/* v76: per-platform post type selector in publish schedule */
+.publish-platform-type-list{display:grid;grid-template-columns:1fr;gap:5px;max-height:112px;overflow:auto;padding:5px;background:#fffaf6;border:1px solid var(--border);border-radius:10px}
+.publish-platform-type-row{display:grid;grid-template-columns:minmax(82px,.9fr) minmax(82px,1fr);gap:5px;align-items:center;border:1px solid rgba(92,58,47,.1);background:rgba(255,255,255,.75);border-radius:9px;padding:4px}
+.publish-platform-type-row.is-selected{border-color:rgba(128,77,61,.38);box-shadow:0 4px 12px rgba(128,77,61,.08)}
+.publish-platform-check-card{margin:0;font-size:9.5px;min-height:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.publish-platform-type-select{width:100%;height:29px;border:1px solid rgba(128,77,61,.25);border-radius:8px;background:#fff;color:var(--text);font-size:9.5px;font-weight:800;padding:0 6px}
+.publish-platform-type-select:disabled{opacity:.48;background:#f4eee9;color:#a0887c}
+@media(max-width:1180px){.publish-platform-type-row{grid-template-columns:1fr}.publish-platform-type-list{max-height:132px}.publish-platform-type-select{font-size:9px}}
