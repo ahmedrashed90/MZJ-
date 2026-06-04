@@ -4207,12 +4207,13 @@ function calendarEntryMeta(entry = {}){
 function calendarEntryCaption(entry = {}){
   return normalizeText([entry.caption, entry.hashtagsText || entry.hashtags, entry.note].filter(Boolean).join('\n'));
 }
-function calendarDayPopupHtml(dateIso, entries = []){
+function calendarDayPopupHtml(dateIso, entries = [], platformFilter = ''){
   const date = new Date(`${dateIso}T00:00:00`);
   const title = Number.isNaN(date.getTime()) ? dateIso : date.toLocaleDateString('ar-SA', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const filteredEntries = platformFilter ? entries.filter(entry => calendarPlatformKeysForEntry(entry).includes(platformFilter)) : entries;
   const summary = calendarDayPlatformSummary(entries);
-  const summaryHtml = summary.length ? summary.map(([key,count]) => `<span class="calendar-popup-platform platform-${escapeHtml(key)}"><i>${calendarPlatformIcon(key)}</i>${escapeHtml(calendarPlatformLabel(key))}<b>${count}</b></span>`).join('') : '<span class="calendar-popup-empty">لا توجد منشورات في هذا اليوم.</span>';
-  const itemsHtml = entries.length ? entries.map((entry, index) => {
+  const summaryHtml = summary.length ? summary.map(([key,count]) => `<span class="calendar-popup-platform platform-${escapeHtml(key)}${platformFilter === key ? ' is-selected' : ''}"><i>${calendarPlatformIcon(key)}</i>${escapeHtml(calendarPlatformLabel(key))}<b>${count}</b></span>`).join('') : '<span class="calendar-popup-empty">لا توجد منشورات في هذا اليوم.</span>';
+  const itemsHtml = filteredEntries.length ? filteredEntries.map((entry, index) => {
     const keys = calendarPlatformKeysForEntry(entry);
     const platformsHtml = keys.map(key => `<span class="calendar-popup-mini platform-${escapeHtml(key)}"><i>${calendarPlatformIcon(key)}</i>${escapeHtml(calendarPlatformLabel(key))}</span>`).join('');
     const caption = calendarEntryCaption(entry);
@@ -4222,16 +4223,17 @@ function calendarDayPopupHtml(dateIso, entries = []){
       ${caption ? `<small>${escapeHtml(caption).slice(0, 220)}${caption.length > 220 ? '...' : ''}</small>` : ''}
       <div class="calendar-popup-platforms">${platformsHtml}</div>
     </article>`;
-  }).join('') : '<div class="empty-state">لا توجد منشورات في هذا اليوم.</div>';
+  }).join('') : '<div class="empty-state">لا توجد منشورات لهذه المنصة في هذا اليوم.</div>';
+  const shownCount = filteredEntries.length;
   return `<div class="calendar-popup-backdrop" data-close-calendar-popup></div>
     <section class="calendar-popup-dialog" role="dialog" aria-modal="true" aria-label="منشورات اليوم">
       <button class="calendar-popup-close" type="button" data-close-calendar-popup>×</button>
-      <div class="calendar-popup-head"><span>${escapeHtml(dateIso)}</span><h2>${escapeHtml(title)}</h2><p>${entries.length} منشور مجدول</p></div>
+      <div class="calendar-popup-head"><span>${escapeHtml(dateIso)}</span><h2>${escapeHtml(title)}</h2><p>${shownCount} منشور مجدول${platformFilter ? ` · ${escapeHtml(calendarPlatformLabel(platformFilter))}` : ''}</p></div>
       <div class="calendar-popup-summary">${summaryHtml}</div>
       <div class="calendar-popup-list">${itemsHtml}</div>
     </section>`;
 }
-function openCalendarDayPopup(dateIso){
+function openCalendarDayPopup(dateIso, platformFilter = ''){
   const entries = (window.__MZJ_CALENDAR_ENTRIES_BY_DATE__ || {})[dateIso] || [];
   let modal = document.getElementById('calendarDayPopup');
   if(!modal){
@@ -4240,7 +4242,7 @@ function openCalendarDayPopup(dateIso){
     modal.className = 'calendar-popup';
     document.body.appendChild(modal);
   }
-  modal.innerHTML = calendarDayPopupHtml(dateIso, entries);
+  modal.innerHTML = calendarDayPopupHtml(dateIso, entries, platformFilter);
   modal.classList.add('show');
   document.body.classList.add('modal-open');
 }
@@ -4278,12 +4280,12 @@ function renderCalendarPage(){
     const todayIso = todayInputDate();
     const isToday = iso === todayIso;
     const summary = calendarDayPlatformSummary(dayEntries);
-    const summaryHtml = summary.map(([key,count]) => `<button type="button" class="calendar-platform-badge platform-${escapeHtml(key)}" title="${escapeHtml(calendarPlatformLabel(key))}"><i>${calendarPlatformIcon(key)}</i><b>${count}</b></button>`).join('');
+    const summaryHtml = summary.map(([key,count]) => `<button type="button" class="calendar-platform-badge platform-${escapeHtml(key)}" data-calendar-platform-day="${escapeHtml(iso)}" data-calendar-platform-key="${escapeHtml(key)}" title="${escapeHtml(calendarPlatformLabel(key))} - ${count} منشور"><i>${calendarPlatformIcon(key)}</i><b>${count}</b></button>`).join('');
     cells.push(`<article class="calendar-day${dayEntries.length ? ' has-items' : ''}${isToday ? ' is-today' : ''}" data-calendar-day="${escapeHtml(iso)}" tabindex="${dayEntries.length ? '0' : '-1'}"${isToday ? ' aria-current="date"' : ''}>
+      ${isToday ? '<span class="calendar-today-badge">اليوم</span>' : ''}
       <div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div>
       <small>${iso}</small>
       <div class="calendar-day-summary">${summaryHtml}</div>
-      ${dayEntries.length ? `<button type="button" class="calendar-day-open" data-calendar-day-open="${escapeHtml(iso)}">عرض ${dayEntries.length} منشور</button>` : ''}
     </article>`);
   }
   board.innerHTML = `<div class="calendar-week-head"><span>الأحد</span><span>الإثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div><div class="calendar-month-grid">${cells.join('')}</div>`;
@@ -7026,10 +7028,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('calendarNextMonth')?.addEventListener('click', () => { calendarCursor.setMonth(calendarCursor.getMonth()+1); renderCalendarPage(); });
   document.getElementById('calendarToday')?.addEventListener('click', () => { calendarCursor = new Date(); renderCalendarPage(); });
   document.getElementById('calendarBoard')?.addEventListener('click', event => {
-    const openBtn = event.target.closest('[data-calendar-day-open]');
-    const dayCard = event.target.closest('.calendar-day.has-items[data-calendar-day]');
-    const iso = openBtn?.dataset.calendarDayOpen || dayCard?.dataset.calendarDay || '';
-    if(iso) openCalendarDayPopup(iso);
+    const platformBtn = event.target.closest('[data-calendar-platform-day]');
+    if(platformBtn){
+      event.preventDefault();
+      event.stopPropagation();
+      openCalendarDayPopup(platformBtn.dataset.calendarPlatformDay, platformBtn.dataset.calendarPlatformKey || '');
+    }
   });
   document.getElementById('calendarBoard')?.addEventListener('keydown', event => {
     if(event.key !== 'Enter' && event.key !== ' ') return;
