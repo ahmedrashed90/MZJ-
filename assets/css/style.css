@@ -2362,3 +2362,73 @@ body:has(.publish-composer-modal.show) .topbar{
 .publish-platform-type-select:disabled{opacity:.55!important;}
 .publish-platform-type-row:not(.is-selected) .publish-platform-type-control{opacity:.75!important;}
 @media(max-width:1180px){.publish-platform-type-list{max-height:240px!important}.publish-platform-type-row{min-height:80px!important}.publish-platform-type-select{font-size:10px!important}}
+
+/* v79 - جدول النشر: نوع نشر مستقل وواضح لكل منصة */
+.publish-platform-type-list{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:8px!important;
+  max-height:260px!important;
+  overflow:auto!important;
+  padding:7px!important;
+  background:#fffaf7!important;
+}
+.publish-platform-type-row{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:7px!important;
+  min-height:auto!important;
+  padding:8px!important;
+  border:1px solid rgba(128,77,61,.22)!important;
+  border-radius:12px!important;
+  background:#fff!important;
+}
+.publish-platform-type-row.is-selected{
+  border-color:#8a4f3f!important;
+  box-shadow:0 6px 16px rgba(128,77,61,.10)!important;
+}
+.publish-platform-check-card{
+  min-height:32px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:8px!important;
+  width:100%!important;
+  font-size:12px!important;
+  font-weight:900!important;
+}
+.publish-platform-type-control{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:4px!important;
+  width:100%!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+.publish-platform-type-title{
+  display:block!important;
+  font-size:10.5px!important;
+  font-weight:900!important;
+  color:#8a5a4e!important;
+  text-align:right!important;
+}
+.publish-platform-type-select{
+  display:block!important;
+  width:100%!important;
+  min-height:34px!important;
+  height:34px!important;
+  padding:0 9px!important;
+  border:1px solid rgba(128,77,61,.35)!important;
+  border-radius:10px!important;
+  background:#fff!important;
+  color:#3b241f!important;
+  font-size:11px!important;
+  font-weight:900!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+.publish-platform-type-select:disabled{
+  background:#f3ede9!important;
+  color:#92766d!important;
+  opacity:.72!important;
+}

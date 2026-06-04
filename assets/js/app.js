@@ -549,16 +549,16 @@ function publishPostTypeSelectHtml(selectedPlatforms = [], currentValue = ''){
   return '<select class="js-publish-post-type-select compact-select" aria-label="نوع المنشور"><option value="">نوع المنشور</option>' + options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width}" data-height="${item.height}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label)}</option>`).join('') + '</select>';
 }
 function publishPlatformTypeOptions(platformName, currentValue = '', checked = false){
-  const options = publishPostTypesForPlatforms([platformName]);
+  const options = postTypesForPlatform(platformName);
   const current = options.some(item => item.value === currentValue) ? currentValue : '';
   const disabled = checked ? '' : ' disabled';
-  const emptyLabel = options.length ? 'اختر نوع المنشور' : 'لا توجد أنواع';
-  return `<label class="publish-platform-type-control"><span>نوع المنشور</span><select class="js-publish-platform-type-select publish-platform-type-select" data-publish-platform-type-for="${escapeHtml(platformName)}" aria-label="نوع منشور ${escapeHtml(platformName)}"${disabled}><option value="">${emptyLabel}</option>${options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width}" data-height="${item.height}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select></label>`;
+  const emptyLabel = options.length ? 'اختر نوع النشر' : 'لا توجد أنواع نشر لهذه المنصة';
+  return `<div class="publish-platform-type-control" data-platform-type-control="${escapeHtml(platformName)}"><div class="publish-platform-type-title">نوع النشر للمنصة</div><select class="js-publish-platform-type-select publish-platform-type-select" data-publish-platform-type-for="${escapeHtml(platformName)}" aria-label="نوع نشر ${escapeHtml(platformName)}"${disabled}><option value="">${emptyLabel}</option>${options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width || ''}" data-height="${item.height || ''}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label || item.name || item.value)}</option>`).join('')}</select></div>`;
 }
 function publishPlatformRowsHtml(meta = {}){
   const selectedList = Array.isArray(meta.platforms) ? meta.platforms : normalizeMaybeArray(meta.platform || '');
   const selected = new Set(selectedList.map(String));
-  const typeMap = meta.platformTypes || {};
+  const typeMap = { ...(meta.platformTypes || {}) };
   const publishing = Array.isArray(meta.platformPublishing) ? meta.platformPublishing : [];
   publishing.forEach(item => { if(item?.platform && item?.postType && !typeMap[item.platform]) typeMap[item.platform] = item.postType; });
   return platforms.length ? platforms.map(item => {
