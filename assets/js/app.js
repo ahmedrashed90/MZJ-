@@ -4175,8 +4175,12 @@ function calendarPlatformKeysForEntry(entry = {}){
   const raw = [];
   if(Array.isArray(entry.platforms)) raw.push(...entry.platforms);
   if(entry.platform) raw.push(...String(entry.platform).split(/[،,+\/]/));
-  if(entry.calendarMeta) raw.push(...String(entry.calendarMeta).split(/[،,+·]/));
-  const keys = raw.map(item => normalizePublishPlatformName(item)).filter(Boolean).filter(key => key && key !== 'غير محدد' && key !== 'بدون منصة');
+  if(entry.platformName) raw.push(entry.platformName);
+  if(entry.platformKey) raw.push(entry.platformKey);
+  // مهم: لا نقرأ calendarMeta هنا لأنه يحتوي أحيانًا اسم الحملة أو الوقت أو رقم مثل 123،
+  // وكان يظهرهم في التقويم كأنهم منصة ثانية.
+  const allowed = new Set(['facebook','instagram','tiktok','youtube','snapchat','whatsapp']);
+  const keys = raw.map(item => normalizePublishPlatformName(item)).filter(key => allowed.has(key));
   return [...new Set(keys.length ? keys : ['unknown'])];
 }
 function calendarPlatformLabel(key){
@@ -4194,10 +4198,14 @@ function calendarDayPlatformSummary(entries = []){
   return Object.entries(map).sort((a,b) => b[1] - a[1]);
 }
 function calendarEntryTitle(entry = {}){
-  return normalizeText(entry.calendarTitle || entry.output || entry.title || entry.name || entry.campaignName || 'منشور');
+  return normalizeText(entry.calendarTitle || entry.output || entry.postTitle || entry.title || entry.name || entry.campaignName || 'منشور');
 }
 function calendarEntryMeta(entry = {}){
-  return normalizeText(entry.calendarMeta || [entry.platform, entry.time, entry.campaignName].filter(Boolean).join(' · '));
+  const platformText = calendarPlatformKeysForEntry(entry).filter(key => key !== 'unknown').map(calendarPlatformLabel).join(' + ');
+  return normalizeText([platformText, entry.typeLabel || postTypeLabel(entry.type || entry.postType || ''), entry.time || entry.scheduleTime || '', entry.campaignName || ''].filter(Boolean).join(' · '));
+}
+function calendarEntryCaption(entry = {}){
+  return normalizeText([entry.caption, entry.hashtagsText || entry.hashtags, entry.note].filter(Boolean).join('\n'));
 }
 function calendarDayPopupHtml(dateIso, entries = []){
   const date = new Date(`${dateIso}T00:00:00`);
@@ -4207,11 +4215,11 @@ function calendarDayPopupHtml(dateIso, entries = []){
   const itemsHtml = entries.length ? entries.map((entry, index) => {
     const keys = calendarPlatformKeysForEntry(entry);
     const platformsHtml = keys.map(key => `<span class="calendar-popup-mini platform-${escapeHtml(key)}"><i>${calendarPlatformIcon(key)}</i>${escapeHtml(calendarPlatformLabel(key))}</span>`).join('');
-    const caption = normalizeText(entry.caption || entry.hashtagsText || entry.note || '');
+    const caption = calendarEntryCaption(entry);
     return `<article class="calendar-popup-item">
       <div class="calendar-popup-item-head"><strong>${index + 1}. ${escapeHtml(calendarEntryTitle(entry))}</strong><span>${escapeHtml(entry.time || entry.scheduleTime || 'بدون وقت')}</span></div>
       <p>${escapeHtml(calendarEntryMeta(entry) || entry.campaignName || 'نشر مجدول')}</p>
-      ${caption ? `<small>${escapeHtml(caption).slice(0, 180)}${caption.length > 180 ? '...' : ''}</small>` : ''}
+      ${caption ? `<small>${escapeHtml(caption).slice(0, 220)}${caption.length > 220 ? '...' : ''}</small>` : ''}
       <div class="calendar-popup-platforms">${platformsHtml}</div>
     </article>`;
   }).join('') : '<div class="empty-state">لا توجد منشورات في هذا اليوم.</div>';
@@ -4267,9 +4275,11 @@ function renderCalendarPage(){
     const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const date = new Date(year, month, d);
     const dayEntries = byDate[iso] || [];
+    const todayIso = todayInputDate();
+    const isToday = iso === todayIso;
     const summary = calendarDayPlatformSummary(dayEntries);
     const summaryHtml = summary.map(([key,count]) => `<button type="button" class="calendar-platform-badge platform-${escapeHtml(key)}" title="${escapeHtml(calendarPlatformLabel(key))}"><i>${calendarPlatformIcon(key)}</i><b>${count}</b></button>`).join('');
-    cells.push(`<article class="calendar-day${dayEntries.length ? ' has-items' : ''}" data-calendar-day="${escapeHtml(iso)}" tabindex="${dayEntries.length ? '0' : '-1'}">
+    cells.push(`<article class="calendar-day${dayEntries.length ? ' has-items' : ''}${isToday ? ' is-today' : ''}" data-calendar-day="${escapeHtml(iso)}" tabindex="${dayEntries.length ? '0' : '-1'}"${isToday ? ' aria-current="date"' : ''}>
       <div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div>
       <small>${iso}</small>
       <div class="calendar-day-summary">${summaryHtml}</div>
