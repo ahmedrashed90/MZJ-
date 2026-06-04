@@ -552,8 +552,8 @@ function publishPlatformTypeOptions(platformName, currentValue = '', checked = f
   const options = publishPostTypesForPlatforms([platformName]);
   const current = options.some(item => item.value === currentValue) ? currentValue : '';
   const disabled = checked ? '' : ' disabled';
-  const emptyLabel = options.length ? 'نوع المنشور' : 'لا توجد أنواع';
-  return `<select class="js-publish-platform-type-select publish-platform-type-select" data-publish-platform-type-for="${escapeHtml(platformName)}" aria-label="نوع منشور ${escapeHtml(platformName)}"${disabled}><option value="">${emptyLabel}</option>${options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width}" data-height="${item.height}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select>`;
+  const emptyLabel = options.length ? 'اختر نوع المنشور' : 'لا توجد أنواع';
+  return `<label class="publish-platform-type-control"><span>نوع المنشور</span><select class="js-publish-platform-type-select publish-platform-type-select" data-publish-platform-type-for="${escapeHtml(platformName)}" aria-label="نوع منشور ${escapeHtml(platformName)}"${disabled}><option value="">${emptyLabel}</option>${options.map(item => `<option value="${escapeHtml(item.value)}" data-width="${item.width}" data-height="${item.height}"${current === item.value ? ' selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select></label>`;
 }
 function publishPlatformRowsHtml(meta = {}){
   const selectedList = Array.isArray(meta.platforms) ? meta.platforms : normalizeMaybeArray(meta.platform || '');
@@ -576,7 +576,12 @@ function refreshPublishPlatformTypeRow(row){
   row.classList.toggle('is-selected', checked);
   if(select){
     select.disabled = !checked;
-    if(!checked) select.value = '';
+    if(!checked){
+      select.value = '';
+    }else if(!select.value){
+      const firstOption = [...select.options].find(option => option.value);
+      if(firstOption) select.value = firstOption.value;
+    }
   }
 }
 function collectPublishPlatformPublishing(card){
@@ -3083,7 +3088,12 @@ function refreshStructurePlatformRow(row){
   row.classList.toggle('is-selected', checked);
   if(select){
     select.disabled = !checked;
-    if(!checked) select.value = '';
+    if(!checked){
+      select.value = '';
+    }else if(!select.value){
+      const firstOption = [...select.options].find(option => option.value);
+      if(firstOption) select.value = firstOption.value;
+    }
   }
 }
 function collectStructurePopupMeta(popup){
@@ -4222,6 +4232,7 @@ function publishEntriesFromCampaigns(){
 function calendarPlatformKeysForEntry(entry = {}){
   const raw = [];
   if(Array.isArray(entry.platforms)) raw.push(...entry.platforms);
+  if(Array.isArray(entry.platformPublishing)) raw.push(...entry.platformPublishing.map(item => item?.platform).filter(Boolean));
   if(entry.platform) raw.push(...String(entry.platform).split(/[،,+\/]/));
   if(entry.platformName) raw.push(entry.platformName);
   if(entry.platformKey) raw.push(entry.platformKey);
@@ -4248,9 +4259,22 @@ function calendarDayPlatformSummary(entries = []){
 function calendarEntryTitle(entry = {}){
   return normalizeText(entry.calendarTitle || entry.output || entry.postTitle || entry.title || entry.name || entry.campaignName || 'منشور');
 }
-function calendarEntryMeta(entry = {}){
-  const platformText = calendarPlatformKeysForEntry(entry).filter(key => key !== 'unknown').map(calendarPlatformLabel).join(' + ');
-  return normalizeText([platformText, entry.typeLabel || postTypeLabel(entry.type || entry.postType || ''), entry.time || entry.scheduleTime || '', entry.campaignName || ''].filter(Boolean).join(' · '));
+function calendarPostTypeForPlatform(entry = {}, platformKey = ''){
+  if(platformKey && Array.isArray(entry.platformPublishing)){
+    const match = entry.platformPublishing.find(item => normalizePublishPlatformName(item?.platform || '') === platformKey);
+    if(match) return match.postTypeLabel || postTypeLabel(match.postType || '') || '';
+  }
+  if(platformKey && entry.platformTypes && typeof entry.platformTypes === 'object'){
+    const pair = Object.entries(entry.platformTypes).find(([platform]) => normalizePublishPlatformName(platform) === platformKey);
+    if(pair) return postTypeLabel(pair[1] || '') || pair[1] || '';
+  }
+  return entry.typeLabel || postTypeLabel(entry.type || entry.postType || '') || '';
+}
+function calendarEntryMeta(entry = {}, platformFilter = ''){
+  const keys = calendarPlatformKeysForEntry(entry).filter(key => key !== 'unknown');
+  const platformText = platformFilter ? calendarPlatformLabel(platformFilter) : keys.map(calendarPlatformLabel).join(' + ');
+  const typeText = calendarPostTypeForPlatform(entry, platformFilter);
+  return normalizeText([platformText, typeText, entry.time || entry.scheduleTime || '', entry.campaignName || ''].filter(Boolean).join(' · '));
 }
 function calendarEntryCaption(entry = {}){
   return normalizeText([entry.caption, entry.hashtagsText || entry.hashtags, entry.note].filter(Boolean).join('\n'));
@@ -4263,11 +4287,12 @@ function calendarDayPopupHtml(dateIso, entries = [], platformFilter = ''){
   const summaryHtml = summary.length ? summary.map(([key,count]) => `<span class="calendar-popup-platform platform-${escapeHtml(key)}${platformFilter === key ? ' is-selected' : ''}"><i>${calendarPlatformIcon(key)}</i>${escapeHtml(calendarPlatformLabel(key))}<b>${count}</b></span>`).join('') : '<span class="calendar-popup-empty">لا توجد منشورات في هذا اليوم.</span>';
   const itemsHtml = filteredEntries.length ? filteredEntries.map((entry, index) => {
     const keys = calendarPlatformKeysForEntry(entry);
-    const platformsHtml = keys.map(key => `<span class="calendar-popup-mini platform-${escapeHtml(key)}"><i>${calendarPlatformIcon(key)}</i>${escapeHtml(calendarPlatformLabel(key))}</span>`).join('');
+    const shownKeys = platformFilter ? keys.filter(key => key === platformFilter) : keys;
+    const platformsHtml = shownKeys.map(key => `<span class="calendar-popup-mini platform-${escapeHtml(key)}"><i>${calendarPlatformIcon(key)}</i>${escapeHtml(calendarPlatformLabel(key))}</span>`).join('');
     const caption = calendarEntryCaption(entry);
-    return `<article class="calendar-popup-item">
+    return `<article class="calendar-popup-item" data-calendar-item-platform="${escapeHtml(platformFilter || shownKeys.join(','))}">
       <div class="calendar-popup-item-head"><strong>${index + 1}. ${escapeHtml(calendarEntryTitle(entry))}</strong><span>${escapeHtml(entry.time || entry.scheduleTime || 'بدون وقت')}</span></div>
-      <p>${escapeHtml(calendarEntryMeta(entry) || entry.campaignName || 'نشر مجدول')}</p>
+      <p>${escapeHtml(calendarEntryMeta(entry, platformFilter) || entry.campaignName || 'نشر مجدول')}</p>
       ${caption ? `<small>${escapeHtml(caption).slice(0, 220)}${caption.length > 220 ? '...' : ''}</small>` : ''}
       <div class="calendar-popup-platforms">${platformsHtml}</div>
     </article>`;
@@ -4330,8 +4355,7 @@ function renderCalendarPage(){
     const summary = calendarDayPlatformSummary(dayEntries);
     const summaryHtml = summary.map(([key,count]) => `<button type="button" class="calendar-platform-badge platform-${escapeHtml(key)}" data-calendar-platform-day="${escapeHtml(iso)}" data-calendar-platform-key="${escapeHtml(key)}" title="${escapeHtml(calendarPlatformLabel(key))} - ${count} منشور"><i>${calendarPlatformIcon(key)}</i><b>${count}</b></button>`).join('');
     cells.push(`<article class="calendar-day${dayEntries.length ? ' has-items' : ''}${isToday ? ' is-today' : ''}" data-calendar-day="${escapeHtml(iso)}" tabindex="${dayEntries.length ? '0' : '-1'}"${isToday ? ' aria-current="date"' : ''}>
-      ${isToday ? '<span class="calendar-today-badge">اليوم</span>' : ''}
-      <div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><strong>${d}</strong></div>
+      <div class="calendar-day-top"><span>${date.toLocaleDateString('ar-SA',{weekday:'long'})}</span><div class="calendar-day-number-wrap"><strong>${d}</strong>${isToday ? '<em class="calendar-today-badge">اليوم</em>' : ''}</div></div>
       <small>${iso}</small>
       <div class="calendar-day-summary">${summaryHtml}</div>
     </article>`);
