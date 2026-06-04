@@ -640,6 +640,68 @@ function updatePublishPostTypeOptions(card){
   if(!card) return;
   card.querySelectorAll('.publish-platform-type-row').forEach(refreshPublishPlatformTypeRow);
 }
+
+
+// v83 hard fix: جدول النشر - إظهار نوع النشر والأبعاد فور اختيار المنصة بدون الحاجة لتحديث الجدول
+function forceRefreshPublishAgendaPlatformTypes(root = document){
+  try{
+    const scope = root && root.querySelectorAll ? root : document;
+    scope.querySelectorAll('.publish-platform-type-row').forEach(row => {
+      const checkbox = row.querySelector('.js-platform-checkbox');
+      const checked = !!checkbox?.checked;
+      let control = row.querySelector('.publish-platform-type-control');
+      if(typeof ensurePublishPlatformTypeControl === 'function'){
+        control = ensurePublishPlatformTypeControl(row) || control;
+      }
+      if(typeof refreshPublishPlatformTypeRow === 'function'){
+        refreshPublishPlatformTypeRow(row);
+      }
+      control = row.querySelector('.publish-platform-type-control');
+      const select = row.querySelector('.js-publish-platform-type-select');
+      row.classList.toggle('is-selected', checked);
+      if(control){
+        control.classList.toggle('is-visible', checked);
+        control.style.display = checked ? 'block' : 'none';
+      }
+      if(select){
+        select.disabled = !checked;
+        select.style.display = checked ? 'block' : 'none';
+        if(checked && !select.value){
+          const first = Array.from(select.options || []).find(option => option.value);
+          if(first) select.value = first.value;
+        }
+      }
+    });
+  }catch(error){
+    console.warn('forceRefreshPublishAgendaPlatformTypes failed', error);
+  }
+}
+window.MZJForceRefreshPublishAgendaPlatformTypes = forceRefreshPublishAgendaPlatformTypes;
+
+document.addEventListener('change', event => {
+  if(event.target && event.target.matches && event.target.matches('.publish-agenda .js-platform-checkbox, #publishAgenda .js-platform-checkbox')){
+    const card = event.target.closest('.publish-day-card');
+    forceRefreshPublishAgendaPlatformTypes(card || document);
+    setTimeout(() => forceRefreshPublishAgendaPlatformTypes(card || document), 0);
+    setTimeout(() => forceRefreshPublishAgendaPlatformTypes(card || document), 120);
+  }
+}, true);
+
+document.addEventListener('click', event => {
+  const row = event.target && event.target.closest ? event.target.closest('.publish-platform-type-row') : null;
+  if(row){
+    const card = row.closest('.publish-day-card');
+    setTimeout(() => forceRefreshPublishAgendaPlatformTypes(card || document), 0);
+    setTimeout(() => forceRefreshPublishAgendaPlatformTypes(card || document), 120);
+  }
+}, true);
+
+window.addEventListener('load', () => {
+  forceRefreshPublishAgendaPlatformTypes(document);
+  setTimeout(() => forceRefreshPublishAgendaPlatformTypes(document), 300);
+  setTimeout(() => forceRefreshPublishAgendaPlatformTypes(document), 1000);
+});
+
 function funnelOptions(selectedValue = ''){
   return '<option value="">اختر Funnel</option>' + funnels.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
 }
