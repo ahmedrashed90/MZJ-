@@ -275,6 +275,62 @@ function multiUserOptionsForRole(role, selectedIds = []){
 function rolePickerHtml(role, extraClass, label){
   return `<div class="multi-dropdown js-role-picker ${extraClass}" data-role="${escapeHtml(role)}" aria-label="${escapeHtml(label)}"><button class="multi-toggle" type="button">اختيار ${escapeHtml(label)}</button><div class="multi-menu"></div></div>`;
 }
+
+function contentDependencyPickerHtml(role){
+  if(!['montage','design'].includes(role)) return '';
+  const label = role === 'montage' ? 'المونتير يشتغل على محتوى مين؟' : 'المصمم يشتغل على محتوى مين؟';
+  return `<div class="content-dependency-picker js-content-dependency" data-dependency-for="${escapeHtml(role)}">
+    <div class="content-dependency-title"><strong>${escapeHtml(label)}</strong><small>اختار كاتب المحتوى المرتبط بنفس الكريتيف</small></div>
+    <div class="content-dependency-options"><div class="multi-empty">اختار كاتب محتوى الأول</div></div>
+  </div>`;
+}
+function refreshContentDependencyPickers(panel){
+  if(!panel) return;
+  const contentPicker = panel.querySelector('.js-role-picker[data-role="content"]');
+  const contentIds = selectedOptionValues(contentPicker);
+  const contentNames = selectedOptionTexts(contentPicker);
+  panel.querySelectorAll('.js-content-dependency').forEach(box => {
+    const selectedIds = storedMultiValues(box, 'selectedIds');
+    const selectedNames = storedMultiValues(box, 'selectedNames');
+    const options = box.querySelector('.content-dependency-options');
+    if(!options) return;
+    if(!contentIds.length && !contentNames.length){
+      box.dataset.selectedIds = '';
+      box.dataset.selectedNames = '';
+      options.innerHTML = '<div class="multi-empty">اختار كاتب محتوى الأول</div>';
+      return;
+    }
+    const rows = Math.max(contentIds.length, contentNames.length);
+    const hasPrevious = selectedIds.length || selectedNames.length;
+    options.innerHTML = Array.from({length: rows}, (_, i) => {
+      const id = contentIds[i] || contentNames[i] || '';
+      const name = contentNames[i] || contentIds[i] || '';
+      const checked = hasPrevious ? (selectedIds.includes(id) || selectedNames.includes(name)) : true;
+      return `<label><input type="checkbox" class="js-content-dependency-check" value="${escapeHtml(id)}" data-name="${escapeHtml(name)}"${checked ? ' checked' : ''}> <span>${escapeHtml(name)}</span></label>`;
+    }).join('');
+    syncContentDependencyState(box);
+  });
+}
+function syncContentDependencyState(box){
+  if(!box) return;
+  const checked = [...box.querySelectorAll('.js-content-dependency-check:checked')];
+  const ids = checked.map(input => input.value).filter(Boolean);
+  const names = checked.map(input => input.dataset.name || input.closest('label')?.textContent?.trim() || '').filter(Boolean);
+  box.dataset.selectedIds = ids.join('|');
+  box.dataset.selectedNames = names.join('|');
+  box.querySelectorAll('.js-content-dependency-check').forEach(input => {
+    if(input.checked) input.setAttribute('checked','checked'); else input.removeAttribute('checked');
+  });
+}
+function selectedContentDependency(panel, role){
+  const box = panel?.querySelector(`.js-content-dependency[data-dependency-for="${role}"]`);
+  syncContentDependencyState(box);
+  const ids = storedMultiValues(box, 'selectedIds');
+  const names = storedMultiValues(box, 'selectedNames');
+  if(ids.length || names.length) return { ids, names };
+  const contentPicker = panel?.querySelector('.js-role-picker[data-role="content"]');
+  return { ids: selectedOptionValues(contentPicker), names: selectedOptionTexts(contentPicker) };
+}
 function refreshRolePicker(picker){
   const selected = selectedOptionValues(picker);
   const role = picker.dataset.role;
@@ -357,6 +413,7 @@ function syncRolePickerState(picker){
 function syncPanelDynamicState(panel){
   if(!panel) return panel;
   panel.querySelectorAll('.js-role-picker').forEach(syncRolePickerState);
+  panel.querySelectorAll('.js-content-dependency').forEach(syncContentDependencyState);
   panel.querySelectorAll('input, textarea, select').forEach(el => {
     if(el.type === 'checkbox' || el.type === 'radio'){
       if(el.checked) el.setAttribute('checked', 'checked'); else el.removeAttribute('checked');
@@ -1997,6 +2054,7 @@ function roleAssignmentBlock(role, label, hint=''){
   return `<div class="creative-role-assignment" data-assignment-role="${escapeHtml(role)}">
     <div class="creative-role-title"><strong>${escapeHtml(label)}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ''}</div>
     ${rolePickerHtml(role, `js-creative-role-picker js-${role}-assignee`, label)}
+    ${contentDependencyPickerHtml(role)}
     <label class="creative-role-deadline-field${isDeferred ? ' is-disabled' : ''}">
       <span>${escapeHtml(dateLabel)}</span>
       <input class="js-role-deadline js-${role}-deadline" data-role-deadline="${escapeHtml(role)}" type="date"${dateAttrs} />
@@ -2045,6 +2103,7 @@ function refreshCreativeAssignmentPanels(row){
   });
   wrap.innerHTML = nodes.join('');
   wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
+  wrap.querySelectorAll('.creative-assignment-panel').forEach(refreshContentDependencyPickers);
   updateProductOutput(row);
 }
 
@@ -2184,6 +2243,7 @@ function refreshCreativePopupPanels(modal){
   }).join('');
   wrap.innerHTML = `<div class="creative-popup-editor-switch"><div class="creative-popup-active-tabs" role="tablist" aria-label="اختيار الكريتيف الحالي">${summary}</div></div><div class="creative-popup-active-panels">${panels}</div>`;
   wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
+  wrap.querySelectorAll('.creative-assignment-panel').forEach(refreshContentDependencyPickers);
   setCreativePopupActive(modal, activeKey);
 }
 function openCreativeAssignmentPopup(row){
@@ -2199,6 +2259,7 @@ function openCreativeAssignmentPopup(row){
   if(!modal.dataset.activeCreativeKey && selected.length) modal.dataset.activeCreativeKey = normalizeText(selected[0]);
   refreshCreativePopupPanels(modal);
   modal.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
+  modal.querySelectorAll('.creative-assignment-panel').forEach(refreshContentDependencyPickers);
   modal.classList.add('show');
   modal.setAttribute('aria-hidden', 'false');
   document.body.classList.add('creative-popup-open');
@@ -2227,6 +2288,7 @@ function saveCreativeAssignmentPopup(){
     const panels = [...modal.querySelectorAll('.creative-popup-panels .creative-assignment-panel')].filter(panel => selected.map(normalizeText).includes(normalizeText(panel.dataset.creativeName || '')));
     wrap.innerHTML = panels.length ? panels.map(panel => syncPanelDynamicState(panel).outerHTML).join('') : '<div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر من زر الربط.</div>';
     wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
+    wrap.querySelectorAll('.creative-assignment-panel').forEach(refreshContentDependencyPickers);
   }
   updateProductOutput(row);
   renderPublishAgenda();
@@ -2247,6 +2309,8 @@ function selectedRoleTaskFromPanel(panel, role){
   const roleDeadline = normalizeText(panel?.querySelector(`.js-role-deadline[data-role-deadline="${role}"]`)?.value || '');
   const isContent = role === 'content';
   const isDeferredAfterContent = ['montage','design'].includes(role);
+  const linkedContent = isDeferredAfterContent ? selectedContentDependency(panel, role) : { ids: [], names: [] };
+  const linkedContentNames = linkedContent.names.length ? linkedContent.names : contentUserNames;
   const effectiveDeadline = isContent ? (roleDeadline || structureDeadline) : (isDeferredAfterContent ? '' : roleDeadline);
   return {
     contentSectionId: dep.id || role,
@@ -2267,8 +2331,11 @@ function selectedRoleTaskFromPanel(panel, role){
     waitingForApproval: isDeferredAfterContent,
     waitingForApprovalLabel: isDeferredAfterContent ? 'في قائمة انتظار لحين اعتماد تاسك المحتوى من الأدمن ثم تحديد ميعاد التسليم' : '',
     upstreamRole: isDeferredAfterContent ? 'content' : '',
-    upstreamUserNames: isDeferredAfterContent ? contentUserNames : [],
-    upstreamUserLabel: isDeferredAfterContent ? contentUserNames.join('، ') : '',
+    upstreamUserIds: isDeferredAfterContent ? linkedContent.ids : [],
+    upstreamUserNames: isDeferredAfterContent ? linkedContentNames : [],
+    upstreamUserLabel: isDeferredAfterContent ? linkedContentNames.join('، ') : '',
+    dependsOnContentUserIds: isDeferredAfterContent ? linkedContent.ids : [],
+    dependsOnContentUserNames: isDeferredAfterContent ? linkedContentNames : [],
     status: isDeferredAfterContent ? 'waiting_content_approval' : 'pending'
   };
 }
@@ -3996,8 +4063,11 @@ function buildCampaignTaskDocs(campaignId, payload){
             waitingForApproval: !!task.waitingForApproval,
             waitingForApprovalLabel: task.waitingForApprovalLabel || '',
             upstreamRole: task.upstreamRole || '',
+            upstreamUserIds: Array.isArray(task.upstreamUserIds) ? task.upstreamUserIds : [],
             upstreamUserNames: Array.isArray(task.upstreamUserNames) ? task.upstreamUserNames : [],
             upstreamUserLabel: task.upstreamUserLabel || '',
+            dependsOnContentUserIds: Array.isArray(task.dependsOnContentUserIds) ? task.dependsOnContentUserIds : [],
+            dependsOnContentUserNames: Array.isArray(task.dependsOnContentUserNames) ? task.dependsOnContentUserNames : [],
             received: false,
             progress: 0,
             steps: taskStepTemplate(role),
@@ -4831,7 +4901,8 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-creative-check')){ const row = event.target.closest('.creative-row-card'); refreshCreativeAssignmentPanels(row); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-task-user-checkbox,.js-task-user,.js-car-checkbox,.js-creative-quantity')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
-    if(event.target.closest('.js-role-picker')){ updateRolePickerLabel(event.target.closest('.js-role-picker')); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
+    if(event.target.matches('.js-content-dependency-check')){ const box = event.target.closest('.js-content-dependency'); syncContentDependencyState(box); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
+    if(event.target.closest('.js-role-picker')){ const picker = event.target.closest('.js-role-picker'); updateRolePickerLabel(picker); const panel = picker.closest('.creative-assignment-panel'); if(picker.dataset.role === 'content') refreshContentDependencyPickers(panel); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.closest('#stockAdvancedFilters')){ renderStock(); return; }
     if(event.target.matches('.js-platform-checkbox')){
