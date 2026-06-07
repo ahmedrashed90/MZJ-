@@ -2034,20 +2034,22 @@ function creativeDisplayParts(name){
   const value = normalizeText(name);
   if(!value) return { title:'بدون اسم', subtitle:'' };
   const parts = value.split(/\s+-\s+/).map(part => part.trim()).filter(Boolean);
-  if(parts.length > 1){
-    return { title: parts.slice(0, 2).join(' - '), subtitle: parts.slice(2).join(' - ') || value };
-  }
-  return { title: value, subtitle: '' };
+  const type = parts[0] || '';
+  const title = value;
+  const subtitle = parts.length > 1 ? parts.slice(1).join(' - ') : '';
+  return { title, subtitle, type };
 }
 function popupCreativeCheckboxList(selected = []){
   const chosen = (selected || []).map(normalizeText);
   if(!creatives.length) return '<div class="multi-empty">لا توجد كريتيفات</div>';
-  return creatives.map(item => {
+  return creatives.map((item, index) => {
     const name = normalizeText(item.name);
     const parts = creativeDisplayParts(name);
     const checked = chosen.includes(name) ? ' checked' : '';
     return `<div class="creative-check-card popup-creative-check-card" role="button" tabindex="0" data-popup-creative-toggle="${escapeHtml(name)}" title="${escapeHtml(name)}">
-      <div class="popup-creative-text"><strong>${escapeHtml(parts.title)}</strong>${parts.subtitle ? `<small>${escapeHtml(parts.subtitle)}</small>` : ''}</div>
+      <div class="popup-creative-index">${index + 1}</div>
+      <div class="popup-creative-text"><strong>${escapeHtml(parts.title)}</strong>${parts.type ? `<small>${escapeHtml(parts.type)}</small>` : ''}</div>
+      <span class="popup-creative-check-ui" aria-hidden="true">✓</span>
       <input type="checkbox" class="js-popup-creative-check" value="${escapeHtml(name)}"${checked}>
     </div>`;
   }).join('');
@@ -4604,6 +4606,7 @@ function bindCampaignBuilder(){
     const creativePopupCard = event.target.closest('.popup-creative-check-card');
     if(creativePopupCard){
       event.preventDefault();
+      event.stopPropagation();
       const input = creativePopupCard.querySelector('.js-popup-creative-check');
       const modal = creativePopupCard.closest('#creativeAssignmentPopup');
       if(input && modal){

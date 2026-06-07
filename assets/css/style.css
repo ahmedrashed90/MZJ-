@@ -2829,3 +2829,129 @@ body.creative-popup-open{overflow:hidden!important}
 @media(max-width:900px){
   #creativeAssignmentPopup .creative-popup-layout{grid-template-columns:1fr!important;grid-template-rows:280px minmax(0,1fr)!important}
 }
+
+
+/* v94: clear creative picker - full names, modern list, no ellipsis */
+#creativeAssignmentPopup .creative-assignment-popup-dialog{
+  width:min(1600px,calc(100vw - 12px))!important;
+}
+#creativeAssignmentPopup .creative-popup-layout{
+  grid-template-columns:minmax(440px,520px) minmax(0,1fr)!important;
+  align-items:stretch!important;
+}
+#creativeAssignmentPopup .creative-popup-side{
+  overflow:hidden!important;
+  display:grid!important;
+  grid-template-rows:auto auto minmax(0,1fr)!important;
+}
+#creativeAssignmentPopup .creative-popup-checks{
+  overflow:auto!important;
+  padding:4px 6px 8px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:10px!important;
+}
+#creativeAssignmentPopup .popup-creative-check-card{
+  width:100%!important;
+  min-height:74px!important;
+  display:grid!important;
+  grid-template-columns:42px minmax(0,1fr) 34px!important;
+  gap:12px!important;
+  padding:12px 14px!important;
+  border-radius:20px!important;
+  text-align:right!important;
+  direction:rtl!important;
+  cursor:pointer!important;
+}
+#creativeAssignmentPopup .popup-creative-index{
+  width:34px!important;
+  height:34px!important;
+  border-radius:12px!important;
+  display:grid!important;
+  place-items:center!important;
+  background:#f6ebe4!important;
+  color:#7c4a3e!important;
+  font-weight:900!important;
+  font-size:12px!important;
+}
+#creativeAssignmentPopup .popup-creative-text{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:6px!important;
+  min-width:0!important;
+}
+#creativeAssignmentPopup .popup-creative-text strong{
+  display:block!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  word-break:break-word!important;
+  line-height:1.45!important;
+  font-size:13.5px!important;
+  color:#35201a!important;
+  direction:rtl!important;
+}
+#creativeAssignmentPopup .popup-creative-text small{
+  align-self:flex-start!important;
+  background:#fff3eb!important;
+  color:#8a5144!important;
+  border:1px solid rgba(138,81,68,.18)!important;
+  border-radius:999px!important;
+  padding:3px 9px!important;
+  font-size:11px!important;
+  line-height:1.2!important;
+  font-weight:900!important;
+}
+#creativeAssignmentPopup .popup-creative-check-ui{
+  width:28px!important;
+  height:28px!important;
+  border-radius:9px!important;
+  border:1px solid rgba(121,70,52,.28)!important;
+  display:grid!important;
+  place-items:center!important;
+  color:transparent!important;
+  font-weight:900!important;
+  align-self:center!important;
+}
+#creativeAssignmentPopup .popup-creative-check-card input.js-popup-creative-check{
+  position:absolute!important;
+  opacity:0!important;
+  pointer-events:none!important;
+  width:1px!important;
+  height:1px!important;
+}
+#creativeAssignmentPopup .popup-creative-check-card.is-selected,
+#creativeAssignmentPopup .popup-creative-check-card.is-active-linked{
+  background:#7c4a3e!important;
+  color:#fff!important;
+  border-color:#7c4a3e!important;
+  box-shadow:0 12px 26px rgba(124,74,62,.22)!important;
+}
+#creativeAssignmentPopup .popup-creative-check-card.is-selected .popup-creative-index,
+#creativeAssignmentPopup .popup-creative-check-card.is-active-linked .popup-creative-index{
+  background:rgba(255,255,255,.18)!important;
+  color:#fff!important;
+}
+#creativeAssignmentPopup .popup-creative-check-card.is-selected .popup-creative-text strong,
+#creativeAssignmentPopup .popup-creative-check-card.is-active-linked .popup-creative-text strong{
+  color:#fff!important;
+}
+#creativeAssignmentPopup .popup-creative-check-card.is-selected .popup-creative-text small,
+#creativeAssignmentPopup .popup-creative-check-card.is-active-linked .popup-creative-text small{
+  background:rgba(255,255,255,.18)!important;
+  border-color:rgba(255,255,255,.24)!important;
+  color:#fff!important;
+}
+#creativeAssignmentPopup .popup-creative-check-card.is-selected .popup-creative-check-ui,
+#creativeAssignmentPopup .popup-creative-check-card.is-active-linked .popup-creative-check-ui{
+  background:#fff!important;
+  border-color:#fff!important;
+  color:#7c4a3e!important;
+}
+#creativeAssignmentPopup .creative-popup-active-tab span{
+  white-space:normal!important;
+  line-height:1.25!important;
+}
+@media(max-width:1000px){
+  #creativeAssignmentPopup .creative-popup-layout{grid-template-columns:1fr!important;grid-template-rows:360px minmax(0,1fr)!important}
+}
