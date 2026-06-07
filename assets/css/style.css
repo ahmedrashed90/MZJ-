@@ -4422,3 +4422,28 @@ body.creative-popup-open{
   #creativeAssignmentPopup .creative-popup-checks{grid-template-columns:repeat(6,minmax(0,1fr))!important;}
   #creativeAssignmentPopup .popup-creative-text strong{font-size:11px!important;}
 }
+
+/* v105: show 7 creative cards per row so names stay readable */
+#creativeAssignmentPopup .creative-popup-checks{
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  gap:8px!important;
+}
+#creativeAssignmentPopup .popup-creative-check-card{
+  min-height:40px!important;
+  height:40px!important;
+  padding:6px 9px!important;
+  grid-template-columns:24px minmax(0,1fr) 26px!important;
+}
+#creativeAssignmentPopup .popup-creative-text strong{
+  font-size:12px!important;
+  line-height:1.2!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  display:-webkit-box!important;
+  -webkit-line-clamp:2!important;
+  -webkit-box-orient:vertical!important;
+}
+@media(max-width:1180px){
+  #creativeAssignmentPopup .creative-popup-checks{grid-template-columns:repeat(5,minmax(0,1fr))!important;}
+}
