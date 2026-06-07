@@ -270,6 +270,7 @@ service cloud.firestore {
         "campaignCodePrefix", "campaignCodeShortCode", "campaignType", "campaignTypeId", "campaignSerial", "creatives",
         "publishSchedule", "budgetItems", "status", "source",
         "id", "name", "campaignName", "taskCount", "publishStages", "departmentTasks", "readiness", "stage",
+        "content_department", "shooting_department", "design_department", "montage_department", "publish_department", "departmentSummary",
         "resultsFile", "resultFile", "campaignLinks", "archivedAt", "archivedBy",
         "createdAt", "createdBy", "updatedAt", "updatedBy"
       ]);

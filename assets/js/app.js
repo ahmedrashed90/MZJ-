@@ -4603,23 +4603,25 @@ async function saveCampaignToFirebase(){
     updatedAt: serverTime(),
     createdAt: serverTime()
   };
-  Object.assign(payload, campaignDepartmentSummaries(payload));
+  // مهم: لا نحفظ ملخصات الأقسام كحقول Top-level هنا لأن قواعد Firestore الحالية
+  // تسمح فقط بمفاتيح محددة داخل marketing_campaigns. التلخيص يظهر في قاعدة البيانات
+  // من departmentTasks مباشرة، وبكده الحفظ لا يقع في permission-denied.
   if(!campaignHasAssignedTasks(payload)){
     showToast('الحملة لم تُحفظ: لازم تختار كريتيف وتربط يوزر واحد على الأقل من أقسام الكريتيف.');
     campaignWizardSetStep(2);
     return;
   }
   try{
-    const docRef = await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).add(payload);
+    const docRef = safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc();
     const departmentTasks = buildDepartmentTasks(docRef.id, payload);
     if(!departmentTasks.length){
-      await docRef.delete();
       showToast('الحملة لم تُحفظ: الربط لم ينتج أي تاسكات. افتح ربط الكريتيفات واختار اليوزرات مرة تانية.');
       campaignWizardSetStep(2);
       return;
     }
-    await docRef.update({ id: docRef.id, departmentTasks, taskCount: departmentTasks.length, updatedAt: serverTime(), ...campaignDepartmentSummaries({ ...payload, departmentTasks }) });
-    const localCampaign = { id: docRef.id, ...payload, departmentTasks, taskCount: departmentTasks.length };
+    const finalPayload = { ...payload, id: docRef.id, departmentTasks, taskCount: departmentTasks.length };
+    await docRef.set(finalPayload);
+    const localCampaign = { ...finalPayload };
     campaigns = [localCampaign, ...campaigns.filter(item => item.id !== docRef.id)];
     if(typeItem?.id){
       await safeCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION).doc(typeItem.id).update({ nextNumber: nextCampaignSerial + 1, updatedAt: serverTime() });
