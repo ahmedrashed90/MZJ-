@@ -276,16 +276,96 @@ function rolePickerHtml(role, extraClass, label){
   return `<div class="multi-dropdown js-role-picker ${extraClass}" data-role="${escapeHtml(role)}" aria-label="${escapeHtml(label)}"><button class="multi-toggle" type="button">اختيار ${escapeHtml(label)}</button><div class="multi-menu"></div></div>`;
 }
 
+function encodePanelJson(value){
+  try{ return encodeURIComponent(JSON.stringify(value || [])); }catch(_){ return ''; }
+}
+function decodePanelJson(value){
+  try{ return JSON.parse(decodeURIComponent(value || '[]')) || []; }catch(_){ return []; }
+}
 function contentDependencyPickerHtml(role){
-  if(!['montage','design'].includes(role)) return '';
-  const label = role === 'montage' ? 'المونتير يشتغل على محتوى مين؟' : 'المصمم يشتغل على محتوى مين؟';
+  if(role !== 'design') return '';
   return `<div class="content-dependency-picker js-content-dependency" data-dependency-for="${escapeHtml(role)}">
-    <div class="content-dependency-title"><strong>${escapeHtml(label)}</strong><small>اختار كاتب المحتوى المرتبط بنفس الكريتيف</small></div>
+    <div class="content-dependency-title"><strong>المصمم يشتغل على محتوى مين؟</strong><small>اختار كاتب المحتوى المرتبط بنفس الكريتيف</small></div>
     <div class="content-dependency-options"><div class="multi-empty">اختار كاتب محتوى الأول</div></div>
   </div>`;
 }
+function contentMontageLinkerHtml(role){
+  if(role !== 'content') return '';
+  return `<div class="content-montage-linker js-content-montage-linker">
+    <div class="content-dependency-title"><strong>ربط كاتب المحتوى بالمونتاج</strong><small>بعد اختيار كاتب المحتوى اختار مونتير أو أكثر يشتغلوا على نفس المحتوى</small></div>
+    <div class="content-montage-link-options"><div class="multi-empty">اختار كاتب محتوى الأول</div></div>
+  </div>`;
+}
+function getContentMontageLinks(panel){
+  return decodePanelJson(panel?.dataset?.contentMontageLinks || '');
+}
+function syncContentMontageLinks(panel){
+  if(!panel) return [];
+  const links = [...panel.querySelectorAll('.js-content-montage-row')].map(row => {
+    const checks = [...row.querySelectorAll('.js-content-montage-link-check:checked')];
+    return {
+      contentUserId: normalizeText(row.dataset.contentId || ''),
+      contentUserName: normalizeText(row.dataset.contentName || ''),
+      montageUserIds: checks.map(input => normalizeText(input.value)).filter(Boolean),
+      montageUserNames: checks.map(input => normalizeText(input.dataset.name || '')).filter(Boolean)
+    };
+  }).filter(link => link.contentUserId || link.contentUserName);
+  panel.dataset.contentMontageLinks = encodePanelJson(links);
+  return links;
+}
+function applyContentMontageLinksToMontagePicker(panel){
+  if(!panel) return;
+  const links = getContentMontageLinks(panel);
+  const ids = uniqueList(links.flatMap(link => link.montageUserIds || []));
+  const names = uniqueList(links.flatMap(link => link.montageUserNames || []));
+  const picker = panel.querySelector('.js-role-picker[data-role="montage"]');
+  if(!picker) return;
+  picker.dataset.selectedIds = ids.join('|');
+  picker.dataset.selectedNames = names.join('|');
+  picker.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = ids.includes(input.value) || names.includes(input.dataset.name || ''); });
+  syncRolePickerState(picker);
+}
+function refreshContentMontageLinks(panel){
+  if(!panel) return;
+  const linker = panel.querySelector('.js-content-montage-linker');
+  const options = linker?.querySelector('.content-montage-link-options');
+  if(!linker || !options) return;
+  const previous = getContentMontageLinks(panel);
+  const contentPicker = panel.querySelector('.js-role-picker[data-role="content"]');
+  const contentIds = selectedOptionValues(contentPicker);
+  const contentNames = selectedOptionTexts(contentPicker);
+  const montageUsers = usersForRole('montage');
+  if(!contentIds.length && !contentNames.length){
+    panel.dataset.contentMontageLinks = '';
+    options.innerHTML = '<div class="multi-empty">اختار كاتب محتوى الأول</div>';
+    applyContentMontageLinksToMontagePicker(panel);
+    return;
+  }
+  if(!montageUsers.length){
+    options.innerHTML = '<div class="multi-empty">لا توجد يوزرات في قسم المونتاج</div>';
+    return;
+  }
+  const rows = Math.max(contentIds.length, contentNames.length);
+  options.innerHTML = Array.from({length: rows}, (_, i) => {
+    const contentId = contentIds[i] || contentNames[i] || '';
+    const contentName = contentNames[i] || contentIds[i] || '';
+    const old = previous.find(link => link.contentUserId === contentId || link.contentUserName === contentName) || {};
+    const selectedIds = Array.isArray(old.montageUserIds) ? old.montageUserIds : [];
+    const selectedNames = Array.isArray(old.montageUserNames) ? old.montageUserNames : [];
+    const montageOptions = montageUsers.map(user => {
+      const id = user.id || user.uid || user.email || userName(user);
+      const name = userName(user) || id;
+      const checked = selectedIds.includes(id) || selectedNames.includes(name);
+      return `<label><input type="checkbox" class="js-content-montage-link-check" value="${escapeHtml(id)}" data-name="${escapeHtml(name)}"${checked ? ' checked' : ''}> <span>${escapeHtml(name)}</span></label>`;
+    }).join('');
+    return `<div class="content-montage-row js-content-montage-row" data-content-id="${escapeHtml(contentId)}" data-content-name="${escapeHtml(contentName)}"><div class="content-montage-row-title">${escapeHtml(contentName)}</div><div class="content-montage-row-users">${montageOptions}</div></div>`;
+  }).join('');
+  syncContentMontageLinks(panel);
+  applyContentMontageLinksToMontagePicker(panel);
+}
 function refreshContentDependencyPickers(panel){
   if(!panel) return;
+  refreshContentMontageLinks(panel);
   const contentPicker = panel.querySelector('.js-role-picker[data-role="content"]');
   const contentIds = selectedOptionValues(contentPicker);
   const contentNames = selectedOptionTexts(contentPicker);
@@ -323,13 +403,19 @@ function syncContentDependencyState(box){
   });
 }
 function selectedContentDependency(panel, role){
+  if(role === 'montage'){
+    const links = syncContentMontageLinks(panel);
+    const ids = uniqueList(links.filter(link => (link.montageUserIds || []).length).map(link => link.contentUserId).filter(Boolean));
+    const names = uniqueList(links.filter(link => (link.montageUserIds || []).length).map(link => link.contentUserName).filter(Boolean));
+    if(ids.length || names.length) return { ids, names, links };
+  }
   const box = panel?.querySelector(`.js-content-dependency[data-dependency-for="${role}"]`);
   syncContentDependencyState(box);
   const ids = storedMultiValues(box, 'selectedIds');
   const names = storedMultiValues(box, 'selectedNames');
-  if(ids.length || names.length) return { ids, names };
+  if(ids.length || names.length) return { ids, names, links: [] };
   const contentPicker = panel?.querySelector('.js-role-picker[data-role="content"]');
-  return { ids: selectedOptionValues(contentPicker), names: selectedOptionTexts(contentPicker) };
+  return { ids: selectedOptionValues(contentPicker), names: selectedOptionTexts(contentPicker), links: [] };
 }
 function refreshRolePicker(picker){
   const selected = selectedOptionValues(picker);
@@ -413,6 +499,8 @@ function syncRolePickerState(picker){
 function syncPanelDynamicState(panel){
   if(!panel) return panel;
   panel.querySelectorAll('.js-role-picker').forEach(syncRolePickerState);
+  syncContentMontageLinks(panel);
+  applyContentMontageLinksToMontagePicker(panel);
   panel.querySelectorAll('.js-content-dependency').forEach(syncContentDependencyState);
   panel.querySelectorAll('input, textarea, select').forEach(el => {
     if(el.type === 'checkbox' || el.type === 'radio'){
@@ -2054,6 +2142,7 @@ function roleAssignmentBlock(role, label, hint=''){
   return `<div class="creative-role-assignment" data-assignment-role="${escapeHtml(role)}">
     <div class="creative-role-title"><strong>${escapeHtml(label)}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ''}</div>
     ${rolePickerHtml(role, `js-creative-role-picker js-${role}-assignee`, label)}
+    ${contentMontageLinkerHtml(role)}
     ${contentDependencyPickerHtml(role)}
     <label class="creative-role-deadline-field${isDeferred ? ' is-disabled' : ''}">
       <span>${escapeHtml(dateLabel)}</span>
@@ -2288,7 +2377,7 @@ function saveCreativeAssignmentPopup(){
     const panels = [...modal.querySelectorAll('.creative-popup-panels .creative-assignment-panel')].filter(panel => selected.map(normalizeText).includes(normalizeText(panel.dataset.creativeName || '')));
     wrap.innerHTML = panels.length ? panels.map(panel => syncPanelDynamicState(panel).outerHTML).join('') : '<div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر من زر الربط.</div>';
     wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
-    wrap.querySelectorAll('.creative-assignment-panel').forEach(refreshContentDependencyPickers);
+    wrap.querySelectorAll('.creative-assignment-panel').forEach(panel => { refreshContentDependencyPickers(panel); applyContentMontageLinksToMontagePicker(panel); });
   }
   updateProductOutput(row);
   renderPublishAgenda();
@@ -2336,6 +2425,7 @@ function selectedRoleTaskFromPanel(panel, role){
     upstreamUserLabel: isDeferredAfterContent ? linkedContentNames.join('، ') : '',
     dependsOnContentUserIds: isDeferredAfterContent ? linkedContent.ids : [],
     dependsOnContentUserNames: isDeferredAfterContent ? linkedContentNames : [],
+    dependencyLinks: isDeferredAfterContent && Array.isArray(linkedContent.links) ? linkedContent.links : [],
     status: isDeferredAfterContent ? 'waiting_content_approval' : 'pending'
   };
 }
@@ -4014,6 +4104,11 @@ function buildCampaignTaskDocs(campaignId, payload){
         const role = normalizeDepartmentRole(sectionName || dep.name || user.department);
         const qty = Math.max(1, Math.min(50, Number(task.quantity || 1)));
         const rowCars = Array.isArray(creativeRow.selectedCars) ? creativeRow.selectedCars.filter(car => car && (car.id || car.label)) : [];
+        const dependencyLinks = Array.isArray(task.dependencyLinks) ? task.dependencyLinks : [];
+        const assigneeDependencyLinks = dependencyLinks.filter(link => (Array.isArray(link.montageUserIds) ? link.montageUserIds : []).includes(resolvedUserId) || (Array.isArray(link.montageUserNames) ? link.montageUserNames : []).includes(resolvedUserName));
+        const assigneeUpstreamIds = assigneeDependencyLinks.length ? uniqueList(assigneeDependencyLinks.map(link => link.contentUserId).filter(Boolean)) : (Array.isArray(task.upstreamUserIds) ? task.upstreamUserIds : []);
+        const assigneeUpstreamNames = assigneeDependencyLinks.length ? uniqueList(assigneeDependencyLinks.map(link => link.contentUserName).filter(Boolean)) : (Array.isArray(task.upstreamUserNames) ? task.upstreamUserNames : []);
+        const assigneeUpstreamLabel = assigneeUpstreamNames.length ? assigneeUpstreamNames.join('، ') : (task.upstreamUserLabel || '');
         const taskUnits = rowCars.length ? rowCars.map((car, i) => ({ copyIndex: i, car })) : Array.from({ length: qty }, (_, i) => ({ copyIndex: i, car: null }));
         taskUnits.forEach(unit => {
           const selectedCarLabel = unit.car ? normalizeText(unit.car.label || unit.car.name || unit.car.id) : '';
@@ -4063,11 +4158,12 @@ function buildCampaignTaskDocs(campaignId, payload){
             waitingForApproval: !!task.waitingForApproval,
             waitingForApprovalLabel: task.waitingForApprovalLabel || '',
             upstreamRole: task.upstreamRole || '',
-            upstreamUserIds: Array.isArray(task.upstreamUserIds) ? task.upstreamUserIds : [],
-            upstreamUserNames: Array.isArray(task.upstreamUserNames) ? task.upstreamUserNames : [],
-            upstreamUserLabel: task.upstreamUserLabel || '',
-            dependsOnContentUserIds: Array.isArray(task.dependsOnContentUserIds) ? task.dependsOnContentUserIds : [],
-            dependsOnContentUserNames: Array.isArray(task.dependsOnContentUserNames) ? task.dependsOnContentUserNames : [],
+            upstreamUserIds: assigneeUpstreamIds,
+            upstreamUserNames: assigneeUpstreamNames,
+            upstreamUserLabel: assigneeUpstreamLabel,
+            dependsOnContentUserIds: assigneeUpstreamIds.length ? assigneeUpstreamIds : (Array.isArray(task.dependsOnContentUserIds) ? task.dependsOnContentUserIds : []),
+            dependsOnContentUserNames: assigneeUpstreamNames.length ? assigneeUpstreamNames : (Array.isArray(task.dependsOnContentUserNames) ? task.dependsOnContentUserNames : []),
+            dependencyLinks: assigneeDependencyLinks,
             received: false,
             progress: 0,
             steps: taskStepTemplate(role),
@@ -4902,7 +4998,8 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-task-user-checkbox,.js-task-user,.js-car-checkbox,.js-creative-quantity')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
     if(event.target.matches('.js-content-dependency-check')){ const box = event.target.closest('.js-content-dependency'); syncContentDependencyState(box); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
-    if(event.target.closest('.js-role-picker')){ const picker = event.target.closest('.js-role-picker'); updateRolePickerLabel(picker); const panel = picker.closest('.creative-assignment-panel'); if(picker.dataset.role === 'content') refreshContentDependencyPickers(panel); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
+    if(event.target.matches('.js-content-montage-link-check')){ const panel = event.target.closest('.creative-assignment-panel'); syncContentMontageLinks(panel); applyContentMontageLinksToMontagePicker(panel); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
+    if(event.target.closest('.js-role-picker')){ const picker = event.target.closest('.js-role-picker'); syncRolePickerState(picker); const panel = picker.closest('.creative-assignment-panel'); if(picker.dataset.role === 'content') refreshContentDependencyPickers(panel); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.closest('#stockAdvancedFilters')){ renderStock(); return; }
     if(event.target.matches('.js-platform-checkbox')){
