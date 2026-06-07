@@ -1925,13 +1925,23 @@ function taskBlockHtml(index){
 }
 
 function updateProductOutput(row){
+  const output = row?.querySelector('.js-product-output');
+  if(!output) return;
+  const panels = [...(row?.querySelectorAll('.creative-assignment-panel') || [])];
+  if(panels.length){
+    output.value = panels.map(panel => {
+      const creative = normalizeText(panel.dataset.creativeName || '');
+      const qty = normalizeText(panel.querySelector('.js-creative-quantity')?.value || '1');
+      const userNames = [...panel.querySelectorAll('.js-role-picker')].flatMap(control => selectedOptionTexts(control));
+      const usersText = uniqueList(userNames).join(' - ');
+      return [creative, qty ? `عدد ${qty}` : '', usersText].filter(Boolean).join(' / ');
+    }).filter(Boolean).join(' | ');
+    return;
+  }
   const creativesList = selectedCreativeNames(row);
   const userNames = [...(row?.querySelectorAll('.js-task-user,.js-creative-role-picker') || [])].flatMap(control => selectedOptionTexts(control));
-  const output = row?.querySelector('.js-product-output');
-  if(output){
-    const usersText = uniqueList(userNames).join(' - ');
-    output.value = creativesList.length ? creativesList.map(cr => usersText ? `${cr} - ${usersText}` : cr).join(' | ') : '';
-  }
+  const usersText = uniqueList(userNames).join(' - ');
+  output.value = creativesList.length ? creativesList.map(cr => usersText ? `${cr} - ${usersText}` : cr).join(' | ') : '';
 }
 function updateAllProductOutputs(){ document.querySelectorAll('#creativeRows .creative-row-card').forEach(updateProductOutput); }
 
@@ -1947,7 +1957,87 @@ function roleAssignmentBlock(role, label, hint=''){
     ${rolePickerHtml(role, `js-creative-role-picker js-${role}-assignee`, label)}
   </div>`;
 }
+
+function creativeSafeKey(value){
+  return identityClean(value || '').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 70) || `creative-${Date.now()}`;
+}
+function selectedCreativePanelNames(row){
+  return [...(row?.querySelectorAll('.creative-assignment-panel') || [])].map(panel => normalizeText(panel.dataset.creativeName || '')).filter(Boolean);
+}
+function creativeAssignmentPanelHtml(creativeName){
+  const key = creativeSafeKey(creativeName);
+  return `<article class="creative-assignment-panel" data-creative-name="${escapeHtml(creativeName)}" data-creative-key="${escapeHtml(key)}">
+    <header class="creative-assignment-panel-head">
+      <div><span>الكريتيف</span><strong>${escapeHtml(creativeName)}</strong></div>
+      <label class="creative-qty-field"><span>العدد</span><input class="js-creative-quantity" type="number" min="1" value="1" inputmode="numeric" /></label>
+    </header>
+    <div class="creative-assignment-inner-grid">
+      ${roleAssignmentBlock('content','قسم المحتوى','كاتب المحتوى الذي سيظهر له تاسك بيانات الطلب ورفع الهيكل')}
+      ${roleAssignmentBlock('montage','قسم المونتاج','يبدأ في قائمة انتظار لحين اعتماد تاسك المحتوى')}
+      ${roleAssignmentBlock('design','قسم التصميم','اختياري حسب الكريتيف')}
+      ${roleAssignmentBlock('shooting','قسم التصوير','اختياري حسب الكريتيف')}
+    </div>
+    <div class="creative-assignment-note">لازم تربط الكريتيف كامل باليوزرات المطلوبة. تاسك المونتاج سيعرض اسم كاتب المحتوى المرتبط به.</div>
+  </article>`;
+}
+function refreshCreativeAssignmentPanels(row){
+  if(!row) return;
+  const wrap = row.querySelector('.selected-creative-assignments');
+  if(!wrap) return;
+  const selected = selectedCreativeNames(row);
+  const existing = new Map([...wrap.querySelectorAll('.creative-assignment-panel')].map(panel => [normalizeText(panel.dataset.creativeName || ''), panel]));
+  if(!selected.length){
+    wrap.innerHTML = '<div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر عشان تظهر إعدادات العدد واليوزرات هنا.</div>';
+    updateProductOutput(row);
+    return;
+  }
+  const nodes = [];
+  selected.forEach(name => {
+    const current = existing.get(normalizeText(name));
+    if(current) nodes.push(current.outerHTML); else nodes.push(creativeAssignmentPanelHtml(name));
+  });
+  wrap.innerHTML = nodes.join('');
+  wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
+  updateProductOutput(row);
+}
+function selectedRoleTaskFromPanel(panel, role){
+  const picker = panel?.querySelector(`.js-role-picker[data-role="${role}"]`);
+  const userIds = selectedOptionValues(picker);
+  const userNames = selectedOptionTexts(picker);
+  if(!userIds.length && !userNames.length) return null;
+  const dep = findDepartmentByRole(role) || {};
+  const contentPicker = panel?.querySelector('.js-role-picker[data-role="content"]');
+  const contentUserNames = selectedOptionTexts(contentPicker);
+  const quantity = Math.max(1, Math.min(50, Number(panel?.querySelector('.js-creative-quantity')?.value || 1)));
+  const requestForm = document.getElementById('campaignRequestForm');
+  const brief = normalizeText(requestForm?.querySelector('[name="content_writer_brief"]')?.value || '');
+  const structureDeadline = normalizeText(requestForm?.querySelector('[name="structure_deadline"]')?.value || '');
+  const isContent = role === 'content';
+  return {
+    contentSectionId: dep.id || role,
+    contentSectionName: dep.name || defaultRoleSectionName(role),
+    taskType: isContent ? 'كتابة محتوى حملة' : defaultRoleTaskType(role),
+    quantity,
+    requiredDate: isContent ? (structureDeadline ? structureDeadline.slice(0, 10) : '') : '',
+    structureDeadline: isContent ? structureDeadline : '',
+    contentWriterBrief: isContent ? brief : '',
+    campaignRequestBrief: isContent ? brief : '',
+    needsStructureUpload: isContent,
+    userIds,
+    userNames,
+    departmentRole: role,
+    dependencyRole: role === 'montage' ? 'content' : '',
+    waitingForApproval: role === 'montage',
+    waitingForApprovalLabel: role === 'montage' ? 'في قائمة انتظار لحين اعتماد تاسك المحتوى من الأدمن' : '',
+    upstreamRole: role === 'montage' ? 'content' : '',
+    upstreamUserNames: role === 'montage' ? contentUserNames : [],
+    upstreamUserLabel: role === 'montage' ? contentUserNames.join('، ') : '',
+    status: role === 'montage' ? 'waiting_content_approval' : 'pending'
+  };
+}
 function selectedRoleTaskFromRow(row, role){
+  const panel = row?.closest?.('.creative-assignment-panel') || null;
+  if(panel) return selectedRoleTaskFromPanel(panel, role);
   const picker = row?.querySelector(`.js-role-picker[data-role="${role}"]`);
   const userIds = selectedOptionValues(picker);
   const userNames = selectedOptionTexts(picker);
@@ -1955,18 +2045,26 @@ function selectedRoleTaskFromRow(row, role){
   const dep = findDepartmentByRole(role) || {};
   const contentPicker = row?.querySelector('.js-role-picker[data-role="content"]');
   const contentUserNames = selectedOptionTexts(contentPicker);
+  const requestForm = document.getElementById('campaignRequestForm');
+  const brief = normalizeText(requestForm?.querySelector('[name="content_writer_brief"]')?.value || '');
+  const structureDeadline = normalizeText(requestForm?.querySelector('[name="structure_deadline"]')?.value || '');
+  const isContent = role === 'content';
   return {
     contentSectionId: dep.id || role,
     contentSectionName: dep.name || defaultRoleSectionName(role),
-    taskType: defaultRoleTaskType(role),
+    taskType: isContent ? 'كتابة محتوى حملة' : defaultRoleTaskType(role),
     quantity: 1,
-    requiredDate: '',
+    requiredDate: isContent ? (structureDeadline ? structureDeadline.slice(0, 10) : '') : '',
+    structureDeadline: isContent ? structureDeadline : '',
+    contentWriterBrief: isContent ? brief : '',
+    campaignRequestBrief: isContent ? brief : '',
+    needsStructureUpload: isContent,
     userIds,
     userNames,
     departmentRole: role,
     dependencyRole: role === 'montage' ? 'content' : '',
     waitingForApproval: role === 'montage',
-    waitingForApprovalLabel: role === 'montage' ? 'ينتظر اعتماد تاسك المحتوى من الأدمن' : '',
+    waitingForApprovalLabel: role === 'montage' ? 'في قائمة انتظار لحين اعتماد تاسك المحتوى من الأدمن' : '',
     upstreamRole: role === 'montage' ? 'content' : '',
     upstreamUserNames: role === 'montage' ? contentUserNames : [],
     upstreamUserLabel: role === 'montage' ? contentUserNames.join('، ') : '',
@@ -3601,6 +3699,11 @@ function buildCampaignTaskDocs(campaignId, payload){
             taskType: task.taskType || '',
             requiredDate: task.requiredDate || '',
             dueDate: task.requiredDate || '',
+            structureDeadline: task.structureDeadline || payload.structure_deadline || payload.structureDeadline || '',
+            contentWriterBrief: task.contentWriterBrief || payload.content_writer_brief || payload.contentWriterBrief || '',
+            campaignRequestBrief: task.campaignRequestBrief || payload.content_writer_brief || payload.contentWriterBrief || '',
+            needsStructureUpload: !!task.needsStructureUpload,
+            sourceRequestStep: task.departmentRole === 'content' ? 'campaign_request_data' : '',
             taskQuantity: taskUnits.length,
             taskCopyIndex: unit.copyIndex + 1,
             userId: resolvedUserId,
@@ -3920,6 +4023,24 @@ function readSelectText(select){
 
 function collectCampaignRows(){
   return [...document.querySelectorAll('#creativeRows .creative-row-card')].flatMap(row => {
+    const panels = [...row.querySelectorAll('.creative-assignment-panel')];
+    const cars = selectedCarsFromRow(row);
+    if(panels.length){
+      return panels.map(panel => {
+        const creative = normalizeText(panel.dataset.creativeName || '');
+        const tasks = ['content','montage','design','shooting'].map(role => selectedRoleTaskFromPanel(panel, role)).filter(Boolean);
+        const qty = Math.max(1, Math.min(50, Number(panel.querySelector('.js-creative-quantity')?.value || 1)));
+        return {
+          creative,
+          quantity: qty,
+          tasks,
+          product: creativeProductLabel(creative, panel),
+          selectedCars: cars,
+          workflowMode: 'creative_user_wizard',
+          assignmentMode: 'per_creative_full_binding'
+        };
+      }).filter(item => item.creative || item.tasks.length || item.product || item.selectedCars.length);
+    }
     const roleTasks = ['content','montage','design','shooting'].map(role => selectedRoleTaskFromRow(row, role)).filter(Boolean);
     const legacyTasks = [...row.querySelectorAll('.creative-task-block')].map(block => {
       const section = block.querySelector('.js-task-section-select');
@@ -3937,7 +4058,6 @@ function collectCampaignRows(){
     }).filter(item => item.contentSectionId || item.taskType || item.userIds.length);
     const tasks = roleTasks.length ? roleTasks : legacyTasks;
     const selectedCreatives = selectedCreativeNames(row);
-    const cars = selectedCarsFromRow(row);
     if(!selectedCreatives.length && !tasks.length && !cars.length) return [];
     const creativesToSave = selectedCreatives.length ? selectedCreatives : [''];
     return creativesToSave.map(creative => ({
@@ -3949,6 +4069,7 @@ function collectCampaignRows(){
     })).filter(item => item.creative || item.tasks.length || item.product || item.selectedCars.length);
   });
 }
+
 function getCampaignProducts(){
   const designAndMontageOutputs = typeof getCampaignPublishOutputs === 'function' ? getCampaignPublishOutputs() : [];
   const manualProductOutputs = [...document.querySelectorAll('.js-product-output')].map(input => normalizeText(input.value)).filter(Boolean);
@@ -4262,18 +4383,13 @@ function bindCampaignBuilder(){
     card.className = 'creative-row-card compact-creative-row';
     card.innerHTML = `
       <div class="creative-row-head creative-two-line-head">
-        <div class="creative-main-select creative-checkbox-picker"><span>اختيار الكريتيف / المخرج</span><div class="creative-checkbox-grid">${creativeCheckboxList()}</div></div>
+        <div class="creative-main-select creative-checkbox-picker"><span>اختيار الكريتيفات</span><div class="creative-checkbox-grid">${creativeCheckboxList()}</div></div>
         <button class="delete-row" type="button" aria-label="حذف الصف">×</button>
       </div>
-      <div class="creative-assignment-grid">
-        ${roleAssignmentBlock('content','قسم المحتوى','مين يكتب محتوى الكريتيف')}
-        ${roleAssignmentBlock('montage','قسم المونتاج','يظهر عنده في قائمة انتظار لحين اعتماد المحتوى')}
-        ${roleAssignmentBlock('design','قسم التصميم','اختياري حسب نوع الكريتيف')}
-        ${roleAssignmentBlock('shooting','قسم التصوير','اختياري حسب الاحتياج')}
-      </div>
-      <label class="creative-product-field product-under-creatives"><span>الربط الناتج</span><input class="product-output js-product-output" type="text" readonly aria-label="الربط الناتج" /></label>
+      <div class="selected-creative-assignments"><div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر عشان تظهر إعدادات العدد واليوزرات هنا.</div></div>
+      <label class="creative-product-field product-under-creatives"><span>ملخص الربط</span><input class="product-output js-product-output" type="text" readonly aria-label="ملخص الربط" /></label>
       <label class="car-picker-enable"><input type="checkbox" class="js-enable-cars"> <span>اختيار سيارات من الاستوك</span></label><div class="car-picker-block is-hidden"><div class="car-picker-title">اختيار السيارات</div><div class="car-checkbox-grid">${carCheckboxList()}</div></div>
-      <div class="creative-waiting-note">المونتاج هيشوف اسم يوزر المحتوى المرتبط بالكريتيف، ويبدأ كقائمة انتظار لحين اعتماد تاسك المحتوى.</div>`;
+      <div class="creative-waiting-note">كل كريتيف لازم يتربط بالكامل باليوزرات. تاسك المحتوى يستلم بيانات الطلب ويرفع الهيكل، والمونتاج ينتظر اعتماد المحتوى.</div>`;
     creativeRows?.appendChild(card); refreshDynamicSelects(); renderPublishAgenda();
   });
   document.getElementById('campaignCodeSelect')?.addEventListener('change', generateCampaignCode);
@@ -4342,8 +4458,10 @@ function bindCampaignBuilder(){
     }
     if(event.target.matches('.js-structure-assignee-checkbox')){ updateStructureAssigneePicker(event.target.closest('.structure-assignee-picker')); return; }
     if(event.target.matches('.js-structure-popup-platform')){ refreshStructurePlatformRow(event.target.closest('.structure-popup-platform-row')); return; }
-    if(event.target.matches('.js-task-user-checkbox,.js-task-user,.js-car-checkbox,.js-creative-check')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
+    if(event.target.matches('.js-creative-check')){ const row = event.target.closest('.creative-row-card'); refreshCreativeAssignmentPanels(row); renderPublishAgenda(); refreshDynamicSelects(); return; }
+    if(event.target.matches('.js-task-user-checkbox,.js-task-user,.js-car-checkbox,.js-creative-quantity')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
+    if(event.target.closest('.js-role-picker')){ updateRolePickerLabel(event.target.closest('.js-role-picker')); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
     if(event.target.matches('.js-publish-output-select')){ updatePublishOutputAvailability(); return; }
     if(event.target.closest('#stockAdvancedFilters')){ renderStock(); return; }
     if(event.target.matches('.js-platform-checkbox')){
