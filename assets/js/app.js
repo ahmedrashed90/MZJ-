@@ -4543,6 +4543,24 @@ function bindCampaignBuilder(){
     if(event.target.closest('[data-save-structure-distribution-popup]')){ saveStructureDistributionPopup(); return; }
     const creativePopupBtn = event.target.closest('.open-creative-assignment-popup');
     if(creativePopupBtn){ openCreativeAssignmentPopup(creativePopupBtn.closest('.creative-row-card')); return; }
+    const creativePopupTab = event.target.closest('[data-creative-popup-tab]');
+    if(creativePopupTab){
+      const modal = creativePopupTab.closest('#creativeAssignmentPopup');
+      if(modal){
+        modal.dataset.activeCreativeKey = normalizeText(creativePopupTab.dataset.creativePopupTab || creativePopupTab.textContent || '');
+        refreshCreativePopupPanels(modal);
+      }
+      return;
+    }
+    const creativePopupCard = event.target.closest('.popup-creative-check-card');
+    if(creativePopupCard && event.target.tagName !== 'INPUT'){
+      const input = creativePopupCard.querySelector('.js-popup-creative-check');
+      if(input){
+        input.checked = !input.checked;
+        input.dispatchEvent(new Event('change', { bubbles:true }));
+      }
+      return;
+    }
     if(event.target.closest('[data-close-creative-assignment-popup]')){ closeCreativeAssignmentPopup(); return; }
     if(event.target.closest('[data-save-creative-assignment-popup]')){ saveCreativeAssignmentPopup(); return; }
     const btn = event.target.closest('.delete-row');
@@ -4584,8 +4602,6 @@ function bindCampaignBuilder(){
     }
     if(event.target.matches('.js-structure-assignee-checkbox')){ updateStructureAssigneePicker(event.target.closest('.structure-assignee-picker')); return; }
     if(event.target.matches('.js-structure-popup-platform')){ refreshStructurePlatformRow(event.target.closest('.structure-popup-platform-row')); return; }
-    const popupTab = event.target.closest('[data-creative-popup-tab]');
-    if(popupTab){ const modal = popupTab.closest('#creativeAssignmentPopup'); modal.dataset.activeCreativeKey = normalizeText(popupTab.dataset.creativePopupTab || ''); refreshCreativePopupPanels(modal); return; }
     if(event.target.matches('.js-popup-creative-check')){ const modal = event.target.closest('#creativeAssignmentPopup'); if(event.target.checked) modal.dataset.activeCreativeKey = normalizeText(event.target.value || ''); refreshCreativePopupPanels(modal); return; }
     if(event.target.matches('.js-creative-check')){ const row = event.target.closest('.creative-row-card'); refreshCreativeAssignmentPanels(row); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-task-user-checkbox,.js-task-user,.js-car-checkbox,.js-creative-quantity')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }

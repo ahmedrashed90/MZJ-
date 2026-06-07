@@ -2674,3 +2674,11 @@ body.creative-popup-open{overflow:hidden!important}
   #creativeAssignmentPopup .creative-popup-layout{grid-template-columns:1fr!important;grid-template-rows:220px minmax(0,1fr)!important}
   #creativeAssignmentPopup .creative-assignment-inner-grid{grid-template-columns:1fr!important}
 }
+
+
+/* v91: make creative popup choices actually clickable and clear */
+#creativeAssignmentPopup .popup-creative-check-card{cursor:pointer!important;user-select:none!important;position:relative!important}
+#creativeAssignmentPopup .popup-creative-check-card input{cursor:pointer!important;pointer-events:auto!important}
+#creativeAssignmentPopup .creative-popup-active-tab{pointer-events:auto!important;cursor:pointer!important}
+#creativeAssignmentPopup .creative-popup-active-panels{min-height:360px!important}
+#creativeAssignmentPopup .creative-assignment-panel.is-active{display:block!important;visibility:visible!important;opacity:1!important}
