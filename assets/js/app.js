@@ -1952,9 +1952,19 @@ function defaultRoleTaskType(role){
   return {content:'كتابة المحتوى', shooting:'التصوير', design:'التصميم', montage:'المونتاج', publish:'النشر'}[role] || 'تاسك';
 }
 function roleAssignmentBlock(role, label, hint=''){
+  const isContent = role === 'content';
+  const isDeferred = ['montage','design'].includes(role);
+  const dateLabel = isContent ? 'ميعاد تسليم كاتب المحتوى' : `ميعاد تسليم ${label}`;
+  const dateNote = isDeferred ? 'يتحدد بعد اعتماد تاسك المحتوى من الأدمن.' : 'اختياري حسب احتياج الكريتيف.';
+  const dateAttrs = isDeferred ? ' disabled data-deferred-deadline="true"' : '';
   return `<div class="creative-role-assignment" data-assignment-role="${escapeHtml(role)}">
     <div class="creative-role-title"><strong>${escapeHtml(label)}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ''}</div>
     ${rolePickerHtml(role, `js-creative-role-picker js-${role}-assignee`, label)}
+    <label class="creative-role-deadline-field${isDeferred ? ' is-disabled' : ''}">
+      <span>${escapeHtml(dateLabel)}</span>
+      <input class="js-role-deadline js-${role}-deadline" data-role-deadline="${escapeHtml(role)}" type="datetime-local"${dateAttrs} />
+      <small>${escapeHtml(dateNote)}</small>
+    </label>
   </div>`;
 }
 
@@ -2041,7 +2051,7 @@ function creativeDisplayParts(name){
 }
 function popupCreativeCheckboxList(selected = []){
   const chosen = (selected || []).map(normalizeText);
-  if(!creatives.length) return '<div class="multi-empty">لا توجد كريتيفات</div>';
+  if(!creatives.length) return '<div class="multi-empty">لا توجد كريتيفات حالياً. افتح الأقسام > القوائم الحالية > الكريتيفات أو اضغط تحديث، وسيتم إعادة المحاولة تلقائياً.</div>';
   return creatives.map((item, index) => {
     const name = normalizeText(item.name);
     const parts = creativeDisplayParts(name);
@@ -2053,6 +2063,25 @@ function popupCreativeCheckboxList(selected = []){
       <input type="checkbox" class="js-popup-creative-check" value="${escapeHtml(name)}"${checked}>
     </div>`;
   }).join('');
+}
+
+async function reloadCreativesForPopup(modal, selected = []){
+  if(!modal || creatives.length || !mainDb) return;
+  const checks = modal.querySelector('.creative-popup-checks');
+  if(checks) checks.innerHTML = '<div class="multi-empty">جاري تحميل الكريتيفات...</div>';
+  try{
+    const snapshot = await safeCollection(window.MZJ_CREATIVES_COLLECTION).orderBy('name').get();
+    const mapped = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || data.name || doc.id, ...data }; }).filter(item => normalizeText(item.name));
+    if(mapped.length){
+      creatives.splice(0, creatives.length, ...mapped);
+      renderCreatives();
+      refreshDynamicSelects();
+    }
+  }catch(error){
+    console.error('Reload creatives for popup error', error);
+  }
+  if(checks) checks.innerHTML = popupCreativeCheckboxList(selected);
+  setCreativePopupActive(modal, normalizeText(modal.dataset.activeCreativeKey || selected[0] || ''));
 }
 function getCreativePopupSelected(modal){
   return [...(modal?.querySelectorAll('.js-popup-creative-check:checked') || [])].map(input => normalizeText(input.value || '')).filter(Boolean);
@@ -2127,6 +2156,7 @@ function openCreativeAssignmentPopup(row){
   modal.dataset.rowId = row.dataset.creativeRowId;
   const selected = selectedCreativeNames(row);
   modal.querySelector('.creative-popup-checks').innerHTML = popupCreativeCheckboxList(selected);
+  if(!creatives.length) setTimeout(() => reloadCreativesForPopup(modal, selected), 10);
   const panels = [...row.querySelectorAll('.selected-creative-assignments .creative-assignment-panel')].map(panel => panel.outerHTML).join('');
   modal.querySelector('.creative-popup-panels').innerHTML = panels || '<div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر من القائمة عشان تظهر إعداداته هنا.</div>';
   if(!modal.dataset.activeCreativeKey && selected.length) modal.dataset.activeCreativeKey = normalizeText(selected[0]);
@@ -2177,27 +2207,32 @@ function selectedRoleTaskFromPanel(panel, role){
   const requestForm = document.getElementById('campaignRequestForm');
   const brief = normalizeText(requestForm?.querySelector('[name="content_writer_brief"]')?.value || '');
   const structureDeadline = normalizeText(requestForm?.querySelector('[name="structure_deadline"]')?.value || '');
+  const roleDeadline = normalizeText(panel?.querySelector(`.js-role-deadline[data-role-deadline="${role}"]`)?.value || '');
   const isContent = role === 'content';
+  const isDeferredAfterContent = ['montage','design'].includes(role);
+  const effectiveDeadline = isContent ? (roleDeadline || structureDeadline) : (isDeferredAfterContent ? '' : roleDeadline);
   return {
     contentSectionId: dep.id || role,
     contentSectionName: dep.name || defaultRoleSectionName(role),
     taskType: isContent ? 'كتابة محتوى حملة' : defaultRoleTaskType(role),
     quantity,
-    requiredDate: isContent ? (structureDeadline ? structureDeadline.slice(0, 10) : '') : '',
-    structureDeadline: isContent ? structureDeadline : '',
+    requiredDate: effectiveDeadline ? effectiveDeadline.slice(0, 10) : '',
+    requiredDateTime: effectiveDeadline,
+    structureDeadline: isContent ? effectiveDeadline : '',
+    deferredDeadlineUntilContentApproval: isDeferredAfterContent,
     contentWriterBrief: isContent ? brief : '',
     campaignRequestBrief: isContent ? brief : '',
     needsStructureUpload: isContent,
     userIds,
     userNames,
     departmentRole: role,
-    dependencyRole: role === 'montage' ? 'content' : '',
-    waitingForApproval: role === 'montage',
-    waitingForApprovalLabel: role === 'montage' ? 'في قائمة انتظار لحين اعتماد تاسك المحتوى من الأدمن' : '',
-    upstreamRole: role === 'montage' ? 'content' : '',
-    upstreamUserNames: role === 'montage' ? contentUserNames : [],
-    upstreamUserLabel: role === 'montage' ? contentUserNames.join('، ') : '',
-    status: role === 'montage' ? 'waiting_content_approval' : 'pending'
+    dependencyRole: isDeferredAfterContent ? 'content' : '',
+    waitingForApproval: isDeferredAfterContent,
+    waitingForApprovalLabel: isDeferredAfterContent ? 'في قائمة انتظار لحين اعتماد تاسك المحتوى من الأدمن ثم تحديد ميعاد التسليم' : '',
+    upstreamRole: isDeferredAfterContent ? 'content' : '',
+    upstreamUserNames: isDeferredAfterContent ? contentUserNames : [],
+    upstreamUserLabel: isDeferredAfterContent ? contentUserNames.join('، ') : '',
+    status: isDeferredAfterContent ? 'waiting_content_approval' : 'pending'
   };
 }
 function selectedRoleTaskFromRow(row, role){
@@ -2214,6 +2249,7 @@ function selectedRoleTaskFromRow(row, role){
   const brief = normalizeText(requestForm?.querySelector('[name="content_writer_brief"]')?.value || '');
   const structureDeadline = normalizeText(requestForm?.querySelector('[name="structure_deadline"]')?.value || '');
   const isContent = role === 'content';
+  const isDeferredAfterContent = ['montage','design'].includes(role);
   return {
     contentSectionId: dep.id || role,
     contentSectionName: dep.name || defaultRoleSectionName(role),
@@ -2227,13 +2263,13 @@ function selectedRoleTaskFromRow(row, role){
     userIds,
     userNames,
     departmentRole: role,
-    dependencyRole: role === 'montage' ? 'content' : '',
-    waitingForApproval: role === 'montage',
-    waitingForApprovalLabel: role === 'montage' ? 'في قائمة انتظار لحين اعتماد تاسك المحتوى من الأدمن' : '',
-    upstreamRole: role === 'montage' ? 'content' : '',
-    upstreamUserNames: role === 'montage' ? contentUserNames : [],
-    upstreamUserLabel: role === 'montage' ? contentUserNames.join('، ') : '',
-    status: role === 'montage' ? 'waiting_content_approval' : 'pending'
+    dependencyRole: isDeferredAfterContent ? 'content' : '',
+    waitingForApproval: isDeferredAfterContent,
+    waitingForApprovalLabel: isDeferredAfterContent ? 'في قائمة انتظار لحين اعتماد تاسك المحتوى من الأدمن ثم تحديد ميعاد التسليم' : '',
+    upstreamRole: isDeferredAfterContent ? 'content' : '',
+    upstreamUserNames: isDeferredAfterContent ? contentUserNames : [],
+    upstreamUserLabel: isDeferredAfterContent ? contentUserNames.join('، ') : '',
+    status: isDeferredAfterContent ? 'waiting_content_approval' : 'pending'
   };
 }
 function campaignWizardSetStep(step){
