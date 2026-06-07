@@ -2471,12 +2471,13 @@ function mergeCampaignTasks(list){
   return out;
 }
 function tasksForCampaign(campaign){
-  // المصدر المعتمد للتاسكات هو marketing_campaigns > departmentTasks فقط.
-  // لا نقرأ من campaign_tasks ولا workspace_tasks في الداشبورد.
+  // المصدر الأساسي للتاسكات هو marketing_campaigns > departmentTasks.
+  // ولو الحملة اتسجلت بالكريتيفات فقط لأي سبب، نولد نفس التاسكات من creatives عشان الداشبورد مايفضلش فاضي.
   const fromDepartmentTasks = Array.isArray(campaign.departmentTasks)
     ? campaign.departmentTasks.map(task => normalizeCampaignTask(task, campaign))
     : [];
-  return mergeCampaignTasks(fromDepartmentTasks);
+  const fromCreativeRows = fallbackTasksFromCampaign(campaign).map(task => normalizeCampaignTask(task, campaign));
+  return mergeCampaignTasks(fromDepartmentTasks.length ? fromDepartmentTasks : fromCreativeRows);
 }
 function groupTasksForKanban(tasks){
   const order = ['content','shooting','design','montage','publish','other'];
@@ -2727,12 +2728,9 @@ function tasksFromCreativeRowsForCurrentUser(){
   return generated;
 }
 function getVisibleTasksForCurrentUser(){
-  // المصدر الوحيد لداشبورد اليوزر: marketing_campaigns > departmentTasks.
-  // اليوزر العادي يشوف التاسكات المسندة له صراحة فقط، بدون fallback بالقسم أو منشئ الحملة.
-  const allTasks = campaigns.flatMap(campaign => {
-    const campaignTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks : [];
-    return campaignTasks.map(task => normalizeCampaignTask(task, campaign));
-  });
+  // اليوزر العادي يشوف التاسكات المسندة له صراحة فقط.
+  // بنقرأ من tasksForCampaign عشان أي تاسكات جاية من ربط الكريتيفات تظهر حتى لو departmentTasks اتأخرت أو كانت فاضية.
+  const allTasks = campaigns.flatMap(campaign => tasksForCampaign(campaign));
   if(isCurrentUserAdmin()) return allTasks;
   return mergeCampaignTasks(allTasks.filter(currentUserMatchesTaskExact));
 }
@@ -4545,6 +4543,8 @@ async function saveCampaignToFirebase(){
     const docRef = await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).add(payload);
     const departmentTasks = buildDepartmentTasks(docRef.id, payload);
     await docRef.update({ id: docRef.id, departmentTasks, taskCount: departmentTasks.length, updatedAt: serverTime() });
+    const localCampaign = { id: docRef.id, ...payload, departmentTasks, taskCount: departmentTasks.length };
+    campaigns = [localCampaign, ...campaigns.filter(item => item.id !== docRef.id)];
     if(typeItem?.id){
       await safeCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION).doc(typeItem.id).update({ nextNumber: nextCampaignSerial + 1, updatedAt: serverTime() });
     }
@@ -7152,6 +7152,7 @@ function loadCampaigns(){
   safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).orderBy('createdAt','desc').onSnapshot(snapshot => {
     campaigns = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) }));
     renderCampaigns();
+    if(getRoute() === 'dashboard') renderAdminDashboard();
     renderTasksPage();
     if(getRoute() === 'calendar') renderCalendarPage();
     if(getRoute() === 'publish-prep') renderPublishPrepPage();
