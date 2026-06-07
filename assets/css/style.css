@@ -3510,3 +3510,130 @@ body.creative-popup-open{
     grid-template-rows:minmax(360px,45%) minmax(0,1fr)!important;
   }
 }
+
+
+/* v100 creative popup layout refinement */
+#creativeAssignmentPopup{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:20px!important;
+}
+#creativeAssignmentPopup .creative-assignment-popup-dialog{
+  width:min(1460px, calc(100vw - 40px))!important;
+  max-width:1460px!important;
+  max-height:calc(100vh - 40px)!important;
+  margin:0 auto!important;
+  inset:auto!important;
+}
+#creativeAssignmentPopup .creative-popup-layout{
+  grid-template-columns:1fr!important;
+  grid-template-rows:minmax(320px, 40%) minmax(0, 1fr)!important;
+  gap:16px!important;
+}
+#creativeAssignmentPopup .creative-popup-side,
+#creativeAssignmentPopup .creative-popup-main{
+  min-height:0!important;
+  height:100%!important;
+}
+#creativeAssignmentPopup .creative-popup-side{
+  max-height:none!important;
+  overflow:auto!important;
+  padding:16px!important;
+}
+#creativeAssignmentPopup .creative-popup-side h3{
+  position:sticky!important;
+  top:0!important;
+  z-index:3!important;
+  background:#fff!important;
+  margin:0 0 12px!important;
+  padding:4px 2px 10px!important;
+}
+#creativeAssignmentPopup .creative-popup-search{
+  margin-bottom:14px!important;
+}
+#creativeAssignmentPopup .creative-popup-checks{
+  display:grid!important;
+  grid-template-columns:repeat(3, minmax(0, 1fr))!important;
+  gap:12px!important;
+  align-content:start!important;
+  padding:0!important;
+}
+#creativeAssignmentPopup .popup-creative-check-card{
+  min-height:92px!important;
+  height:auto!important;
+  display:grid!important;
+  grid-template-columns:32px minmax(0, 1fr) 32px!important;
+  gap:10px!important;
+  align-items:start!important;
+  padding:12px!important;
+  border-radius:18px!important;
+}
+#creativeAssignmentPopup .popup-creative-index{
+  width:32px!important;
+  height:32px!important;
+  border-radius:10px!important;
+  align-self:start!important;
+}
+#creativeAssignmentPopup .popup-creative-text{
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:flex-start!important;
+  gap:6px!important;
+  min-width:0!important;
+}
+#creativeAssignmentPopup .popup-creative-text strong{
+  display:block!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  word-break:break-word!important;
+  overflow-wrap:anywhere!important;
+  line-height:1.45!important;
+  font-size:13.5px!important;
+  text-align:right!important;
+}
+#creativeAssignmentPopup .popup-creative-text small{
+  display:none!important;
+}
+#creativeAssignmentPopup .popup-creative-check-ui{
+  width:28px!important;
+  height:28px!important;
+  align-self:start!important;
+}
+#creativeAssignmentPopup .creative-popup-main{
+  overflow:auto!important;
+  padding:0!important;
+}
+#creativeAssignmentPopup .creative-popup-panels{
+  height:auto!important;
+  min-height:100%!important;
+}
+#creativeAssignmentPopup .creative-popup-active-tabs{
+  flex-wrap:wrap!important;
+  max-height:none!important;
+  overflow:visible!important;
+}
+@media (max-width: 1280px){
+  #creativeAssignmentPopup .creative-popup-layout{
+    grid-template-rows:minmax(300px, 42%) minmax(0, 1fr)!important;
+  }
+}
+@media (max-width: 1100px){
+  #creativeAssignmentPopup .creative-popup-checks{
+    grid-template-columns:repeat(2, minmax(0, 1fr))!important;
+  }
+}
+@media (max-width: 720px){
+  #creativeAssignmentPopup{padding:8px!important;}
+  #creativeAssignmentPopup .creative-assignment-popup-dialog{
+    width:calc(100vw - 12px)!important;
+    max-height:calc(100vh - 12px)!important;
+  }
+  #creativeAssignmentPopup .creative-popup-layout{
+    grid-template-rows:minmax(280px, 42%) minmax(0, 1fr)!important;
+  }
+  #creativeAssignmentPopup .creative-popup-checks{
+    grid-template-columns:1fr!important;
+  }
+}
