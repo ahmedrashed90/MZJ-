@@ -937,7 +937,7 @@ async function getMersalSettings(body = {}) {
   return {
     apiEndpoint: normalizeMersalEndpoint(inline.apiEndpoint || stored.apiEndpoint || settings?.mersalApiEndpoint || process.env.MERSAL_API_ENDPOINT || 'https://w-mersal.com'),
     token: String(inline.token || stored.token || settings?.mersalToken || process.env.MERSAL_TOKEN || '').trim(),
-    imageTemplate: String(inline.imageTemplate || stored.imageTemplate || settings?.mersalImageTemplate || 'mzj_image_caption_v2').trim(),
+    imageTemplate: String(inline.imageTemplate || stored.imageTemplate || settings?.mersalImageTemplate || 'mzj_image_caption_v3').trim(),
     videoTemplate: String(inline.videoTemplate || stored.videoTemplate || settings?.mersalVideoTemplate || 'mzj_video_campaign').trim(),
     templateLanguage: String(inline.templateLanguage || stored.templateLanguage || settings?.mersalTemplateLanguage || 'ar').trim() || 'ar'
   };
@@ -1059,7 +1059,7 @@ async function publishWhatsAppMersalFromReady(body, message) {
   }
 
   if (mediaUrl) {
-    const templateName = settings.imageTemplate || 'mzj_image_caption_v2';
+    const templateName = settings.imageTemplate || 'mzj_image_caption_v3';
     const templateLanguage = settings.templateLanguage || 'ar';
     const bodyText = message || body.title || 'MZJ';
     for (const phone of phones) {
