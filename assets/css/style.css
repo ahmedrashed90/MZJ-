@@ -4271,3 +4271,154 @@ body.creative-popup-open{
   #creativeAssignmentPopup .creative-popup-checks{grid-template-columns:repeat(auto-fit, minmax(115px, 1fr))!important;}
   #creativeAssignmentPopup .creative-assignment-inner-grid{grid-template-columns:repeat(2, minmax(0,1fr))!important;}
 }
+
+/* v104: enlarge creative popup without internal scrolling */
+#creativeAssignmentPopup .creative-assignment-popup-dialog{
+  width:calc(100vw - 18px)!important;
+  max-width:none!important;
+  height:calc(100vh - 18px)!important;
+  max-height:calc(100vh - 18px)!important;
+  padding:14px 18px 10px!important;
+  grid-template-rows:auto minmax(0,1fr) auto!important;
+}
+#creativeAssignmentPopup .task-modal-head{
+  padding:0 42px 8px 0!important;
+  margin:0 0 8px!important;
+}
+#creativeAssignmentPopup .task-modal-head span{font-size:12px!important;padding:4px 12px!important;}
+#creativeAssignmentPopup .task-modal-head h2{font-size:26px!important;line-height:1.1!important;margin:2px 0!important;}
+#creativeAssignmentPopup .task-modal-head p{font-size:13px!important;line-height:1.2!important;}
+#creativeAssignmentPopup .creative-popup-layout{
+  gap:9px!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+}
+#creativeAssignmentPopup .creative-popup-side{
+  padding:10px 14px!important;
+  border-radius:18px!important;
+}
+#creativeAssignmentPopup .creative-popup-side h3{
+  font-size:14px!important;
+  line-height:1.2!important;
+  margin:0 0 7px!important;
+}
+#creativeAssignmentPopup .creative-popup-search{
+  height:34px!important;
+  min-height:34px!important;
+  margin-bottom:8px!important;
+  padding:6px 13px!important;
+  font-size:12px!important;
+  border-radius:12px!important;
+}
+#creativeAssignmentPopup .creative-popup-checks{
+  grid-template-columns:repeat(9,minmax(0,1fr))!important;
+  gap:7px!important;
+  overflow:visible!important;
+}
+#creativeAssignmentPopup .popup-creative-check-card{
+  height:38px!important;
+  min-height:38px!important;
+  padding:6px 8px!important;
+  border-radius:12px!important;
+  grid-template-columns:24px minmax(0,1fr) 26px!important;
+  gap:7px!important;
+}
+#creativeAssignmentPopup .popup-creative-index,
+#creativeAssignmentPopup .popup-creative-check-ui{
+  width:23px!important;
+  height:23px!important;
+  border-radius:8px!important;
+  font-size:11px!important;
+}
+#creativeAssignmentPopup .popup-creative-text strong{
+  font-size:11.5px!important;
+  line-height:1.15!important;
+  letter-spacing:0!important;
+}
+#creativeAssignmentPopup .creative-popup-main{
+  padding:8px!important;
+  border-radius:18px!important;
+}
+#creativeAssignmentPopup .creative-popup-panels{
+  gap:7px!important;
+}
+#creativeAssignmentPopup .creative-popup-active-tabs{
+  gap:7px!important;
+  max-height:78px!important;
+}
+#creativeAssignmentPopup .creative-popup-active-tab{
+  min-height:31px!important;
+  max-height:31px!important;
+  padding:6px 13px!important;
+  max-width:310px!important;
+}
+#creativeAssignmentPopup .creative-popup-active-tab span{
+  font-size:11px!important;
+  line-height:1.1!important;
+}
+#creativeAssignmentPopup .creative-assignment-panel{
+  padding:9px!important;
+  border-radius:16px!important;
+}
+#creativeAssignmentPopup .creative-assignment-panel-head{
+  padding:8px!important;
+  margin-bottom:8px!important;
+  border-radius:14px!important;
+}
+#creativeAssignmentPopup .creative-assignment-panel-head span{font-size:11px!important;line-height:1.1!important;}
+#creativeAssignmentPopup .creative-assignment-panel-head strong{font-size:14px!important;line-height:1.15!important;}
+#creativeAssignmentPopup .creative-qty-field{
+  min-width:125px!important;
+  padding:6px 9px!important;
+  border-radius:12px!important;
+}
+#creativeAssignmentPopup .creative-qty-field span{font-size:11px!important;}
+#creativeAssignmentPopup .creative-qty-field input{
+  height:31px!important;
+  width:62px!important;
+  padding:4px!important;
+  border-radius:10px!important;
+  font-size:14px!important;
+}
+#creativeAssignmentPopup .creative-assignment-inner-grid{
+  gap:8px!important;
+}
+#creativeAssignmentPopup .creative-role-assignment{
+  padding:8px!important;
+  border-radius:14px!important;
+  gap:6px!important;
+}
+#creativeAssignmentPopup .creative-role-title strong{font-size:12px!important;line-height:1.15!important;}
+#creativeAssignmentPopup .creative-role-assignment .multi-toggle{
+  min-height:31px!important;
+  padding:6px 8px!important;
+  border-radius:10px!important;
+  font-size:12px!important;
+  line-height:1.1!important;
+}
+#creativeAssignmentPopup .creative-role-deadline-field{
+  padding:6px!important;
+  margin-top:2px!important;
+  border-radius:10px!important;
+  gap:4px!important;
+}
+#creativeAssignmentPopup .creative-role-deadline-field span{font-size:11px!important;line-height:1.1!important;}
+#creativeAssignmentPopup .creative-role-deadline-field input{
+  height:31px!important;
+  min-height:31px!important;
+  padding:4px 8px!important;
+  border-radius:9px!important;
+  font-size:12px!important;
+}
+#creativeAssignmentPopup .creative-popup-actions{
+  margin-top:8px!important;
+  padding-top:8px!important;
+}
+#creativeAssignmentPopup .creative-popup-actions .btn{
+  min-height:34px!important;
+  padding:7px 16px!important;
+  font-size:12px!important;
+}
+@media(max-width:1180px){
+  #creativeAssignmentPopup .creative-popup-checks{grid-template-columns:repeat(6,minmax(0,1fr))!important;}
+  #creativeAssignmentPopup .popup-creative-text strong{font-size:11px!important;}
+}
