@@ -2628,3 +2628,20 @@ body:has(.publish-composer-modal.show) .topbar{
 .creative-assignment-note{margin-top:10px;color:#87665b;background:#fff3ed;border:1px dashed rgba(121,70,52,.24);border-radius:12px;padding:9px 10px;font-size:.82rem;font-weight:800}
 .request-top .panel-title::after{content:' · تظهر بيانات هذه الخطوة داخل تاسكات كتاب المحتوى ورفع الهيكل';font-size:.75rem;color:#9a7467;font-weight:700;margin-inline-start:8px}
 @media(max-width:700px){.creative-assignment-panel-head{align-items:stretch;flex-direction:column}.creative-qty-field{width:100%;justify-content:space-between}.creative-assignment-inner-grid{grid-template-columns:1fr}}
+
+
+/* v89: creative assignment popup inside campaign wizard */
+.creative-popup-row-head{grid-template-columns:1fr 32px!important;align-items:center!important}
+.creative-popup-row-head .open-creative-assignment-popup{width:100%;min-height:42px;border-radius:14px;font-weight:900}
+.creative-hidden-storage{display:none!important}
+.creative-assignment-popup .creative-assignment-popup-dialog{width:min(1180px,calc(100vw - 28px));max-height:calc(100vh - 34px);padding:18px}
+.creative-popup-layout{display:grid;grid-template-columns:minmax(230px,300px) 1fr;gap:14px;align-items:start}
+.creative-popup-side{position:sticky;top:0;border:1px solid rgba(121,70,52,.18);border-radius:18px;background:#fff;padding:12px;max-height:calc(100vh - 190px);overflow:auto}
+.creative-popup-side h3{margin:0 0 10px;color:#4b2d25;font-size:16px}
+.creative-popup-checks{display:grid;gap:8px}
+.creative-popup-checks .popup-creative-check-card{width:100%!important;border-radius:14px!important;padding:10px 12px!important;justify-content:space-between;background:#fffaf7!important}
+.creative-popup-main{min-height:280px;max-height:calc(100vh - 190px);overflow:auto;padding-inline-end:4px}
+.creative-popup-panels{display:grid;gap:12px}
+.creative-popup-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid rgba(121,70,52,.16);padding-top:12px;margin-top:14px}
+.creative-assignment-popup .creative-assignment-panel{box-shadow:none}
+@media(max-width:820px){.creative-popup-layout{grid-template-columns:1fr}.creative-popup-side{position:relative;max-height:none}.creative-popup-main{max-height:none}.creative-popup-actions{position:sticky;bottom:0;background:#fffaf6;padding:10px}}
