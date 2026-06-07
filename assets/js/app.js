@@ -2032,10 +2032,10 @@ function ensureCreativeAssignmentPopup(){
 function popupCreativeCheckboxList(selected = []){
   const chosen = (selected || []).map(normalizeText);
   if(!creatives.length) return '<div class="multi-empty">لا توجد كريتيفات</div>';
-  return creatives.map(item => `<label class="creative-check-card popup-creative-check-card"><input type="checkbox" class="js-popup-creative-check" value="${escapeHtml(item.name)}"${chosen.includes(normalizeText(item.name)) ? ' checked' : ''}> <span>${escapeHtml(item.name)}</span></label>`).join('');
+  return creatives.map(item => `<div class="creative-check-card popup-creative-check-card" role="button" tabindex="0" data-popup-creative-toggle="${escapeHtml(item.name)}"><input type="checkbox" class="js-popup-creative-check" value="${escapeHtml(item.name)}"${chosen.includes(normalizeText(item.name)) ? ' checked' : ''}> <span>${escapeHtml(item.name)}</span></div>`).join('');
 }
 function getCreativePopupSelected(modal){
-  return [...(modal?.querySelectorAll('.js-popup-creative-check:checked') || [])].map(input => normalizeText(input.value)).filter(Boolean);
+  return [...(modal?.querySelectorAll('.js-popup-creative-check:checked') || [])].map(input => normalizeText(input.value || '')).filter(Boolean);
 }
 function refreshCreativePopupPanels(modal){
   if(!modal) return;
@@ -2053,14 +2053,28 @@ function refreshCreativePopupPanels(modal){
   modal.dataset.activeCreativeKey = activeKey;
   const tabs = selected.map(name => {
     const key = normalizeText(name);
-    return `<button class="creative-popup-active-tab${key === activeKey ? ' active' : ''}" type="button" data-creative-popup-tab="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
+    return `<button class="creative-popup-active-tab${key === activeKey ? ' active' : ''}" type="button" data-creative-popup-tab="${escapeHtml(name)}" title="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
   }).join('');
   const panels = selected.map(name => {
     const key = normalizeText(name);
-    const current = existing.get(key)?.outerHTML || creativeAssignmentPanelHtml(name);
-    return current.replace('creative-assignment-panel"', `creative-assignment-panel${key === activeKey ? ' is-active' : ''}"`);
+    const current = existing.get(key);
+    let html = current ? current.outerHTML : creativeAssignmentPanelHtml(name);
+    const holder = document.createElement('div');
+    holder.innerHTML = html;
+    const panel = holder.querySelector('.creative-assignment-panel');
+    if(panel){
+      panel.classList.remove('is-active');
+      if(key === activeKey) panel.classList.add('is-active');
+      html = panel.outerHTML;
+    }
+    return html;
   }).join('');
   wrap.innerHTML = `<div class="creative-popup-active-tabs">${tabs}</div><div class="creative-popup-active-panels">${panels}</div>`;
+  modal.querySelectorAll('.popup-creative-check-card').forEach(card => {
+    const input = card.querySelector('.js-popup-creative-check');
+    card.classList.toggle('is-selected', !!input?.checked);
+    card.classList.toggle('is-active-linked', normalizeText(input?.value || '') === activeKey);
+  });
   wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
 }
 function openCreativeAssignmentPopup(row){
@@ -4553,11 +4567,20 @@ function bindCampaignBuilder(){
       return;
     }
     const creativePopupCard = event.target.closest('.popup-creative-check-card');
-    if(creativePopupCard && event.target.tagName !== 'INPUT'){
+    if(creativePopupCard){
+      event.preventDefault();
       const input = creativePopupCard.querySelector('.js-popup-creative-check');
-      if(input){
+      const modal = creativePopupCard.closest('#creativeAssignmentPopup');
+      if(input && modal){
         input.checked = !input.checked;
-        input.dispatchEvent(new Event('change', { bubbles:true }));
+        if(input.checked){
+          modal.dataset.activeCreativeKey = normalizeText(input.value || '');
+        }else if(normalizeText(modal.dataset.activeCreativeKey || '') === normalizeText(input.value || '')){
+          const next = [...modal.querySelectorAll('.js-popup-creative-check:checked')].find(item => item !== input);
+          modal.dataset.activeCreativeKey = normalizeText(next?.value || '');
+        }
+        refreshCreativePopupPanels(modal);
+        creativePopupCard.classList.toggle('is-selected', input.checked);
       }
       return;
     }
