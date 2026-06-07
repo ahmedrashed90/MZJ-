@@ -4447,3 +4447,18 @@ body.creative-popup-open{
 @media(max-width:1180px){
   #creativeAssignmentPopup .creative-popup-checks{grid-template-columns:repeat(5,minmax(0,1fr))!important;}
 }
+
+/* v109 task visibility and task modal clarity */
+.waiting-tasks-panel{border:1px dashed var(--secondary);background:rgba(255,250,246,.92);border-radius:22px;padding:14px;margin:0 0 16px;box-shadow:var(--shadow)}
+.waiting-panel-note{margin:0 0 12px;color:var(--muted);font-weight:900;font-size:13px;line-height:1.7}
+.content-task-card.waiting-dependency{border-style:dashed!important;background:#fff8f4!important}
+.content-task-card .waiting-chip{background:#f2e3d8!important;color:var(--primary)!important;border-color:var(--border)!important}
+.task-info-grid.campaign-data-full{grid-template-columns:repeat(4,minmax(0,1fr))!important;align-items:stretch!important}
+.task-info-grid.campaign-data-full>div{min-height:72px!important;text-align:right!important;display:flex!important;flex-direction:column!important;justify-content:center!important;gap:4px!important}
+.task-info-grid.campaign-data-full>div.wide{grid-column:span 2!important}
+.task-info-grid.campaign-data-full span{font-size:12.5px!important}
+.task-info-grid.campaign-data-full strong{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:break-word!important;font-size:15px!important;line-height:1.55!important}
+.task-info-grid.campaign-data-full .date-highlight,.task-deadline-highlight{border:2px solid var(--secondary)!important;background:#fff7f1!important;box-shadow:0 0 0 4px rgba(184,94,79,.08)!important}
+.task-deadline-highlight{border-radius:16px!important;padding:11px 14px!important;margin-bottom:12px!important}
+@media(max-width:1100px){.task-info-grid.campaign-data-full{grid-template-columns:repeat(2,minmax(0,1fr))!important}.task-info-grid.campaign-data-full>div.wide{grid-column:span 2!important}}
+@media(max-width:720px){.task-info-grid.campaign-data-full{grid-template-columns:1fr!important}.task-info-grid.campaign-data-full>div.wide{grid-column:span 1!important}}

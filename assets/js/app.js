@@ -2764,6 +2764,34 @@ function tasksFromCreativeRowsForCurrentUser(){
   });
   return generated;
 }
+
+function taskDependencyApproved(task){
+  if(!task || !task.waitingForApproval) return true;
+  const dependencyRole = normalizeDepartmentRole(task.dependencyRole || task.upstreamRole || 'content');
+  if(dependencyRole !== 'content') return true;
+  const campaign = campaignForTask(task);
+  if(!campaign?.id) return false;
+  const targetCreative = identityClean(task.creative || task.product || '');
+  const contentTasks = tasksForCampaign(campaign).filter(item => {
+    if((item.id || '') === (task.id || '')) return false;
+    const role = normalizeDepartmentRole(item.departmentRole || item.contentSectionName || item.assignedDepartmentName || '');
+    if(role !== 'content') return false;
+    const itemCreative = identityClean(item.creative || item.product || '');
+    if(targetCreative && itemCreative && targetCreative !== itemCreative) return false;
+    return true;
+  });
+  return contentTasks.some(item => {
+    const statusText = identityClean(item.status || item.state || '');
+    const structureStatus = identityClean(taskStructure(item).status || '');
+    const finalUploaded = taskFiles(item).some(file => file?.isFinal || file?.uploadKind === 'final' || file?.kind === 'final' || file?.purpose === 'final');
+    const adminApprovedStep = Array.isArray(item.steps) && item.steps.some(step => step.adminOnly && step.done);
+    return taskProgress(item) >= 100 || finalUploaded || adminApprovedStep || ['approved','done','completed','معتمد','مكتمل'].some(key => statusText.includes(identityClean(key))) || ['approved','distributed','معتمد'].some(key => structureStatus.includes(identityClean(key)));
+  });
+}
+function isTaskWaitingForDependency(task){
+  return !!(task && task.waitingForApproval && !taskDependencyApproved(task));
+}
+
 function getVisibleTasksForCurrentUser(){
   // اليوزر العادي يشوف التاسكات المسندة له صراحة فقط.
   // بنقرأ من tasksForCampaign عشان أي تاسكات جاية من ربط الكريتيفات تظهر حتى لو departmentTasks اتأخرت أو كانت فاضية.
@@ -3815,19 +3843,22 @@ function buildTaskDetailHtml(task){
   const steps = Array.isArray(task.steps) && task.steps.length ? task.steps : taskStepTemplate(task.departmentRole || 'other');
   const progress = taskProgress(task);
   const campaignDate = campaign.campaign_date || campaign.campaignDate || campaign.createdAt || '';
-  const endDate = campaign.publishSchedule?.slice?.(-1)?.[0]?.date || campaign.campaignEndDate || campaign.endDate || '';
+  const endDate = campaign.publishSchedule?.slice?.(-1)?.[0]?.date || campaign.campaignEndDate || campaign.endDate || campaign.publish_end_date || '';
   const requiredDate = taskRequiredDate(task, campaign);
   const requiredLeft = daysUntilRequiredText(requiredDate);
+  const writerBrief = normalizeText(task.contentWriterBrief || task.campaignRequestBrief || campaign.content_writer_brief || campaign.contentWriterBrief || '');
+  const campaignGoalDisplay = isCampaignContentWritingTask(task) ? (writerBrief || campaign.campaign_goal || campaign.campaignGoal || '—') : (campaign.campaign_goal || campaign.campaignGoal || writerBrief || '—');
   return `<div class="task-modal-head"><div><span>التاسك والمطلوب</span><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div><button type="button" class="mini-btn" data-close-task-modal>إغلاق</button></div>
     <div class="modal-section campaign-data-line"><div class="modal-section-title"><h3>بيانات الحملة</h3></div>
-      <div class="task-info-grid compact-one-line">
+      <div class="task-info-grid campaign-data-full">
         <div><span>التاريخ</span><strong>${formatDateShort(campaignDate)}</strong></div>
-        <div><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || task.campaignCode || '—')}</strong></div>
+        <div class="wide"><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || task.campaignCode || '—')}</strong></div>
         <div><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '—')}</strong></div>
         <div><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || campaign.campaign_type || '—')}</strong></div>
-        <div><span>هدف الحملة</span><strong>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '—')}</strong></div>
+        <div class="wide"><span>هدف الحملة</span><strong>${escapeHtml(campaignGoalDisplay)}</strong></div>
         <div><span>بداية الحملة</span><strong>${formatDateShort(campaign.campaign_date || campaign.startDate)}</strong></div>
-        <div><span>نهاية الحملة</span><strong>${formatDateShort(endDate)}</strong></div>
+        <div class="date-highlight"><span>نهاية الحملة</span><strong>${formatDateShort(endDate)}</strong></div>
+        <div class="wide"><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(writerBrief || '—')}</strong></div>
       </div>
     </div>
     <div class="modal-section task-brief-row task-brief-row-four">
@@ -3841,7 +3872,7 @@ function buildTaskDetailHtml(task){
     ${task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>الهدف</span><strong>${escapeHtml(task.structureRow.goal || '—')}</strong></div><div><span>الهدف الملموس</span><strong>${escapeHtml(task.structureRow.tangibleGoal || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : ''}
     <div class="modal-section task-actions-section">
       <div class="modal-section-title"><h3>إجراءات التكليف</h3><span>${progress}%</span></div>
-      <div class="task-deadline-row"><span>التاريخ المطلوب: <b>${formatDateShort(requiredDate)}</b></span><strong>${escapeHtml(requiredLeft)}</strong></div>
+      <div class="task-deadline-row task-deadline-highlight"><span>التاريخ المطلوب: <b>${formatDateShort(requiredDate)}</b></span><strong>${escapeHtml(requiredLeft)}</strong></div>
       <div class="task-mini-meta"><span>القسم: <b>${escapeHtml(taskDepartmentLabel(task))}</b></span><span>اليوزر: <b>${taskOwnerName(task)}</b></span><span>الحالة: <b>${receivedLabel(task)}</b></span></div>
       <div class="receive-action-row"><button type="button" class="btn btn-light receive-action ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تأكيد الاستلام'}</button></div>
       <div class="modal-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
@@ -5267,13 +5298,15 @@ function renderUserDashboard(){
   setDashboardMode('user');
   applyEffectiveTheme();
   const myTasks = getVisibleTasksForCurrentUser();
+  const waitingTasks = myTasks.filter(task => isTaskWaitingForDependency(task));
+  const readyTasks = myTasks.filter(task => !isTaskWaitingForDependency(task));
   const taskFinalFileUploaded = task => {
     const prepId = `task_${task.id || task.taskId || task.code || ''}`;
     const submission = getPublishPrepSubmissions()[prepId] || {};
     return publishPrepHasFinalFile(task, submission);
   };
-  const activeTasks = myTasks.filter(task => !taskFinalFileUploaded(task));
-  const completedTasks = myTasks.filter(task => taskFinalFileUploaded(task));
+  const activeTasks = readyTasks.filter(task => !taskFinalFileUploaded(task));
+  const completedTasks = readyTasks.filter(task => taskFinalFileUploaded(task));
   const received = activeTasks.filter(task => task.received || task.receivedConfirmed).length;
   const done = completedTasks.length;
   const buildGroups = tasks => {
@@ -5289,12 +5322,15 @@ function renderUserDashboard(){
   const completedGroups = buildGroups(completedTasks);
   const taskCard = (task, completed = false) => {
     const progress = taskProgress(task);
-    const waitingFinal = !completed && progress >= 100;
-    const statusText = completed ? 'تم رفع الملف النهائي' : (waitingFinal ? 'ينتظر رفع الملف النهائي' : (task.received || task.receivedConfirmed ? 'مستلم' : 'قيد التنفيذ'));
-    const actionHtml = completed
-      ? `<span class="btn btn-light done static-chip">تم رفع النهائي</span>`
-      : (waitingFinal ? `<span class="btn btn-light done static-chip">ارفع الملف النهائي</span>` : `<button type="button" class="btn btn-light ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">تم الاستلام</button>`);
-    return `<article class="content-task-card ${completed ? 'completed' : ''} ${waitingFinal ? 'waiting-final-file' : ''}">
+    const waitingDependency = isTaskWaitingForDependency(task);
+    const waitingFinal = !completed && !waitingDependency && progress >= 100;
+    const statusText = waitingDependency ? (task.waitingForApprovalLabel || 'قائمة انتظار حتى اعتماد تاسك المحتوى') : (completed ? 'تم رفع الملف النهائي' : (waitingFinal ? 'ينتظر رفع الملف النهائي' : (task.received || task.receivedConfirmed ? 'مستلم' : 'قيد التنفيذ')));
+    const actionHtml = waitingDependency
+      ? `<span class="btn btn-light static-chip waiting-chip">قائمة انتظار</span>`
+      : (completed
+        ? `<span class="btn btn-light done static-chip">تم رفع النهائي</span>`
+        : (waitingFinal ? `<span class="btn btn-light done static-chip">ارفع الملف النهائي</span>` : `<button type="button" class="btn btn-light ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">تم الاستلام</button>`));
+    return `<article class="content-task-card ${completed ? 'completed' : ''} ${waitingFinal ? 'waiting-final-file' : ''} ${waitingDependency ? 'waiting-dependency' : ''}">
       <h3>${escapeHtml(task.campaignName || 'حملة')}</h3>
       <p>${shortTaskName(task)}</p>
       <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>${actionHtml}</div>
@@ -5312,7 +5348,8 @@ function renderUserDashboard(){
         <button type="button" class="mini-btn" id="toggleCompletedTasksBtn" data-open="0" data-count="${done}">عرض التاسكات المنتهية (${done})</button>
       </div>
     </div>
-    <div class="user-pro-hero user-pro-hero-clean"><div><span class="pro-kicker">MZJ Workspace</span><h2>أهلاً ${escapeHtml(getCurrentUserIdentity().name || 'بيك')}</h2><p>تاسكاتك الحالية حسب نوع المحتوى والحملات المسندة لك فقط.</p></div><div class="exec-stats"><span>📌 ${activeTasks.length} تاسك</span><span>✅ ${received} مستلم</span><span>🏁 ${done} ملف نهائي</span></div></div>
+    <div class="user-pro-hero user-pro-hero-clean"><div><span class="pro-kicker">MZJ Workspace</span><h2>أهلاً ${escapeHtml(getCurrentUserIdentity().name || 'بيك')}</h2><p>تاسكاتك الحالية حسب نوع المحتوى والحملات المسندة لك فقط.</p></div><div class="exec-stats"><span>📌 ${activeTasks.length} تاسك</span><span>⏳ ${waitingTasks.length} قائمة انتظار</span><span>✅ ${received} مستلم</span><span>🏁 ${done} ملف نهائي</span></div></div>
+    ${waitingTasks.length ? `<section class="waiting-tasks-panel"><div class="content-type-title"><h3>قائمة انتظار المونتاج/التصميم</h3><span>${waitingTasks.length} تاسك</span></div><p class="waiting-panel-note">التاسكات دي هتتحول لتاسكات تنفيذ أول ما الأدمن يعتمد تاسك المحتوى المرتبط بنفس الكريتيف.</p><div class="content-type-list">${waitingTasks.map(task => taskCard(task, false)).join('')}</div></section>` : ''}
     ${renderGroups(groups, false)}
     <section class="completed-tasks-panel" id="completedTasksPanel" hidden>
       <div class="completed-tasks-head"><h3>التاسكات المنتهية</h3><span>${done} تاسك تم رفع ملفه النهائي</span></div>
@@ -6713,7 +6750,7 @@ function publishPrepTaskMatchesSearch(task, submission = {}){
 }
 function publishPrepTasksFromExistingTasks(){
   const visible = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser() : campaignTasks;
-  return (visible || []).filter(task => taskAssignedToCurrentUser(task) && !isCampaignContentWritingPrepTask(task)).map(task => {
+  return (visible || []).filter(task => taskAssignedToCurrentUser(task) && !isCampaignContentWritingPrepTask(task) && !isTaskWaitingForDependency(task)).map(task => {
     const campaign = campaignForPrepTask(task) || {};
     const base = {
       id: `task_${task.id || task.taskId || task.code || Math.random().toString(36).slice(2)}`,
