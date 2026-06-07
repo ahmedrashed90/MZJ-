@@ -2018,6 +2018,7 @@ function ensureCreativeAssignmentPopup(){
       <div class="creative-popup-layout">
         <aside class="creative-popup-side">
           <h3>اختيار الكريتيفات</h3>
+          <input class="creative-popup-search" type="search" placeholder="ابحث باسم الكريتيف..." aria-label="بحث في الكريتيفات" />
           <div class="creative-popup-checks"></div>
         </aside>
         <main class="creative-popup-main">
@@ -2029,13 +2030,49 @@ function ensureCreativeAssignmentPopup(){
   document.body.appendChild(modal);
   return modal;
 }
+function creativeDisplayParts(name){
+  const value = normalizeText(name);
+  if(!value) return { title:'بدون اسم', subtitle:'' };
+  const parts = value.split(/\s+-\s+/).map(part => part.trim()).filter(Boolean);
+  if(parts.length > 1){
+    return { title: parts.slice(0, 2).join(' - '), subtitle: parts.slice(2).join(' - ') || value };
+  }
+  return { title: value, subtitle: '' };
+}
 function popupCreativeCheckboxList(selected = []){
   const chosen = (selected || []).map(normalizeText);
   if(!creatives.length) return '<div class="multi-empty">لا توجد كريتيفات</div>';
-  return creatives.map(item => `<div class="creative-check-card popup-creative-check-card" role="button" tabindex="0" data-popup-creative-toggle="${escapeHtml(item.name)}"><input type="checkbox" class="js-popup-creative-check" value="${escapeHtml(item.name)}"${chosen.includes(normalizeText(item.name)) ? ' checked' : ''}> <span>${escapeHtml(item.name)}</span></div>`).join('');
+  return creatives.map(item => {
+    const name = normalizeText(item.name);
+    const parts = creativeDisplayParts(name);
+    const checked = chosen.includes(name) ? ' checked' : '';
+    return `<div class="creative-check-card popup-creative-check-card" role="button" tabindex="0" data-popup-creative-toggle="${escapeHtml(name)}" title="${escapeHtml(name)}">
+      <div class="popup-creative-text"><strong>${escapeHtml(parts.title)}</strong>${parts.subtitle ? `<small>${escapeHtml(parts.subtitle)}</small>` : ''}</div>
+      <input type="checkbox" class="js-popup-creative-check" value="${escapeHtml(name)}"${checked}>
+    </div>`;
+  }).join('');
 }
 function getCreativePopupSelected(modal){
   return [...(modal?.querySelectorAll('.js-popup-creative-check:checked') || [])].map(input => normalizeText(input.value || '')).filter(Boolean);
+}
+function setCreativePopupActive(modal, creativeName){
+  if(!modal) return;
+  const activeName = normalizeText(creativeName || '');
+  modal.dataset.activeCreativeKey = activeName;
+  modal.querySelectorAll('.creative-popup-active-tab').forEach(tab => {
+    const tabName = normalizeText(tab.dataset.creativePopupTab || tab.getAttribute('title') || tab.textContent || '');
+    tab.classList.toggle('active', tabName === activeName);
+  });
+  modal.querySelectorAll('.creative-assignment-panel').forEach(panel => {
+    const panelName = normalizeText(panel.dataset.creativeName || '');
+    panel.classList.toggle('is-active', panelName === activeName);
+  });
+  modal.querySelectorAll('.popup-creative-check-card').forEach(card => {
+    const input = card.querySelector('.js-popup-creative-check');
+    const cardName = normalizeText(input?.value || card.dataset.popupCreativeToggle || '');
+    card.classList.toggle('is-selected', !!input?.checked);
+    card.classList.toggle('is-active-linked', cardName === activeName && !!input?.checked);
+  });
 }
 function refreshCreativePopupPanels(modal){
   if(!modal) return;
@@ -2046,6 +2083,7 @@ function refreshCreativePopupPanels(modal){
   if(!selected.length){
     modal.dataset.activeCreativeKey = '';
     wrap.innerHTML = '<div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر من القائمة عشان تظهر إعداداته هنا.</div>';
+    setCreativePopupActive(modal, '');
     return;
   }
   let activeKey = normalizeText(modal.dataset.activeCreativeKey || '');
@@ -2053,7 +2091,8 @@ function refreshCreativePopupPanels(modal){
   modal.dataset.activeCreativeKey = activeKey;
   const tabs = selected.map(name => {
     const key = normalizeText(name);
-    return `<button class="creative-popup-active-tab${key === activeKey ? ' active' : ''}" type="button" data-creative-popup-tab="${escapeHtml(name)}" title="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
+    const parts = creativeDisplayParts(name);
+    return `<button class="creative-popup-active-tab${key === activeKey ? ' active' : ''}" type="button" data-creative-popup-tab="${escapeHtml(name)}" title="${escapeHtml(name)}"><span>${escapeHtml(parts.title)}</span></button>`;
   }).join('');
   const panels = selected.map(name => {
     const key = normalizeText(name);
@@ -2063,6 +2102,7 @@ function refreshCreativePopupPanels(modal){
     holder.innerHTML = html;
     const panel = holder.querySelector('.creative-assignment-panel');
     if(panel){
+      panel.dataset.creativeName = name;
       panel.classList.remove('is-active');
       if(key === activeKey) panel.classList.add('is-active');
       html = panel.outerHTML;
@@ -2070,12 +2110,8 @@ function refreshCreativePopupPanels(modal){
     return html;
   }).join('');
   wrap.innerHTML = `<div class="creative-popup-active-tabs">${tabs}</div><div class="creative-popup-active-panels">${panels}</div>`;
-  modal.querySelectorAll('.popup-creative-check-card').forEach(card => {
-    const input = card.querySelector('.js-popup-creative-check');
-    card.classList.toggle('is-selected', !!input?.checked);
-    card.classList.toggle('is-active-linked', normalizeText(input?.value || '') === activeKey);
-  });
   wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
+  setCreativePopupActive(modal, activeKey);
 }
 function openCreativeAssignmentPopup(row){
   if(!row) return;
@@ -4561,8 +4597,7 @@ function bindCampaignBuilder(){
     if(creativePopupTab){
       const modal = creativePopupTab.closest('#creativeAssignmentPopup');
       if(modal){
-        modal.dataset.activeCreativeKey = normalizeText(creativePopupTab.dataset.creativePopupTab || creativePopupTab.textContent || '');
-        refreshCreativePopupPanels(modal);
+        setCreativePopupActive(modal, creativePopupTab.dataset.creativePopupTab || creativePopupTab.getAttribute('title') || creativePopupTab.textContent || '');
       }
       return;
     }
@@ -4602,6 +4637,15 @@ function bindCampaignBuilder(){
   });
 
   document.addEventListener('input', event => {
+    if(event.target.matches('.creative-popup-search')){
+      const query = normalizeText(event.target.value).toLowerCase();
+      const modal = event.target.closest('#creativeAssignmentPopup');
+      modal?.querySelectorAll('.popup-creative-check-card').forEach(card => {
+        const text = normalizeText(card.dataset.popupCreativeToggle || card.textContent || '').toLowerCase();
+        card.classList.toggle('is-filtered-out', !!query && !text.includes(query));
+      });
+      return;
+    }
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')) updateBudgetGrandTotal();
     if(event.target.matches('.structure-assignee-search')) filterStructureAssigneePicker(event.target);
     if(event.target === publishPrepGlobalSearchInput() && getRoute() === 'publish-prep') renderPublishPrepPage();
