@@ -2955,3 +2955,67 @@ body.creative-popup-open{overflow:hidden!important}
 @media(max-width:1000px){
   #creativeAssignmentPopup .creative-popup-layout{grid-template-columns:1fr!important;grid-template-rows:360px minmax(0,1fr)!important}
 }
+
+/* v95 - Compact one-line creative selector cards */
+#creativeAssignmentPopup .creative-popup-checks{
+  gap:6px!important;
+  padding:4px 8px 8px!important;
+}
+#creativeAssignmentPopup .popup-creative-check-card{
+  min-height:44px!important;
+  height:auto!important;
+  display:grid!important;
+  grid-template-columns:26px minmax(0,1fr) 24px!important;
+  align-items:center!important;
+  gap:8px!important;
+  padding:8px 10px!important;
+  border-radius:13px!important;
+}
+#creativeAssignmentPopup .popup-creative-index{
+  width:24px!important;
+  height:24px!important;
+  min-width:24px!important;
+  border-radius:9px!important;
+  font-size:10px!important;
+}
+#creativeAssignmentPopup .popup-creative-text{
+  display:block!important;
+  min-width:0!important;
+  overflow:hidden!important;
+}
+#creativeAssignmentPopup .popup-creative-text strong{
+  display:block!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  word-break:normal!important;
+  line-height:1.2!important;
+  font-size:12.5px!important;
+  direction:rtl!important;
+  text-align:right!important;
+}
+#creativeAssignmentPopup .popup-creative-text small{
+  display:none!important;
+}
+#creativeAssignmentPopup .popup-creative-check-ui{
+  width:22px!important;
+  height:22px!important;
+  border-radius:7px!important;
+}
+#creativeAssignmentPopup .creative-popup-side{
+  min-width:320px!important;
+}
+#creativeAssignmentPopup .creative-popup-active-tabs{
+  gap:6px!important;
+}
+#creativeAssignmentPopup .creative-popup-active-tab{
+  min-height:38px!important;
+  padding:8px 12px!important;
+  max-width:220px!important;
+}
+#creativeAssignmentPopup .creative-popup-active-tab span{
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  line-height:1.2!important;
+}
