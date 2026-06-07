@@ -284,6 +284,10 @@ function refreshRolePicker(picker){
   if(menu){
     menu.innerHTML = list.length ? list.map(user => `<label><input type="checkbox" value="${escapeHtml(user.id)}" data-name="${escapeHtml(userName(user))}"${selected.includes(user.id) ? ' checked' : ''}> <span>${escapeHtml(userName(user))}</span></label>`).join('') : '<div class="multi-empty">لا توجد يوزرات في هذا القسم</div>';
   }
+  if(selected.length){
+    picker.dataset.selectedIds = selected.join('|');
+    picker.dataset.selectedNames = [...picker.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.dataset.name || '').filter(Boolean).join('|') || picker.dataset.selectedNames || '';
+  }
   updateRolePickerLabel(picker);
 }
 function updateRolePickerLabel(picker){
@@ -333,11 +337,43 @@ function multiTaskUserOptions(sectionId, selectedIds = []){
     ? list.map(user => `<label class="task-user-check-card"><input type="checkbox" class="js-task-user-checkbox" value="${escapeHtml(user.id)}" data-name="${escapeHtml(userName(user))}"${chosen.includes(String(user.id)) ? ' checked' : ''}> <span>${escapeHtml(userName(user))}</span></label>`).join('')
     : '<div class="multi-empty task-user-empty">لا توجد يوزرات لهذا القسم</div>';
 }
+function storedMultiValues(control, key){
+  const raw = control?.dataset?.[key] || '';
+  return raw.split('|').map(x => normalizeText(x)).filter(Boolean);
+}
+function syncRolePickerState(picker){
+  if(!picker) return;
+  const checked = [...picker.querySelectorAll('input[type="checkbox"]:checked')];
+  const ids = checked.map(input => input.value).filter(Boolean);
+  const names = checked.map(input => input.dataset.name || input.closest('label')?.textContent?.trim() || '').filter(Boolean);
+  picker.dataset.selectedIds = ids.join('|');
+  picker.dataset.selectedNames = names.join('|');
+  picker.querySelectorAll('input[type="checkbox"]').forEach(input => {
+    if(input.checked) input.setAttribute('checked', 'checked');
+    else input.removeAttribute('checked');
+  });
+  updateRolePickerLabel(picker);
+}
+function syncPanelDynamicState(panel){
+  if(!panel) return panel;
+  panel.querySelectorAll('.js-role-picker').forEach(syncRolePickerState);
+  panel.querySelectorAll('input, textarea, select').forEach(el => {
+    if(el.type === 'checkbox' || el.type === 'radio'){
+      if(el.checked) el.setAttribute('checked', 'checked'); else el.removeAttribute('checked');
+    }else if(el.tagName === 'SELECT'){
+      [...el.options].forEach(option => { if(option.selected) option.setAttribute('selected','selected'); else option.removeAttribute('selected'); });
+    }else{
+      el.setAttribute('value', el.value || '');
+    }
+  });
+  return panel;
+}
 function selectedOptionTexts(control){
   if(control?.classList?.contains('js-role-picker') || (control?.classList?.contains('js-task-user') && control?.tagName !== 'SELECT')){
-    return [...control.querySelectorAll('input[type="checkbox"]:checked')]
+    const current = [...control.querySelectorAll('input[type="checkbox"]:checked')]
       .map(input => input.dataset.name || input.closest('label')?.textContent?.trim() || '')
       .filter(Boolean);
+    return current.length ? current : storedMultiValues(control, 'selectedNames');
   }
   return [...(control?.selectedOptions || [])]
     .map(option => option.textContent.trim())
@@ -345,7 +381,8 @@ function selectedOptionTexts(control){
 }
 function selectedOptionValues(control){
   if(control?.classList?.contains('js-role-picker') || (control?.classList?.contains('js-task-user') && control?.tagName !== 'SELECT')){
-    return [...control.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value).filter(Boolean);
+    const current = [...control.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value).filter(Boolean);
+    return current.length ? current : storedMultiValues(control, 'selectedIds');
   }
   return [...(control?.selectedOptions || [])]
     .map(option => option.value)
@@ -1995,7 +2032,7 @@ function refreshCreativeAssignmentPanels(row){
   const wrap = row.querySelector('.selected-creative-assignments');
   if(!wrap) return;
   const selected = selectedCreativeNames(row);
-  const existing = new Map([...wrap.querySelectorAll('.creative-assignment-panel')].map(panel => [normalizeText(panel.dataset.creativeName || ''), panel]));
+  const existing = new Map([...wrap.querySelectorAll('.creative-assignment-panel')].map(panel => [normalizeText(panel.dataset.creativeName || ''), syncPanelDynamicState(panel)]));
   if(!selected.length){
     wrap.innerHTML = '<div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر عشان تظهر إعدادات العدد واليوزرات هنا.</div>';
     updateProductOutput(row);
@@ -2004,7 +2041,7 @@ function refreshCreativeAssignmentPanels(row){
   const nodes = [];
   selected.forEach(name => {
     const current = existing.get(normalizeText(name));
-    if(current) nodes.push(current.outerHTML); else nodes.push(creativeAssignmentPanelHtml(name));
+    if(current) nodes.push(syncPanelDynamicState(current).outerHTML); else nodes.push(creativeAssignmentPanelHtml(name));
   });
   wrap.innerHTML = nodes.join('');
   wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
@@ -2112,7 +2149,7 @@ function refreshCreativePopupPanels(modal){
   const wrap = modal.querySelector('.creative-popup-panels');
   if(!wrap) return;
   const selected = getCreativePopupSelected(modal);
-  const existing = new Map([...wrap.querySelectorAll('.creative-assignment-panel')].map(panel => [normalizeText(panel.dataset.creativeName || ''), panel]));
+  const existing = new Map([...wrap.querySelectorAll('.creative-assignment-panel')].map(panel => [normalizeText(panel.dataset.creativeName || ''), syncPanelDynamicState(panel)]));
   if(!selected.length){
     modal.dataset.activeCreativeKey = '';
     wrap.innerHTML = '<div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر من القائمة عشان تظهر إعداداته هنا.</div>';
@@ -2133,7 +2170,7 @@ function refreshCreativePopupPanels(modal){
   const panels = selected.map(name => {
     const key = normalizeText(name);
     const current = existing.get(key);
-    let html = current ? current.outerHTML : creativeAssignmentPanelHtml(name);
+    let html = current ? syncPanelDynamicState(current).outerHTML : creativeAssignmentPanelHtml(name);
     const holder = document.createElement('div');
     holder.innerHTML = html;
     const panel = holder.querySelector('.creative-assignment-panel');
@@ -2188,7 +2225,7 @@ function saveCreativeAssignmentPopup(){
   const wrap = row.querySelector('.selected-creative-assignments');
   if(wrap){
     const panels = [...modal.querySelectorAll('.creative-popup-panels .creative-assignment-panel')].filter(panel => selected.map(normalizeText).includes(normalizeText(panel.dataset.creativeName || '')));
-    wrap.innerHTML = panels.length ? panels.map(panel => panel.outerHTML).join('') : '<div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر من زر الربط.</div>';
+    wrap.innerHTML = panels.length ? panels.map(panel => syncPanelDynamicState(panel).outerHTML).join('') : '<div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر من زر الربط.</div>';
     wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
   }
   updateProductOutput(row);
@@ -4225,9 +4262,36 @@ function readSelectText(select){
   return text.startsWith('اختر') ? '' : text;
 }
 
+
+function campaignHasAssignedTasks(payload){
+  return (payload.creatives || []).some(row => (row.tasks || []).some(task => {
+    const ids = Array.isArray(task.userIds) ? task.userIds.filter(Boolean) : [];
+    const names = Array.isArray(task.userNames) ? task.userNames.filter(Boolean) : [];
+    return ids.length || names.length;
+  }));
+}
+function campaignDepartmentSummaries(payload){
+  const labels = {content:'قسم المحتوى', shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج', publish:'قسم النشر'};
+  const out = { content:'', shooting:'', design:'', montage:'', publish:'' };
+  (payload.creatives || []).forEach(row => (row.tasks || []).forEach(task => {
+    const role = task.departmentRole || normalizeDepartmentRole(task.contentSectionName || task.assignedDepartmentName || '');
+    if(!out.hasOwnProperty(role)) return;
+    const users = uniqueList([...(Array.isArray(task.userNames) ? task.userNames : []), ...(Array.isArray(task.userIds) ? task.userIds : [])].filter(Boolean));
+    const line = [row.creative || row.product || '', users.join('، '), task.requiredDate || task.dueDate || ''].filter(Boolean).join(' / ');
+    if(line) out[role] = uniqueList([out[role], line].filter(Boolean).flatMap(x => String(x).split(' | '))).join(' | ');
+  }));
+  return {
+    content_department: out.content,
+    shooting_department: out.shooting,
+    design_department: out.design,
+    montage_department: out.montage,
+    publish_department: out.publish,
+    departmentSummary: out
+  };
+}
 function collectCampaignRows(){
   return [...document.querySelectorAll('#creativeRows .creative-row-card')].flatMap(row => {
-    const panels = [...row.querySelectorAll('.creative-assignment-panel')];
+    const panels = [...row.querySelectorAll('.creative-assignment-panel')].map(syncPanelDynamicState);
     const cars = selectedCarsFromRow(row);
     if(panels.length){
       return panels.map(panel => {
@@ -4539,10 +4603,22 @@ async function saveCampaignToFirebase(){
     updatedAt: serverTime(),
     createdAt: serverTime()
   };
+  Object.assign(payload, campaignDepartmentSummaries(payload));
+  if(!campaignHasAssignedTasks(payload)){
+    showToast('الحملة لم تُحفظ: لازم تختار كريتيف وتربط يوزر واحد على الأقل من أقسام الكريتيف.');
+    campaignWizardSetStep(2);
+    return;
+  }
   try{
     const docRef = await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).add(payload);
     const departmentTasks = buildDepartmentTasks(docRef.id, payload);
-    await docRef.update({ id: docRef.id, departmentTasks, taskCount: departmentTasks.length, updatedAt: serverTime() });
+    if(!departmentTasks.length){
+      await docRef.delete();
+      showToast('الحملة لم تُحفظ: الربط لم ينتج أي تاسكات. افتح ربط الكريتيفات واختار اليوزرات مرة تانية.');
+      campaignWizardSetStep(2);
+      return;
+    }
+    await docRef.update({ id: docRef.id, departmentTasks, taskCount: departmentTasks.length, updatedAt: serverTime(), ...campaignDepartmentSummaries({ ...payload, departmentTasks }) });
     const localCampaign = { id: docRef.id, ...payload, departmentTasks, taskCount: departmentTasks.length };
     campaigns = [localCampaign, ...campaigns.filter(item => item.id !== docRef.id)];
     if(typeItem?.id){
