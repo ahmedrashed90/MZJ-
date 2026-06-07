@@ -1962,7 +1962,7 @@ function roleAssignmentBlock(role, label, hint=''){
     ${rolePickerHtml(role, `js-creative-role-picker js-${role}-assignee`, label)}
     <label class="creative-role-deadline-field${isDeferred ? ' is-disabled' : ''}">
       <span>${escapeHtml(dateLabel)}</span>
-      <input class="js-role-deadline js-${role}-deadline" data-role-deadline="${escapeHtml(role)}" type="datetime-local"${dateAttrs} />
+      <input class="js-role-deadline js-${role}-deadline" data-role-deadline="${escapeHtml(role)}" type="date"${dateAttrs} />
       <small>${escapeHtml(dateNote)}</small>
     </label>
   </div>`;
@@ -2145,7 +2145,7 @@ function refreshCreativePopupPanels(modal){
     }
     return html;
   }).join('');
-  wrap.innerHTML = `<div class="creative-popup-editor-switch"><label><span>اضبط كريتيف محدد</span><select class="creative-popup-active-select" aria-label="اختيار الكريتيف الحالي">${options}</select></label><div class="creative-popup-active-tabs">${summary}</div></div><div class="creative-popup-active-panels">${panels}</div>`;
+  wrap.innerHTML = `<div class="creative-popup-editor-switch"><div class="creative-popup-active-tabs" role="tablist" aria-label="اختيار الكريتيف الحالي">${summary}</div></div><div class="creative-popup-active-panels">${panels}</div>`;
   wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
   setCreativePopupActive(modal, activeKey);
 }
