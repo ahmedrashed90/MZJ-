@@ -2645,3 +2645,32 @@ body:has(.publish-composer-modal.show) .topbar{
 .creative-popup-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid rgba(121,70,52,.16);padding-top:12px;margin-top:14px}
 .creative-assignment-popup .creative-assignment-panel{box-shadow:none}
 @media(max-width:820px){.creative-popup-layout{grid-template-columns:1fr}.creative-popup-side{position:relative;max-height:none}.creative-popup-main{max-height:none}.creative-popup-actions{position:sticky;bottom:0;background:#fffaf6;padding:10px}}
+
+/* v90: campaign creative popup fixes */
+#addCreativeBtn{display:none!important}
+body.creative-popup-open{overflow:hidden!important}
+#creativeAssignmentPopup.task-modal{z-index:2147483000!important;position:fixed!important;inset:0!important;display:none!important;place-items:center!important;padding:0!important}
+#creativeAssignmentPopup.task-modal.show{display:grid!important}
+#creativeAssignmentPopup .task-modal-backdrop{z-index:0!important;background:rgba(35,20,15,.62)!important;backdrop-filter:blur(7px)!important}
+#creativeAssignmentPopup .creative-assignment-popup-dialog{z-index:2147483001!important;width:min(1320px,calc(100vw - 28px))!important;max-height:calc(100vh - 26px)!important;margin:0 auto!important;overflow:hidden!important;padding:18px!important;border-radius:28px!important;background:#fffaf6!important;box-shadow:0 35px 120px rgba(25,12,8,.55)!important;display:grid!important;grid-template-rows:auto 1fr auto!important}
+#creativeAssignmentPopup .task-modal-head{position:relative!important;top:auto!important;background:#fffaf6!important;z-index:2!important;padding:10px 48px 14px 0!important;margin:0 0 12px!important;border-bottom:1px solid rgba(121,70,52,.18)!important}
+#creativeAssignmentPopup .task-modal-close{position:absolute!important;top:14px!important;left:14px!important;float:none!important;z-index:5!important}
+#creativeAssignmentPopup .creative-popup-layout{display:grid!important;grid-template-columns:310px minmax(0,1fr)!important;gap:14px!important;min-height:0!important;overflow:hidden!important}
+#creativeAssignmentPopup .creative-popup-side{position:relative!important;top:auto!important;max-height:none!important;height:100%!important;min-height:0!important;overflow:auto!important;background:#fff!important;border:1px solid rgba(121,70,52,.18)!important;border-radius:20px!important;padding:12px!important}
+#creativeAssignmentPopup .creative-popup-main{height:100%!important;min-height:0!important;max-height:none!important;overflow:hidden!important;padding:0!important}
+#creativeAssignmentPopup .creative-popup-panels{height:100%!important;display:grid!important;grid-template-rows:auto minmax(0,1fr)!important;gap:10px!important;min-height:0!important}
+#creativeAssignmentPopup .creative-popup-active-tabs{display:flex!important;gap:8px!important;overflow-x:auto!important;overflow-y:hidden!important;padding:2px 2px 8px!important;border-bottom:1px dashed rgba(121,70,52,.16)!important}
+#creativeAssignmentPopup .creative-popup-active-tab{border:1px solid rgba(121,70,52,.28)!important;background:#fff!important;border-radius:999px!important;padding:8px 12px!important;color:#5a3329!important;font-weight:900!important;white-space:nowrap!important;cursor:pointer!important;max-width:230px!important;overflow:hidden!important;text-overflow:ellipsis!important}
+#creativeAssignmentPopup .creative-popup-active-tab.active{background:#7c4a3e!important;color:#fff!important;border-color:#7c4a3e!important;box-shadow:0 8px 20px rgba(124,74,62,.18)!important}
+#creativeAssignmentPopup .creative-popup-active-panels{position:relative!important;min-height:0!important;overflow:hidden!important}
+#creativeAssignmentPopup .creative-assignment-panel{display:none!important;height:100%!important;overflow:auto!important;margin:0!important;border-radius:22px!important;padding:16px!important;background:#fff!important}
+#creativeAssignmentPopup .creative-assignment-panel.is-active{display:block!important}
+#creativeAssignmentPopup .creative-assignment-inner-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}
+#creativeAssignmentPopup .creative-role-assignment{min-height:auto!important;padding:12px!important}
+#creativeAssignmentPopup .creative-popup-actions{position:relative!important;z-index:3!important;background:#fffaf6!important;margin-top:12px!important;padding-top:12px!important;border-top:1px solid rgba(121,70,52,.16)!important}
+#creativeRows .empty-state{font-weight:900!important;color:#7c4a3e!important}
+@media(max-width:900px){
+  #creativeAssignmentPopup .creative-assignment-popup-dialog{width:calc(100vw - 10px)!important;max-height:calc(100vh - 10px)!important;padding:12px!important}
+  #creativeAssignmentPopup .creative-popup-layout{grid-template-columns:1fr!important;grid-template-rows:220px minmax(0,1fr)!important}
+  #creativeAssignmentPopup .creative-assignment-inner-grid{grid-template-columns:1fr!important}
+}
