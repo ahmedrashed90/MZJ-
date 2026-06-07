@@ -370,7 +370,7 @@ function selectedCreativeNames(row){
   return legacy ? [legacy] : [];
 }
 function creativeProductLabel(creative, row){
-  const userNames = [...(row?.querySelectorAll('.js-task-user') || [])].flatMap(control => selectedOptionTexts(control));
+  const userNames = [...(row?.querySelectorAll('.js-task-user,.js-creative-role-picker') || [])].flatMap(control => selectedOptionTexts(control));
   return creative && userNames.length ? `${creative} - ${uniqueList(userNames).join(' - ')}` : creative || '';
 }
 function taskTypeOptions(selectedValue = ''){
@@ -1926,7 +1926,7 @@ function taskBlockHtml(index){
 
 function updateProductOutput(row){
   const creativesList = selectedCreativeNames(row);
-  const userNames = [...(row?.querySelectorAll('.js-task-user') || [])].flatMap(control => selectedOptionTexts(control));
+  const userNames = [...(row?.querySelectorAll('.js-task-user,.js-creative-role-picker') || [])].flatMap(control => selectedOptionTexts(control));
   const output = row?.querySelector('.js-product-output');
   if(output){
     const usersText = uniqueList(userNames).join(' - ');
@@ -1934,6 +1934,55 @@ function updateProductOutput(row){
   }
 }
 function updateAllProductOutputs(){ document.querySelectorAll('#creativeRows .creative-row-card').forEach(updateProductOutput); }
+
+function defaultRoleSectionName(role){
+  return {content:'قسم المحتوى', shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج', publish:'قسم النشر'}[role] || 'قسم';
+}
+function defaultRoleTaskType(role){
+  return {content:'كتابة المحتوى', shooting:'التصوير', design:'التصميم', montage:'المونتاج', publish:'النشر'}[role] || 'تاسك';
+}
+function roleAssignmentBlock(role, label, hint=''){
+  return `<div class="creative-role-assignment" data-assignment-role="${escapeHtml(role)}">
+    <div class="creative-role-title"><strong>${escapeHtml(label)}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ''}</div>
+    ${rolePickerHtml(role, `js-creative-role-picker js-${role}-assignee`, label)}
+  </div>`;
+}
+function selectedRoleTaskFromRow(row, role){
+  const picker = row?.querySelector(`.js-role-picker[data-role="${role}"]`);
+  const userIds = selectedOptionValues(picker);
+  const userNames = selectedOptionTexts(picker);
+  if(!userIds.length && !userNames.length) return null;
+  const dep = findDepartmentByRole(role) || {};
+  const contentPicker = row?.querySelector('.js-role-picker[data-role="content"]');
+  const contentUserNames = selectedOptionTexts(contentPicker);
+  return {
+    contentSectionId: dep.id || role,
+    contentSectionName: dep.name || defaultRoleSectionName(role),
+    taskType: defaultRoleTaskType(role),
+    quantity: 1,
+    requiredDate: '',
+    userIds,
+    userNames,
+    departmentRole: role,
+    dependencyRole: role === 'montage' ? 'content' : '',
+    waitingForApproval: role === 'montage',
+    waitingForApprovalLabel: role === 'montage' ? 'ينتظر اعتماد تاسك المحتوى من الأدمن' : '',
+    upstreamRole: role === 'montage' ? 'content' : '',
+    upstreamUserNames: role === 'montage' ? contentUserNames : [],
+    upstreamUserLabel: role === 'montage' ? contentUserNames.join('، ') : '',
+    status: role === 'montage' ? 'waiting_content_approval' : 'pending'
+  };
+}
+function campaignWizardSetStep(step){
+  const target = String(step || 1);
+  document.querySelectorAll('[data-campaign-wizard-step]').forEach(panel => panel.classList.toggle('active', panel.dataset.campaignWizardStep === target));
+  document.querySelectorAll('[data-campaign-wizard-target]').forEach(btn => btn.classList.toggle('active', btn.dataset.campaignWizardTarget === target));
+  window.MZJ_CURRENT_CAMPAIGN_WIZARD_STEP = Number(target) || 1;
+}
+function campaignWizardMove(delta){
+  const current = Number(window.MZJ_CURRENT_CAMPAIGN_WIZARD_STEP || 1);
+  campaignWizardSetStep(Math.max(1, Math.min(3, current + delta)));
+}
 function generateCampaignCode(){
   const output = document.getElementById('campaignCodeInput');
   if(!output) return;
@@ -2077,7 +2126,7 @@ function fallbackTasksFromCampaign(campaign){
             received: false,
             progress: 0,
             steps: taskStepTemplate(role),
-            status: 'pending',
+            status: task.status || 'pending',
             creativeIndex,
             assigneeIndex,
             taskIndex: `${taskIndex}-${assigneeIndex + 1}-${unit.copyIndex}`,
@@ -3451,6 +3500,7 @@ function buildTaskDetailHtml(task){
       <div class="brief-box"><span>نوع المحتوى</span><strong>${escapeHtml(taskContentType(task) || '—')}</strong></div>
       <div class="brief-box"><span>نوع التاسك</span><strong>${escapeHtml(task.taskType || '—')}</strong></div>
       <div class="brief-box"><span>الكريتيف</span><strong>${escapeHtml(task.creative || task.product || '—')}</strong></div>
+      ${task.upstreamUserLabel ? `<div class="brief-box"><span>تابع لمحتوى</span><strong>${escapeHtml(task.upstreamUserLabel)}</strong></div>` : ''}
       <div class="brief-box"><span>السيارة المختارة</span><strong>${escapeHtml(task.selectedCar || task.carName || '')}</strong></div>
     </div>
     ${task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>الهدف</span><strong>${escapeHtml(task.structureRow.goal || '—')}</strong></div><div><span>الهدف الملموس</span><strong>${escapeHtml(task.structureRow.tangibleGoal || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : ''}
@@ -3570,11 +3620,17 @@ function buildCampaignTaskDocs(campaignId, payload){
             searchKeys,
             assignedDepartmentId: task.contentSectionId || dep.id || '',
             assignedDepartmentName: sectionName || dep.name || user.department || '',
-            departmentRole: role,
+            departmentRole: task.departmentRole || role,
+            dependencyRole: task.dependencyRole || '',
+            waitingForApproval: !!task.waitingForApproval,
+            waitingForApprovalLabel: task.waitingForApprovalLabel || '',
+            upstreamRole: task.upstreamRole || '',
+            upstreamUserNames: Array.isArray(task.upstreamUserNames) ? task.upstreamUserNames : [],
+            upstreamUserLabel: task.upstreamUserLabel || '',
             received: false,
             progress: 0,
             steps: taskStepTemplate(role),
-            status: 'pending',
+            status: task.status || 'pending',
             creativeIndex,
             assigneeIndex,
             taskIndex: `${taskIndex}-${assigneeIndex + 1}-${unit.copyIndex + 1}`,
@@ -3604,7 +3660,7 @@ function buildDepartmentTasks(campaignId, payload){
     clean.received = false;
     clean.receivedConfirmed = false;
     clean.progress = 0;
-    clean.status = 'pending';
+    clean.status = clean.status || 'pending';
     clean.attachments = [];
     return clean;
   });
@@ -3864,7 +3920,8 @@ function readSelectText(select){
 
 function collectCampaignRows(){
   return [...document.querySelectorAll('#creativeRows .creative-row-card')].flatMap(row => {
-    const tasks = [...row.querySelectorAll('.creative-task-block')].map(block => {
+    const roleTasks = ['content','montage','design','shooting'].map(role => selectedRoleTaskFromRow(row, role)).filter(Boolean);
+    const legacyTasks = [...row.querySelectorAll('.creative-task-block')].map(block => {
       const section = block.querySelector('.js-task-section-select');
       const task = block.querySelector('.js-task-type');
       const userControl = block.querySelector('.js-task-user');
@@ -3878,6 +3935,7 @@ function collectCampaignRows(){
         userNames: selectedOptionTexts(userControl)
       };
     }).filter(item => item.contentSectionId || item.taskType || item.userIds.length);
+    const tasks = roleTasks.length ? roleTasks : legacyTasks;
     const selectedCreatives = selectedCreativeNames(row);
     const cars = selectedCarsFromRow(row);
     if(!selectedCreatives.length && !tasks.length && !cars.length) return [];
@@ -3886,7 +3944,8 @@ function collectCampaignRows(){
       creative,
       tasks,
       product: creativeProductLabel(creative, row),
-      selectedCars: cars
+      selectedCars: cars,
+      workflowMode: 'creative_user_wizard'
     })).filter(item => item.creative || item.tasks.length || item.product || item.selectedCars.length);
   });
 }
@@ -4150,7 +4209,7 @@ async function saveCampaignToFirebase(){
     budgetItems: collectBudgetRows(),
     name: request.campaign_name || campaignCode || 'حملة جديدة',
     campaignName: request.campaign_name || '',
-    status: request.request_status || 'draft',
+    status: 'draft',
     source: 'mzj-marketing-spa',
     updatedAt: serverTime(),
     createdAt: serverTime()
@@ -4203,14 +4262,18 @@ function bindCampaignBuilder(){
     card.className = 'creative-row-card compact-creative-row';
     card.innerHTML = `
       <div class="creative-row-head creative-two-line-head">
-        <div class="creative-main-select creative-checkbox-picker"><span>الكريتيف</span><div class="creative-checkbox-grid">${creativeCheckboxList()}</div></div>
+        <div class="creative-main-select creative-checkbox-picker"><span>اختيار الكريتيف / المخرج</span><div class="creative-checkbox-grid">${creativeCheckboxList()}</div></div>
         <button class="delete-row" type="button" aria-label="حذف الصف">×</button>
       </div>
-      <label class="creative-product-field product-under-creatives"><span>المنتجات</span><input class="product-output js-product-output" type="text" readonly aria-label="المنتجات" /></label>
+      <div class="creative-assignment-grid">
+        ${roleAssignmentBlock('content','قسم المحتوى','مين يكتب محتوى الكريتيف')}
+        ${roleAssignmentBlock('montage','قسم المونتاج','يظهر عنده في قائمة انتظار لحين اعتماد المحتوى')}
+        ${roleAssignmentBlock('design','قسم التصميم','اختياري حسب نوع الكريتيف')}
+        ${roleAssignmentBlock('shooting','قسم التصوير','اختياري حسب الاحتياج')}
+      </div>
+      <label class="creative-product-field product-under-creatives"><span>الربط الناتج</span><input class="product-output js-product-output" type="text" readonly aria-label="الربط الناتج" /></label>
       <label class="car-picker-enable"><input type="checkbox" class="js-enable-cars"> <span>اختيار سيارات من الاستوك</span></label><div class="car-picker-block is-hidden"><div class="car-picker-title">اختيار السيارات</div><div class="car-checkbox-grid">${carCheckboxList()}</div></div>
-      <div class="creative-task-grid">
-        ${taskBlockHtml(1)}${taskBlockHtml(2)}${taskBlockHtml(3)}${taskBlockHtml(4)}
-      </div>`;
+      <div class="creative-waiting-note">المونتاج هيشوف اسم يوزر المحتوى المرتبط بالكريتيف، ويبدأ كقائمة انتظار لحين اعتماد تاسك المحتوى.</div>`;
     creativeRows?.appendChild(card); refreshDynamicSelects(); renderPublishAgenda();
   });
   document.getElementById('campaignCodeSelect')?.addEventListener('change', generateCampaignCode);
@@ -4241,7 +4304,7 @@ function bindCampaignBuilder(){
     if(event.target.closest('[data-close-structure-distribution-popup]')){ closeStructureDistributionPopup(); return; }
     if(event.target.closest('[data-save-structure-distribution-popup]')){ saveStructureDistributionPopup(); return; }
     const btn = event.target.closest('.delete-row');
-    if(btn){ const container = document.getElementById('creativeRows'); btn.closest('.creative-row-card')?.remove(); restoreEmptyRow(container, 1, 'ابدأ بإضافة صف كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
+    if(btn){ const container = document.getElementById('creativeRows'); btn.closest('.creative-row-card')?.remove(); restoreEmptyRow(container, 1, 'ابدأ بإضافة كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
     const budgetDel = event.target.closest('.delete-budget-row');
     if(budgetDel){ budgetDel.closest('.budget-item-card')?.remove(); if(budgetRows && !budgetRows.querySelector('.budget-item-card')) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; updateBudgetGrandTotal(); }
   });
@@ -4307,7 +4370,15 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-publish-platform-type-select,.js-publish-post-type-select')){ return; }
     if(event.target.matches('.js-creative-select,.js-creative-check,.js-task-type,.js-task-required-date')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); }
   });
-  document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<div class="empty-state">ابدأ بإضافة صف كريتيف للحملة.</div>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; updateBudgetGrandTotal(); generateCampaignCode(); });
+  document.addEventListener('click', event => {
+    const stepBtn = event.target.closest('[data-campaign-wizard-target]');
+    if(stepBtn){ campaignWizardSetStep(stepBtn.dataset.campaignWizardTarget); return; }
+    if(event.target.closest('[data-campaign-wizard-next]')){ campaignWizardMove(1); return; }
+    if(event.target.closest('[data-campaign-wizard-prev]')){ campaignWizardMove(-1); return; }
+    if(event.target.closest('#campaignWizardSaveShortcut')){ document.getElementById('saveCampaignDraft')?.click(); return; }
+  });
+  campaignWizardSetStep(1);
+  document.getElementById('resetCampaignBuilder')?.addEventListener('click', () => { document.getElementById('campaignRequestForm')?.reset(); if(creativeRows) creativeRows.innerHTML = '<div class="empty-state">ابدأ بإضافة كريتيف للحملة.</div>'; const agenda = document.getElementById('publishAgenda'); if(agenda) agenda.innerHTML = '<div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div>'; if(budgetRows) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; updateBudgetGrandTotal(); generateCampaignCode(); });
   document.getElementById('saveCampaignDraft')?.addEventListener('click', saveCampaignToFirebase);
 }
 
@@ -5120,10 +5191,8 @@ function campaignFullDataGrid(campaign){
     ['كود الحملة', campaignCodeText(campaign)],
     ['اسم الحملة', campaignNameText(campaign)],
     ['هدف الحملة', campaign.campaign_goal || campaign.campaignGoal],
-    ['هدف الإدارة', campaign.management_goal || campaign.managementGoal],
     ['المطلوب من كاتب المحتوى', campaign.content_writer_brief || campaign.contentWriterBrief],
     ['موعد تسليم الهيكل', campaign.structure_deadline || campaign.structureDeadline, true],
-    ['حالة الطلب', campaignStatusText(campaign)],
     ['رقم مسلسل الحملة', campaign.campaignSerial || campaign.serial || campaign.sequence],
     ['عدد التاسكات', tasks.length],
     ['التاسكات المستلمة', received],
@@ -5158,7 +5227,7 @@ function exportCampaignDataPdf(campaignId){
   const safeTitle = escapeHtml(title || 'بيانات الحملة');
   const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${safeTitle}</title><style>
     @page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{font-family:Tahoma,Arial,sans-serif;direction:rtl;color:#2d1713;margin:0;background:#fff;font-size:11px}h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:18px 0 8px;border-bottom:2px solid #6f3f34;padding-bottom:6px}.report-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;border:2px solid #6f3f34;border-radius:14px;padding:12px;margin-bottom:12px}.meta{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:8px 0 14px}.meta div{border:1px solid #ead0c4;border-radius:10px;padding:8px;background:#fffaf6}.meta span{display:block;color:#8e7166;font-weight:700;font-size:10px}.meta strong{display:block;margin-top:4px;font-size:11px}.print-table-wrap{overflow:visible!important;border:1px solid #ead0c4;border-radius:10px}.print-table,.compact-table table{width:100%;border-collapse:collapse!important;min-width:0!important}.print-table th,.print-table td,.compact-table th,.compact-table td{border:1px solid #ead0c4!important;padding:7px!important;text-align:right!important;vertical-align:top!important;white-space:normal!important;line-height:1.65!important}.print-table th,.compact-table th{background:#f2e5dc!important;color:#2d1713!important;font-weight:900!important}.empty-state{border:1px dashed #ead0c4;border-radius:10px;padding:14px;text-align:center;color:#8e7166}.footer{margin-top:14px;color:#8e7166;font-size:10px;text-align:left}@media print{button{display:none!important}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
-  </style></head><body><section class="report-head"><div><h1>تقرير بيانات الحملة</h1><strong>${safeTitle}</strong></div><div>تاريخ التصدير: ${escapeHtml(formatDateShort(new Date()))}</div></section><section class="meta"><div><span>تاريخ الحملة</span><strong>${escapeHtml(formatDateShort(campaign.campaign_date || campaign.campaignDate || campaign.createdAt))}</strong></div><div><span>بداية النشر</span><strong>${escapeHtml(formatDateShort(campaignStartPublishDate(campaign)))}</strong></div><div><span>نهاية النشر</span><strong>${escapeHtml(formatDateShort(campaignEndDate(campaign)))}</strong></div><div><span>نوع الحملة</span><strong>${escapeHtml(campaignTypeText(campaign))}</strong></div><div><span>كود الحملة</span><strong>${escapeHtml(campaignCodeText(campaign))}</strong></div><div><span>اسم الحملة</span><strong>${escapeHtml(campaignNameText(campaign))}</strong></div><div><span>هدف الحملة</span><strong>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '')}</strong></div><div><span>هدف الإدارة</span><strong>${escapeHtml(campaign.management_goal || campaign.managementGoal || '')}</strong></div><div><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(campaign.content_writer_brief || campaign.contentWriterBrief || '')}</strong></div><div><span>موعد تسليم الهيكل</span><strong>${escapeHtml(formatDateShort(campaign.structure_deadline || campaign.structureDeadline))}</strong></div><div><span>حالة الطلب</span><strong>${escapeHtml(campaignStatusText(campaign))}</strong></div><div><span>رقم مسلسل الحملة</span><strong>${escapeHtml(campaign.campaignSerial || campaign.serial || campaign.sequence || '')}</strong></div></section><h2>كل المطلوب من التاسكات واليوزرات</h2>${printableCompactTable(tasksHtml)}<h2>جدول النشر</h2>${printableCompactTable(renderScheduleSummary(campaign))}<h2>الميزانية</h2>${printableCompactTable(renderBudgetSummary(campaign))}<h2>روابط الحملة</h2>${printableCompactTable(campaignLinksHtml(campaign))}<div class="footer">MZJ Workspace</div><script>window.onload=function(){setTimeout(function(){window.focus();window.print();},250)}<\/script></body></html>`;
+  </style></head><body><section class="report-head"><div><h1>تقرير بيانات الحملة</h1><strong>${safeTitle}</strong></div><div>تاريخ التصدير: ${escapeHtml(formatDateShort(new Date()))}</div></section><section class="meta"><div><span>تاريخ الحملة</span><strong>${escapeHtml(formatDateShort(campaign.campaign_date || campaign.campaignDate || campaign.createdAt))}</strong></div><div><span>بداية النشر</span><strong>${escapeHtml(formatDateShort(campaignStartPublishDate(campaign)))}</strong></div><div><span>نهاية النشر</span><strong>${escapeHtml(formatDateShort(campaignEndDate(campaign)))}</strong></div><div><span>نوع الحملة</span><strong>${escapeHtml(campaignTypeText(campaign))}</strong></div><div><span>كود الحملة</span><strong>${escapeHtml(campaignCodeText(campaign))}</strong></div><div><span>اسم الحملة</span><strong>${escapeHtml(campaignNameText(campaign))}</strong></div><div><span>هدف الحملة</span><strong>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '')}</strong></div><div><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(campaign.content_writer_brief || campaign.contentWriterBrief || '')}</strong></div><div><span>موعد تسليم الهيكل</span><strong>${escapeHtml(formatDateShort(campaign.structure_deadline || campaign.structureDeadline))}</strong></div><div><span>رقم مسلسل الحملة</span><strong>${escapeHtml(campaign.campaignSerial || campaign.serial || campaign.sequence || '')}</strong></div></section><h2>كل المطلوب من التاسكات واليوزرات</h2>${printableCompactTable(tasksHtml)}<h2>جدول النشر</h2>${printableCompactTable(renderScheduleSummary(campaign))}<h2>الميزانية</h2>${printableCompactTable(renderBudgetSummary(campaign))}<h2>روابط الحملة</h2>${printableCompactTable(campaignLinksHtml(campaign))}<div class="footer">MZJ Workspace</div><script>window.onload=function(){setTimeout(function(){window.focus();window.print();},250)}<\/script></body></html>`;
   const printWindow = window.open('', '_blank');
   if(!printWindow){ alert('المتصفح منع فتح نافذة التصدير. اسمح بالـ popups وجرب تاني.'); return; }
   printWindow.document.open();

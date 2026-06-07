@@ -2594,3 +2594,21 @@ body:has(.publish-composer-modal.show) .topbar{
 .publish-modal-type-card:has(input:checked){border-color:#8a4f3f;background:#f7ebe3}
 .publish-popup-actions{display:flex;justify-content:flex-start;gap:10px;padding:14px 22px 18px;border-top:1px solid rgba(128,77,61,.16)}
 @media(max-width:720px){.publish-popup-dialog{width:96vw;max-height:92vh;border-radius:18px}.publish-modal-platform-list{grid-template-columns:1fr}.publish-popup-head h3{font-size:18px}}
+
+/* MZJ v87 campaign wizard + creative workflow */
+.campaign-wizard-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 16px}
+.campaign-wizard-step{border:1px solid var(--border);background:#fff;border-radius:18px;padding:14px 16px;display:flex;align-items:center;gap:12px;justify-content:center;color:var(--primary);font-weight:900;cursor:pointer;box-shadow:0 10px 26px rgba(90,58,50,.06)}
+.campaign-wizard-step span{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--border)}
+.campaign-wizard-step.active{background:linear-gradient(135deg,var(--secondary),var(--primary-2));color:#fff;border-color:transparent}
+.campaign-wizard-step.active span{background:#fff;color:var(--primary)}
+.campaign-wizard-panel{display:none!important}
+.campaign-wizard-panel.active{display:block!important}
+.campaign-wizard-actions{display:flex;justify-content:space-between;gap:10px;margin-top:16px;flex-wrap:wrap}
+.creative-assignment-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.creative-role-assignment{border:1px solid var(--border);background:#fff;border-radius:18px;padding:12px;display:grid;gap:10px}
+.creative-role-title{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--primary)}
+.creative-role-title strong{font-size:15px}.creative-role-title small{color:var(--muted);font-weight:700}
+.creative-waiting-note{border:1px dashed #D7AC94;background:#FFF8F2;border-radius:16px;padding:11px 13px;color:var(--primary);font-weight:800;line-height:1.7}
+.creative-role-assignment .multi-toggle{width:100%;border:1px solid var(--border);background:var(--surface-2);border-radius:14px;padding:11px 12px;font-weight:900;color:var(--primary);text-align:center}
+.creative-role-assignment .multi-menu{max-height:220px;overflow:auto}
+@media(max-width:900px){.campaign-wizard-nav,.creative-assignment-grid{grid-template-columns:1fr}.campaign-wizard-step{justify-content:flex-start}}

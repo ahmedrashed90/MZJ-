@@ -108,7 +108,7 @@
         <div class="page-head campaign-builder-head">
           <div class="page-title">
             <h1>إنشاء حملة</h1>
-            <p>بيانات الطلب في الأعلى، ثم كريتيفات الحملة والمهام وجدول النشر والميزانية.</p>
+            <p>أنشئ الحملة بنظام خطوات: بيانات الطلب، ربط الكريتيفات بالمهام، ثم جدول النشر والميزانية.</p>
           </div>
           <div class="actions">
             <button class="btn btn-light" type="button" id="resetCampaignBuilder">مسح النموذج</button>
@@ -116,8 +116,14 @@
           </div>
         </div>
 
-        <div class="campaign-builder stacked">
-          <section class="request-panel card request-top">
+        <div class="campaign-wizard-nav" id="campaignWizardNav" aria-label="خطوات إنشاء الحملة">
+          <button class="campaign-wizard-step active" type="button" data-campaign-wizard-target="1"><span>1</span><strong>بيانات طلب الحملة</strong></button>
+          <button class="campaign-wizard-step" type="button" data-campaign-wizard-target="2"><span>2</span><strong>الكريتيفات والمهام</strong></button>
+          <button class="campaign-wizard-step" type="button" data-campaign-wizard-target="3"><span>3</span><strong>جدول النشر والميزانية</strong></button>
+        </div>
+
+        <div class="campaign-builder stacked" id="campaignWizard">
+          <section class="request-panel card request-top campaign-wizard-panel active" data-campaign-wizard-step="1">
             <div class="panel-title">بيانات طلب الحملة</div>
             <form class="form request-grid" id="campaignRequestForm">
               <label class="field"><span>تاريخ الحملة</span><input type="date" name="campaign_date" /></label>
@@ -127,29 +133,29 @@
               <label class="field"><span>كود الحملة</span><input id="campaignCodeInput" type="text" name="campaign_code" readonly placeholder="يظهر تلقائياً بعد اختيار نوع الحملة" /></label>
               <label class="field"><span>اسم الحملة</span><input type="text" name="campaign_name" /></label>
               <label class="field field-wide"><span>هدف الحملة</span><textarea name="campaign_goal"></textarea></label>
-              <label class="field field-wide"><span>هدف الإدارة</span><textarea name="management_goal"></textarea></label>
               <label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief"></textarea></label>
               <label class="field"><span>موعد تسليم الهيكل</span><input type="datetime-local" name="structure_deadline" /></label>
-              <label class="field"><span>حالة الطلب</span><select name="request_status" class="js-order-status-select"><option value="">اختر الحالة</option></select></label>
             </form>
+            <div class="campaign-wizard-actions"><button class="btn btn-primary" type="button" data-campaign-wizard-next>التالي: الكريتيفات والمهام</button></div>
           </section>
 
           <div class="builder-workspace">
-            <div class="card campaign-section-card">
+            <div class="card campaign-section-card campaign-wizard-panel" data-campaign-wizard-step="2">
               <div class="section-toolbar">
                 <div>
                   <h2>الكريتيفات والمهام</h2>
-                  <p>الكريتيف يظهر من صفحة الأقسام، ونوع التاسك يتغير حسب قسم المحتوى، والمنتجات تتكوّن تلقائياً من الكريتيف + يوزرات المحتوى والتصوير والتصميم والمونتاج.</p>
+                  <p>اختار الكريتيف ثم اربطه بيوزرات الأقسام. المونتاج يظهر في قائمة انتظار لحين اعتماد تاسك المحتوى من الأدمن.</p>
                 </div>
-                <button class="btn btn-primary" type="button" id="addCreativeBtn">＋ إضافة صف كريتيف</button>
+                <button class="btn btn-primary" type="button" id="addCreativeBtn">＋ إضافة كريتيف وربط مهام</button>
               </div>
 
               <div id="creativeRows" class="creative-rows-stack" aria-label="كريتيفات ومهام الحملة">
-                <div class="empty-state">ابدأ بإضافة صف كريتيف للحملة.</div>
+                <div class="empty-state">ابدأ بإضافة كريتيف للحملة.</div>
               </div>
+              <div class="campaign-wizard-actions"><button class="btn btn-light" type="button" data-campaign-wizard-prev>السابق</button><button class="btn btn-primary" type="button" data-campaign-wizard-next>التالي: جدول النشر والميزانية</button></div>
             </div>
 
-            <div class="builder-bottom-stacked">
+            <div class="builder-bottom-stacked campaign-wizard-panel" data-campaign-wizard-step="3">
               <div class="card campaign-section-card">
                 <div class="section-toolbar small-toolbar">
                   <div><h2>جدول النشر</h2><p>يتولد كأجندة حسب تاريخ بداية ونهاية النشر، والاختيارات تعتمد على مخرجات التصميم والمونتاج.</p></div>
@@ -166,6 +172,7 @@
                 <div id="budgetRows" class="budget-items"><div class="empty-state">لا توجد بنود ميزانية.</div></div>
                 <div class="budget-grand-total"><span>إجمالي الميزانية</span><strong id="budgetGrandTotalValue">0</strong></div>
               </div>
+              <div class="campaign-wizard-actions"><button class="btn btn-light" type="button" data-campaign-wizard-prev>السابق</button><button class="btn btn-primary" type="button" id="campaignWizardSaveShortcut">حفظ الحملة</button></div>
             </div>
           </div>
         </div>
