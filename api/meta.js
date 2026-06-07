@@ -1061,7 +1061,8 @@ async function publishWhatsAppMersalFromReady(body, message) {
   if (mediaUrl) {
     const templateName = settings.imageTemplate || 'mzj_image_caption_v3';
     const templateLanguage = settings.templateLanguage || 'ar';
-    const bodyText = message || body.title || 'MZJ';
+    const captionText = String(body.caption || body.postCaption || body.messageCaption || body.copy || '').trim() || String(message || '').split('\n\n')[0].trim() || body.title || 'MZJ';
+    const hashtagsText = String(body.hashtagsText || body.hashtagText || body.hashtags || body.hashTags || body.tags || '').trim() || String(message || '').split('\n\n').slice(1).join('\n\n').trim() || '';
     for (const phone of phones) {
       const payload = {
         token: settings.token,
@@ -1083,7 +1084,11 @@ async function publishWhatsAppMersalFromReady(body, message) {
             parameters: [
               {
                 type: 'text',
-                text: bodyText
+                text: captionText
+              },
+              {
+                type: 'text',
+                text: hashtagsText
               }
             ]
           }
