@@ -4215,7 +4215,11 @@ async function setStructureStatus(taskId, status){
 function getFormData(form){
   const data = {};
   if(!form) return data;
-  new FormData(form).forEach((value, key) => { data[key] = normalizeText(value); });
+  new FormData(form).forEach((value, key) => {
+    let cleaned = normalizeText(value);
+    if(key === 'structure_deadline') cleaned = (cleaned.match(/\d{4}-\d{2}-\d{2}/) || [''])[0] || cleaned;
+    data[key] = cleaned;
+  });
   return data;
 }
 function readSelectText(select){
