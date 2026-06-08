@@ -4543,3 +4543,20 @@ body.creative-popup-open{
 #creativeAssignmentPopup .js-role-picker[data-role="montage"] .multi-toggle::after{content:' (من ربط المحتوى)';font-size:10px;color:#9b756a;font-weight:800}
 .state-chip.is-structure-waiting{background:#fff1e8;color:#7d3f2d;border-color:#e7c7b7}
 .waiting-dependency .task-metric-row b{color:#7d3f2d}
+
+/* v115: structure attached notification badges */
+.structure-file-name.structure-attached-label,
+.state-chip.is-structure-attached,
+.structure-attach-alert{
+  background:#e8f7de!important;
+  color:#315f24!important;
+  border:1px solid #b9dba8!important;
+  border-radius:999px!important;
+  font-weight:900!important;
+}
+.structure-file-name.structure-attached-label{padding:8px 12px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 6px 16px rgba(49,95,36,.08)}
+.state-chip.is-structure-attached{display:inline-flex!important;align-items:center;justify-content:center;padding:5px 9px;font-size:11px;white-space:nowrap}
+.receive-state-stack,.inline-state-stack{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.structure-attach-alert{display:inline-flex;align-items:center;justify-content:center;width:max-content;max-width:100%;padding:6px 10px;margin:8px 0 2px;font-size:12px}
+.content-task-actions .state-chip.is-structure-attached{height:34px;padding-inline:12px}
+.task-list-state .state-chip.is-structure-attached{margin-inline-start:6px}

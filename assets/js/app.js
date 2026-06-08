@@ -3991,7 +3991,7 @@ function renderStructureSection(task){
     <div class="structure-actions">
       <a class="btn btn-light" href="assets/templates/%D9%87%D9%8A%D9%83%D9%84%20%D8%A7%D9%84%D8%AD%D9%85%D9%84%D9%87.xlsx" download="هيكل الحمله.xlsx">تحميل قالب الهيكل</a>
       ${canUpload ? `<button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">إرفاق هيكل الحملة Excel</button>` : ''}
-      ${structure.fileName ? `<span class="structure-file-name">${escapeHtml(structure.fileName)}</span>` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
+      ${structure.fileName ? `<span class="structure-file-name structure-attached-label">تم إرفاق الهيكل</span><span class="structure-file-name">${escapeHtml(structure.fileName)}</span>` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
       ${structure.fileData ? `<a class="btn btn-light" href="${escapeHtml(structure.fileData)}" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل الملف المرفوع</a>` : ''}
     </div>
     ${notesHtml}
@@ -4315,8 +4315,25 @@ async function uploadStructureFileForTask(file, taskId){
   const parsedRows = parsed.parsedRows || [];
   const sheetTables = parsed.sheetTables || [];
   const prev = taskStructure(task);
-  const status = prev.status === 'needs_changes' ? 'revised' : 'pending_review';
-  await updateTaskOnFirebase(task.id, { structure: encodeStructureWorkbookForFirestore({ ...prev, status, fileName: file.name, fileSize: file.size, fileData, parsedRows, sheetTables, uploadedAt: new Date().toISOString(), uploadedBy: getCurrentUser().email || getCurrentUser().name || '' }) });
+  const hadReviewNotes = Array.isArray(prev.notes) && prev.notes.length;
+  const hadReviewMarks = Array.isArray(prev.marks) && prev.marks.length;
+  const status = (prev.status === 'needs_changes' || hadReviewNotes || hadReviewMarks) ? 'revised' : 'pending_review';
+  const nextStructure = {
+    ...prev,
+    status,
+    fileName: file.name,
+    fileSize: file.size,
+    fileData,
+    parsedRows,
+    sheetTables,
+    notes: [],
+    marks: [],
+    reviewedAt: '',
+    reviewClearedAt: new Date().toISOString(),
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: getCurrentUser().email || getCurrentUser().name || ''
+  };
+  await updateTaskOnFirebase(task.id, { structure: encodeStructureWorkbookForFirestore(nextStructure) });
   showToast(sheetTables.length ? 'تم رفع الهيكل وعرض الشيت كامل.' : 'تم رفع الهيكل، اضغط عرض الشيت كامل من الملف المرفوع.');
 }
 async function reloadStructureSheetFromStoredFile(taskId, silent = false){
@@ -5462,13 +5479,24 @@ function shortTaskName(task){
 }
 function receivedLabel(task){ return isTaskWaitingForDependency(task) ? 'في انتظار اعتماد الهيكل' : (task.received || task.receivedConfirmed ? 'تم الاستلام' : 'لم يستلم'); }
 function receivedClass(task){ return isTaskWaitingForDependency(task) ? 'is-structure-waiting' : (task.received || task.receivedConfirmed ? 'is-done' : 'is-waiting'); }
+function taskStructureAttached(task){
+  const structure = taskStructure(task);
+  return Boolean(structure.fileData || structure.fileName || structure.uploadedAt || structure.status === 'pending_review' || structure.status === 'revised' || structure.status === 'approved' || structure.status === 'distributed');
+}
+function taskStructureAttachedBadge(task){
+  return taskStructureAttached(task) ? '<b class="state-chip is-structure-attached">تم إرفاق الهيكل</b>' : '';
+}
+function campaignStructureAttachedCount(tasks){
+  return (tasks || []).filter(task => isCampaignStructureTask(task) && taskStructureAttached(task)).length;
+}
 function taskOwnerName(task){ return escapeHtml(task.assignedToName || task.assigneeName || task.userName || 'بدون مسؤول'); }
 function campaignTasksSnapshot(campaign){
   const related = adminDashboardTasksForCampaign(campaign);
   const received = related.filter(task => task.received || task.receivedConfirmed).length;
   const progress = campaignRequiredProgressFromTasks(related);
   const publish = campaignPublishProgress(campaign);
-  return { related, received, progress, publish, total: related.length };
+  const structureAttached = campaignStructureAttachedCount(related);
+  return { related, received, progress, publish, total: related.length, structureAttached };
 }
 
 function renderUserDashboard(){
@@ -5512,7 +5540,7 @@ function renderUserDashboard(){
     return `<article class="content-task-card ${completed ? 'completed' : ''} ${waitingFinal ? 'waiting-final-file' : ''} ${waitingDependency ? 'waiting-dependency' : ''}">
       <h3>${escapeHtml(task.campaignName || 'حملة')}</h3>
       <p>${shortTaskName(task)}</p>
-      <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>${actionHtml}</div>
+      <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>${actionHtml}${taskStructureAttachedBadge(task)}</div>
       <div class="task-metric-row"><span>نسبة الإنجاز</span><b>${progress}%</b></div>
       ${waitingDependency ? '' : `<div class="task-metric-row"><span>حالة التاسك</span><b>${statusText}</b></div>`}
       <div class="task-card-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
@@ -5555,12 +5583,13 @@ function renderAdminDashboard(){
   const requiredCard = item => `<article class="dash-task-receive-card">
     <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')}</span></div>
     <div class="receive-meter"><strong>${item.received}/${item.total}</strong><span>تم الاستلام</span></div>
-    <div class="receive-list">${item.related.map(task => `<div><span><b>${shortTaskName(task)}</b><em>${taskOwnerName(task)}</em></span><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b></div>`).join('')}</div>
+    <div class="receive-list">${item.related.map(task => `<div><span><b>${shortTaskName(task)}</b><em>${taskOwnerName(task)}</em></span><span class="receive-state-stack"><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b>${taskStructureAttachedBadge(task)}</span></div>`).join('')}</div>
   </article>`;
 
   const readinessCard = item => `<article class="dash-campaign-card dash-ready-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
     <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${item.progress}%</span></div>
     <p>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')} · ${item.total} تاسك</p>
+    ${item.structureAttached ? `<div class="structure-attach-alert">تم إرفاق الهيكل · ${item.structureAttached}</div>` : ''}
     <div class="dash-progress"><span style="width:${Math.min(100,item.progress)}%"></span></div>
     <button type="button" class="open-details-hint">عرض التاسكات</button>
   </article>`;
@@ -5594,7 +5623,7 @@ function renderCampaignInlineTasks(campaign){
   const grouped = groupTasksForKanban(related);
   const taskItem = task => `<article class="inline-task-row">
     <div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([taskDepartmentLabel(task), task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div>
-    <span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>
+    <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}</span>
     <b>${taskProgress(task)}%</b>
     <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
   </article>`;
@@ -5619,7 +5648,7 @@ function renderCampaignDetail(campaignId){
   const snap = campaignTasksSnapshot(campaign);
   const taskItem = task => `<article class="campaign-task-list-item">
     <div class="task-list-main"><strong>${shortTaskName(task)}</strong><p>${escapeHtml([task.contentSectionName, task.taskType, taskOwnerName(task)].filter(Boolean).join(' / ') || 'بدون بيانات')}</p></div>
-    <div class="task-list-state"><span>${taskProgress(task)}%</span><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b></div>
+    <div class="task-list-state"><span>${taskProgress(task)}%</span><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b>${taskStructureAttachedBadge(task)}</div>
     <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">تفاصيل</button>
   </article>`;
   const grouped = groupTasksForKanban(related);
