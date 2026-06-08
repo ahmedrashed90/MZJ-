@@ -4283,6 +4283,96 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
     source: 'campaign-structure-distribution'
   }, campaign);
 }
+
+function taskIdentityKeysForUser(task){
+  return uniqueIdentityKeys([
+    task?.userId, task?.userUid, task?.userEmail, task?.userName,
+    task?.assigneeUid, task?.assigneeName, task?.assigneeEmail,
+    task?.assignedToUid, task?.assignedToId, task?.assignedToName, task?.assignedToEmail,
+    task?.displayName, task?.username, task?.searchKeys, task?.assignedToSearch
+  ]);
+}
+function taskUserIdentityOverlaps(a, b){
+  const left = taskIdentityKeysForUser(a);
+  const right = taskIdentityKeysForUser(b);
+  return left.some(key => right.includes(key));
+}
+function taskDependsOnParentContent(task, parentTask){
+  const parentKeys = uniqueIdentityKeys([
+    parentTask?.userId, parentTask?.userUid, parentTask?.userName, parentTask?.userEmail,
+    parentTask?.assigneeUid, parentTask?.assigneeName, parentTask?.assigneeEmail,
+    parentTask?.assignedToUid, parentTask?.assignedToId, parentTask?.assignedToName, parentTask?.assignedToEmail,
+    parentTask?.displayName, parentTask?.username, parentTask?.searchKeys, parentTask?.assignedToSearch
+  ]);
+  const dependencyKeys = uniqueIdentityKeys([
+    task?.upstreamUserIds, task?.upstreamUserNames, task?.upstreamUserLabel,
+    task?.dependsOnContentUserIds, task?.dependsOnContentUserNames,
+    Array.isArray(task?.dependencyLinks) ? task.dependencyLinks.map(link => [link.contentUserId, link.contentUserName]) : []
+  ]);
+  return !dependencyKeys.length || parentKeys.some(key => dependencyKeys.includes(key));
+}
+function taskCreativeMatchesParent(task, parentTask){
+  const parentCreative = identityClean(parentTask?.creative || parentTask?.product || '');
+  const taskCreative = identityClean(task?.creative || task?.product || '');
+  if(!parentCreative || !taskCreative) return true;
+  return parentCreative === taskCreative || parentCreative.includes(taskCreative) || taskCreative.includes(parentCreative);
+}
+function waitingTaskMatchesStructureAddition(existing, addition, parentTask){
+  if(!existing || !addition || existing.id === parentTask?.id) return false;
+  const existingRole = normalizeDepartmentRole(existing.departmentRole || existing.assignedDepartmentName || existing.contentSectionName || '');
+  const additionRole = normalizeDepartmentRole(addition.departmentRole || addition.assignedDepartmentName || addition.contentSectionName || '');
+  if(existingRole !== additionRole) return false;
+  if(!['montage','design','shooting','publish','other'].includes(existingRole)) return false;
+  if(!taskUserIdentityOverlaps(existing, addition)) return false;
+  if(!taskCreativeMatchesParent(existing, parentTask)) return false;
+  if(!taskDependsOnParentContent(existing, parentTask)) return false;
+  return !!(existing.waitingForApproval || existing.status === 'waiting_content_approval' || isTaskWaitingForDependency(existing));
+}
+function mergeStructureAdditionIntoExistingTask(existing, addition, parentTask){
+  const keepId = existing.id;
+  const keepSteps = Array.isArray(existing.steps) && existing.steps.length ? existing.steps : addition.steps;
+  const keepAttachments = Array.isArray(existing.attachments) ? existing.attachments : [];
+  return {
+    ...existing,
+    product: addition.product || existing.product || '',
+    taskNo: addition.taskNo || existing.taskNo || '',
+    structureTaskNo: addition.structureTaskNo || existing.structureTaskNo || '',
+    structureTaskLabel: addition.structureTaskLabel || existing.structureTaskLabel || '',
+    structureGenerated: true,
+    parentStructureTaskId: parentTask?.id || addition.parentStructureTaskId || existing.parentStructureTaskId || '',
+    structureRow: addition.structureRow || existing.structureRow || null,
+    platforms: addition.platforms || existing.platforms || [],
+    platform: addition.platform || existing.platform || '',
+    platformTypes: addition.platformTypes || existing.platformTypes || {},
+    platformPublishing: addition.platformPublishing || existing.platformPublishing || [],
+    postType: addition.postType || existing.postType || '',
+    postTypeLabel: addition.postTypeLabel || existing.postTypeLabel || '',
+    requiredDimensions: addition.requiredDimensions || existing.requiredDimensions || null,
+    publishDate: addition.publishDate || existing.publishDate || '',
+    date: addition.date || existing.date || '',
+    caption: addition.caption || existing.caption || '',
+    hashtags: addition.hashtags || existing.hashtags || '',
+    hashtagsText: addition.hashtagsText || existing.hashtagsText || '',
+    selectedCar: addition.selectedCar || existing.selectedCar || '',
+    selectedCars: Array.isArray(addition.selectedCars) && addition.selectedCars.length ? addition.selectedCars : (existing.selectedCars || []),
+    waitingForApproval: false,
+    waitingForApprovalLabel: '',
+    dependencyRole: '',
+    dependencyReleasedAt: new Date().toISOString(),
+    dependencyReleasedByTaskId: parentTask?.id || '',
+    received: false,
+    receivedConfirmed: false,
+    progress: 0,
+    steps: keepSteps,
+    status: 'pending',
+    attachments: keepAttachments,
+    id: keepId,
+    campaignId: existing.campaignId || addition.campaignId || parentTask?.campaignId || '',
+    source: 'campaign-structure-distribution-linked',
+    updatedAt: new Date().toISOString()
+  };
+}
+
 async function saveStructureDistribution(taskId){
   const task = findTaskById(taskId);
   const campaign = campaignForTask(task);
@@ -4299,9 +4389,28 @@ async function saveStructureDistribution(taskId){
     assignees.forEach((assignee) => additions.push(buildStructureTaskFromRow(campaign, task, sourceRow, assignee, index, publishMeta)));
   });
   if(!additions.length) return showToast('اختار يوزر واحد على الأقل.');
-  const nextTasks = (campaign.departmentTasks || []).map(item => item.id === task.id ? { ...item, structure: { ...taskStructure(item), status: 'distributed', distributedAt: new Date().toISOString() } } : item).concat(additions);
+
+  const usedExistingIndexes = new Set();
+  const nextTasks = (campaign.departmentTasks || []).map(item => item.id === task.id ? { ...item, structure: { ...taskStructure(item), status: 'distributed', distributedAt: new Date().toISOString() } } : item);
+  let linkedCount = 0;
+  let createdCount = 0;
+
+  additions.forEach(addition => {
+    const existingIndex = nextTasks.findIndex((existing, index) => !usedExistingIndexes.has(index) && waitingTaskMatchesStructureAddition(existing, addition, task));
+    if(existingIndex >= 0){
+      nextTasks[existingIndex] = mergeStructureAdditionIntoExistingTask(nextTasks[existingIndex], addition, task);
+      usedExistingIndexes.add(existingIndex);
+      linkedCount += 1;
+    }else{
+      nextTasks.push(addition);
+      createdCount += 1;
+    }
+  });
+
   await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update({ departmentTasks: nextTasks, taskCount: nextTasks.length, updatedAt: serverTime() });
-  showToast('تم توزيع تاسكات الهيكل.');
+  if(linkedCount && !createdCount) showToast('تم ربط الهيكل بالتاسكات الموجودة.');
+  else if(linkedCount && createdCount) showToast(`تم ربط ${linkedCount} تاسك موجود وإنشاء ${createdCount} تاسك جديد.`);
+  else showToast('تم توزيع تاسكات الهيكل.');
 }
 async function uploadStructureFileForTask(file, taskId){
   const task = findTaskById(taskId);
