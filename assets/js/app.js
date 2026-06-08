@@ -4013,26 +4013,29 @@ function buildTaskDetailHtml(task){
   const requiredDate = taskRequiredDate(task, campaign);
   const requiredLeft = daysUntilRequiredText(requiredDate);
   const writerBrief = normalizeText(task.contentWriterBrief || task.campaignRequestBrief || campaign.content_writer_brief || campaign.contentWriterBrief || '');
-  const campaignGoalDisplay = isCampaignContentWritingTask(task) ? (writerBrief || campaign.campaign_goal || campaign.campaignGoal || '—') : (campaign.campaign_goal || campaign.campaignGoal || writerBrief || '—');
+  const isContentWriting = isCampaignContentWritingTask(task);
+  const campaignGoalDisplay = isContentWriting ? (writerBrief || campaign.campaign_goal || campaign.campaignGoal || '—') : (campaign.campaign_goal || campaign.campaignGoal || '—');
+  const campaignWriterBriefBox = isContentWriting ? `<div><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(writerBrief || '—')}</strong></div>` : '';
+  const taskNumberBox = isContentWriting ? '' : `<div class="brief-box"><span>رقم التاسك</span><strong>${escapeHtml(structureTaskNumber(task) || '—')}</strong></div>`;
   const waitingDependency = isTaskWaitingForDependency(task);
   const receiveAction = waitingDependency
     ? '<span class="btn btn-light static-chip waiting-chip">في انتظار اعتماد الهيكل</span>'
     : `<button type="button" class="btn btn-light receive-action ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تأكيد الاستلام'}</button>`;
-  return `<div class="task-modal-head"><div><span>التاسك والمطلوب</span><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div><button type="button" class="mini-btn" data-close-task-modal>إغلاق</button></div>
+  return `<div class="task-modal-head"><div><span>التاسك والمطلوب</span><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div></div>
     <div class="modal-section campaign-data-line"><div class="modal-section-title"><h3>بيانات الحملة</h3></div>
       <div class="task-info-grid campaign-data-full">
         <div><span>التاريخ</span><strong>${formatDateShort(campaignDate)}</strong></div>
-        <div class="wide"><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || task.campaignCode || '—')}</strong></div>
+        <div><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || task.campaignCode || '—')}</strong></div>
         <div><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '—')}</strong></div>
         <div><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || campaign.campaign_type || '—')}</strong></div>
-        <div class="wide"><span>هدف الحملة</span><strong>${escapeHtml(campaignGoalDisplay)}</strong></div>
+        <div><span>هدف الحملة</span><strong>${escapeHtml(campaignGoalDisplay)}</strong></div>
         <div><span>بداية الحملة</span><strong>${formatDateShort(campaign.campaign_date || campaign.startDate)}</strong></div>
         <div class="date-highlight"><span>نهاية الحملة</span><strong>${formatDateShort(endDate)}</strong></div>
-        <div class="wide"><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(writerBrief || '—')}</strong></div>
+        ${campaignWriterBriefBox}
       </div>
     </div>
     <div class="modal-section task-brief-row task-brief-row-four">
-      <div class="brief-box"><span>رقم التاسك</span><strong>${escapeHtml(structureTaskNumber(task) || '—')}</strong></div>
+      ${taskNumberBox}
       <div class="brief-box"><span>نوع المحتوى</span><strong>${escapeHtml(taskContentType(task) || '—')}</strong></div>
       <div class="brief-box"><span>نوع التاسك</span><strong>${escapeHtml(task.taskType || '—')}</strong></div>
       <div class="brief-box"><span>الكريتيف</span><strong>${escapeHtml(task.creative || task.product || '—')}</strong></div>
