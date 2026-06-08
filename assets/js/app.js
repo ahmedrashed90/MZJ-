@@ -3296,14 +3296,25 @@ function daysUntilRequiredText(requiredDate){
 
 
 function isCampaignStructureTask(task){
-  const section = identityClean(task.contentSectionName || task.assignedDepartmentName || '');
-  const type = identityClean(task.taskType || '');
-  const isContentSection = section.includes('المحتوي') || section.includes('المحتوى') || section.includes('content');
-  const isCampaignWriting = type.includes(identityClean('كتابة محتوى حملة')) || type.includes(identityClean('كتابة محتوى')) || type.includes('content writing');
+  // تاسك رفع الهيكل ممكن يتخزن باسم التاسك أو نوع المحتوى أو بيانات المصدر حسب نسخة الحفظ.
+  // لذلك الاعتماد هنا مش على taskType فقط.
+  const section = identityClean([
+    task?.contentSectionName, task?.assignedDepartmentName, task?.departmentName, task?.departmentRole, task?.contentType
+  ].filter(Boolean).join(' '));
+  const type = identityClean([
+    task?.taskType, task?.contentType, task?.creative, task?.product, task?.sourceRequestStep
+  ].filter(Boolean).join(' '));
+  const isContentSection = normalizeDepartmentRole(section) === 'content' || section.includes('المحتوي') || section.includes('المحتوى') || section.includes('content');
+  const isCampaignWriting = type.includes(identityClean('كتابة محتوى حملة')) || type.includes(identityClean('كتابة محتوى')) || type.includes('content writing') || type.includes('campaign content') || task?.needsStructureUpload || task?.structureDeadline;
   return isContentSection && isCampaignWriting;
 }
 function taskStructure(task){
-  return (task && typeof task.structure === 'object' && task.structure) ? task.structure : {};
+  if(!(task && typeof task.structure === 'object' && task.structure)) return {};
+  const next = { ...task.structure };
+  if(!Array.isArray(next.sheetTables) && typeof next.sheetTablesJson === 'string'){
+    next.sheetTables = safeJsonParse(next.sheetTablesJson, []);
+  }
+  return next;
 }
 function safeJsonParse(value, fallback){
   if(!value || typeof value !== 'string') return fallback;
@@ -4018,8 +4029,10 @@ function renderStructureSection(task){
     sheetTablesForCheck.length || distributionRowsForCheck.length ||
     structure.status
   );
-  // اعرض هيكل الحملة للأدمن/اليوزر بمجرد وجود بيانات هيكل، حتى لو اسم القسم أو نوع التاسك اتغير في التخزين.
-  if(!isCampaignStructureTask(task) && !hasAnyStructureData) return '';
+  // اعرض هيكل الحملة للأدمن/اليوزر في تاسك كتابة المحتوى دائماً،
+  // واعرضه لأي تاسك آخر بمجرد وجود بيانات هيكل مرفوعة.
+  const isStructureCarrierTask = isCampaignStructureTask(task) || isCampaignContentWritingTask(task) || task?.needsStructureUpload || task?.structureDeadline || task?.sourceRequestStep === 'campaign_request_data';
+  if(!isStructureCarrierTask && !hasAnyStructureData) return '';
   const admin = isCurrentUserAdmin();
   const status = structure.status || '';
   const notes = Array.isArray(structure.notes) ? structure.notes : [];
@@ -4034,7 +4047,7 @@ function renderStructureSection(task){
     <div class="structure-actions">
       <a class="btn btn-light" href="assets/templates/%D9%87%D9%8A%D9%83%D9%84%20%D8%A7%D9%84%D8%AD%D9%85%D9%84%D9%87.xlsx" download="هيكل الحمله.xlsx">تحميل قالب الهيكل</a>
       ${canUpload ? `<button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">إرفاق هيكل الحملة Excel</button>` : ''}
-      ${structure.fileName ? `<span class="structure-file-name structure-attached-label">تم إرفاق الهيكل</span><span class="structure-file-name">${escapeHtml(structure.fileName)}</span>` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
+      ${(structure.fileName || structure.fileData || structure.uploadedAt) ? `<span class="structure-file-name structure-attached-label">تم إرفاق الهيكل</span><span class="structure-file-name">${escapeHtml(structure.fileName || 'هيكل الحملة.xlsx')}</span>` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
       ${structure.fileData ? `<a class="btn btn-light" href="${escapeHtml(structure.fileData)}" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل الملف المرفوع</a>` : ''}
     </div>
     ${notesHtml}
