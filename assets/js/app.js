@@ -5514,7 +5514,7 @@ function renderUserDashboard(){
       <p>${shortTaskName(task)}</p>
       <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>${actionHtml}</div>
       <div class="task-metric-row"><span>نسبة الإنجاز</span><b>${progress}%</b></div>
-      <div class="task-metric-row"><span>حالة التاسك</span><b>${statusText}</b></div>
+      ${waitingDependency ? '' : `<div class="task-metric-row"><span>حالة التاسك</span><b>${statusText}</b></div>`}
       <div class="task-card-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
     </article>`;
   };
