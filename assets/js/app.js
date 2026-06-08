@@ -2997,19 +2997,6 @@ function stepButtonClass(step){ return step.done ? 'step-btn done' : 'step-btn';
 function stepButtonTitle(step){ return step.adminOnly ? 'اعتماد الأدمن فقط' : 'تنفيذ المرحلة'; }
 
 function taskContentType(task){
-  // تاسكات الهيكل لازم تعرض نوع المحتوى الحقيقي من صف الهيكل، مش اسم القسم أو نوع التنفيذ.
-  const structureType = normalizeText(
-    task?.structureRow?.contentType ||
-    task?.structureRow?.type ||
-    task?.structureRow?.output ||
-    task?.structureRow?.title ||
-    task?.structureContentType ||
-    task?.structureType ||
-    ''
-  );
-  if(structureType) return structureType;
-  const taskType = normalizeText(task.contentType || task.type || task.requiredFile || '');
-  if(taskType && !identityClean(taskType).includes('قسم')) return taskType;
   return canonicalContentLabel(task.contentSectionName || task.assignedDepartmentName || task.contentType || '');
 }
 function taskDepartmentLabel(task){
@@ -3296,25 +3283,14 @@ function daysUntilRequiredText(requiredDate){
 
 
 function isCampaignStructureTask(task){
-  // تاسك رفع الهيكل ممكن يتخزن باسم التاسك أو نوع المحتوى أو بيانات المصدر حسب نسخة الحفظ.
-  // لذلك الاعتماد هنا مش على taskType فقط.
-  const section = identityClean([
-    task?.contentSectionName, task?.assignedDepartmentName, task?.departmentName, task?.departmentRole, task?.contentType
-  ].filter(Boolean).join(' '));
-  const type = identityClean([
-    task?.taskType, task?.contentType, task?.creative, task?.product, task?.sourceRequestStep
-  ].filter(Boolean).join(' '));
-  const isContentSection = normalizeDepartmentRole(section) === 'content' || section.includes('المحتوي') || section.includes('المحتوى') || section.includes('content');
-  const isCampaignWriting = type.includes(identityClean('كتابة محتوى حملة')) || type.includes(identityClean('كتابة محتوى')) || type.includes('content writing') || type.includes('campaign content') || task?.needsStructureUpload || task?.structureDeadline;
+  const section = identityClean(task.contentSectionName || task.assignedDepartmentName || '');
+  const type = identityClean(task.taskType || '');
+  const isContentSection = section.includes('المحتوي') || section.includes('المحتوى') || section.includes('content');
+  const isCampaignWriting = type.includes(identityClean('كتابة محتوى حملة')) || type.includes(identityClean('كتابة محتوى')) || type.includes('content writing');
   return isContentSection && isCampaignWriting;
 }
 function taskStructure(task){
-  if(!(task && typeof task.structure === 'object' && task.structure)) return {};
-  const next = { ...task.structure };
-  if(!Array.isArray(next.sheetTables) && typeof next.sheetTablesJson === 'string'){
-    next.sheetTables = safeJsonParse(next.sheetTablesJson, []);
-  }
-  return next;
+  return (task && typeof task.structure === 'object' && task.structure) ? task.structure : {};
 }
 function safeJsonParse(value, fallback){
   if(!value || typeof value !== 'string') return fallback;
@@ -4020,20 +3996,9 @@ function structureAssigneeTable(task){
   return `<div class="structure-distribution"><h4>توزيع تاسكات الهيكل</h4><div class="structure-assign-list">${rows.map((row, index) => `<div class="structure-assign-row structure-assign-row-compact" data-structure-row="${index}"><div class="structure-assign-info"><strong>${escapeHtml(structureContentTaskLabel(row, 'نوع محتوى'))}</strong><p>${escapeHtml(row.idea || row.contentName || row.description || row.goal || '')}</p></div><div class="structure-assign-controls">${structureDistributionPlatformControls(index)}</div></div>`).join('')}</div><button class="btn btn-primary" type="button" data-save-structure-assignees="${escapeHtml(task.id)}">حفظ توزيع تاسكات الهيكل</button></div>`;
 }
 function renderStructureSection(task){
-  const structure = taskStructure(task);
-  const sheetTablesForCheck = structureSheetTables(structure);
-  const distributionRowsForCheck = structureDistributionRows(structure);
-  const hasAnyStructureData = Boolean(
-    structure.fileData || structure.fileName ||
-    (Array.isArray(structure.parsedRows) && structure.parsedRows.length) ||
-    sheetTablesForCheck.length || distributionRowsForCheck.length ||
-    structure.status
-  );
-  // اعرض هيكل الحملة للأدمن/اليوزر في تاسك كتابة المحتوى دائماً،
-  // واعرضه لأي تاسك آخر بمجرد وجود بيانات هيكل مرفوعة.
-  const isStructureCarrierTask = isCampaignStructureTask(task) || isCampaignContentWritingTask(task) || task?.needsStructureUpload || task?.structureDeadline || task?.sourceRequestStep === 'campaign_request_data';
-  if(!isStructureCarrierTask && !hasAnyStructureData) return '';
+  if(!isCampaignStructureTask(task)) return '';
   const admin = isCurrentUserAdmin();
+  const structure = taskStructure(task);
   const status = structure.status || '';
   const notes = Array.isArray(structure.notes) ? structure.notes : [];
   const rows = Array.isArray(structure.parsedRows) ? structure.parsedRows : [];
@@ -4047,7 +4012,7 @@ function renderStructureSection(task){
     <div class="structure-actions">
       <a class="btn btn-light" href="assets/templates/%D9%87%D9%8A%D9%83%D9%84%20%D8%A7%D9%84%D8%AD%D9%85%D9%84%D9%87.xlsx" download="هيكل الحمله.xlsx">تحميل قالب الهيكل</a>
       ${canUpload ? `<button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">إرفاق هيكل الحملة Excel</button>` : ''}
-      ${(structure.fileName || structure.fileData || structure.uploadedAt) ? `<span class="structure-file-name structure-attached-label">تم إرفاق الهيكل</span><span class="structure-file-name">${escapeHtml(structure.fileName || 'هيكل الحملة.xlsx')}</span>` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
+      ${structure.fileName ? `<span class="structure-file-name structure-attached-label">تم إرفاق الهيكل</span><span class="structure-file-name">${escapeHtml(structure.fileName)}</span>` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
       ${structure.fileData ? `<a class="btn btn-light" href="${escapeHtml(structure.fileData)}" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل الملف المرفوع</a>` : ''}
     </div>
     ${notesHtml}
@@ -4072,7 +4037,6 @@ function buildTaskDetailHtml(task){
   const campaignWriterBriefBox = isContentWriting ? `<div><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(writerBrief || '—')}</strong></div>` : '';
   const taskNumberBox = isContentWriting ? '' : `<div class="brief-box"><span>رقم التاسك</span><strong>${escapeHtml(structureTaskNumber(task) || '—')}</strong></div>`;
   const waitingDependency = isTaskWaitingForDependency(task);
-  const structureSectionHtml = renderStructureSection(task);
   const receiveAction = waitingDependency
     ? '<span class="btn btn-light static-chip waiting-chip">في انتظار اعتماد الهيكل</span>'
     : `<button type="button" class="btn btn-light receive-action ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تأكيد الاستلام'}</button>`;
@@ -4097,14 +4061,14 @@ function buildTaskDetailHtml(task){
       ${task.upstreamUserLabel ? `<div class="brief-box"><span>تابع لمحتوى</span><strong>${escapeHtml(task.upstreamUserLabel)}</strong></div>` : ''}
       <div class="brief-box"><span>السيارة المختارة</span><strong>${escapeHtml(task.selectedCar || task.carName || '')}</strong></div>
     </div>
-    ${task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>رقم التاسك</span><strong>${escapeHtml(task.structureRow.taskNo || task.structureRow.number || task.structureRow.id || '—')}</strong></div><div><span>نوع المحتوى</span><strong>${escapeHtml(taskContentType(task) || '—')}</strong></div><div><span>الهدف</span><strong>${escapeHtml(task.structureRow.goal || '—')}</strong></div><div><span>الهدف الملموس</span><strong>${escapeHtml(task.structureRow.tangibleGoal || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : ''}
-    ${structureSectionHtml}
+    ${task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>الهدف</span><strong>${escapeHtml(task.structureRow.goal || '—')}</strong></div><div><span>الهدف الملموس</span><strong>${escapeHtml(task.structureRow.tangibleGoal || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : ''}
     <div class="modal-section task-actions-section">
       <div class="modal-section-title"><h3>إجراءات التكليف</h3><span>${progress}%</span></div>
       <div class="receive-action-row">${receiveAction}</div>
       <div class="modal-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
       <div class="modal-steps-grid">${steps.map((step, index) => `<button type="button" class="workflow-step ${step.done ? 'done' : ''}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''}><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن فقط</em>' : ''}</button>`).join('')}</div>
     </div>
+    ${renderStructureSection(task)}
     <div class="task-upload-grid">
       <div class="inline-upload-progress" data-inline-upload-progress></div>
       <div class="modal-section attachment-section review-upload-section">
