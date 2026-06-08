@@ -1917,6 +1917,21 @@ function showUploadProgressToast(percent, label = 'جاري رفع الملف', 
   const remaining = speed > 0 && total > uploaded ? (total - uploaded) / speed : 0;
   const expanded = !!window.__mzjUploadDetailsOpen;
   const stats = total ? `${formatUploadBytes(uploaded)} / ${formatUploadBytes(total)}` : '';
+  const inlineTarget = document.querySelector('#taskModal.show [data-inline-upload-progress]');
+  if(inlineTarget){
+    inlineTarget.innerHTML = `<div class="inline-upload-card">
+      <div class="inline-upload-card-head"><strong>${escapeHtml(label)}... ${value}%</strong>${meta.cancelable ? '<button type="button" data-cancel-active-upload>إلغاء الرفع</button>' : ''}</div>
+      <div class="inline-upload-bar"><span style="width:${value}%"></span></div>
+      <div class="inline-upload-stats">
+        <span>الملف: <b>${escapeHtml(meta.fileName || '')}</b></span>
+        <span>المرفوع: <b>${escapeHtml(stats || `${value}%`)}</b></span>
+        <span>السرعة: <b>${speed ? `${formatUploadBytes(speed)}/ث` : 'جاري الحساب'}</b></span>
+        <span>المتبقي: <b>${escapeHtml(formatUploadTime(remaining))}</b></span>
+      </div>
+    </div>`;
+    inlineTarget.classList.add('show');
+    return;
+  }
   toast.innerHTML = `<div class="upload-toast-box" style="min-width:230px;pointer-events:auto">
     <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
       <strong>${escapeHtml(label)}... ${value}%</strong>
@@ -1935,7 +1950,11 @@ function showUploadProgressToast(percent, label = 'جاري رفع الملف', 
 }
 function hideUploadProgressToast(delay = 900){
   activeUploadProgressState = null;
-  window.setTimeout(() => { const toast = document.querySelector('.save-toast'); if(toast) toast.classList.remove('show'); }, delay);
+  window.setTimeout(() => {
+    const toast = document.querySelector('.save-toast');
+    if(toast) toast.classList.remove('show');
+    document.querySelectorAll('[data-inline-upload-progress]').forEach(el => { el.classList.remove('show'); el.innerHTML = ''; });
+  }, delay);
 }
 document.addEventListener('click', event => {
   const cancelBtn = event.target.closest('[data-cancel-active-upload]');
@@ -4028,11 +4047,11 @@ function buildTaskDetailHtml(task){
     <div><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || campaign.campaign_type || '—')}</strong></div>
     <div><span>هدف الحملة</span><strong>${escapeHtml(campaignGoalDisplay)}</strong></div>
     <div><span>بداية الحملة</span><strong>${formatDateShort(campaign.campaign_date || campaign.startDate)}</strong></div>
-    <div class="date-highlight"><span>نهاية الحملة</span><strong>${formatDateShort(endDate)}</strong></div>
+    <div><span>نهاية الحملة</span><strong>${formatDateShort(endDate)}</strong></div>
     ${campaignWriterBriefBox}`;
-  return `<div class="task-modal-head task-modal-head-pro">
+  return `<button type="button" class="task-modal-close" data-close-task-modal aria-label="إغلاق">إغلاق</button><div class="task-modal-head task-modal-head-pro">
       <div class="task-title-panel"><span>التاسك والمطلوب</span><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div>
-      <div class="campaign-head-panel"><h3>بيانات الحملة</h3><div class="task-info-grid campaign-data-full campaign-data-head">${campaignHeadFields}</div></div>
+      <div class="campaign-head-panel"><div class="campaign-panel-title-row"><h3>بيانات الحملة</h3><div class="required-date-top"><span>التاريخ المطلوب</span><strong>${formatDateShort(requiredDate)}</strong><em>${escapeHtml(requiredLeft)}</em></div></div><div class="task-info-grid campaign-data-full campaign-data-head">${campaignHeadFields}</div></div>
     </div>
     <div class="modal-section task-brief-row task-brief-row-four">
       ${taskNumberBox}
@@ -4045,23 +4064,23 @@ function buildTaskDetailHtml(task){
     ${task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>الهدف</span><strong>${escapeHtml(task.structureRow.goal || '—')}</strong></div><div><span>الهدف الملموس</span><strong>${escapeHtml(task.structureRow.tangibleGoal || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : ''}
     <div class="modal-section task-actions-section">
       <div class="modal-section-title"><h3>إجراءات التكليف</h3><span>${progress}%</span></div>
-      <div class="task-deadline-row task-deadline-highlight"><span>التاريخ المطلوب: <b>${formatDateShort(requiredDate)}</b></span><strong>${escapeHtml(requiredLeft)}</strong></div>
-      <div class="task-mini-meta"><span>القسم: <b>${escapeHtml(taskDepartmentLabel(task))}</b></span><span>اليوزر: <b>${taskOwnerName(task)}</b></span><span>الحالة: <b>${receivedLabel(task)}</b></span></div>
       <div class="receive-action-row">${receiveAction}</div>
       <div class="modal-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
       <div class="modal-steps-grid">${steps.map((step, index) => `<button type="button" class="workflow-step ${step.done ? 'done' : ''}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''}><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن فقط</em>' : ''}</button>`).join('')}</div>
     </div>
     ${renderStructureSection(task)}
     <div class="task-upload-grid">
+      <div class="inline-upload-progress" data-inline-upload-progress></div>
       <div class="modal-section attachment-section review-upload-section">
         <div class="modal-section-title"><h3>ملفات المراجعة</h3><span>متاح دائمًا</span></div>
         <button type="button" class="btn btn-light" data-upload-task-attachment="review">رفع ملف للمراجعة</button>
         ${renderAttachmentTable(task, 'review')}
       </div>
-      <div class="modal-section attachment-section final-upload-section">
-        <div class="modal-section-title"><h3>الملف النهائي</h3><span>${progress >= 100 ? 'متاح' : 'ينتظر 100%'}</span></div>
-        ${progress >= 100 ? `<button type="button" class="btn btn-primary" data-upload-task-attachment="final">رفع الملف النهائي</button>${renderAttachmentTable(task, 'final')}` : `<div class="prep-file-missing">زر رفع الملف النهائي يظهر هنا فقط عند وصول التاسك إلى 100%.</div>`}
-      </div>
+      ${progress >= 100 ? `<div class="modal-section attachment-section final-upload-section">
+        <div class="modal-section-title"><h3>الملف النهائي</h3><span>متاح</span></div>
+        <button type="button" class="btn btn-primary" data-upload-task-attachment="final">رفع الملف النهائي</button>
+        ${renderAttachmentTable(task, 'final')}
+      </div>` : ''}
     </div>`;
 }
 function renderTaskDetail(taskId, campaignId = ''){
