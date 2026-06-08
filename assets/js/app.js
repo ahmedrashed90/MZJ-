@@ -4043,8 +4043,12 @@ function renderStructureSection(task){
   // اعرض هيكل الحملة للأدمن/اليوزر في تاسك كتابة المحتوى دائماً،
   // واعرضه لأي تاسك آخر بمجرد وجود بيانات هيكل مرفوعة.
   const contentWritingTask = isCampaignContentWritingTask(task);
-  const taskAllTextForStructure = identityClean([task?.taskType, task?.contentType, task?.contentSectionName, task?.assignedDepartmentName, task?.departmentName, task?.departmentRole, task?.campaignName, task?.campaignCode].filter(Boolean).join(' '));
-  const isStructureCarrierTask = isCampaignStructureTask(task) || contentWritingTask || task?.needsStructureUpload || task?.structureDeadline || task?.sourceRequestStep === 'campaign_request_data' || (taskAllTextForStructure.includes('كتابه') && taskAllTextForStructure.includes('محتوي')) || (normalizeDepartmentRole(taskAllTextForStructure) === 'content' && (taskAllTextForStructure.includes('حمله') || taskAllTextForStructure.includes('campaign')));
+  const taskAllTextForStructure = identityClean([task?.taskType, task?.contentType, task?.contentSectionName, task?.assignedDepartmentName, task?.departmentName, task?.departmentRole, task?.campaignName, task?.campaignCode, task?.creative, task?.product].filter(Boolean).join(' '));
+  const roleTextForStructure = normalizeDepartmentRole([task?.departmentRole, task?.assignedDepartmentName, task?.departmentName, task?.contentSectionName].filter(Boolean).join(' '));
+  const isContentLikeTask = roleTextForStructure === 'content' || taskAllTextForStructure.includes('قسم المحتوي') || taskAllTextForStructure.includes('قسم المحتوى') || taskAllTextForStructure.includes('content');
+  const isCampaignWritingByText = (taskAllTextForStructure.includes('كتابه') || taskAllTextForStructure.includes('كتابة') || taskAllTextForStructure.includes('writing')) && (taskAllTextForStructure.includes('محتوي') || taskAllTextForStructure.includes('محتوى') || taskAllTextForStructure.includes('content'));
+  const hasStructureSignal = Boolean(task?.structure || task?.needsStructureUpload || task?.structureDeadline || task?.sourceRequestStep === 'campaign_request_data' || task?.structureUploaded || task?.hasStructure || task?.structureStatus);
+  const isStructureCarrierTask = isCampaignStructureTask(task) || contentWritingTask || hasStructureSignal || (isContentLikeTask && (isCampaignWritingByText || taskAllTextForStructure.includes('حمله') || taskAllTextForStructure.includes('حملة') || taskAllTextForStructure.includes('campaign')));
   if(!isStructureCarrierTask && !hasAnyStructureData) return '';
   const admin = isCurrentUserAdmin();
   const status = structure.status || '';
@@ -4052,7 +4056,7 @@ function renderStructureSection(task){
   const rows = Array.isArray(structure.parsedRows) ? structure.parsedRows : [];
   const sheetTables = structureSheetTables(structure);
   const distributionRows = structureDistributionRows(structure);
-  const hasStructureFile = Boolean(structure.fileData || structure.fileName || sheetTables.length || rows.length || distributionRows.length);
+  const hasStructureFile = Boolean(structure.fileData || structure.fileName || structure.uploadedAt || structure.fileSize || sheetTables.length || rows.length || distributionRows.length);
   const canUpload = (contentWritingTask || isStructureCarrierTask) && status !== 'approved' && status !== 'distributed';
   const canApproveStructure = admin && hasStructureFile && status !== 'approved' && status !== 'distributed';
   const notesHtml = notes.length ? `<div class="structure-notes-list"><h4>ملاحظات الأدمن</h4>${notes.map(note => `<div class="structure-note"><b>${escapeHtml(note.field || 'ملاحظة')}</b><p>${escapeHtml(note.note || '')}</p></div>`).join('')}</div>` : '';
@@ -4060,7 +4064,7 @@ function renderStructureSection(task){
     <div class="structure-actions">
       <a class="btn btn-light" href="assets/templates/%D9%87%D9%8A%D9%83%D9%84%20%D8%A7%D9%84%D8%AD%D9%85%D9%84%D9%87.xlsx" download="هيكل الحمله.xlsx">تحميل قالب الهيكل</a>
       ${canUpload ? `<button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">إرفاق هيكل الحملة Excel</button>` : ''}
-      ${(structure.fileName || structure.fileData || structure.uploadedAt) ? `<span class="structure-file-name structure-attached-label">تم إرفاق الهيكل</span><span class="structure-file-name">${escapeHtml(structure.fileName || 'هيكل الحملة.xlsx')}</span>` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
+      ${(structure.fileName || structure.fileData || structure.uploadedAt || structure.fileSize || sheetTables.length || rows.length) ? `<span class="structure-file-name structure-attached-label">تم إرفاق الهيكل</span><span class="structure-file-name">${escapeHtml(structure.fileName || 'هيكل الحملة.xlsx')}</span>` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
       ${structure.fileData ? `<a class="btn btn-light" href="${escapeHtml(structure.fileData)}" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل الملف المرفوع</a>` : ''}
     </div>
     ${notesHtml}
@@ -4086,11 +4090,12 @@ function buildTaskDetailHtml(task){
   const taskNumberBox = isContentWriting ? '' : `<div class="brief-box"><span>رقم التاسك</span><strong>${escapeHtml(structureTaskNumber(task) || '—')}</strong></div>`;
   const waitingDependency = isTaskWaitingForDependency(task);
   let structureSectionHtml = renderStructureSection(task);
-  const forceContentStructureBlock = isCampaignContentWritingTask(task) && !structureSectionHtml;
-  if(forceContentStructureBlock){
+  const fallbackNeedsStructure = (isCampaignContentWritingTask(task) || isCampaignStructureTask(task) || task?.needsStructureUpload || task?.structureUploaded || task?.structure || normalizeDepartmentRole(task.departmentRole || task.assignedDepartmentName || task.departmentName || '') === 'content') && !structureSectionHtml;
+  if(fallbackNeedsStructure){
     const structureFallback = taskStructure(task);
     const canUploadFallback = structureFallback.status !== 'approved' && structureFallback.status !== 'distributed';
-    structureSectionHtml = `<div class="modal-section structure-section force-structure-section"><div class="modal-section-title"><h3>هيكل الحملة</h3><span>${escapeHtml(structureStatusLabel(structureFallback.status || ''))}</span></div><div class="structure-actions"><a class="btn btn-light" href="assets/templates/%D9%87%D9%8A%D9%83%D9%84%20%D8%A7%D9%84%D8%AD%D9%85%D9%84%D9%87.xlsx" download="هيكل الحمله.xlsx">تحميل قالب الهيكل</a>${canUploadFallback ? `<button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">إرفاق هيكل الحملة Excel</button>` : ''}<span class="structure-file-name muted">لم يتم رفع الهيكل</span></div></div>`;
+    const fallbackAttached = Boolean(structureFallback.fileName || structureFallback.fileData || structureFallback.uploadedAt || structureFallback.fileSize || structureSheetTables(structureFallback).length);
+    structureSectionHtml = `<div class="modal-section structure-section force-structure-section"><div class="modal-section-title"><h3>هيكل الحملة</h3><span>${escapeHtml(structureStatusLabel(structureFallback.status || ''))}</span></div><div class="structure-actions"><a class="btn btn-light" href="assets/templates/%D9%87%D9%8A%D9%83%D9%84%20%D8%A7%D9%84%D8%AD%D9%85%D9%84%D9%87.xlsx" download="هيكل الحمله.xlsx">تحميل قالب الهيكل</a>${canUploadFallback ? `<button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">إرفاق هيكل الحملة Excel</button>` : ''}${fallbackAttached ? `<span class="structure-file-name structure-attached-label">تم إرفاق الهيكل</span><span class="structure-file-name">${escapeHtml(structureFallback.fileName || 'هيكل الحملة.xlsx')}</span>` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}${structureFallback.fileData ? `<a class="btn btn-light" href="${escapeHtml(structureFallback.fileData)}" download="${escapeHtml(structureFallback.fileName || 'campaign-structure.xlsx')}">تحميل الملف المرفوع</a>` : ''}</div>${renderStructureWorkbookTable(task, structureFallback, admin)}</div>`;
   }
   const contentStructure = taskStructure(task);
   const contentHasStructure = Boolean(contentStructure.fileData || contentStructure.fileName || contentStructure.uploadedAt || structureSheetTables(contentStructure).length);
@@ -4529,7 +4534,16 @@ async function uploadStructureFileForTask(file, taskId){
     uploadedAt: new Date().toISOString(),
     uploadedBy: getCurrentUser().email || getCurrentUser().name || ''
   };
-  await updateTaskOnFirebase(task.id, { structure: encodeStructureWorkbookForFirestore(nextStructure) });
+  await updateTaskOnFirebase(task.id, {
+    structure: nextStructure,
+    needsStructureUpload: true,
+    structureUploaded: true,
+    structureStatus: status
+  });
+  setTimeout(() => {
+    const refreshed = findTaskById(task.id, task.campaignId || '');
+    if(refreshed && activeTaskModalMeta && activeTaskModalMeta.taskId === task.id) openTaskModal(refreshed);
+  }, 80);
   showToast(sheetTables.length ? 'تم رفع الهيكل وعرض الشيت كامل.' : 'تم رفع الهيكل، اضغط عرض الشيت كامل من الملف المرفوع.');
 }
 async function reloadStructureSheetFromStoredFile(taskId, silent = false){
