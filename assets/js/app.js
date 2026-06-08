@@ -4021,18 +4021,18 @@ function buildTaskDetailHtml(task){
   const receiveAction = waitingDependency
     ? '<span class="btn btn-light static-chip waiting-chip">في انتظار اعتماد الهيكل</span>'
     : `<button type="button" class="btn btn-light receive-action ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تأكيد الاستلام'}</button>`;
-  return `<div class="task-modal-head"><div><span>التاسك والمطلوب</span><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div></div>
-    <div class="modal-section campaign-data-line"><div class="modal-section-title"><h3>بيانات الحملة</h3></div>
-      <div class="task-info-grid campaign-data-full">
-        <div><span>التاريخ</span><strong>${formatDateShort(campaignDate)}</strong></div>
-        <div><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || task.campaignCode || '—')}</strong></div>
-        <div><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '—')}</strong></div>
-        <div><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || campaign.campaign_type || '—')}</strong></div>
-        <div><span>هدف الحملة</span><strong>${escapeHtml(campaignGoalDisplay)}</strong></div>
-        <div><span>بداية الحملة</span><strong>${formatDateShort(campaign.campaign_date || campaign.startDate)}</strong></div>
-        <div class="date-highlight"><span>نهاية الحملة</span><strong>${formatDateShort(endDate)}</strong></div>
-        ${campaignWriterBriefBox}
-      </div>
+  const campaignHeadFields = `
+    <div><span>التاريخ</span><strong>${formatDateShort(campaignDate)}</strong></div>
+    <div><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || task.campaignCode || '—')}</strong></div>
+    <div><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '—')}</strong></div>
+    <div><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || campaign.campaign_type || '—')}</strong></div>
+    <div><span>هدف الحملة</span><strong>${escapeHtml(campaignGoalDisplay)}</strong></div>
+    <div><span>بداية الحملة</span><strong>${formatDateShort(campaign.campaign_date || campaign.startDate)}</strong></div>
+    <div class="date-highlight"><span>نهاية الحملة</span><strong>${formatDateShort(endDate)}</strong></div>
+    ${campaignWriterBriefBox}`;
+  return `<div class="task-modal-head task-modal-head-pro">
+      <div class="task-title-panel"><span>التاسك والمطلوب</span><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div>
+      <div class="campaign-head-panel"><h3>بيانات الحملة</h3><div class="task-info-grid campaign-data-full campaign-data-head">${campaignHeadFields}</div></div>
     </div>
     <div class="modal-section task-brief-row task-brief-row-four">
       ${taskNumberBox}
@@ -4052,14 +4052,16 @@ function buildTaskDetailHtml(task){
       <div class="modal-steps-grid">${steps.map((step, index) => `<button type="button" class="workflow-step ${step.done ? 'done' : ''}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''}><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن فقط</em>' : ''}</button>`).join('')}</div>
     </div>
     ${renderStructureSection(task)}
-    <div class="modal-section attachment-section review-upload-section">
-      <div class="modal-section-title"><h3>ملفات المراجعة</h3><span>متاح دائمًا</span></div>
-      <button type="button" class="btn btn-light" data-upload-task-attachment="review">رفع ملف للمراجعة</button>
-      ${renderAttachmentTable(task, 'review')}
-    </div>
-    <div class="modal-section attachment-section final-upload-section">
-      <div class="modal-section-title"><h3>الملف النهائي</h3><span>${progress >= 100 ? 'متاح' : 'ينتظر 100%'}</span></div>
-      ${progress >= 100 ? `<button type="button" class="btn btn-primary" data-upload-task-attachment="final">رفع الملف النهائي</button>${renderAttachmentTable(task, 'final')}` : `<div class="prep-file-missing">زر رفع الملف النهائي يظهر هنا فقط عند وصول التاسك إلى 100%.</div>`}
+    <div class="task-upload-grid">
+      <div class="modal-section attachment-section review-upload-section">
+        <div class="modal-section-title"><h3>ملفات المراجعة</h3><span>متاح دائمًا</span></div>
+        <button type="button" class="btn btn-light" data-upload-task-attachment="review">رفع ملف للمراجعة</button>
+        ${renderAttachmentTable(task, 'review')}
+      </div>
+      <div class="modal-section attachment-section final-upload-section">
+        <div class="modal-section-title"><h3>الملف النهائي</h3><span>${progress >= 100 ? 'متاح' : 'ينتظر 100%'}</span></div>
+        ${progress >= 100 ? `<button type="button" class="btn btn-primary" data-upload-task-attachment="final">رفع الملف النهائي</button>${renderAttachmentTable(task, 'final')}` : `<div class="prep-file-missing">زر رفع الملف النهائي يظهر هنا فقط عند وصول التاسك إلى 100%.</div>`}
+      </div>
     </div>`;
 }
 function renderTaskDetail(taskId, campaignId = ''){
