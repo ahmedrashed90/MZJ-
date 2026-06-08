@@ -2557,28 +2557,24 @@ function taskProgress(task){
   return Number(task.progress || 0);
 }
 function isCampaignContentWritingTask(task){
-  // تاسك كتابة محتوى الحملة لازم يتعرف عليه من أي حقل، لأن بعض النسخ بتخزن القسم/النوع بصيغ مختلفة.
-  // المهم هنا إن زر إرفاق الهيكل يفضل ظاهر قبل الاعتماد، سواء اليوزر أدمن أو يوزر محتوى.
+  // تعريف قوي لتاسك كتابة محتوى الحملة حتى لو النسخ القديمة خزنت الحقول بأسماء مختلفة.
+  // أي تاسك محتوى/كاتب محتوى مرتبط بحملة لازم يظهر له بلوك هيكل الحملة وزر الإرفاق.
   const allText = identityClean([
     task?.taskType, task?.contentType, task?.structureTaskLabel, task?.creative, task?.product,
     task?.contentSectionName, task?.assignedDepartmentName, task?.departmentName, task?.departmentRole,
-    task?.sourceRequestStep, task?.campaignRequestBrief, task?.contentWriterBrief
+    task?.sourceRequestStep, task?.campaignRequestBrief, task?.contentWriterBrief,
+    task?.campaignName, task?.campaignCode
   ].filter(Boolean).join(' '));
   const sectionText = identityClean([
-    task?.contentSectionName, task?.assignedDepartmentName, task?.departmentName, task?.departmentRole, task?.contentType, task?.taskType
+    task?.contentSectionName, task?.assignedDepartmentName, task?.departmentName, task?.departmentRole,
+    task?.contentType, task?.taskType
   ].filter(Boolean).join(' '));
   const sectionRole = normalizeDepartmentRole(sectionText);
-  const looksLikeCampaignContent =
-    (allText.includes('كتابه') && allText.includes('محتوي') && allText.includes('حمله')) ||
-    allText.includes('كتابه محتوي') ||
-    allText.includes('campaign request data') ||
-    allText.includes('campaign content') ||
-    allText.includes('content writing') ||
-    task?.needsStructureUpload ||
-    task?.structureDeadline ||
-    task?.sourceRequestStep === 'campaign_request_data';
   const isContentOwner = sectionRole === 'content' || sectionText.includes('محتوي') || sectionText.includes('كاتب') || sectionText.includes('content') || sectionText.includes('writer');
-  return Boolean(looksLikeCampaignContent && (isContentOwner || sectionRole === 'other' || task?.needsStructureUpload || task?.structureDeadline || task?.sourceRequestStep === 'campaign_request_data'));
+  const looksLikeWriting = allText.includes('كتابه') || allText.includes('كاتب') || allText.includes('writing') || allText.includes('writer') || allText.includes('content');
+  const looksLikeCampaign = allText.includes('حمله') || allText.includes('campaign') || allText.includes('request data') || !!task?.campaignId || !!task?.campaignCode;
+  const explicitStructure = !!(task?.needsStructureUpload || task?.structureDeadline || task?.sourceRequestStep === 'campaign_request_data');
+  return Boolean(explicitStructure || (isContentOwner && (looksLikeWriting || looksLikeCampaign)) || (allText.includes('كتابه محتوي') || allText.includes('كتابه المحتوي')));
 }
 function adminDashboardTasksForCampaign(campaign){
   // تاسك كتابة محتوى الحملة يظهر للأدمن عادي لحد الاعتماد والتوزيع.
@@ -4047,7 +4043,8 @@ function renderStructureSection(task){
   // اعرض هيكل الحملة للأدمن/اليوزر في تاسك كتابة المحتوى دائماً،
   // واعرضه لأي تاسك آخر بمجرد وجود بيانات هيكل مرفوعة.
   const contentWritingTask = isCampaignContentWritingTask(task);
-  const isStructureCarrierTask = isCampaignStructureTask(task) || contentWritingTask || task?.needsStructureUpload || task?.structureDeadline || task?.sourceRequestStep === 'campaign_request_data' || (identityClean(task?.taskType || '').includes('كتابه') && identityClean(task?.taskType || '').includes('محتوي'));
+  const taskAllTextForStructure = identityClean([task?.taskType, task?.contentType, task?.contentSectionName, task?.assignedDepartmentName, task?.departmentName, task?.departmentRole, task?.campaignName, task?.campaignCode].filter(Boolean).join(' '));
+  const isStructureCarrierTask = isCampaignStructureTask(task) || contentWritingTask || task?.needsStructureUpload || task?.structureDeadline || task?.sourceRequestStep === 'campaign_request_data' || (taskAllTextForStructure.includes('كتابه') && taskAllTextForStructure.includes('محتوي')) || (normalizeDepartmentRole(taskAllTextForStructure) === 'content' && (taskAllTextForStructure.includes('حمله') || taskAllTextForStructure.includes('campaign')));
   if(!isStructureCarrierTask && !hasAnyStructureData) return '';
   const admin = isCurrentUserAdmin();
   const status = structure.status || '';
@@ -4088,7 +4085,13 @@ function buildTaskDetailHtml(task){
   const campaignWriterBriefBox = isContentWriting ? `<div><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(writerBrief || '—')}</strong></div>` : '';
   const taskNumberBox = isContentWriting ? '' : `<div class="brief-box"><span>رقم التاسك</span><strong>${escapeHtml(structureTaskNumber(task) || '—')}</strong></div>`;
   const waitingDependency = isTaskWaitingForDependency(task);
-  const structureSectionHtml = renderStructureSection(task);
+  let structureSectionHtml = renderStructureSection(task);
+  const forceContentStructureBlock = isCampaignContentWritingTask(task) && !structureSectionHtml;
+  if(forceContentStructureBlock){
+    const structureFallback = taskStructure(task);
+    const canUploadFallback = structureFallback.status !== 'approved' && structureFallback.status !== 'distributed';
+    structureSectionHtml = `<div class="modal-section structure-section force-structure-section"><div class="modal-section-title"><h3>هيكل الحملة</h3><span>${escapeHtml(structureStatusLabel(structureFallback.status || ''))}</span></div><div class="structure-actions"><a class="btn btn-light" href="assets/templates/%D9%87%D9%8A%D9%83%D9%84%20%D8%A7%D9%84%D8%AD%D9%85%D9%84%D9%87.xlsx" download="هيكل الحمله.xlsx">تحميل قالب الهيكل</a>${canUploadFallback ? `<button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">إرفاق هيكل الحملة Excel</button>` : ''}<span class="structure-file-name muted">لم يتم رفع الهيكل</span></div></div>`;
+  }
   const contentStructure = taskStructure(task);
   const contentHasStructure = Boolean(contentStructure.fileData || contentStructure.fileName || contentStructure.uploadedAt || structureSheetTables(contentStructure).length);
   const quickStructureUpload = (isContentWriting && !contentHasStructure && contentStructure.status !== 'approved' && contentStructure.status !== 'distributed')
