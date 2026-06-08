@@ -98,6 +98,11 @@ let stockDb = null;
 let departments = [];
 let users = [];
 let creatives = [];
+const MZJ_DEFAULT_CREATIVE_NAMES = [
+  'REEL - مواصفات كامله - STUDIO','REEL - اهم المواصفات - STUDIO','REEL - SHORT/TREND - SHOWROOM','REEL - UGC - SHOWROOM','REEL - حملات - SHOWROOM','REEL - معارضنا - SHOWROOM','REEL - تجربه عميل - SHOWROOM','VIDEO - مواصفات - STUDIO','VIDEO - فيلم سياره - STUDIO','VIDEO - فيلم - STUDIO','VIDEO - مواصفات - SHOWROOM','VIDEO - فيلم - SHOWROOM','VIDEO - معارضنا - SHOWROOM','STORY - جاهزة الان - STUDIO','STORY - سعرها اليوم - STUDIO','STORY - قسطها الان - STUDIO','STORY - معرضنا - SHOWROOM','STORY - جاهزة الان - SHOWROOM','STORY - سعرها اليوم - SHOWROOM','STORY - قسطها الان - SHOWROOM',
+  'POST','CAROUSEL','PANNER','MOTION','GIF','PRINT','MZJ-INTERIAL',
+  'تصوير صور السياره','تصوير ريل - مواصفات - STUDIO','تصوير ريل - SHORT/TREND - SHOWROOM','تصوير ريل - UGC - SHOWROOM','تصوير ريل - معارضنا - SHOWROOM','تصوير ريل - تجربه عميل - SHOWROOM','تصوير فيديو - مواصفات - STUDIO','تصوير فيديو - مواصفات - SHOWROOM','تصوير فيديو - معارضنا - SHOWROOM','تصوير ستوري - سياره - STUDIO','تصوير ستوري - معرضنا - SHOWROOM'
+];
 let taskTypes = [];
 let contentSections = [];
 let campaignCodes = [];
@@ -161,6 +166,7 @@ function renderRoute(){
 function showMessage(id, text){ const el = document.getElementById(id); if(el) el.textContent = text || ''; }
 function escapeHtml(value){ return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
 function normalizeText(value){ return String(value ?? '').trim(); }
+function escapeRegExp(value){ return String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function getDocName(data){ return normalizeText(data.name || data.fullName || data.displayName || data.username || data.email || data.title || data.label); }
 function uniqueList(list){ return [...new Set(list.map(normalizeText).filter(Boolean))]; }
 function getSelectedValues(select){ return [...(select?.selectedOptions || [])].map(option => option.value).filter(Boolean); }
@@ -496,8 +502,27 @@ function syncRolePickerState(picker){
   });
   updateRolePickerLabel(picker);
 }
+function ensurePanelHasAllRoleAssignments(panel){
+  if(!panel) return panel;
+  const grid = panel.querySelector('.creative-assignment-inner-grid');
+  if(!grid) return panel;
+  const creativeName = normalizeText(panel.dataset.creativeName || '');
+  const existingRoles = new Set([...grid.querySelectorAll('[data-assignment-role]')].map(block => block.dataset.assignmentRole).filter(Boolean));
+  const mainRole = creativeDepartmentRole(creativeName);
+  const orderedRoles = ['content', mainRole, ...['shooting','design','montage'].filter(role => role !== mainRole)];
+  orderedRoles.forEach(role => {
+    if(existingRoles.has(role)) return;
+    const holder = document.createElement('div');
+    const hint = role === 'content' ? 'كاتب المحتوى الذي سيظهر له تاسك كتابة المحتوى باسم الكريتيف' : (role === mainRole ? 'القسم التنفيذي المرتبط تلقائيًا بنوع الكريتيف' : 'قسم إضافي متاح للحملة عند الحاجة');
+    holder.innerHTML = roleAssignmentBlock(role, defaultRoleSectionName(role), hint);
+    const block = holder.firstElementChild;
+    if(block) grid.appendChild(block);
+  });
+  return panel;
+}
 function syncPanelDynamicState(panel){
   if(!panel) return panel;
+  ensurePanelHasAllRoleAssignments(panel);
   panel.querySelectorAll('.js-role-picker').forEach(syncRolePickerState);
   syncContentMontageLinks(panel);
   applyContentMontageLinksToMontagePicker(panel);
@@ -542,8 +567,8 @@ function creativeOptions(selectedValue = ''){
 
 function creativeCheckboxList(selected = []){
   const chosen = Array.isArray(selected) ? selected.map(String) : String(selected || '').split('|').map(x => x.trim()).filter(Boolean);
-  if(!creatives.length) return '<div class="multi-empty">لا توجد كريتيفات</div>';
-  return creatives.map(item => `<label class="creative-check-card"><input type="checkbox" class="js-creative-check" value="${escapeHtml(item.name)}"${chosen.includes(item.name) ? ' checked' : ''}> <span>${escapeHtml(item.name)}</span></label>`).join('');
+  const sourceCreatives = creatives.length ? creatives : MZJ_DEFAULT_CREATIVE_NAMES.map(name => ({ name }));
+  return sourceCreatives.map(item => `<label class="creative-check-card"><input type="checkbox" class="js-creative-check" value="${escapeHtml(item.name)}"${chosen.includes(item.name) ? ' checked' : ''}> <span>${escapeHtml(item.name)}</span></label>`).join('');
 }
 function selectedCreativeNames(row){
   const fromChecks = [...(row?.querySelectorAll('.js-creative-check:checked') || [])].map(input => normalizeText(input.value)).filter(Boolean);
@@ -1137,11 +1162,10 @@ function renderCampaignTypes(){
   const list = document.getElementById('campaignTypesList'); if(!list) return;
   if(!campaignTypes.length){ list.innerHTML = '<div class="empty-state">لا توجد أنواع حملات حتى الآن.</div>'; return; }
   list.innerHTML = campaignTypes.map(item => {
-    const codeLabel = [item.prefix || 'MZJ', item.code].filter(Boolean).join('-') || 'بدون كود';
-    const nextNumber = Number(item.nextNumber) || 1;
+    const codeLabel = campaignTypeBaseCode(item) || [item.prefix || 'MZJ', item.code].filter(Boolean).join('-') || 'بدون كود';
     return `<article class="department-item">
       <div class="item-head"><h3>${escapeHtml(item.name)}</h3><div class="item-actions"><button type="button" class="mini-btn" data-edit-campaign-type="${escapeHtml(item.id)}">تعديل</button><button type="button" class="mini-btn danger" data-delete-campaign-type="${escapeHtml(item.id)}">حذف</button></div></div>
-      <div class="chip-list"><span class="chip">${escapeHtml(codeLabel)}</span><span class="chip"><small>المسلسل القادم: ${escapeHtml(String(nextNumber).padStart(3, '0'))}</small></span></div>
+      <div class="chip-list"><span class="chip">${escapeHtml(codeLabel)}</span><span class="chip"><small>الكود يتولد بالسنة والشهر تلقائيًا</small></span></div>
     </article>`;
   }).join('');
 }
@@ -1932,6 +1956,10 @@ function showUploadProgressToast(percent, label = 'جاري رفع الملف', 
     </div>` : ''}
   </div>`;
   toast.classList.add('show');
+  const inline = document.getElementById('taskUploadProgressInline');
+  if(inline){
+    inline.innerHTML = `<div class="inline-upload-progress-box"><div class="inline-upload-progress-head"><strong>${escapeHtml(label)} ${value}%</strong>${meta.cancelable ? '<button type="button" data-cancel-active-upload>إلغاء</button>' : ''}</div><div class="inline-upload-bar"><span style="width:${value}%"></span></div>${stats ? `<div class="inline-upload-stats"><span>الملف: ${escapeHtml(meta.fileName || '')}</span><span>المرفوع: ${escapeHtml(stats)}</span><span>السرعة: ${speed ? `${formatUploadBytes(speed)}/ث` : 'جاري الحساب'}</span><span>المتبقي: ${escapeHtml(formatUploadTime(remaining))}</span></div>` : ''}</div>`;
+  }
 }
 function hideUploadProgressToast(delay = 900){
   activeUploadProgressState = null;
@@ -2127,24 +2155,73 @@ function updateProductOutput(row){
 }
 function updateAllProductOutputs(){ document.querySelectorAll('#creativeRows .creative-row-card').forEach(updateProductOutput); }
 
+function campaignRequestContentAssignees(){
+  const picker = document.querySelector('#campaignRequestForm .js-request-content-writers');
+  return { ids: selectedOptionValues(picker), names: selectedOptionTexts(picker) };
+}
+function requestStructureTaskForCreative(creative, quantity = 1){
+  const assignees = campaignRequestContentAssignees();
+  if(!assignees.ids.length && !assignees.names.length) return null;
+  const dep = findDepartmentByRole('content') || {};
+  const requestForm = document.getElementById('campaignRequestForm');
+  const brief = normalizeText(requestForm?.querySelector('[name="content_writer_brief"]')?.value || '');
+  const structureDeadline = normalizeText(requestForm?.querySelector('[name="structure_deadline"]')?.value || '');
+  const creativeName = normalizeText(creative || '');
+  return {
+    contentSectionId: dep.id || 'content',
+    contentSectionName: dep.name || defaultRoleSectionName('content'),
+    taskType: creativeMainTaskType(creativeName, 'content'),
+    quantity: Math.max(1, Math.min(50, Number(quantity || 1))),
+    requiredDate: structureDeadline ? structureDeadline.slice(0, 10) : '',
+    requiredDateTime: structureDeadline,
+    structureDeadline,
+    contentWriterBrief: brief,
+    campaignRequestBrief: brief,
+    needsStructureUpload: true,
+    structureRequestTask: true,
+    sourceRequestStep: 'campaign_request_data',
+    userIds: assignees.ids,
+    userNames: assignees.names,
+    departmentRole: 'content',
+    status: 'pending'
+  };
+}
+
 function defaultRoleSectionName(role){
   return {content:'قسم المحتوى', shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج', publish:'قسم النشر'}[role] || 'قسم';
 }
 function defaultRoleTaskType(role){
   return {content:'كتابة المحتوى', shooting:'التصوير', design:'التصميم', montage:'المونتاج', publish:'النشر'}[role] || 'تاسك';
 }
-function roleAssignmentBlock(role, label, hint=''){
+function creativeDepartmentRole(creativeName){
+  const raw = normalizeText(creativeName || '');
+  const key = identityClean(raw);
+  if(!key) return 'montage';
+  if(key.startsWith('تصوير') || key.includes('قسم التصوير')) return 'shooting';
+  const designKeys = ['post','carousel','panner','banner','motion','gif','print','mzjinterial','mzjinterior','تصميم'];
+  if(designKeys.some(item => key.includes(item))) return 'design';
+  return 'montage';
+}
+function creativeRoleLabelForName(creativeName){
+  const role = creativeDepartmentRole(creativeName);
+  return {shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج'}[role] || 'قسم المونتاج';
+}
+function creativeMainTaskType(creativeName, role){
+  const creative = normalizeText(creativeName || '');
+  if(role === 'content') return creative ? `طلب هيكل - ${creative}` : 'طلب هيكل';
+  return creative || defaultRoleTaskType(role);
+}
+function roleAssignmentBlock(role, label, hint='', options = {}){
   const isContent = role === 'content';
-  const isDeferred = ['montage','design'].includes(role);
   const dateLabel = isContent ? 'ميعاد تسليم كاتب المحتوى' : `ميعاد تسليم ${label}`;
-  const dateNote = isDeferred ? 'يتحدد بعد اعتماد الهيكل.' : 'اختياري حسب احتياج الكريتيف.';
-  const dateAttrs = isDeferred ? ' disabled data-deferred-deadline="true"' : '';
+  const dateNote = options.dateNote || (isContent ? 'ميعاد تسليم كتابة المحتوى لهذا الكريتيف.' : 'حدد ميعاد التسليم النهائي لهذا القسم.');
+  const dateAttrs = '';
   return `<div class="creative-role-assignment" data-assignment-role="${escapeHtml(role)}">
     <div class="creative-role-title"><strong>${escapeHtml(label)}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ''}</div>
     ${rolePickerHtml(role, `js-creative-role-picker js-${role}-assignee`, label)}
     ${contentMontageLinkerHtml(role)}
     ${contentDependencyPickerHtml(role)}
-    <label class="creative-role-deadline-field${isDeferred ? ' is-disabled' : ''}">
+    <label class="creative-role-deadline-field">
       <span>${escapeHtml(dateLabel)}</span>
       <input class="js-role-deadline js-${role}-deadline" data-role-deadline="${escapeHtml(role)}" type="date"${dateAttrs} />
       <small>${escapeHtml(dateNote)}</small>
@@ -2158,20 +2235,26 @@ function creativeSafeKey(value){
 function selectedCreativePanelNames(row){
   return [...(row?.querySelectorAll('.creative-assignment-panel') || [])].map(panel => normalizeText(panel.dataset.creativeName || '')).filter(Boolean);
 }
+function creativeAssignmentRoleBlocksHtml(creativeName){
+  const mainRole = creativeDepartmentRole(creativeName);
+  const roles = ['shooting','design','montage'];
+  const orderedRoles = [mainRole, ...roles.filter(role => role !== mainRole)];
+  const mainHint = 'القسم التنفيذي المرتبط تلقائيًا بنوع الكريتيف';
+  const optionalHint = 'قسم إضافي متاح للحملة عند الحاجة';
+  return orderedRoles.map(role => roleAssignmentBlock(role, defaultRoleSectionName(role), role === mainRole ? mainHint : optionalHint)).join('');
+}
 function creativeAssignmentPanelHtml(creativeName){
   const key = creativeSafeKey(creativeName);
-  return `<article class="creative-assignment-panel" data-creative-name="${escapeHtml(creativeName)}" data-creative-key="${escapeHtml(key)}">
+  const mainRole = creativeDepartmentRole(creativeName);
+  return `<article class="creative-assignment-panel" data-creative-name="${escapeHtml(creativeName)}" data-creative-key="${escapeHtml(key)}" data-creative-main-role="${escapeHtml(mainRole)}">
     <header class="creative-assignment-panel-head">
       <div><span>الكريتيف</span><strong>${escapeHtml(creativeName)}</strong></div>
       <label class="creative-qty-field"><span>العدد</span><input class="js-creative-quantity" type="number" min="1" value="1" inputmode="numeric" /></label>
     </header>
     <div class="creative-assignment-inner-grid">
-      ${roleAssignmentBlock('content','قسم المحتوى','كاتب المحتوى الذي سيظهر له تاسك بيانات الطلب ورفع الهيكل')}
-      ${roleAssignmentBlock('montage','قسم المونتاج','قائمة انتظار حتى اعتماد الهيكل')}
-      ${roleAssignmentBlock('design','قسم التصميم','اختياري حسب الكريتيف')}
-      ${roleAssignmentBlock('shooting','قسم التصوير','اختياري حسب الكريتيف')}
+      ${creativeAssignmentRoleBlocksHtml(creativeName)}
     </div>
-    <div class="creative-assignment-note">لازم تربط الكريتيف كامل باليوزرات المطلوبة. تاسك المونتاج سيعرض اسم كاتب المحتوى المرتبط به.</div>
+    <div class="creative-assignment-note">كاتب المحتوى يتم اختياره من خطوة بيانات طلب الهيكل. هنا اختار الأقسام التنفيذية المطلوبة للكريتيف، وسيتم ربطها تلقائيًا بأكواد الهيكل بعد الاعتماد.</div>
   </article>`;
 }
 function refreshCreativeAssignmentPanels(row){
@@ -2236,8 +2319,8 @@ function creativeDisplayParts(name){
 }
 function popupCreativeCheckboxList(selected = []){
   const chosen = (selected || []).map(normalizeText);
-  if(!creatives.length) return '<div class="multi-empty">لا توجد كريتيفات حالياً. افتح الأقسام > القوائم الحالية > الكريتيفات أو اضغط تحديث، وسيتم إعادة المحاولة تلقائياً.</div>';
-  return creatives.map((item, index) => {
+  const sourceCreatives = creatives.length ? creatives : MZJ_DEFAULT_CREATIVE_NAMES.map(name => ({ name, id: creativeSafeKey(name), isDefault: true }));
+  return sourceCreatives.map((item, index) => {
     const name = normalizeText(item.name);
     const parts = creativeDisplayParts(name);
     const checked = chosen.includes(name) ? ' checked' : '';
@@ -2390,21 +2473,24 @@ function selectedRoleTaskFromPanel(panel, role){
   if(!userIds.length && !userNames.length) return null;
   const dep = findDepartmentByRole(role) || {};
   const contentPicker = panel?.querySelector('.js-role-picker[data-role="content"]');
-  const contentUserNames = selectedOptionTexts(contentPicker);
+  const requestContentAssignees = campaignRequestContentAssignees();
+  const contentUserNames = selectedOptionTexts(contentPicker).length ? selectedOptionTexts(contentPicker) : requestContentAssignees.names;
   const quantity = Math.max(1, Math.min(50, Number(panel?.querySelector('.js-creative-quantity')?.value || 1)));
   const requestForm = document.getElementById('campaignRequestForm');
   const brief = normalizeText(requestForm?.querySelector('[name="content_writer_brief"]')?.value || '');
   const structureDeadline = normalizeText(requestForm?.querySelector('[name="structure_deadline"]')?.value || '');
   const roleDeadline = normalizeText(panel?.querySelector(`.js-role-deadline[data-role-deadline="${role}"]`)?.value || '');
+  const creativeName = normalizeText(panel?.dataset.creativeName || '');
   const isContent = role === 'content';
   const isDeferredAfterContent = ['montage','design'].includes(role);
   const linkedContent = isDeferredAfterContent ? selectedContentDependency(panel, role) : { ids: [], names: [] };
+  const linkedContentIds = linkedContent.ids.length ? linkedContent.ids : requestContentAssignees.ids;
   const linkedContentNames = linkedContent.names.length ? linkedContent.names : contentUserNames;
-  const effectiveDeadline = isContent ? (roleDeadline || structureDeadline) : (isDeferredAfterContent ? '' : roleDeadline);
+  const effectiveDeadline = isContent ? (roleDeadline || structureDeadline) : roleDeadline;
   return {
     contentSectionId: dep.id || role,
     contentSectionName: dep.name || defaultRoleSectionName(role),
-    taskType: isContent ? 'كتابة محتوى حملة' : defaultRoleTaskType(role),
+    taskType: creativeMainTaskType(creativeName, role),
     quantity,
     requiredDate: effectiveDeadline ? effectiveDeadline.slice(0, 10) : '',
     requiredDateTime: effectiveDeadline,
@@ -2420,10 +2506,10 @@ function selectedRoleTaskFromPanel(panel, role){
     waitingForApproval: isDeferredAfterContent,
     waitingForApprovalLabel: isDeferredAfterContent ? 'في انتظار اعتماد الهيكل' : '',
     upstreamRole: isDeferredAfterContent ? 'content' : '',
-    upstreamUserIds: isDeferredAfterContent ? linkedContent.ids : [],
+    upstreamUserIds: isDeferredAfterContent ? linkedContentIds : [],
     upstreamUserNames: isDeferredAfterContent ? linkedContentNames : [],
     upstreamUserLabel: isDeferredAfterContent ? linkedContentNames.join('، ') : '',
-    dependsOnContentUserIds: isDeferredAfterContent ? linkedContent.ids : [],
+    dependsOnContentUserIds: isDeferredAfterContent ? linkedContentIds : [],
     dependsOnContentUserNames: isDeferredAfterContent ? linkedContentNames : [],
     dependencyLinks: isDeferredAfterContent && Array.isArray(linkedContent.links) ? linkedContent.links : [],
     status: isDeferredAfterContent ? 'waiting_content_approval' : 'pending'
@@ -2442,12 +2528,13 @@ function selectedRoleTaskFromRow(row, role){
   const requestForm = document.getElementById('campaignRequestForm');
   const brief = normalizeText(requestForm?.querySelector('[name="content_writer_brief"]')?.value || '');
   const structureDeadline = normalizeText(requestForm?.querySelector('[name="structure_deadline"]')?.value || '');
+  const creativeName = selectedCreativeNames(row)[0] || '';
   const isContent = role === 'content';
   const isDeferredAfterContent = ['montage','design'].includes(role);
   return {
     contentSectionId: dep.id || role,
     contentSectionName: dep.name || defaultRoleSectionName(role),
-    taskType: isContent ? 'كتابة محتوى حملة' : defaultRoleTaskType(role),
+    taskType: creativeMainTaskType(creativeName, role),
     quantity: 1,
     requiredDate: isContent ? (structureDeadline ? structureDeadline.slice(0, 10) : '') : '',
     structureDeadline: isContent ? structureDeadline : '',
@@ -2477,18 +2564,47 @@ function campaignWizardMove(delta){
   const current = Number(window.MZJ_CURRENT_CAMPAIGN_WIZARD_STEP || 1);
   campaignWizardSetStep(Math.max(1, Math.min(3, current + delta)));
 }
+function campaignTypeBaseCode(item){
+  const prefix = normalizeText(item?.prefix || 'MZJ').toUpperCase() || 'MZJ';
+  let code = normalizeText(item?.code || '').toUpperCase().replace(/\s+/g, '-');
+  if(!code) return '';
+  const prefixStart = `${prefix}-`;
+  if(code === prefix) return prefix;
+  if(code.startsWith(prefixStart)) return code;
+  if(code.startsWith('MZJ-') && prefix === 'MZJ') return code;
+  return `${prefix}-${code}`;
+}
+function campaignYearMonthCode(date = new Date()){
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+function campaignMonthlyBaseCode(item, date = new Date()){
+  const typeCode = campaignTypeBaseCode(item);
+  return typeCode ? `${typeCode}-${campaignYearMonthCode(date)}` : '';
+}
+function campaignCodeSequenceFromBase(code, base){
+  const cleanCode = normalizeText(code || '').toUpperCase();
+  const cleanBase = normalizeText(base || '').toUpperCase();
+  if(!cleanCode || !cleanBase) return 0;
+  if(cleanCode === cleanBase) return 1;
+  const match = cleanCode.match(new RegExp(`^${escapeRegExp(cleanBase)}-(\\d{2,})$`));
+  return match ? Math.max(2, Number(match[1]) || 0) : 0;
+}
+function nextCampaignCodeForType(item, date = new Date()){
+  const base = campaignMonthlyBaseCode(item, date);
+  if(!base) return '';
+  const maxSeq = (campaigns || []).reduce((max, campaign) => Math.max(max, campaignCodeSequenceFromBase(campaign.campaignCode || campaign.campaign_code || '', base)), 0);
+  if(maxSeq <= 0) return base;
+  return `${base}-${String(maxSeq + 1).padStart(2, '0')}`;
+}
 function generateCampaignCode(){
   const output = document.getElementById('campaignCodeInput');
   if(!output) return;
   const typeSelect = document.getElementById('campaignTypeSelect') || document.querySelector('.js-campaign-type-select');
   const legacyCodeSelect = document.getElementById('campaignCodeSelect');
   const item = campaignTypes.find(type => type.id === typeSelect?.value || type.name === typeSelect?.value) || campaignCodes.find(code => code.id === legacyCodeSelect?.value);
-  if(!item || !item.code){ output.value = ''; return; }
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const serial = String((Number(item.nextNumber) || 1)).padStart(3, '0');
-  output.value = `${item.prefix || 'MZJ'}-${item.code}-${yy}${mm}-${serial}`;
+  output.value = item ? nextCampaignCodeForType(item) : '';
 }
 
 
@@ -2543,7 +2659,7 @@ function isCampaignContentWritingTask(task){
   ].filter(Boolean).join(' '));
   const typeText = identityClean([task.taskType, task.structureTaskLabel, task.creative, task.product].filter(Boolean).join(' '));
   const isContentSection = normalizeDepartmentRole(sectionText) === 'content' || sectionText.includes('محتوي') || sectionText.includes('content');
-  const isCampaignWriting = typeText.includes('كتابه محتوي حمله') || (typeText.includes('كتابه') && typeText.includes('محتوي') && typeText.includes('حمله')) || (typeText.includes('campaign') && typeText.includes('content'));
+  const isCampaignWriting = typeText.includes('كتابه محتوي حمله') || (typeText.includes('كتابه') && typeText.includes('محتوي')) || (typeText.includes('campaign') && typeText.includes('content')) || !!task.needsStructureUpload;
   return isContentSection && isCampaignWriting;
 }
 function adminDashboardTasksForCampaign(campaign){
@@ -2840,7 +2956,7 @@ function canonicalContentLabel(value){
   if(key.includes('تصميم')) return 'التصميم';
   if(key.includes('مونتاج')) return 'المونتاج';
   if(key.includes('نشر')) return 'النشر';
-  if(key.includes('محتو')) return 'المحتوي';
+  if(key.includes('محتو')) return 'قسم المحتوى';
   if(key.includes('اعلان')) return 'اداره الاعلانات';
   if(key.includes('مدير') && key.includes('تسويق')) return 'مدير التسويق';
   return raw;
@@ -2978,6 +3094,9 @@ function stepButtonClass(step){ return step.done ? 'step-btn done' : 'step-btn';
 function stepButtonTitle(step){ return step.adminOnly ? 'اعتماد الأدمن فقط' : 'تنفيذ المرحلة'; }
 
 function taskContentType(task){
+  const row = task?.structureRow || {};
+  const fromStructure = normalizeText(row.contentType || row.content_type || row.type || row.output || '');
+  if(fromStructure) return canonicalContentLabel(fromStructure);
   return canonicalContentLabel(task.contentSectionName || task.assignedDepartmentName || task.contentType || '');
 }
 function taskDepartmentLabel(task){
@@ -3197,6 +3316,9 @@ function openTaskModal(task){
   activeTaskModalMeta = { taskId: task.id, campaignId: task.campaignId || '' };
   content.innerHTML = buildTaskDetailHtml(task);
   modal.classList.remove('structure-fullscreen-modal');
+  const hasStructureDetail = !!content.querySelector('.structure-section');
+  modal.classList.toggle('has-structure-sheet-modal', hasStructureDetail);
+  modal.classList.add('task-fullscreen-view');
   modal.classList.add('show');
   modal.setAttribute('aria-hidden','false');
   document.body.classList.add('modal-open');
@@ -3207,6 +3329,8 @@ function closeTaskModal(){
   const modal = document.getElementById('taskModal');
   modal?.classList.remove('show');
   modal?.classList.remove('structure-fullscreen-modal');
+  modal?.classList.remove('has-structure-sheet-modal');
+  modal?.classList.remove('task-fullscreen-view');
   modal?.setAttribute('aria-hidden','true');
   document.body.classList.remove('modal-open');
   activeTaskModalMeta = null;
@@ -3264,11 +3388,14 @@ function daysUntilRequiredText(requiredDate){
 
 
 function isCampaignStructureTask(task){
-  const section = identityClean(task.contentSectionName || task.assignedDepartmentName || '');
-  const type = identityClean(task.taskType || '');
-  const isContentSection = section.includes('المحتوي') || section.includes('المحتوى') || section.includes('content');
-  const isCampaignWriting = type.includes(identityClean('كتابة محتوى حملة')) || type.includes(identityClean('كتابة محتوى')) || type.includes('content writing');
-  return isContentSection && isCampaignWriting;
+  if(!task) return false;
+  if(isCampaignContentWritingTask(task)) return true;
+  const section = identityClean([task.contentSectionName, task.assignedDepartmentName, task.departmentName, task.departmentRole, task.contentType].filter(Boolean).join(' '));
+  const type = identityClean([task.taskType, task.structureTaskLabel, task.creative, task.product].filter(Boolean).join(' '));
+  const isContentSection = normalizeDepartmentRole(section) === 'content' || section.includes('المحتوي') || section.includes('المحتوى') || section.includes('content');
+  const isCampaignWriting = type.includes(identityClean('كتابة محتوى حملة')) || type.includes(identityClean('كتابة محتوى')) || type.includes('content writing') || (type.includes('campaign') && type.includes('content'));
+  const hasStructureData = task.structure && typeof task.structure === 'object';
+  return (isContentSection && isCampaignWriting) || (isContentSection && hasStructureData);
 }
 function taskStructure(task){
   return (task && typeof task.structure === 'object' && task.structure) ? task.structure : {};
@@ -3513,7 +3640,7 @@ function inferStructureContentTypeFromContext(sheet, rows, headerIndexNo){
 function valueLooksLikeStructureTaskNo(value){
   const clean = normalizeText(value);
   if(!clean) return false;
-  return /^[A-Z]{1,6}\d{1,4}[-_][A-Z]{1,6}\d{1,4}$/i.test(clean) || /^[A-Z]{1,6}[-_]?\d{1,4}[-_][A-Z]{1,6}[-_]?\d{1,4}$/i.test(clean) || /^T\d{1,4}$/i.test(clean);
+  return /^.+-C\d{2,}-.+$/i.test(clean) || /^.+-C\d{2,}$/i.test(clean) || /^[A-Z]{1,6}\d{1,4}[-_][A-Z]{1,6}\d{1,4}$/i.test(clean) || /^[A-Z]{1,6}[-_]?\d{1,4}[-_][A-Z]{1,6}[-_]?\d{1,4}$/i.test(clean) || /^T\d{1,4}$/i.test(clean);
 }
 function firstLikelyStructureTaskNo(row){
   const cells = (row || []).map(normalizeText).filter(Boolean);
@@ -3583,7 +3710,7 @@ function parseExecutionRowsFromSheetTables(structure){
     const idx = {
       campaignType: structureHeaderIndexStrict(headers, ['نوع الحمله','نوع الحملة','campaign type']),
       contentType: structureHeaderIndexStrict(headers, ['نوع المحتوى','نوع المحتوي','content type']),
-      taskNo: structureHeaderIndexStrict(headers, ['رقم التاسك','task no','task code']),
+      taskNo: structureHeaderIndexStrict(headers, ['كود تاسك الهيكل','رقم التاسك','task no','task code','structure task code']),
       goal: structureHeaderIndexStrict(headers, ['الهدف','goal']),
       tangibleGoal: structureHeaderIndexStrict(headers, ['الهدف الملموس','tangible goal']),
       idea: structureHeaderIndexStrict(headers, ['الفكرة','idea']),
@@ -3626,8 +3753,10 @@ function parseExecutionRowsFromSheetTables(structure){
       }
       item.taskNo = strongestStructureTaskNo(row, item.taskNo) || item.taskNo;
       item.cta = strongestStructureCta(row, item.cta) || item.cta;
-      item.contentType = cellByHeader(row, idx.contentType) || inferredContentType || item.contentName || 'نوع محتوى';
-      if(!normalizeText(item.taskNo || item.goal || item.tangibleGoal || item.idea || item.description || item.message || item.writerRequest || item.cta)) continue;
+      const explicitContentType = cellByHeader(row, idx.contentType) || '';
+      item.contentType = explicitContentType || inferredContentType || item.contentName || 'نوع محتوى';
+      const hasRealStructureData = normalizeText(explicitContentType || item.goal || item.tangibleGoal || item.idea || item.contentName || item.description || item.message || item.writerRequest || item.cta);
+      if(!hasRealStructureData) continue;
       parsed.push(item);
     }
   });
@@ -3772,6 +3901,31 @@ function compactStructureSectionRows(sectionRows){
     return { ...cell, value, colSpan, rowSpan, className: structureCellClass(value, rowSpan, colSpan) };
   })).filter(row => row.some(cell => normalizeText(cell.value || '')) || row.length > 1);
 }
+function structureSectionOrder(type){
+  if(type === 'logic') return 1;
+  if(type === 'writing') return 2;
+  if(type === 'execution') return 3;
+  return 99;
+}
+
+function renderMergedStructureSectionBlock(task, sheet, section, notes, marks, admin){
+  const sectionRows = compactStructureSectionRows(section.rows);
+  const body = sectionRows.map((row) => `<tr>${row.map(cell => {
+    const val = normalizeText(cell.value || '');
+    const sourceRow = Number(cell.sourceRow);
+    const sourceCol = Number(cell.sourceCol);
+    const key = structureCellKey(sheet.sheetName, sourceRow, sourceCol);
+    const hasMark = marks.some(m => (typeof m === 'string' ? m : m?.key) === key);
+    const cellNotes = notes.filter(n => (n.key || n.cellKey) === key);
+    const attrs = `${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}`;
+    const protectedTitle = isProtectedStructureTitleText(val);
+    const cls = [cell.className || '', protectedTitle ? 'protected-structure-title' : '', hasMark ? 'marked-cell' : '', cellNotes.length ? 'has-cell-note' : ''].filter(Boolean).join(' ');
+    const cellActions = admin && !protectedTitle ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${sourceRow}" data-col-index="${sourceCol}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : 'title="عنوان ثابت غير قابل للتعديل"';
+    return `<td class="${escapeHtml(cls)}"${attrs} ${cellActions}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
+  }).join('')}</tr>`).join('');
+  return `<div class="structure-sheet-block compact-structure-section structure-section-${escapeHtml(section.type || 'logic')}"><div class="structure-section-display-title ${escapeHtml(section.type || 'logic')}-title">${escapeHtml(section.title || 'Campaign Logic')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure compact-excel-section"><tbody>${body}</tbody></table></div></div>`;
+}
+
 function renderStructureWorkbookTable(task, structure, admin){
   const sheets = structureSheetTables(structure);
   if(!sheets.length){
@@ -3782,26 +3936,11 @@ function renderStructureWorkbookTable(task, structure, admin){
   }
   const notes = Array.isArray(structure.notes) ? structure.notes : [];
   const marks = Array.isArray(structure.marks) ? structure.marks : [];
-  return `<div class="structure-workbook-view"><div class="structure-help-bar"><strong>محتوى الحملة</strong><span>ضغطة واحدة للتعليم، دبل كليك يفتح مربع كتابة ملاحظة</span></div>${sheets.map(sheet => {
+  return `<div class="structure-workbook-view structure-workbook-unified"><div class="structure-help-bar"><strong>محتوى الحملة</strong><span>ضغطة واحدة للتعليم، دبل كليك يفتح مربع كتابة ملاحظة</span></div>${sheets.map(sheet => {
     if(sheet.mode === 'merged'){
-      const sections = splitStructureRowsIntoSections(Array.isArray(sheet.rows) ? sheet.rows : []);
-      return sections.map(section => {
-        const sectionRows = compactStructureSectionRows(section.rows);
-        const body = sectionRows.map((row) => `<tr>${row.map(cell => {
-          const val = normalizeText(cell.value || '');
-          const sourceRow = Number(cell.sourceRow);
-          const sourceCol = Number(cell.sourceCol);
-          const key = structureCellKey(sheet.sheetName, sourceRow, sourceCol);
-          const hasMark = marks.some(m => (typeof m === 'string' ? m : m?.key) === key);
-          const cellNotes = notes.filter(n => (n.key || n.cellKey) === key);
-          const attrs = `${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}`;
-          const protectedTitle = isProtectedStructureTitleText(val);
-          const cls = [cell.className || '', protectedTitle ? 'protected-structure-title' : '', hasMark ? 'marked-cell' : '', cellNotes.length ? 'has-cell-note' : ''].filter(Boolean).join(' ');
-          const cellActions = admin && !protectedTitle ? `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(sheet.sheetName)}" data-row-index="${sourceRow}" data-col-index="${sourceCol}" title="اضغط مرة للتعليم، واضغط مرتين لإضافة ملاحظة"` : 'title="عنوان ثابت غير قابل للتعديل"';
-          return `<td class="${escapeHtml(cls)}"${attrs} ${cellActions}>${escapeHtml(val)}${cellNotes.map(n => `<div class="cell-note-badge">${escapeHtml(n.note || '')}</div>`).join('')}</td>`;
-        }).join('')}</tr>`).join('');
-        return `<div class="structure-sheet-block compact-structure-section structure-section-${escapeHtml(section.type || 'logic')}"><div class="structure-section-display-title ${escapeHtml(section.type || 'logic')}-title">${escapeHtml(section.title || 'Campaign Logic')}</div><div class="structure-table-wrap full-sheet"><table class="structure-table full-structure-table excel-like-structure compact-excel-section"><tbody>${body}</tbody></table></div></div>`;
-      }).join('');
+      const sections = splitStructureRowsIntoSections(Array.isArray(sheet.rows) ? sheet.rows : [])
+        .sort((a, b) => structureSectionOrder(a.type) - structureSectionOrder(b.type));
+      return `<div class="structure-workbook-grid">${sections.map(section => renderMergedStructureSectionBlock(task, sheet, section, notes, marks, admin)).join('')}</div>`;
     }
     const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
     const maxCols = Math.max(Number(sheet.maxCols) || 0, ...rows.map(row => row.length));
@@ -3976,6 +4115,355 @@ function structureAssigneeTable(task){
   }
   return `<div class="structure-distribution"><h4>توزيع تاسكات الهيكل</h4><div class="structure-assign-list">${rows.map((row, index) => `<div class="structure-assign-row structure-assign-row-compact" data-structure-row="${index}"><div class="structure-assign-info"><strong>${escapeHtml(structureContentTaskLabel(row, 'نوع محتوى'))}</strong><p>${escapeHtml(row.idea || row.contentName || row.description || row.goal || '')}</p></div><div class="structure-assign-controls">${structureDistributionPlatformControls(index)}</div></div>`).join('')}</div><button class="btn btn-primary" type="button" data-save-structure-assignees="${escapeHtml(task.id)}">حفظ توزيع تاسكات الهيكل</button></div>`;
 }
+function contentWriterCodeForTask(task){
+  const name = identityClean([task?.assignedToName, task?.userName, task?.assigneeName].filter(Boolean).join(' '));
+  if(name.includes('احمد') && (name.includes('ناجي') || name.includes('nagi'))) return 'N';
+  if(name.includes('بلال') || name.includes('khtan') || name.includes('ختعن')) return 'B';
+  if(name.includes('امجاد') || name.includes('الدوسري') || name.includes('amjad')) return 'A';
+  const latin = normalizeText(task?.assignedToName || task?.userName || '').match(/[A-Za-z]/);
+  return (latin ? latin[0] : 'N').toUpperCase();
+}
+function structureTemplateRowsForTask(task, count = 50){
+  const creativeCode = taskCreativeLinkCode(task);
+  const writerCode = contentWriterCodeForTask(task);
+  return Array.from({length: Math.max(1, Number(count) || 50)}, (_, index) => {
+    const n = String(index + 1).padStart(2, '0');
+    return {
+      'كود الحملة': task.campaignCode || '',
+      'كود الكرييتيف': creativeCode,
+      'كود كاتب المحتوى': writerCode,
+      'كود تاسك الهيكل': creativeCode ? `${creativeCode}-${writerCode}${n}` : '',
+      'رقم الهيكل الأصلي': '',
+      'نوع الحملة': '',
+      'نوع المحتوى': '',
+      'الهدف': '',
+      'الهدف الملموس': '',
+      'الفكرة': '',
+      'اسم المحتوى': '',
+      'وصف المحتوى': '',
+      'الرسالة': '',
+      'المطلوب من الكاتب': '',
+      'CTA': '',
+      'ملاحظات خاصة': ''
+    };
+  });
+}
+function sheetAddress(row, col){
+  return XLSX.utils.encode_cell({ r: row - 1, c: col - 1 });
+}
+function applySheetStyle(ws, range, style){
+  if(!ws || !range || !style) return;
+  const decoded = XLSX.utils.decode_range(range);
+  for(let r = decoded.s.r; r <= decoded.e.r; r += 1){
+    for(let c = decoded.s.c; c <= decoded.e.c; c += 1){
+      const address = XLSX.utils.encode_cell({ r, c });
+      if(!ws[address]) ws[address] = { t: 's', v: '' };
+      ws[address].s = Object.assign({}, ws[address].s || {}, style);
+    }
+  }
+}
+function applyStructureTemplateStyles(ws, tableHeaderRow, tableLastRow){
+  const titleStyle = {
+    font: { bold: true, sz: 18, color: { rgb: 'FFFFFF' } },
+    fill: { fgColor: { rgb: '1F2937' } },
+    alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 }
+  };
+  const sectionStyle = {
+    font: { bold: true, sz: 13, color: { rgb: 'FFFFFF' } },
+    fill: { fgColor: { rgb: '374151' } },
+    alignment: { horizontal: 'right', vertical: 'center', readingOrder: 2 }
+  };
+  const labelStyle = {
+    font: { bold: true, color: { rgb: '111827' } },
+    fill: { fgColor: { rgb: 'E5E7EB' } },
+    alignment: { horizontal: 'right', vertical: 'center', readingOrder: 2 },
+    border: { top: { style: 'thin', color: { rgb: 'CBD5E1' } }, bottom: { style: 'thin', color: { rgb: 'CBD5E1' } }, left: { style: 'thin', color: { rgb: 'CBD5E1' } }, right: { style: 'thin', color: { rgb: 'CBD5E1' } } }
+  };
+  const valueStyle = {
+    alignment: { horizontal: 'right', vertical: 'top', wrapText: true, readingOrder: 2 },
+    border: { top: { style: 'thin', color: { rgb: 'CBD5E1' } }, bottom: { style: 'thin', color: { rgb: 'CBD5E1' } }, left: { style: 'thin', color: { rgb: 'CBD5E1' } }, right: { style: 'thin', color: { rgb: 'CBD5E1' } } }
+  };
+  const headerStyle = {
+    font: { bold: true, color: { rgb: 'FFFFFF' } },
+    fill: { fgColor: { rgb: '0F766E' } },
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true, readingOrder: 2 },
+    border: { top: { style: 'thin', color: { rgb: '0F172A' } }, bottom: { style: 'thin', color: { rgb: '0F172A' } }, left: { style: 'thin', color: { rgb: '0F172A' } }, right: { style: 'thin', color: { rgb: '0F172A' } } }
+  };
+  const bodyStyle = {
+    alignment: { horizontal: 'right', vertical: 'top', wrapText: true, readingOrder: 2 },
+    border: { top: { style: 'thin', color: { rgb: 'E2E8F0' } }, bottom: { style: 'thin', color: { rgb: 'E2E8F0' } }, left: { style: 'thin', color: { rgb: 'E2E8F0' } }, right: { style: 'thin', color: { rgb: 'E2E8F0' } } }
+  };
+  applySheetStyle(ws, 'A1:P1', titleStyle);
+  applySheetStyle(ws, 'A3:P3', sectionStyle);
+  applySheetStyle(ws, 'A4:A9', labelStyle);
+  applySheetStyle(ws, 'B4:P9', valueStyle);
+  applySheetStyle(ws, 'A11:P11', sectionStyle);
+  applySheetStyle(ws, 'A12:P14', valueStyle);
+  applySheetStyle(ws, 'A16:P16', sectionStyle);
+  applySheetStyle(ws, 'A17:P19', valueStyle);
+  applySheetStyle(ws, `A${tableHeaderRow}:P${tableHeaderRow}`, headerStyle);
+  applySheetStyle(ws, `A${tableHeaderRow + 1}:P${tableLastRow}`, bodyStyle);
+}
+
+async function downloadStructureTemplateForTask(taskId){
+  const task = findTaskById(taskId);
+  if(!task) return showToast('تعذر العثور على تاسك الهيكل.');
+  if(!window.ExcelJS){
+    showToast('تعذر تحميل مكتبة Excel. أعد تحميل الصفحة ثم جرّب مرة أخرى.');
+    return;
+  }
+  try{
+    await downloadStructureTemplateForTaskStyled(task);
+  }catch(err){
+    console.error('styled structure template failed', err);
+    showToast('تعذر تنزيل القالب المنسق. أعد المحاولة بعد تحديث الصفحة.');
+  }
+}
+async function downloadStructureTemplateForTaskStyled(task){
+  const campaignCode = campaignCodeForTask(task);
+  const creativeCode = templateCreativeLinkCodeForTask({ ...task, campaignCode });
+  const writerCode = contentWriterCodeForTask(task);
+  const writerName = task.assignedToName || task.userName || task.assigneeName || '';
+  const creativeName = task.creative || task.product || (task.taskType || '').replace(/^طلب\s*هيكل\s*-?/i, '').trim() || '';
+  const campaign = campaignRecordForTask(task) || {};
+  const campaignName = task.campaignName || task.campaignTitle || task.campaign || campaign.campaignName || campaign.name || '';
+  const campaignTypeName = task.campaignTypeName || task.campaignType || task.typeName || task.type || campaign.campaignTypeName || campaign.campaignType || campaign.typeName || campaign.type || '';
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'MZJ Workspace';
+  workbook.created = new Date();
+  workbook.modified = new Date();
+  workbook.views = [{ rightToLeft: true }];
+  const ws = workbook.addWorksheet('محتوي الحمله ', { views: [{ rightToLeft: true }] });
+  ws.properties.defaultRowHeight = 18;
+  ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+  ws.columns = [
+    { key:'campaignType', width:28 },
+    { key:'contentType', width:31 },
+    { key:'taskCode', width:42 },
+    { key:'goal', width:24 },
+    { key:'tangibleGoal', width:30 },
+    { key:'idea', width:30 },
+    { key:'description', width:43 },
+    { key:'message', width:32 },
+    { key:'writerRequest', width:42 },
+    { key:'cta', width:22 }
+  ];
+  const dark = '1F1F1F';
+  const black = '000000';
+  const slate = '2F3A45';
+  const light = 'F7F7F7';
+  const borderColor = 'B7B7B7';
+  const thinBorder = { top:{style:'thin', color:{argb:borderColor}}, left:{style:'thin', color:{argb:borderColor}}, bottom:{style:'thin', color:{argb:borderColor}}, right:{style:'thin', color:{argb:borderColor}} };
+  const titleFill = { type:'pattern', pattern:'solid', fgColor:{argb:black} };
+  const sectionFill = { type:'pattern', pattern:'solid', fgColor:{argb:dark} };
+  const headerFill = { type:'pattern', pattern:'solid', fgColor:{argb:slate} };
+  const whiteFont = { name:'Calibri', color:{argb:'FFFFFF'}, bold:true };
+  const baseFont = { name:'Calibri', size:11 };
+  function styleRange(range, fn){
+    ws.getCell(range.split(':')[0]);
+    const [start, end] = range.split(':');
+    const startCell = ws.getCell(start);
+    const endCell = ws.getCell(end || start);
+    for(let r = startCell.row; r <= endCell.row; r += 1){
+      for(let c = startCell.col; c <= endCell.col; c += 1){
+        fn(ws.getCell(r, c), r, c);
+      }
+    }
+  }
+  function applyCell(cell, cfg){
+    if(cfg.font) cell.font = { ...cfg.font };
+    if(cfg.fill) cell.fill = cfg.fill;
+    if(cfg.alignment) cell.alignment = { ...cfg.alignment };
+    if(cfg.border) cell.border = cfg.border;
+  }
+  function setRowHeight(row, height){ ws.getRow(row).height = height; }
+  ws.mergeCells('A1:C1');
+  ws.getCell('A1').value = campaignCode ? `حمله - ${campaignCode}` : 'حمله -';
+  applyCell(ws.getCell('A1'), { font:{...whiteFont, size:14}, fill:titleFill, alignment:{horizontal:'center', vertical:'middle', readingOrder:'rtl'}, border:thinBorder });
+  setRowHeight(1, 20);
+
+  ws.mergeCells('A2:A19');
+  ws.getCell('A2').value = 'campaign logic';
+  applyCell(ws.getCell('A2'), { font:{...whiteFont, size:12}, fill:sectionFill, alignment:{horizontal:'center', vertical:'middle', textRotation:90, wrapText:true, readingOrder:'rtl'}, border:thinBorder });
+  const logicRows = [
+    ['اسم الحملة', campaignName || creativeName || ''],
+    ['كود الحملة', campaignCode],
+    ['كود الكرييتيف', creativeCode],
+    ['الكرييتيف المطلوب للهيكل', creativeName],
+    ['كاتب المحتوى', writerName],
+    ['كود كاتب المحتوى', writerCode],
+    ['نوع الحمله', campaignTypeName],
+    ['معنى العنصر داخل MZJ', ''],
+    ['دور العنصر في تعزيز الثقة', ''],
+    ['الهدف الاستراتيجي للحملة', ''],
+    ['الهدف النهائي للحملة', ''],
+    ['الترجمة الملموسة للهدف النهائي', ''],
+    ['الرسالة الرئيسية', ''],
+    ['إحساس الحملة', ''],
+    ['الترجمة التنفيذية لإحساس الحملة', ''],
+    ['نوع المحتوى', ''],
+    ['ما يجب إبرازه', ''],
+    ['ما يجب تجنبه', '']
+  ];
+  logicRows.forEach((item, idx) => {
+    const row = 2 + idx;
+    ws.getCell(row, 2).value = item[0];
+    ws.getCell(row, 3).value = item[1];
+  });
+  styleRange('B2:B19', cell => applyCell(cell, { font:{...whiteFont, size:12}, fill:headerFill, alignment:{horizontal:'center', vertical:'middle', wrapText:true, readingOrder:'rtl'}, border:thinBorder }));
+  styleRange('C2:C19', cell => applyCell(cell, { font:{...baseFont, size:12, bold:false}, fill:{type:'pattern', pattern:'solid', fgColor:{argb:'FFFFFF'}}, alignment:{horizontal:'right', vertical:'middle', wrapText:true, readingOrder:'rtl'}, border:thinBorder }));
+  for(let r=2; r<=19; r+=1) setRowHeight(r, r === 9 ? 90 : 28);
+
+  ws.mergeCells('A20:C20');
+  ws.getCell('A20').value = 'Writing Rules - قواعد كتابة المحتوى';
+  applyCell(ws.getCell('A20'), { font:{...whiteFont, size:14}, fill:titleFill, alignment:{horizontal:'center', vertical:'middle', readingOrder:'rtl'}, border:thinBorder });
+  setRowHeight(20, 22);
+  ws.mergeCells('A21:A28');
+  ws.mergeCells('B21:B28');
+  ws.getCell('A21').value = 'قواعد كتابة المحتوى';
+  ws.getCell('B21').value = 'محتوي حملات MZJ';
+  applyCell(ws.getCell('A21'), { font:{...whiteFont, size:12}, fill:headerFill, alignment:{horizontal:'center', vertical:'middle', wrapText:true, readingOrder:'rtl'}, border:thinBorder });
+  applyCell(ws.getCell('B21'), { font:{...whiteFont, size:12}, fill:headerFill, alignment:{horizontal:'center', vertical:'middle', wrapText:true, readingOrder:'rtl'}, border:thinBorder });
+  const rules = [
+    'اكتب هنا قواعد كتابة المحتوى الخاصة بالحملة.',
+    'مثال: النبرة المطلوبة، الكلمات الممنوعة، طريقة CTA، وطريقة صياغة العناوين.',
+    '', '', '', '', '', ''
+  ];
+  rules.forEach((rule, idx) => {
+    const cell = ws.getCell(21 + idx, 3);
+    cell.value = rule;
+    applyCell(cell, { font:{...baseFont, size:12}, fill:{type:'pattern', pattern:'solid', fgColor:{argb:'FFFFFF'}}, alignment:{horizontal:'right', vertical:'middle', wrapText:true, readingOrder:'rtl'}, border:thinBorder });
+    setRowHeight(21 + idx, 24);
+  });
+
+  ws.mergeCells('A31:J31');
+  ws.getCell('A31').value = 'Content Execution Direction - آلية تنفيذ المحتوى';
+  applyCell(ws.getCell('A31'), { font:{...whiteFont, size:16}, fill:titleFill, alignment:{horizontal:'center', vertical:'middle', readingOrder:'rtl'}, border:thinBorder });
+  setRowHeight(31, 23);
+  ws.mergeCells('A32:J32');
+  ws.getCell('A32').value = campaignCode ? `حمله - ${campaignCode}` : 'حمله -';
+  applyCell(ws.getCell('A32'), { font:{...whiteFont, size:16}, fill:headerFill, alignment:{horizontal:'center', vertical:'middle', readingOrder:'rtl'}, border:thinBorder });
+  setRowHeight(32, 24);
+  const headers = ['نوع الحمله','نوع المحتوى','رقم التاسك','الهدف','الهدف الملموس','الفكرة','وصف المحتوي ','الرسالة','المطلوب من الكاتب','CTA'];
+  headers.forEach((h, i) => {
+    const cell = ws.getCell(33, i + 1);
+    cell.value = h;
+    applyCell(cell, { font:{...whiteFont, size:12}, fill:headerFill, alignment:{horizontal:'center', vertical:'middle', wrapText:true, readingOrder:'rtl'}, border:thinBorder });
+  });
+  setRowHeight(33, 20);
+  const templateRows = structureTemplateRowsForTask({ ...task, campaignCode, creativeLinkCode: creativeCode }, 50);
+  templateRows.forEach((rowData, idx) => {
+    const r = 34 + idx;
+    const values = [
+      idx === 0 ? (campaignTypeName || rowData['نوع الحملة'] || '') : '',
+      rowData['نوع المحتوى'] || '',
+      rowData['كود تاسك الهيكل'] || '',
+      rowData['الهدف'] || '',
+      rowData['الهدف الملموس'] || '',
+      rowData['الفكرة'] || '',
+      rowData['وصف المحتوى'] || '',
+      rowData['الرسالة'] || '',
+      rowData['المطلوب من الكاتب'] || '',
+      rowData['CTA'] || ''
+    ];
+    values.forEach((v, i) => {
+      const cell = ws.getCell(r, i + 1);
+      cell.value = v;
+      const lockedStyle = i === 2 ? { fill:{type:'pattern', pattern:'solid', fgColor:{argb:'E8F0FE'}}, font:{...baseFont, size:11, bold:true} } : { fill:{type:'pattern', pattern:'solid', fgColor:{argb:'FFFFFF'}}, font:{...baseFont, size:11} };
+      applyCell(cell, { ...lockedStyle, alignment:{horizontal:'center', vertical:'middle', wrapText:true, readingOrder:'rtl'}, border:thinBorder });
+    });
+    setRowHeight(r, 58);
+  });
+  if(templateRows.length > 1){
+    ws.mergeCells(`A34:A${33 + templateRows.length}`);
+    applyCell(ws.getCell('A34'), { font:{...baseFont, size:11, bold:true}, fill:{type:'pattern', pattern:'solid', fgColor:{argb:'FFFFFF'}}, alignment:{horizontal:'center', vertical:'middle', wrapText:true, readingOrder:'rtl'}, border:thinBorder });
+  }
+  ws.autoFilter = { from: 'A33', to: `J${33 + templateRows.length}` };
+  const metadata = ws.addWorksheet ? null : null;
+  ws.getCell('J1').value = 'MZJ_STRUCTURE_TEMPLATE';
+  ws.getCell('J1').font = { name:'Calibri', size:8, color:{argb:'FFFFFF'} };
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const fileBase = safeStorageSegment([creativeCode, creativeName || 'هيكل'].filter(Boolean).join('-'));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${fileBase || 'campaign-structure'}-template.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  showToast('تم تحميل قالب الهيكل المنسق بالأكواد.');
+}
+
+function downloadStructureTemplateForTaskLegacy(taskId){
+  const task = findTaskById(taskId);
+  if(!task) return showToast('تعذر العثور على تاسك الهيكل.');
+  if(!window.XLSX) return showToast('مكتبة Excel لم يتم تحميلها.');
+  const campaignCode = campaignCodeForTask(task);
+  const creativeCode = templateCreativeLinkCodeForTask(task);
+  const writerCode = contentWriterCodeForTask(task);
+  const creator = task.assignedToName || task.userName || '';
+  const creativeName = task.creative || task.product || (task.taskType || '').replace(/^طلب\s*هيكل\s*-?/i, '').trim() || '';
+  const topRows = [
+    ['قالب هيكل حملة - MZJ Workspace', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['بيانات الأكواد للربط التلقائي', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['كود الحملة', campaignCode, '', 'كود الكرييتيف', creativeCode, '', 'اسم الكرييتيف', creativeName, '', 'كاتب المحتوى', creator, '', 'كود كاتب المحتوى', writerCode, '', ''],
+    ['تعليمات مهمة', 'اكتب صفوف الهيكل بأي عدد. الصف الذي يحتوي على كود فقط بدون بيانات محتوى سيتم تجاهله عند الرفع.', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['صيغة كود تاسك الهيكل', creativeCode ? `${creativeCode}-${writerCode}01` : '', '', 'كود الربط التلقائي', creativeCode, '', 'ملاحظة', 'لا تغير كود الكرييتيف، ويمكن نسخ نمط الكود للصفوف الجديدة.', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Campaign Logic - منطق الحملة', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['اكتب هنا منطق الحملة، زاوية الرسالة، الجمهور المستهدف، عرض البيع أو الفكرة الأساسية.', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Writing Rules - قواعد كتابة المحتوى', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['اكتب هنا قواعد كتابة المحتوى: النبرة، الكلمات الممنوعة، طريقة CTA، شكل العناوين، وأي تعليمات عامة للكاتب.', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['جدول تاسكات الهيكل', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
+  ];
+  const rows = structureTemplateRowsForTask(task, 50);
+  const tableHeaderRow = topRows.length + 1;
+  const ws = XLSX.utils.aoa_to_sheet(topRows);
+  XLSX.utils.sheet_add_json(ws, rows, { origin: `A${tableHeaderRow}`, skipHeader: false });
+  const tableLastRow = tableHeaderRow + rows.length;
+  ws['!cols'] = [
+    {wch:24},{wch:28},{wch:16},{wch:34},{wch:18},{wch:18},{wch:20},{wch:24},{wch:24},{wch:30},{wch:24},{wch:34},{wch:34},{wch:34},{wch:20},{wch:28}
+  ];
+  ws['!rows'] = Array.from({ length: tableLastRow }, (_, index) => {
+    if(index === 0) return { hpt: 28 };
+    if([10, 15, 20].includes(index)) return { hpt: 24 };
+    if(index >= 11 && index <= 18) return { hpt: 36 };
+    if(index === tableHeaderRow - 1) return { hpt: 30 };
+    return { hpt: 22 };
+  });
+  ws['!merges'] = [
+    { s:{r:0,c:0}, e:{r:0,c:15} },
+    { s:{r:2,c:0}, e:{r:2,c:15} },
+    { s:{r:4,c:1}, e:{r:4,c:15} },
+    { s:{r:10,c:0}, e:{r:10,c:15} },
+    { s:{r:11,c:0}, e:{r:13,c:15} },
+    { s:{r:15,c:0}, e:{r:15,c:15} },
+    { s:{r:16,c:0}, e:{r:18,c:15} },
+    { s:{r:20,c:0}, e:{r:20,c:15} }
+  ];
+  ws['!freeze'] = { xSplit: 0, ySplit: tableHeaderRow };
+  ws['!autofilter'] = { ref: `A${tableHeaderRow}:P${tableLastRow}` };
+  ws['!rightToLeft'] = true;
+  applyStructureTemplateStyles(ws, tableHeaderRow, tableLastRow);
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = wb.Workbook || {};
+  wb.Workbook.Views = [{ RTL: true }];
+  XLSX.utils.book_append_sheet(wb, ws, 'محتوى الحملة');
+  const fileBase = safeStorageSegment([creativeCode, task.creative || task.product || 'هيكل'].filter(Boolean).join('-'));
+  XLSX.writeFile(wb, `${fileBase || 'campaign-structure'}-template.xlsx`, { bookType: 'xlsx', cellStyles: true });
+  showToast('تم تحميل قالب الهيكل بالأكواد.');
+}
+
 function renderStructureSection(task){
   if(!isCampaignStructureTask(task)) return '';
   const admin = isCurrentUserAdmin();
@@ -3985,15 +4473,15 @@ function renderStructureSection(task){
   const rows = Array.isArray(structure.parsedRows) ? structure.parsedRows : [];
   const sheetTables = structureSheetTables(structure);
   const distributionRows = structureDistributionRows(structure);
-  const hasStructureFile = Boolean(structure.fileData || structure.fileName || sheetTables.length || rows.length || distributionRows.length);
+  const hasStructureFile = Boolean(structure.fileData || structure.fileName || structure.fileSize || sheetTables.length || rows.length || distributionRows.length);
   const canUpload = !admin && (!status || status === 'needs_changes' || status === 'revised');
   const canApproveStructure = admin && hasStructureFile && status !== 'approved' && status !== 'distributed';
   const notesHtml = notes.length ? `<div class="structure-notes-list"><h4>ملاحظات الأدمن</h4>${notes.map(note => `<div class="structure-note"><b>${escapeHtml(note.field || 'ملاحظة')}</b><p>${escapeHtml(note.note || '')}</p></div>`).join('')}</div>` : '';
   return `<div class="modal-section structure-section"><div class="modal-section-title"><h3>هيكل الحملة</h3><span>${escapeHtml(structureStatusLabel(status))}</span></div>
     <div class="structure-actions">
-      <a class="btn btn-light" href="assets/templates/%D9%87%D9%8A%D9%83%D9%84%20%D8%A7%D9%84%D8%AD%D9%85%D9%84%D9%87.xlsx" download="هيكل الحمله.xlsx">تحميل قالب الهيكل</a>
+      <button class="btn btn-light" type="button" data-download-structure-template="${escapeHtml(task.id)}">تحميل قالب الهيكل بالأكواد</button>
       ${canUpload ? `<button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">إرفاق هيكل الحملة Excel</button>` : ''}
-      ${structure.fileName ? `<span class="structure-file-name structure-attached-label">تم إرفاق الهيكل</span><span class="structure-file-name">${escapeHtml(structure.fileName)}</span>` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
+      ${hasStructureFile ? `<span class="structure-file-name structure-attached-label">تم إرفاق الهيكل</span>${structure.fileName ? `<span class="structure-file-name">${escapeHtml(structure.fileName)}</span>` : ''}` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
       ${structure.fileData ? `<a class="btn btn-light" href="${escapeHtml(structure.fileData)}" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل الملف المرفوع</a>` : ''}
     </div>
     ${notesHtml}
@@ -4008,56 +4496,60 @@ function buildTaskDetailHtml(task){
   const admin = isCurrentUserAdmin();
   const steps = Array.isArray(task.steps) && task.steps.length ? task.steps : taskStepTemplate(task.departmentRole || 'other');
   const progress = taskProgress(task);
+  const isContentTask = isCampaignContentWritingTask(task);
+  const isStructureGenerated = !!task.structureRow;
   const campaignDate = campaign.campaign_date || campaign.campaignDate || campaign.createdAt || '';
   const endDate = campaign.publishSchedule?.slice?.(-1)?.[0]?.date || campaign.campaignEndDate || campaign.publishEndDate || campaign.endDate || campaign.publish_end_date || '';
+  const startDate = campaign.publishStartDate || campaign.publish_start_date || campaign.campaign_date || campaign.startDate || '';
   const requiredDate = taskRequiredDate(task, campaign);
   const requiredLeft = daysUntilRequiredText(requiredDate);
   const writerBrief = normalizeText(task.contentWriterBrief || task.campaignRequestBrief || campaign.content_writer_brief || campaign.contentWriterBrief || '');
-  const campaignGoalDisplay = isCampaignContentWritingTask(task) ? (writerBrief || campaign.campaign_goal || campaign.campaignGoal || '—') : (campaign.campaign_goal || campaign.campaignGoal || writerBrief || '—');
+  const campaignGoalDisplay = isContentTask ? (writerBrief || campaign.campaign_goal || campaign.campaignGoal || '—') : (campaign.campaign_goal || campaign.campaignGoal || '—');
   const waitingDependency = isTaskWaitingForDependency(task);
   const receiveAction = waitingDependency
     ? '<span class="btn btn-light static-chip waiting-chip">في انتظار اعتماد الهيكل</span>'
     : `<button type="button" class="btn btn-light receive-action ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تأكيد الاستلام'}</button>`;
-  return `<div class="task-modal-head"><div><span>التاسك والمطلوب</span><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div><button type="button" class="mini-btn" data-close-task-modal>إغلاق</button></div>
-    <div class="modal-section campaign-data-line"><div class="modal-section-title"><h3>بيانات الحملة</h3></div>
-      <div class="task-info-grid campaign-data-full">
-        <div><span>التاريخ</span><strong>${formatDateShort(campaignDate)}</strong></div>
-        <div class="wide"><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || task.campaignCode || '—')}</strong></div>
-        <div><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '—')}</strong></div>
-        <div><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || campaign.campaign_type || '—')}</strong></div>
-        <div class="wide"><span>هدف الحملة</span><strong>${escapeHtml(campaignGoalDisplay)}</strong></div>
-        <div><span>بداية الحملة</span><strong>${formatDateShort(campaign.campaign_date || campaign.startDate)}</strong></div>
-        <div class="date-highlight"><span>نهاية الحملة</span><strong>${formatDateShort(endDate)}</strong></div>
-        <div class="wide"><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(writerBrief || '—')}</strong></div>
+  const taskBriefBoxes = [];
+  if(!isContentTask) taskBriefBoxes.push(`<div class="brief-box"><span>رقم التاسك</span><strong>${escapeHtml(structureTaskNumber(task) || '—')}</strong></div>`);
+  taskBriefBoxes.push(`<div class="brief-box"><span>نوع المحتوى</span><strong>${escapeHtml(taskContentType(task) || '—')}</strong></div>`);
+  taskBriefBoxes.push(`<div class="brief-box"><span>نوع التاسك</span><strong>${escapeHtml(task.taskType || '—')}</strong></div>`);
+  taskBriefBoxes.push(`<div class="brief-box"><span>الكريتيف</span><strong>${escapeHtml(task.creative || task.product || '—')}</strong></div>`);
+  if(task.upstreamUserLabel) taskBriefBoxes.push(`<div class="brief-box"><span>تابع لمحتوى</span><strong>${escapeHtml(task.upstreamUserLabel)}</strong></div>`);
+  taskBriefBoxes.push(`<div class="brief-box"><span>السيارة المختارة</span><strong>${escapeHtml(task.selectedCar || task.carName || '')}</strong></div>`);
+  const contentRequiredBox = isContentTask ? `<div class="campaign-info-box wide"><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(writerBrief || '—')}</strong></div>` : '';
+  const structureDataHtml = task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>نوع المحتوى</span><strong>${escapeHtml(taskContentType(task) || '—')}</strong></div><div><span>الهدف</span><strong>${escapeHtml(task.structureRow.goal || '—')}</strong></div><div><span>الهدف الملموس</span><strong>${escapeHtml(task.structureRow.tangibleGoal || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : '';
+  const finalSection = progress >= 100 ? `<div class="modal-section attachment-section final-upload-section"><div class="modal-section-title"><h3>الملف النهائي</h3><span>متاح</span></div><button type="button" class="btn btn-primary" data-upload-task-attachment="final">رفع الملف النهائي</button><div id="taskUploadProgressInline" class="task-upload-progress-inline"></div>${renderAttachmentTable(task, 'final')}</div>` : '';
+  return `<div class="task-detail-fullscreen">
+    <div class="task-top-layout">
+      <div class="task-title-card"><div><span>التاسك والمطلوب</span><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div><button type="button" class="mini-btn task-close-btn" data-close-task-modal>إغلاق</button></div>
+      <div class="campaign-top-card"><div class="modal-section-title"><h3>بيانات الحملة</h3></div>
+        <div class="required-date-banner"><span>التاريخ المطلوب</span><strong>${formatDateShort(requiredDate)}</strong><em>${escapeHtml(requiredLeft)}</em></div>
+        <div class="campaign-info-compact">
+          <div class="campaign-info-box"><span>التاريخ</span><strong>${formatDateShort(campaignDate)}</strong></div>
+          <div class="campaign-info-box"><span>كود الحملة</span><strong>${escapeHtml(campaign.campaignCode || task.campaignCode || '—')}</strong></div>
+          <div class="campaign-info-box"><span>اسم الحملة</span><strong>${escapeHtml(campaign.campaignName || campaign.name || '—')}</strong></div>
+          <div class="campaign-info-box"><span>نوع الحملة</span><strong>${escapeHtml(campaign.campaignType || campaign.campaign_type || '—')}</strong></div>
+          <div class="campaign-info-box"><span>هدف الحملة</span><strong>${escapeHtml(campaignGoalDisplay)}</strong></div>
+          <div class="campaign-info-box"><span>بداية الحملة</span><strong>${formatDateShort(startDate)}</strong></div>
+          <div class="campaign-info-box"><span>نهاية الحملة</span><strong>${formatDateShort(endDate)}</strong></div>
+          ${contentRequiredBox}
+        </div>
       </div>
     </div>
-    <div class="modal-section task-brief-row task-brief-row-four">
-      <div class="brief-box"><span>رقم التاسك</span><strong>${escapeHtml(structureTaskNumber(task) || '—')}</strong></div>
-      <div class="brief-box"><span>نوع المحتوى</span><strong>${escapeHtml(taskContentType(task) || '—')}</strong></div>
-      <div class="brief-box"><span>نوع التاسك</span><strong>${escapeHtml(task.taskType || '—')}</strong></div>
-      <div class="brief-box"><span>الكريتيف</span><strong>${escapeHtml(task.creative || task.product || '—')}</strong></div>
-      ${task.upstreamUserLabel ? `<div class="brief-box"><span>تابع لمحتوى</span><strong>${escapeHtml(task.upstreamUserLabel)}</strong></div>` : ''}
-      <div class="brief-box"><span>السيارة المختارة</span><strong>${escapeHtml(task.selectedCar || task.carName || '')}</strong></div>
-    </div>
-    ${task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>الهدف</span><strong>${escapeHtml(task.structureRow.goal || '—')}</strong></div><div><span>الهدف الملموس</span><strong>${escapeHtml(task.structureRow.tangibleGoal || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : ''}
-    <div class="modal-section task-actions-section">
+    <div class="modal-section task-brief-row task-brief-row-compact">${taskBriefBoxes.join('')}</div>
+    ${structureDataHtml}
+    ${renderStructureSection(task)}
+    <div class="modal-section task-actions-section compact-actions-section">
       <div class="modal-section-title"><h3>إجراءات التكليف</h3><span>${progress}%</span></div>
-      <div class="task-deadline-row task-deadline-highlight"><span>التاريخ المطلوب: <b>${formatDateShort(requiredDate)}</b></span><strong>${escapeHtml(requiredLeft)}</strong></div>
-      <div class="task-mini-meta"><span>القسم: <b>${escapeHtml(taskDepartmentLabel(task))}</b></span><span>اليوزر: <b>${taskOwnerName(task)}</b></span><span>الحالة: <b>${receivedLabel(task)}</b></span></div>
       <div class="receive-action-row">${receiveAction}</div>
       <div class="modal-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
       <div class="modal-steps-grid">${steps.map((step, index) => `<button type="button" class="workflow-step ${step.done ? 'done' : ''}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''}><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن فقط</em>' : ''}</button>`).join('')}</div>
     </div>
-    ${renderStructureSection(task)}
-    <div class="modal-section attachment-section review-upload-section">
-      <div class="modal-section-title"><h3>ملفات المراجعة</h3><span>متاح دائمًا</span></div>
-      <button type="button" class="btn btn-light" data-upload-task-attachment="review">رفع ملف للمراجعة</button>
-      ${renderAttachmentTable(task, 'review')}
+    <div class="task-files-two-cols">
+      <div class="modal-section attachment-section review-upload-section"><div class="modal-section-title"><h3>ملفات المراجعة</h3><span>متاح دائمًا</span></div><button type="button" class="btn btn-light" data-upload-task-attachment="review">رفع ملف للمراجعة</button>${renderAttachmentTable(task, 'review')}</div>
+      ${finalSection}
     </div>
-    <div class="modal-section attachment-section final-upload-section">
-      <div class="modal-section-title"><h3>الملف النهائي</h3><span>${progress >= 100 ? 'متاح' : 'ينتظر 100%'}</span></div>
-      ${progress >= 100 ? `<button type="button" class="btn btn-primary" data-upload-task-attachment="final">رفع الملف النهائي</button>${renderAttachmentTable(task, 'final')}` : `<div class="prep-file-missing">زر رفع الملف النهائي يظهر هنا فقط عند وصول التاسك إلى 100%.</div>`}
-    </div>`;
+  </div>`;
 }
 function renderTaskDetail(taskId, campaignId = ''){
   const task = findTaskById(taskId, campaignId);
@@ -4133,6 +4625,8 @@ function buildCampaignTaskDocs(campaignId, payload){
             campaignId,
             campaignName: payload.campaignName || payload.name || '',
             campaignCode: payload.campaignCode || '',
+            creativeLinkCode: creativeLinkCodeForIndex(payload.campaignCode || '', creativeIndex),
+            campaignCreativeCode: creativeLinkCodeForIndex(payload.campaignCode || '', creativeIndex),
             creative: creativeRow.creative || '',
             product: creativeRow.product || '',
             selectedCars: unit.car ? [unit.car] : [],
@@ -4200,6 +4694,63 @@ async function createCampaignTasks(campaignId, payload){
 }
 
 
+function creativeLinkCodeForIndex(campaignCode, creativeIndex){
+  const base = normalizeText(campaignCode || '');
+  if(!base) return '';
+  return `${base}-C${String((Number(creativeIndex) || 0) + 1).padStart(2, '0')}`;
+}
+
+function campaignRecordForTask(task){
+  const campaignId = normalizeText(task?.campaignId || task?.campaign_id || task?.campaignDocId || '');
+  if(campaignId){
+    const byId = (campaigns || []).find(item => normalizeText(item.id || item.docId || item.campaignId || '') === campaignId);
+    if(byId) return byId;
+  }
+  const code = normalizeText(task?.campaignCode || task?.campaign_code || '');
+  if(code){
+    const byCode = (campaigns || []).find(item => normalizeText(campaignCodeText(item) || item.campaignCode || item.campaign_code || '') === code);
+    if(byCode) return byCode;
+  }
+  return null;
+}
+function campaignCodeForTask(task){
+  const direct = normalizeText(task?.campaignCode || task?.campaign_code || '');
+  if(direct) return direct.toUpperCase();
+  const campaign = campaignRecordForTask(task);
+  const fromCampaign = normalizeText(campaignCodeText(campaign) || campaign?.campaignCode || campaign?.campaign_code || '');
+  return fromCampaign ? fromCampaign.toUpperCase() : '';
+}
+function creativeIndexForTask(task){
+  const direct = Number(task?.creativeIndex);
+  if(Number.isFinite(direct) && direct >= 0) return direct;
+  const campaign = campaignRecordForTask(task);
+  const creativeName = identityClean(task?.creative || task?.product || task?.taskType || '').replace(identityClean('طلب هيكل'), '').trim();
+  const list = Array.isArray(campaign?.creatives) ? campaign.creatives : [];
+  if(creativeName && list.length){
+    const found = list.findIndex(item => identityClean(item?.creative || item?.product || item?.taskType || '').includes(creativeName) || creativeName.includes(identityClean(item?.creative || item?.product || item?.taskType || '')));
+    if(found >= 0) return found;
+  }
+  const copyIndex = Number(task?.taskCopyIndex || task?.copyIndex || 1) - 1;
+  return Number.isFinite(copyIndex) && copyIndex >= 0 ? copyIndex : 0;
+}
+function templateCreativeLinkCodeForTask(task){
+  const direct = normalizeText(task?.creativeLinkCode || task?.campaignCreativeCode || task?.creativeTaskCode || task?.structureCreativeLinkCode || extractCreativeLinkCodeFromTaskNo(task?.structureTaskNo || task?.taskNo || task?.structureRow?.taskNo || '')).toUpperCase();
+  if(direct) return direct;
+  const campaignCode = campaignCodeForTask(task);
+  return creativeLinkCodeForIndex(campaignCode, creativeIndexForTask(task)).toUpperCase();
+}
+function extractCreativeLinkCodeFromTaskNo(value){
+  const clean = normalizeText(value || '').toUpperCase();
+  if(!clean) return '';
+  const match = clean.match(/^(.+-C\d{2,})(?:-.+)?$/i);
+  return match ? match[1] : '';
+}
+function taskCreativeLinkCode(task){
+  const direct = normalizeText(task?.creativeLinkCode || task?.campaignCreativeCode || task?.creativeTaskCode || task?.structureCreativeLinkCode || extractCreativeLinkCodeFromTaskNo(task?.structureTaskNo || task?.taskNo || task?.structureRow?.taskNo || '')).toUpperCase();
+  if(direct) return direct;
+  return templateCreativeLinkCodeForTask(task);
+}
+
 function buildDepartmentTasks(campaignId, payload){
   return buildCampaignTaskDocs(campaignId, payload).map((task, index) => {
     const clean = { ...task };
@@ -4225,6 +4776,7 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
   const role = normalizeDepartmentRole(sectionName || dep.name || user.department || parentTask.departmentRole || '');
   const taskType = row.contentType || row.contentName || row.idea || 'تاسك من الهيكل';
   const taskNo = normalizeText(row.taskNo || '');
+  const structureCreativeLinkCode = extractCreativeLinkCodeFromTaskNo(taskNo) || taskCreativeLinkCode(parentTask) || '';
   const taskLabel = structureContentTaskLabel(row, taskType);
   const searchKeys = uniqueList([resolvedUserId, user.id, user.uid, user.email, user.emailLower, resolvedUserName, user.name, user.displayName, user.username].filter(Boolean));
   return normalizeCampaignTask({
@@ -4232,6 +4784,9 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
     campaignId: campaign.id,
     campaignName: campaign.campaignName || campaign.name || '',
     campaignCode: campaign.campaignCode || campaign.campaign_code || '',
+    creativeLinkCode: structureCreativeLinkCode,
+    campaignCreativeCode: structureCreativeLinkCode,
+    structureCreativeLinkCode,
     creative: parentTask.creative || parentTask.product || taskLabel,
     product: row.idea || row.contentName || row.description || row.contentType || parentTask.product || '',
     taskNo,
@@ -4326,6 +4881,11 @@ function waitingTaskMatchesStructureAddition(existing, addition, parentTask){
   const additionRole = normalizeDepartmentRole(addition.departmentRole || addition.assignedDepartmentName || addition.contentSectionName || '');
   if(existingRole !== additionRole) return false;
   if(!['montage','design','shooting','publish','other'].includes(existingRole)) return false;
+  const existingLinkCode = taskCreativeLinkCode(existing);
+  const additionLinkCode = taskCreativeLinkCode(addition);
+  if(existingLinkCode && additionLinkCode){
+    return existingLinkCode === additionLinkCode;
+  }
   if(!taskUserIdentityOverlaps(existing, addition)) return false;
   if(!taskCreativeMatchesParent(existing, parentTask)) return false;
   if(!taskDependsOnParentContent(existing, parentTask)) return false;
@@ -4337,7 +4897,31 @@ function mergeStructureAdditionIntoExistingTask(existing, addition, parentTask){
   const keepAttachments = Array.isArray(existing.attachments) ? existing.attachments : [];
   return {
     ...existing,
+    userId: addition.userId || existing.userId || '',
+    userUid: addition.userUid || existing.userUid || '',
+    userName: addition.userName || existing.userName || '',
+    userEmail: addition.userEmail || existing.userEmail || '',
+    assigneeUid: addition.assigneeUid || existing.assigneeUid || '',
+    assigneeName: addition.assigneeName || existing.assigneeName || '',
+    assigneeEmail: addition.assigneeEmail || existing.assigneeEmail || '',
+    assignedToUid: addition.assignedToUid || existing.assignedToUid || '',
+    assignedToId: addition.assignedToId || existing.assignedToId || '',
+    assignedToName: addition.assignedToName || existing.assignedToName || '',
+    assignedToEmail: addition.assignedToEmail || existing.assignedToEmail || '',
+    displayName: addition.displayName || existing.displayName || '',
+    username: addition.username || existing.username || '',
+    assignedToSearch: addition.assignedToSearch || existing.assignedToSearch || [],
+    searchKeys: addition.searchKeys || existing.searchKeys || [],
+    assignedDepartmentId: addition.assignedDepartmentId || existing.assignedDepartmentId || '',
+    assignedDepartmentName: addition.assignedDepartmentName || existing.assignedDepartmentName || '',
+    contentSectionId: addition.contentSectionId || existing.contentSectionId || '',
+    contentSectionName: addition.contentSectionName || existing.contentSectionName || '',
+    departmentRole: addition.departmentRole || existing.departmentRole || '',
+    creativeLinkCode: taskCreativeLinkCode(addition) || taskCreativeLinkCode(existing) || '',
+    campaignCreativeCode: taskCreativeLinkCode(addition) || taskCreativeLinkCode(existing) || '',
+    structureCreativeLinkCode: addition.structureCreativeLinkCode || taskCreativeLinkCode(addition) || existing.structureCreativeLinkCode || '',
     product: addition.product || existing.product || '',
+    taskType: addition.taskType || existing.taskType || '',
     taskNo: addition.taskNo || existing.taskNo || '',
     structureTaskNo: addition.structureTaskNo || existing.structureTaskNo || '',
     structureTaskLabel: addition.structureTaskLabel || existing.structureTaskLabel || '',
@@ -4633,8 +5217,9 @@ function collectCampaignRows(){
     if(panels.length){
       return panels.map(panel => {
         const creative = normalizeText(panel.dataset.creativeName || '');
-        const tasks = ['content','montage','design','shooting'].map(role => selectedRoleTaskFromPanel(panel, role)).filter(Boolean);
         const qty = Math.max(1, Math.min(50, Number(panel.querySelector('.js-creative-quantity')?.value || 1)));
+        const structureRequestTask = requestStructureTaskForCreative(creative, qty);
+        const tasks = [structureRequestTask, ...['montage','design','shooting'].map(role => selectedRoleTaskFromPanel(panel, role))].filter(Boolean);
         return {
           creative,
           quantity: qty,
@@ -4917,8 +5502,11 @@ async function saveCampaignToFirebase(){
   const publishStartDateValue = request.publish_start_date || document.getElementById('publishStartDate')?.value || '';
   const publishEndDateValue = request.publish_end_date || document.getElementById('publishEndDate')?.value || '';
   const typeItem = campaignTypes.find(type => type.id === document.getElementById('campaignTypeSelect')?.value || type.name === document.getElementById('campaignTypeSelect')?.value);
-  const campaignCode = document.getElementById('campaignCodeInput')?.value || '';
-  const nextCampaignSerial = Number(typeItem?.nextNumber) || 1;
+  const freshCampaignCode = typeItem ? nextCampaignCodeForType(typeItem) : '';
+  if(freshCampaignCode && document.getElementById('campaignCodeInput')) document.getElementById('campaignCodeInput').value = freshCampaignCode;
+  const campaignCode = freshCampaignCode || document.getElementById('campaignCodeInput')?.value || '';
+  const monthlyBaseCode = campaignMonthlyBaseCode(typeItem || {}, new Date());
+  const campaignMonthlySequence = campaignCodeSequenceFromBase(campaignCode, monthlyBaseCode) || 1;
   const payload = {
     ...request,
     campaignCode,
@@ -4926,7 +5514,7 @@ async function saveCampaignToFirebase(){
     campaignTypeId: typeItem?.id || request.campaign_type_id || '',
     campaignCodePrefix: typeItem?.prefix || '',
     campaignCodeShortCode: typeItem?.code || '',
-    campaignSerial: nextCampaignSerial,
+    campaignSerial: campaignMonthlySequence,
     campaignType: typeItem?.name || request.campaign_type || '',
     campaign_type: typeItem?.name || request.campaign_type || '',
     publishStartDate: publishStartDateValue,
@@ -4949,7 +5537,7 @@ async function saveCampaignToFirebase(){
   // تسمح فقط بمفاتيح محددة داخل marketing_campaigns. التلخيص يظهر في قاعدة البيانات
   // من departmentTasks مباشرة، وبكده الحفظ لا يقع في permission-denied.
   if(!campaignHasAssignedTasks(payload)){
-    showToast('الحملة لم تُحفظ: لازم تختار كريتيف وتربط يوزر واحد على الأقل من أقسام الكريتيف.');
+    showToast('الحملة لم تُحفظ: لازم تختار كريتيف وتحدد يوزر واحد على الأقل من يوزرات كتابة المحتوى أو الأقسام التنفيذية.');
     campaignWizardSetStep(2);
     return;
   }
@@ -4965,9 +5553,6 @@ async function saveCampaignToFirebase(){
     await docRef.set(finalPayload);
     const localCampaign = { ...finalPayload };
     campaigns = [localCampaign, ...campaigns.filter(item => item.id !== docRef.id)];
-    if(typeItem?.id){
-      await safeCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION).doc(typeItem.id).update({ nextNumber: nextCampaignSerial + 1, updatedAt: serverTime() });
-    }
     showToast('تم حفظ الحملة على Firebase.');
     renderAdminDashboard(); renderTasksPage();
     window.location.hash = '#campaigns';
@@ -5233,8 +5818,7 @@ function bindDepartments(){
     if(!name || !code) return;
     if(!mainDb){ showMessage('campaignTypeMessage', 'اتصال Firebase غير متاح.'); return; }
     try{
-      const oldItem = campaignTypes.find(item => item.id === id);
-      const payload = { name, code, prefix, nextNumber: Number(oldItem?.nextNumber) || 1, updatedAt: serverTime() };
+      const payload = { name, code, prefix, updatedAt: serverTime() };
       if(id) await safeCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION).doc(id).update(payload);
       else await safeCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION).add({ ...payload, createdAt: serverTime() });
       event.target.reset(); document.getElementById('campaignTypePrefix').value = 'MZJ'; resetForm(['campaignTypeEditId']); showMessage('campaignTypeMessage', 'تم حفظ نوع الحملة والكود.');
@@ -5591,7 +6175,7 @@ function shortCampaignTitle(campaign){
 function shortTaskName(task){
   const no = structureTaskNumber(task);
   const isCampaignWriting = typeof isCampaignContentWritingTask === 'function' && isCampaignContentWritingTask(task);
-  const name = isCampaignWriting ? 'كتابة محتوى حملة' : normalizeText(task.structureTaskLabel || task.creative || task.taskType || task.product || 'تاسك');
+  const name = isCampaignWriting ? normalizeText(task.taskType || task.structureTaskLabel || task.creative || 'كتابة محتوى') : normalizeText(task.structureTaskLabel || task.taskType || task.creative || task.product || 'تاسك');
   return escapeHtml(no && !name.includes(no) && !isCampaignWriting ? `${no} - ${name}` : name);
 }
 function receivedLabel(task){ return isTaskWaitingForDependency(task) ? 'في انتظار اعتماد الهيكل' : (task.received || task.receivedConfirmed ? 'تم الاستلام' : 'لم يستلم'); }
@@ -7066,7 +7650,7 @@ function isCampaignContentWritingPrepTask(task){
     task.title, task.name, task.taskName, task.taskType, task.requiredFile, task.contentSectionName,
     task.assignedDepartmentName, task.departmentRole, task.source, task.raw?.taskType, task.raw?.title
   ].filter(Boolean).join(' '));
-  return text.includes(identityClean('كتابة محتوى حملة')) || text.includes('campaigncontentwriting') || text.includes('contentwritingcampaign');
+  return text.includes(identityClean('كتابة محتوى حملة')) || text.includes(identityClean('كتابة محتوى')) || text.includes('campaigncontentwriting') || text.includes('contentwritingcampaign') || (text.includes('content') && text.includes('writing'));
 }
 function publishPrepTaskMatchesSearch(task, submission = {}){
   const q = identityClean(publishPrepSearchQuery || '');
@@ -8322,6 +8906,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if(removeLink){ await removeCampaignLink(removeLink.dataset.removeCampaignLink, removeLink.dataset.linkIndex); return; }
     const removeFile = event.target.closest('[data-remove-results-file]');
     if(removeFile){ await removeCampaignResultFile(removeFile.dataset.removeResultsFile); return; }
+    const downloadStructureTemplateBtn = event.target.closest('[data-download-structure-template]');
+    if(downloadStructureTemplateBtn){ await downloadStructureTemplateForTask(downloadStructureTemplateBtn.dataset.downloadStructureTemplate); return; }
     const uploadStructureBtn = event.target.closest('[data-upload-structure]');
     if(uploadStructureBtn){ const input = document.getElementById('structureFileInput'); if(input){ input.dataset.taskId = uploadStructureBtn.dataset.uploadStructure; input.value = ''; input.click(); } return; }
     const reloadStructureBtn = event.target.closest('[data-reload-structure-sheet]');

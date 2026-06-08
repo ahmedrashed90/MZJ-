@@ -108,7 +108,7 @@
         <div class="page-head campaign-builder-head">
           <div class="page-title">
             <h1>إنشاء حملة</h1>
-            <p>أنشئ الحملة بنظام خطوات: بيانات طلب كاتب المحتوى، ربط كل كريتيف باليوزرات، ثم جدول النشر والميزانية.</p>
+            <p>أنشئ الحملة بنظام خطوات: طلب الهيكل واختيار كتاب المحتوى، تحديد الكريتيف المطلوب للهيكل وربط الأقسام، ثم جدول النشر والميزانية.</p>
           </div>
           <div class="actions">
             <button class="btn btn-light" type="button" id="resetCampaignBuilder">مسح النموذج</button>
@@ -118,7 +118,7 @@
 
         <div class="campaign-wizard-nav" id="campaignWizardNav" aria-label="خطوات إنشاء الحملة">
           <button class="campaign-wizard-step active" type="button" data-campaign-wizard-target="1"><span>1</span><strong>بيانات طلب كاتب المحتوى</strong></button>
-          <button class="campaign-wizard-step" type="button" data-campaign-wizard-target="2"><span>2</span><strong>الكريتيفات والمهام</strong></button>
+          <button class="campaign-wizard-step" type="button" data-campaign-wizard-target="2"><span>2</span><strong>تحديد الكريتيف المطلوب للهيكل</strong></button>
           <button class="campaign-wizard-step" type="button" data-campaign-wizard-target="3"><span>3</span><strong>جدول النشر والميزانية</strong></button>
         </div>
 
@@ -133,17 +133,18 @@
               <label class="field"><span>كود الحملة</span><input id="campaignCodeInput" type="text" name="campaign_code" readonly placeholder="يظهر تلقائياً بعد اختيار نوع الحملة" /></label>
               <label class="field"><span>اسم الحملة</span><input type="text" name="campaign_name" /></label>
               <label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief" placeholder="اكتب المطلوب الذي سيظهر لكاتب المحتوى في داش بورد رفع الهيكل"></textarea></label>
+              <label class="field field-wide"><span>يوزرات كتابة المحتوى لطلب الهيكل</span><div class="multi-dropdown js-role-picker js-request-content-writers" data-role="content" aria-label="يوزرات كتابة المحتوى"><button class="multi-toggle" type="button">اختيار يوزرات كتابة المحتوى</button><div class="multi-menu"></div></div><small class="field-hint">اليوزرات المختارة هنا سيظهر لهم تاسك طلب الهيكل لكل كريتيف تختاره في الخطوة الثانية.</small></label>
               <label class="field"><span>موعد تسليم الهيكل</span><input type="date" name="structure_deadline" /></label>
             </form>
-            <div class="campaign-wizard-actions"><button class="btn btn-primary" type="button" data-campaign-wizard-next>التالي: الكريتيفات والمهام</button></div>
+            <div class="campaign-wizard-actions"><button class="btn btn-primary" type="button" data-campaign-wizard-next>التالي: تحديد الكريتيف المطلوب للهيكل</button></div>
           </section>
 
           <div class="builder-workspace">
             <div class="card campaign-section-card campaign-wizard-panel" data-campaign-wizard-step="2">
               <div class="section-toolbar">
                 <div>
-                  <h2>الكريتيفات والمهام</h2>
-                  <p>اختار الكريتيف، اكتب العدد، واربط كل كريتيف بالكامل بيوزرات الأقسام من داخل الكريتيف نفسه.</p>
+                  <h2>تحديد الكريتيف المطلوب للهيكل</h2>
+                  <p>اختار الكريتيف المطلوب في الهيكل، وحدد الأقسام التنفيذية التي ستنتظر اعتماد الهيكل ثم ترتبط تلقائيًا بالأكواد.</p>
                 </div>
               </div>
 
@@ -721,6 +722,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="assets/js/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="assets/js/jszip.min.js?v=131"></script>
+    <script src="assets/js/app.js?v=131"></script>
 </body>
 </html>
