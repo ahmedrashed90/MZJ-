@@ -2983,7 +2983,9 @@ function taskContentType(task){
 function taskDepartmentLabel(task){
   const role = task.departmentRole || normalizeDepartmentRole(task.assignedDepartmentName || task.departmentName || task.contentSectionName || '');
   const labels = {content:'قسم المحتوى', shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج', publish:'قسم النشر'};
-  if(task.structureGenerated || task.source === 'campaign-structure-distribution') return 'قسم المحتوى';
+  // تاسكات الهيكل الموزعة لازم تعرض قسم اليوزر الفعلي، مش قسم المحتوى.
+  // كان هنا بيرجع "قسم المحتوى" لكل structureGenerated وده سبب ظهور قسم غلط في تفاصيل تاسك المونتاج.
+
   if(labels[role]) return labels[role];
   const owner = findUserByAnyIdentity([task.assignedToUid, task.assignedToId, task.userUid, task.userId, task.assignedToEmail, task.userEmail, task.assignedToName, task.userName].filter(Boolean)) || {};
   return normalizeText(task.departmentName || task.assignedDepartmentName || owner.departmentName || owner.department || task.contentSectionName || 'غير محدد');
@@ -4007,7 +4009,7 @@ function buildTaskDetailHtml(task){
   const steps = Array.isArray(task.steps) && task.steps.length ? task.steps : taskStepTemplate(task.departmentRole || 'other');
   const progress = taskProgress(task);
   const campaignDate = campaign.campaign_date || campaign.campaignDate || campaign.createdAt || '';
-  const endDate = campaign.publishSchedule?.slice?.(-1)?.[0]?.date || campaign.campaignEndDate || campaign.endDate || campaign.publish_end_date || '';
+  const endDate = campaign.publishSchedule?.slice?.(-1)?.[0]?.date || campaign.campaignEndDate || campaign.publishEndDate || campaign.endDate || campaign.publish_end_date || '';
   const requiredDate = taskRequiredDate(task, campaign);
   const requiredLeft = daysUntilRequiredText(requiredDate);
   const writerBrief = normalizeText(task.contentWriterBrief || task.campaignRequestBrief || campaign.content_writer_brief || campaign.contentWriterBrief || '');
@@ -4218,8 +4220,9 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
   const user = findUserByAnyIdentity([assigneeId]) || {};
   const resolvedUserId = user.id || user.uid || assigneeId || '';
   const resolvedUserName = userName(user) || assigneeId || 'غير محدد';
-  const sectionName = row.contentType || parentTask.contentSectionName || 'المحتوى';
-  const role = normalizeDepartmentRole(sectionName);
+  const dep = departmentForUser(resolvedUserId || resolvedUserName) || {};
+  const sectionName = canonicalContentLabel(dep.name || user.department || parentTask.assignedDepartmentName || parentTask.contentSectionName || '');
+  const role = normalizeDepartmentRole(sectionName || dep.name || user.department || parentTask.departmentRole || '');
   const taskType = row.contentType || row.contentName || row.idea || 'تاسك من الهيكل';
   const taskNo = normalizeText(row.taskNo || '');
   const taskLabel = structureContentTaskLabel(row, taskType);
@@ -4234,7 +4237,7 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
     taskNo,
     structureTaskNo: taskNo,
     structureTaskLabel: taskLabel,
-    contentSectionId: parentTask.contentSectionId || parentTask.assignedDepartmentId || '',
+    contentSectionId: dep.id || parentTask.contentSectionId || parentTask.assignedDepartmentId || '',
     contentSectionName: sectionName,
     taskType,
     structureGenerated: true,
@@ -4269,7 +4272,7 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
     username: user.username || '',
     assignedToSearch: searchKeys,
     searchKeys,
-    assignedDepartmentId: parentTask.contentSectionId || parentTask.assignedDepartmentId || '',
+    assignedDepartmentId: dep.id || parentTask.contentSectionId || parentTask.assignedDepartmentId || '',
     assignedDepartmentName: sectionName,
     departmentRole: role,
     requiredDate: parentTask.requiredDate || parentTask.dueDate || '',
@@ -4911,9 +4914,8 @@ function collectBudgetRows(){
 async function saveCampaignToFirebase(){
   if(!mainDb){ showToast('اتصال Firebase غير متاح.'); return; }
   const request = getFormData(document.getElementById('campaignRequestForm'));
-  // تاريخ بداية/نهاية النشر موجودين داخل publishSchedule، ومش بنحفظهم كحقول مستقلة عشان مايكسرش قواعد Firestore القديمة.
-  delete request.publish_start_date;
-  delete request.publish_end_date;
+  const publishStartDateValue = request.publish_start_date || document.getElementById('publishStartDate')?.value || '';
+  const publishEndDateValue = request.publish_end_date || document.getElementById('publishEndDate')?.value || '';
   const typeItem = campaignTypes.find(type => type.id === document.getElementById('campaignTypeSelect')?.value || type.name === document.getElementById('campaignTypeSelect')?.value);
   const campaignCode = document.getElementById('campaignCodeInput')?.value || '';
   const nextCampaignSerial = Number(typeItem?.nextNumber) || 1;
@@ -4927,6 +4929,12 @@ async function saveCampaignToFirebase(){
     campaignSerial: nextCampaignSerial,
     campaignType: typeItem?.name || request.campaign_type || '',
     campaign_type: typeItem?.name || request.campaign_type || '',
+    publishStartDate: publishStartDateValue,
+    publishEndDate: publishEndDateValue,
+    campaignStartDate: publishStartDateValue,
+    campaignEndDate: publishEndDateValue,
+    startDate: publishStartDateValue,
+    endDate: publishEndDateValue,
     creatives: collectCampaignRows(),
     publishSchedule: collectPublishRows(),
     budgetItems: collectBudgetRows(),
@@ -5775,7 +5783,7 @@ async function togglePublishStage(campaignId, stage){
 }
 
 function campaignEndDate(campaign){
-  return campaign.publishSchedule?.slice?.(-1)?.[0]?.date || campaign.campaignEndDate || campaign.endDate || '';
+  return campaign.publishSchedule?.slice?.(-1)?.[0]?.date || campaign.campaignEndDate || campaign.publishEndDate || campaign.endDate || campaign.publish_end_date || '';
 }
 function campaignTasksByContent(campaign){
   return tasksForCampaign(campaign).reduce((acc, task) => {
