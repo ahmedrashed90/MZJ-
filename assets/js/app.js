@@ -2137,7 +2137,7 @@ function roleAssignmentBlock(role, label, hint=''){
   const isContent = role === 'content';
   const isDeferred = ['montage','design'].includes(role);
   const dateLabel = isContent ? 'ميعاد تسليم كاتب المحتوى' : `ميعاد تسليم ${label}`;
-  const dateNote = isDeferred ? 'يتحدد بعد اعتماد تاسك المحتوى من الأدمن.' : 'اختياري حسب احتياج الكريتيف.';
+  const dateNote = isDeferred ? 'يتحدد بعد اعتماد الهيكل.' : 'اختياري حسب احتياج الكريتيف.';
   const dateAttrs = isDeferred ? ' disabled data-deferred-deadline="true"' : '';
   return `<div class="creative-role-assignment" data-assignment-role="${escapeHtml(role)}">
     <div class="creative-role-title"><strong>${escapeHtml(label)}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ''}</div>
@@ -2167,7 +2167,7 @@ function creativeAssignmentPanelHtml(creativeName){
     </header>
     <div class="creative-assignment-inner-grid">
       ${roleAssignmentBlock('content','قسم المحتوى','كاتب المحتوى الذي سيظهر له تاسك بيانات الطلب ورفع الهيكل')}
-      ${roleAssignmentBlock('montage','قسم المونتاج','يبدأ في قائمة انتظار لحين اعتماد تاسك المحتوى')}
+      ${roleAssignmentBlock('montage','قسم المونتاج','قائمة انتظار حتى اعتماد الهيكل')}
       ${roleAssignmentBlock('design','قسم التصميم','اختياري حسب الكريتيف')}
       ${roleAssignmentBlock('shooting','قسم التصوير','اختياري حسب الكريتيف')}
     </div>
@@ -2418,7 +2418,7 @@ function selectedRoleTaskFromPanel(panel, role){
     departmentRole: role,
     dependencyRole: isDeferredAfterContent ? 'content' : '',
     waitingForApproval: isDeferredAfterContent,
-    waitingForApprovalLabel: isDeferredAfterContent ? 'في قائمة انتظار لحين اعتماد تاسك المحتوى من الأدمن ثم تحديد ميعاد التسليم' : '',
+    waitingForApprovalLabel: isDeferredAfterContent ? 'في انتظار اعتماد الهيكل' : '',
     upstreamRole: isDeferredAfterContent ? 'content' : '',
     upstreamUserIds: isDeferredAfterContent ? linkedContent.ids : [],
     upstreamUserNames: isDeferredAfterContent ? linkedContentNames : [],
@@ -2459,7 +2459,7 @@ function selectedRoleTaskFromRow(row, role){
     departmentRole: role,
     dependencyRole: isDeferredAfterContent ? 'content' : '',
     waitingForApproval: isDeferredAfterContent,
-    waitingForApprovalLabel: isDeferredAfterContent ? 'في قائمة انتظار لحين اعتماد تاسك المحتوى من الأدمن ثم تحديد ميعاد التسليم' : '',
+    waitingForApprovalLabel: isDeferredAfterContent ? 'في انتظار اعتماد الهيكل' : '',
     upstreamRole: isDeferredAfterContent ? 'content' : '',
     upstreamUserNames: isDeferredAfterContent ? contentUserNames : [],
     upstreamUserLabel: isDeferredAfterContent ? contentUserNames.join('، ') : '',
@@ -2935,6 +2935,13 @@ function taskDependencyApproved(task){
     if(role !== 'content') return false;
     const itemCreative = identityClean(item.creative || item.product || '');
     if(targetCreative && itemCreative && targetCreative !== itemCreative) return false;
+    const linkedIds = Array.isArray(task.dependsOnContentUserIds) ? task.dependsOnContentUserIds.map(identityClean).filter(Boolean) : [];
+    const linkedNames = Array.isArray(task.dependsOnContentUserNames) ? task.dependsOnContentUserNames.map(identityClean).filter(Boolean) : [];
+    if(linkedIds.length || linkedNames.length){
+      const itemIds = [item.userId, item.userUid, item.assignedToId, item.assignedToUid, item.assigneeUid, item.assignedToEmail, item.userEmail].map(identityClean).filter(Boolean);
+      const itemNames = [item.userName, item.assigneeName, item.assignedToName, item.displayName].map(identityClean).filter(Boolean);
+      return linkedIds.some(id => itemIds.includes(id)) || linkedNames.some(name => itemNames.includes(name));
+    }
     return true;
   });
   return contentTasks.some(item => {
@@ -4005,6 +4012,10 @@ function buildTaskDetailHtml(task){
   const requiredLeft = daysUntilRequiredText(requiredDate);
   const writerBrief = normalizeText(task.contentWriterBrief || task.campaignRequestBrief || campaign.content_writer_brief || campaign.contentWriterBrief || '');
   const campaignGoalDisplay = isCampaignContentWritingTask(task) ? (writerBrief || campaign.campaign_goal || campaign.campaignGoal || '—') : (campaign.campaign_goal || campaign.campaignGoal || writerBrief || '—');
+  const waitingDependency = isTaskWaitingForDependency(task);
+  const receiveAction = waitingDependency
+    ? '<span class="btn btn-light static-chip waiting-chip">في انتظار اعتماد الهيكل</span>'
+    : `<button type="button" class="btn btn-light receive-action ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تأكيد الاستلام'}</button>`;
   return `<div class="task-modal-head"><div><span>التاسك والمطلوب</span><h2>${shortTaskName(task)}</h2><p>${escapeHtml([campaign.campaignName || campaign.name, campaign.campaignCode || task.campaignCode].filter(Boolean).join(' · '))}</p></div><button type="button" class="mini-btn" data-close-task-modal>إغلاق</button></div>
     <div class="modal-section campaign-data-line"><div class="modal-section-title"><h3>بيانات الحملة</h3></div>
       <div class="task-info-grid campaign-data-full">
@@ -4031,7 +4042,7 @@ function buildTaskDetailHtml(task){
       <div class="modal-section-title"><h3>إجراءات التكليف</h3><span>${progress}%</span></div>
       <div class="task-deadline-row task-deadline-highlight"><span>التاريخ المطلوب: <b>${formatDateShort(requiredDate)}</b></span><strong>${escapeHtml(requiredLeft)}</strong></div>
       <div class="task-mini-meta"><span>القسم: <b>${escapeHtml(taskDepartmentLabel(task))}</b></span><span>اليوزر: <b>${taskOwnerName(task)}</b></span><span>الحالة: <b>${receivedLabel(task)}</b></span></div>
-      <div class="receive-action-row"><button type="button" class="btn btn-light receive-action ${task.received || task.receivedConfirmed ? 'done' : ''}" data-toggle-received="${escapeHtml(task.id)}">${task.received || task.receivedConfirmed ? 'تم الاستلام' : 'تأكيد الاستلام'}</button></div>
+      <div class="receive-action-row">${receiveAction}</div>
       <div class="modal-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
       <div class="modal-steps-grid">${steps.map((step, index) => `<button type="button" class="workflow-step ${step.done ? 'done' : ''}" data-task-step="${escapeHtml(task.id)}" data-step-index="${index}" ${step.adminOnly && !admin ? 'disabled' : ''}><span>${escapeHtml(step.label)}</span><strong>${Number(step.percent || 0)}%</strong>${step.adminOnly ? '<em>أدمن فقط</em>' : ''}</button>`).join('')}</div>
     </div>
@@ -5449,8 +5460,8 @@ function shortTaskName(task){
   const name = isCampaignWriting ? 'كتابة محتوى حملة' : normalizeText(task.structureTaskLabel || task.creative || task.taskType || task.product || 'تاسك');
   return escapeHtml(no && !name.includes(no) && !isCampaignWriting ? `${no} - ${name}` : name);
 }
-function receivedLabel(task){ return task.received || task.receivedConfirmed ? 'تم الاستلام' : 'لم يستلم'; }
-function receivedClass(task){ return task.received || task.receivedConfirmed ? 'is-done' : 'is-waiting'; }
+function receivedLabel(task){ return isTaskWaitingForDependency(task) ? 'في انتظار اعتماد الهيكل' : (task.received || task.receivedConfirmed ? 'تم الاستلام' : 'لم يستلم'); }
+function receivedClass(task){ return isTaskWaitingForDependency(task) ? 'is-structure-waiting' : (task.received || task.receivedConfirmed ? 'is-done' : 'is-waiting'); }
 function taskOwnerName(task){ return escapeHtml(task.assignedToName || task.assigneeName || task.userName || 'بدون مسؤول'); }
 function campaignTasksSnapshot(campaign){
   const related = adminDashboardTasksForCampaign(campaign);
@@ -5492,7 +5503,7 @@ function renderUserDashboard(){
     const progress = taskProgress(task);
     const waitingDependency = isTaskWaitingForDependency(task);
     const waitingFinal = !completed && !waitingDependency && progress >= 100;
-    const statusText = waitingDependency ? (task.waitingForApprovalLabel || 'قائمة انتظار حتى اعتماد تاسك المحتوى') : (completed ? 'تم رفع الملف النهائي' : (waitingFinal ? 'ينتظر رفع الملف النهائي' : (task.received || task.receivedConfirmed ? 'مستلم' : 'قيد التنفيذ')));
+    const statusText = waitingDependency ? (task.waitingForApprovalLabel || 'في انتظار اعتماد الهيكل') : (completed ? 'تم رفع الملف النهائي' : (waitingFinal ? 'ينتظر رفع الملف النهائي' : (task.received || task.receivedConfirmed ? 'مستلم' : 'قيد التنفيذ')));
     const actionHtml = waitingDependency
       ? `<span class="btn btn-light static-chip waiting-chip">قائمة انتظار</span>`
       : (completed
@@ -5512,12 +5523,12 @@ function renderUserDashboard(){
     <div class="user-dashboard-toolbar user-dashboard-toolbar-clean">
       <div class="user-theme-panel user-theme-panel-floating">
         <label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label>
-        <button class="mini-btn" type="button" id="clearUserThemeBtn">استرجاع الثيم الافتراضي</button>
+        <button class="mini-btn" type="button" id="clearUserThemeBtn">الثيم الافتراضي</button>
         <button type="button" class="mini-btn" id="toggleCompletedTasksBtn" data-open="0" data-count="${done}">عرض التاسكات المنتهية (${done})</button>
       </div>
     </div>
     <div class="user-pro-hero user-pro-hero-clean"><div><span class="pro-kicker">MZJ Workspace</span><h2>أهلاً ${escapeHtml(getCurrentUserIdentity().name || 'بيك')}</h2><p>تاسكاتك الحالية حسب نوع المحتوى والحملات المسندة لك فقط.</p></div><div class="exec-stats"><span>📌 ${activeTasks.length} تاسك</span><span>⏳ ${waitingTasks.length} قائمة انتظار</span><span>✅ ${received} مستلم</span><span>🏁 ${done} ملف نهائي</span></div></div>
-    ${waitingTasks.length ? `<section class="waiting-tasks-panel"><div class="content-type-title"><h3>قائمة انتظار المونتاج/التصميم</h3><span>${waitingTasks.length} تاسك</span></div><p class="waiting-panel-note">التاسكات دي هتتحول لتاسكات تنفيذ أول ما الأدمن يعتمد تاسك المحتوى المرتبط بنفس الكريتيف.</p><div class="content-type-list">${waitingTasks.map(task => taskCard(task, false)).join('')}</div></section>` : ''}
+    ${waitingTasks.length ? `<section class="waiting-tasks-panel"><div class="content-type-title"><h3>قائمة انتظار المونتاج/التصميم</h3><span>${waitingTasks.length} تاسك</span></div><div class="content-type-list">${waitingTasks.map(task => taskCard(task, false)).join('')}</div></section>` : ''}
     ${renderGroups(groups, false)}
     <section class="completed-tasks-panel" id="completedTasksPanel" hidden>
       <div class="completed-tasks-head"><h3>التاسكات المنتهية</h3><span>${done} تاسك تم رفع ملفه النهائي</span></div>
@@ -7606,7 +7617,7 @@ async function clearCurrentUserTheme(){
     if(found) found.themeSettings = null;
     applyEffectiveTheme();
     renderAdminDashboard();
-    showToast('تم مسح الخلفية واسترجاع الثيم الافتراضي.');
+    showToast('تم تطبيق الثيم الافتراضي.');
   }catch(error){
     console.error('Clear user theme error', error);
     showToast(error.message || 'تعذر مسح الثيم. راجع قواعد Firebase.');
@@ -7879,7 +7890,7 @@ function bindSettings(){
     applyEffectiveTheme();
     fillSettingsForm();
     renderThemeImagePreview({});
-    showMessage('themeSettingsMessage','تم استرجاع الثيم الافتراضي ومسح الخلفية.');
+    showMessage('themeSettingsMessage','تم تطبيق الثيم الافتراضي ومسح الخلفية.');
   });
   document.getElementById('themeImageInput')?.addEventListener('change', async event => {
     const file = event.target.files?.[0];

@@ -4541,3 +4541,5 @@ body.creative-popup-open{
 .content-montage-row-users input{width:16px;height:16px;accent-color:#8f5144}
 .content-montage-link-options .multi-empty{padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.8);font-size:12px;color:#9b756a;text-align:center}
 #creativeAssignmentPopup .js-role-picker[data-role="montage"] .multi-toggle::after{content:' (من ربط المحتوى)';font-size:10px;color:#9b756a;font-weight:800}
+.state-chip.is-structure-waiting{background:#fff1e8;color:#7d3f2d;border-color:#e7c7b7}
+.waiting-dependency .task-metric-row b{color:#7d3f2d}
