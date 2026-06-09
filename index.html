@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=156" />
+  <link rel="stylesheet" href="assets/css/style.css?v=162" />
   <link rel="icon" type="image/x-icon" href="assets/favicon.png">
 </head>
 <body>
@@ -133,7 +133,7 @@
               <label class="field"><span>كود الحملة</span><input id="campaignCodeInput" type="text" name="campaign_code" readonly placeholder="يظهر تلقائياً بعد اختيار نوع الحملة" /></label>
               <label class="field"><span>اسم الحملة</span><input type="text" name="campaign_name" /></label>
               <label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief" placeholder="اكتب المطلوب الذي سيظهر لكاتب المحتوى في داش بورد رفع الهيكل"></textarea></label>
-              <label class="field field-wide"><span>يوزرات كتابة المحتوى لطلب الهيكل</span><div class="multi-dropdown js-role-picker js-request-content-writers" data-role="content" aria-label="يوزرات كتابة المحتوى"><button class="multi-toggle" type="button">اختيار يوزرات كتابة المحتوى</button><div class="multi-menu"></div></div><small class="field-hint">اليوزرات المختارة هنا سيظهر لهم تاسك طلب الهيكل لكل كريتيف تختاره في الخطوة الثانية.</small></label>
+              <label class="field field-wide"><span>يوزرات كتابة المحتوى لطلب الهيكل</span><div class="multi-dropdown js-role-picker js-request-content-writers" data-role="content" aria-label="يوزرات كتابة المحتوى"><button class="multi-toggle" type="button">اختيار يوزرات كتابة المحتوى</button><div class="multi-menu"></div></div><small class="field-hint">اليوزرات المختارة هنا سيظهر لهم تاسك طلب هيكل واحد للحملة، حتى لو اخترت أكثر من كريتيف في الخطوة الثانية.</small></label>
               <label class="field"><span>موعد تسليم الهيكل</span><input type="date" name="structure_deadline" /></label>
             </form>
             <div class="campaign-wizard-actions"><button class="btn btn-primary" type="button" data-campaign-wizard-next>التالي: تحديد الكريتيف المطلوب للهيكل</button></div>
@@ -724,6 +724,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="assets/js/jszip.min.js?v=160"></script>
-    <script src="assets/js/app.js?v=160"></script>
+    <script src="assets/js/app.js?v=162"></script>
 </body>
 </html>

@@ -9926,3 +9926,192 @@ async function downloadStructureTemplateForTaskExact(task){
     closeStructureDistributionPopup();
   };
 })();
+
+// v161 fix: تجهيز النشر يقرأ تاسكات الهيكل الموزعة بعد اختيار المنصات وتاريخ النشر.
+(function(){
+  function prepHasPublishingMetaV161(task){
+    if(!task) return false;
+    const publishing = Array.isArray(task.platformPublishing) ? task.platformPublishing : [];
+    const platforms = Array.isArray(task.platforms) ? task.platforms : (task.platform ? [task.platform] : []);
+    return !!(
+      publishing.length ||
+      platforms.length ||
+      normalizeText(task.publishDate || task.date || task.scheduleDate || task.scheduledDate || '') ||
+      normalizeText(task.caption || task.hashtags || task.hashtagsText || '') ||
+      (task.platformTypes && Object.keys(task.platformTypes || {}).length)
+    );
+  }
+  function prepIsStructureDistributionTaskV161(task){
+    const source = normalizeText(task?.source || task?.raw?.source || '');
+    return !!(task?.structureGenerated || task?.parentStructureTaskId || source.includes('campaign-structure-distribution'));
+  }
+  function prepTaskAssignedV161(task){
+    if(isCurrentUserAdmin()) return true;
+    return taskAssignedToCurrentUser(task) || currentUserMatchesTaskExact(task);
+  }
+  function prepNormalizeExistingTaskV161(task){
+    const campaign = campaignForPrepTask(task) || campaignForTask(task) || {};
+    const row = task.structureRow || task.raw?.structureRow || {};
+    const base = {
+      id: `task_${task.id || task.taskId || task.code || task.taskNo || Math.random().toString(36).slice(2)}`,
+      sourceType: task.sourceType || (prepIsStructureDistributionTaskV161(task) ? 'structure' : 'campaign'),
+      sourceLabel: task.sourceLabel || (prepIsStructureDistributionTaskV161(task) ? 'هيكل' : (campaign.campaignName || campaign.name ? 'حملة' : 'تاسك')),
+      title: shortTaskName?.(task) || task.title || task.name || task.taskName || task.structureTaskLabel || row.contentType || 'تاسك تجهيز نشر',
+      campaignName: campaign.campaignName || campaign.name || task.campaignName || '',
+      type: row.contentType || prepTaskTypeLabel(task),
+      requiredFile: prepTaskRequiredFileLabel(task),
+      platforms: normalizePrepPlatformList(task.platforms || task.platform || campaign.platforms || campaign.platform),
+      platformTypes: task.platformTypes || {},
+      platformPublishing: Array.isArray(task.platformPublishing) ? task.platformPublishing : [],
+      postType: task.postType || task.publishType || '',
+      postTypeLabel: task.postTypeLabel || '',
+      requiredDimensions: task.requiredDimensions || null,
+      caption: task.caption || task.copy || campaign.caption || '',
+      hashtags: task.hashtags || task.hashtagsText || campaign.hashtags || '',
+      publishDate: prepTaskDate(task, campaign),
+      publishTime: task.publishTime || task.scheduleTime || '',
+      deadline: task.deadline || task.dueDate || task.requiredDate || '',
+      notes: task.notes || task.note || task.instructions || task.description || row.description || '',
+      raw: task
+    };
+    return enrichPrepTaskFromSchedule(base, campaign, task);
+  }
+  publishPrepTasksFromExistingTasks = function(){
+    const visible = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser() : campaignTasks;
+    return (visible || [])
+      .filter(task => {
+        if(!prepTaskAssignedV161(task)) return false;
+        if(isCampaignContentWritingPrepTask(task)) return false;
+        const isStructure = prepIsStructureDistributionTaskV161(task);
+        const hasPublishing = prepHasPublishingMetaV161(task);
+        // تاسكات الهيكل التي تم تجهيز بيانات النشر لها تظهر حتى لو كانت بانتظار الاستلام أو اعتماد سابق.
+        if(isStructure && hasPublishing) return true;
+        return !isTaskWaitingForDependency(task);
+      })
+      .map(prepNormalizeExistingTaskV161);
+  };
+  if(getRoute && getRoute() === 'publish-prep') renderPublishPrepPage();
+})();
+
+
+// v162: one structure request per campaign row, no content section inside creative step, link execution roles to all step-1 content writers.
+(function(){
+  const oldEnsurePanelHasAllRoleAssignmentsV162 = ensurePanelHasAllRoleAssignments;
+  ensurePanelHasAllRoleAssignments = function(panel){
+    if(!panel) return panel;
+    const grid = panel.querySelector('.creative-assignment-inner-grid');
+    if(!grid) return panel;
+    // قسم المحتوى يتحدد من الخطوة الأولى فقط، لذلك لا يظهر داخل ربط الكرييتيف.
+    grid.querySelectorAll('[data-assignment-role="content"]').forEach(block => block.remove());
+    const creativeName = normalizeText(panel.dataset.creativeName || '');
+    const mainRole = creativeDepartmentRole(creativeName);
+    const existingRoles = new Set([...grid.querySelectorAll('[data-assignment-role]')].map(block => block.dataset.assignmentRole).filter(Boolean));
+    const orderedRoles = [mainRole, ...['shooting','design','montage'].filter(role => role !== mainRole)];
+    orderedRoles.forEach(role => {
+      if(existingRoles.has(role)) return;
+      const holder = document.createElement('div');
+      const hint = role === mainRole ? 'القسم التنفيذي المرتبط تلقائيًا بنوع الكرييتيف' : 'قسم إضافي متاح للحملة عند الحاجة';
+      holder.innerHTML = roleAssignmentBlock(role, defaultRoleSectionName(role), hint);
+      const block = holder.firstElementChild;
+      if(block) grid.appendChild(block);
+    });
+    return panel;
+  };
+
+  function combinedStructureRequestTaskForCreatives(creatives, quantity = 1){
+    const assignees = campaignRequestContentAssignees();
+    if(!assignees.ids.length && !assignees.names.length) return null;
+    const dep = findDepartmentByRole('content') || {};
+    const requestForm = document.getElementById('campaignRequestForm');
+    const brief = normalizeText(requestForm?.querySelector('[name="content_writer_brief"]')?.value || '');
+    const structureDeadline = normalizeText(requestForm?.querySelector('[name="structure_deadline"]')?.value || '');
+    const names = uniqueList((creatives || []).map(normalizeText).filter(Boolean));
+    const label = names.length > 1 ? `هيكل حملة - ${names.length} كرييتيف` : (names[0] ? `طلب هيكل - ${names[0]}` : 'طلب هيكل');
+    return {
+      contentSectionId: dep.id || 'content',
+      contentSectionName: dep.name || defaultRoleSectionName('content'),
+      taskType: label,
+      creativeBundleNames: names,
+      structureBundleTask: true,
+      quantity: 1,
+      requiredDate: structureDeadline ? structureDeadline.slice(0, 10) : '',
+      requiredDateTime: structureDeadline,
+      structureDeadline,
+      contentWriterBrief: brief,
+      campaignRequestBrief: brief,
+      needsStructureUpload: true,
+      structureRequestTask: true,
+      sourceRequestStep: 'campaign_request_data',
+      userIds: assignees.ids,
+      userNames: assignees.names,
+      departmentRole: 'content',
+      departmentCode: roleCode('content'),
+      userCodes: userCodesForTask({ userIds: assignees.ids, userNames: assignees.names }),
+      status: 'pending'
+    };
+  }
+
+  const oldCollectCampaignRowsV162 = collectCampaignRows;
+  collectCampaignRows = function(){
+    return [...document.querySelectorAll('#creativeRows .creative-row-card')].flatMap(row => {
+      const panels = [...row.querySelectorAll('.creative-assignment-panel')].map(syncPanelDynamicState);
+      const cars = selectedCarsFromRow(row);
+      if(panels.length){
+        const panelCreatives = uniqueList(panels.map(panel => normalizeText(panel.dataset.creativeName || '')).filter(Boolean));
+        let structureRequestAdded = false;
+        const structureRequest = combinedStructureRequestTaskForCreatives(panelCreatives, 1);
+        return panels.map(panel => {
+          const creative = normalizeText(panel.dataset.creativeName || '');
+          const qty = Math.max(1, Math.min(50, Number(panel.querySelector('.js-creative-quantity')?.value || 1)));
+          const executionTasks = ['montage','design','shooting'].map(role => selectedRoleTaskFromPanel(panel, role)).filter(Boolean);
+          const tasks = [];
+          if(structureRequest && !structureRequestAdded){
+            tasks.push(structureRequest);
+            structureRequestAdded = true;
+          }
+          tasks.push(...executionTasks);
+          return {
+            creative,
+            creativeShortCode: creativeShortCodeForName(creative),
+            quantity: qty,
+            tasks,
+            departmentAssignments: Object.fromEntries(tasks.map(t => [normalizeDepartmentRole(t.departmentRole || t.contentSectionName || ''), { userIds: t.userIds || [], userNames: t.userNames || [], userCodes: t.userCodes || [], departmentCode: t.departmentCode || roleCode(t.departmentRole || '') }]).filter(([role]) => role)),
+            product: creativeProductLabel(creative, panel),
+            selectedCars: cars,
+            workflowMode: 'creative_user_wizard',
+            assignmentMode: 'per_creative_full_binding',
+            contentWritersSource: 'campaign_request_step'
+          };
+        }).filter(item => item.creative || item.tasks.length || item.product || item.selectedCars.length);
+      }
+      return oldCollectCampaignRowsV162 ? oldCollectCampaignRowsV162.call(this).filter(Boolean) : [];
+    });
+  };
+
+  const oldBuildDepartmentTasksV162 = buildDepartmentTasks;
+  buildDepartmentTasks = function(campaignId, payload){
+    const rawTasks = oldBuildDepartmentTasksV162 ? oldBuildDepartmentTasksV162(campaignId, payload) : [];
+    const structureTasks = rawTasks.filter(task => task?.needsStructureUpload && task?.sourceRequestStep === 'campaign_request_data');
+    if(structureTasks.length <= 1) return rawTasks;
+    const keep = { ...structureTasks[0] };
+    const names = uniqueList(structureTasks.flatMap(task => [task.assignedToName, task.assigneeName, task.userName, ...(Array.isArray(task.userNames) ? task.userNames : [])].filter(Boolean)));
+    const ids = uniqueList(structureTasks.flatMap(task => [task.assignedToId, task.assignedToUid, task.assigneeUid, task.userId, task.userUid, ...(Array.isArray(task.userIds) ? task.userIds : [])].filter(Boolean)));
+    const emails = uniqueList(structureTasks.flatMap(task => [task.assignedToEmail, task.assigneeEmail, task.userEmail].filter(Boolean)));
+    const search = uniqueList(structureTasks.flatMap(task => [task.assignedToSearch, task.searchKeys, task.assignedToId, task.assignedToUid, task.assignedToName, task.assignedToEmail, task.userId, task.userName, task.userEmail]).flat().filter(Boolean));
+    keep.userIds = ids;
+    keep.userNames = names;
+    keep.assignedToIds = ids;
+    keep.assignedToNames = names;
+    keep.assignedToEmails = emails;
+    keep.assignedUsers = ids.map((id, i) => ({ id, name: names[i] || id, email: emails[i] || '' }));
+    keep.assignedToName = names.join('، ') || keep.assignedToName;
+    keep.assigneeName = keep.assignedToName;
+    keep.userName = keep.assignedToName;
+    keep.assignedToSearch = search;
+    keep.searchKeys = search;
+    keep.taskType = keep.taskType && keep.taskType.includes('هيكل حملة') ? keep.taskType : (keep.creativeBundleNames?.length > 1 ? `هيكل حملة - ${keep.creativeBundleNames.length} كرييتيف` : keep.taskType);
+    const structureIds = new Set(structureTasks.map(t => t.id));
+    const out = [keep, ...rawTasks.filter(task => !structureIds.has(task.id))];
+    return out.map((task, index) => ({ ...task, id: task.id || `${campaignId}-task-${String(index + 1).padStart(3,'0')}` }));
+  };
+})();
