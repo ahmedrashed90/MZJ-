@@ -5904,3 +5904,525 @@ body.creative-popup-open{
   min-height:38px!important;
   padding:5px 8px!important;
 }
+
+/* v132: عرض الهيكل بعد الرفع بحجم كامل بدل البلوكات الصغيرة، وبدون تاسكات فاضية */
+#taskModal.has-structure-sheet-modal .structure-workbook-unified,
+.structure-workbook-unified{
+  overflow:visible!important;
+  height:auto!important;
+  max-height:none!important;
+}
+#taskModal.has-structure-sheet-modal .structure-workbook-grid,
+.structure-workbook-grid{
+  display:block!important;
+  direction:rtl!important;
+  height:auto!important;
+  min-height:0!important;
+  overflow:visible!important;
+}
+#taskModal.has-structure-sheet-modal .structure-workbook-grid > .structure-sheet-block.compact-structure-section,
+.structure-workbook-grid > .structure-sheet-block.compact-structure-section{
+  display:block!important;
+  height:auto!important;
+  min-height:0!important;
+  margin:0 0 14px!important;
+  overflow:visible!important;
+}
+#taskModal.has-structure-sheet-modal .structure-workbook-grid .structure-table-wrap.full-sheet,
+.structure-workbook-grid .structure-table-wrap.full-sheet{
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:auto!important;
+  width:100%!important;
+}
+#taskModal.has-structure-sheet-modal .structure-workbook-grid > .structure-section-execution .structure-table-wrap.full-sheet,
+.structure-workbook-grid > .structure-section-execution .structure-table-wrap.full-sheet{
+  max-height:none!important;
+  overflow:auto!important;
+}
+#taskModal.has-structure-sheet-modal .structure-workbook-grid .structure-table.compact-excel-section,
+.structure-workbook-grid .structure-table.compact-excel-section{
+  min-width:1180px!important;
+  table-layout:auto!important;
+}
+
+/* v133: make uploaded structure sheet readable and stop tiny inner panels */
+#taskModal.has-structure-sheet-modal .task-modal-dialog,
+#taskModal.task-fullscreen-view.has-structure-sheet-modal .task-modal-dialog{
+  overflow:auto!important;
+}
+#taskModal.has-structure-sheet-modal #taskModalContent,
+#taskModal.has-structure-sheet-modal .task-detail-fullscreen,
+#taskModal.task-fullscreen-view.has-structure-sheet-modal #taskModalContent,
+#taskModal.task-fullscreen-view.has-structure-sheet-modal .task-detail-fullscreen{
+  height:auto!important;
+  min-height:0!important;
+  overflow:visible!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+#taskModal.has-structure-sheet-modal .structure-section,
+#taskModal.task-fullscreen-view.has-structure-sheet-modal .structure-section{
+  height:auto!important;
+  max-height:none!important;
+  min-height:0!important;
+  overflow:visible!important;
+  display:block!important;
+}
+#taskModal.has-structure-sheet-modal .structure-workbook-view.structure-workbook-unified,
+#taskModal.has-structure-sheet-modal .structure-workbook-unified,
+#taskModal.has-structure-sheet-modal .structure-workbook-grid,
+.structure-workbook-view.structure-workbook-unified,
+.structure-workbook-unified,
+.structure-workbook-grid{
+  height:auto!important;
+  max-height:none!important;
+  min-height:0!important;
+  overflow:visible!important;
+  display:block!important;
+  direction:rtl!important;
+}
+#taskModal.has-structure-sheet-modal .structure-workbook-grid > .structure-sheet-block.compact-structure-section,
+.structure-workbook-grid > .structure-sheet-block.compact-structure-section{
+  height:auto!important;
+  max-height:none!important;
+  min-height:0!important;
+  overflow:visible!important;
+  display:block!important;
+  margin:0 0 16px!important;
+}
+#taskModal.has-structure-sheet-modal .structure-table-wrap.full-sheet,
+.structure-table-wrap.full-sheet{
+  height:auto!important;
+  max-height:none!important;
+  min-height:0!important;
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+  width:100%!important;
+}
+#taskModal.has-structure-sheet-modal .structure-section-execution .structure-table-wrap.full-sheet,
+.structure-section-execution .structure-table-wrap.full-sheet{
+  max-height:none!important;
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+}
+#taskModal.has-structure-sheet-modal .structure-section-execution .structure-table.compact-excel-section,
+#taskModal.has-structure-sheet-modal .structure-section-execution .full-structure-table,
+.structure-section-execution .structure-table.compact-excel-section,
+.structure-section-execution .full-structure-table{
+  min-width:1260px!important;
+  width:max-content!important;
+  table-layout:auto!important;
+}
+#taskModal.has-structure-sheet-modal .task-actions-section,
+#taskModal.task-fullscreen-view.has-structure-sheet-modal .task-actions-section{
+  display:block!important;
+  position:relative!important;
+  z-index:5!important;
+}
+
+
+/* v134 structure upload fixes: show uploaded workbook as clean vertical sections, no overlap */
+.structure-workbook-grid.structure-workbook-vertical,
+#taskModal.has-structure-sheet-modal .structure-workbook-grid.structure-workbook-vertical{
+  display:block!important;
+  grid-template-areas:none!important;
+  grid-template-columns:none!important;
+  gap:0!important;
+  overflow:visible!important;
+}
+.structure-workbook-grid.structure-workbook-vertical > .structure-sheet-block.compact-structure-section,
+#taskModal.has-structure-sheet-modal .structure-workbook-grid.structure-workbook-vertical > .structure-sheet-block.compact-structure-section{
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:auto!important;
+  min-height:0!important;
+  margin:0 0 14px!important;
+  grid-area:auto!important;
+  overflow:hidden!important;
+}
+.structure-workbook-grid.structure-workbook-vertical .structure-table-wrap.full-sheet,
+#taskModal.has-structure-sheet-modal .structure-workbook-grid.structure-workbook-vertical .structure-table-wrap.full-sheet{
+  width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:auto!important;
+}
+.structure-workbook-grid.structure-workbook-vertical .structure-section-execution .structure-table-wrap.full-sheet,
+#taskModal.has-structure-sheet-modal .structure-workbook-grid.structure-workbook-vertical .structure-section-execution .structure-table-wrap.full-sheet{
+  max-height:70vh!important;
+}
+.structure-workbook-grid.structure-workbook-vertical .full-structure-table,
+#taskModal.has-structure-sheet-modal .structure-workbook-grid.structure-workbook-vertical .full-structure-table{
+  width:max-content!important;
+  min-width:100%!important;
+  table-layout:auto!important;
+}
+.structure-workbook-grid.structure-workbook-vertical .full-structure-table td,
+#taskModal.has-structure-sheet-modal .structure-workbook-grid.structure-workbook-vertical .full-structure-table td{
+  white-space:normal!important;
+  min-width:120px!important;
+  max-width:360px!important;
+  height:auto!important;
+  line-height:1.5!important;
+}
+
+/* v136: readable uploaded structure view, no squeezed Excel preview */
+.structure-readable-view,
+#taskModal.has-structure-sheet-modal .structure-readable-view{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:12px!important;
+  width:100%!important;
+  max-width:none!important;
+  overflow:visible!important;
+  height:auto!important;
+}
+.structure-readable-card{
+  width:100%!important;
+  max-width:none!important;
+  border:1px solid rgba(91,48,38,.18)!important;
+  border-radius:16px!important;
+  overflow:hidden!important;
+  background:#fff!important;
+  box-shadow:0 8px 24px rgba(43,22,17,.05)!important;
+}
+.structure-readable-card h4{
+  margin:0!important;
+  padding:12px 14px!important;
+  text-align:center!important;
+  font-size:14px!important;
+  font-weight:900!important;
+  color:#1f2937!important;
+  border-bottom:1px solid rgba(91,48,38,.14)!important;
+}
+.structure-readable-logic h4{background:#d9ead3!important;}
+.structure-readable-writing h4{background:#d8e8fb!important;}
+.structure-readable-execution h4{background:#fff0c7!important;}
+.structure-readable-table-wrap{
+  width:100%!important;
+  max-width:none!important;
+  overflow:auto!important;
+  max-height:none!important;
+}
+.structure-readable-table{
+  width:100%!important;
+  border-collapse:collapse!important;
+  table-layout:fixed!important;
+  direction:rtl!important;
+}
+.structure-readable-table th,
+.structure-readable-table td{
+  border:1px solid #e6d7cf!important;
+  padding:10px 12px!important;
+  vertical-align:top!important;
+  font-size:13px!important;
+  line-height:1.65!important;
+  white-space:pre-wrap!important;
+  word-break:normal!important;
+  overflow-wrap:break-word!important;
+  text-align:right!important;
+}
+.structure-readable-table th{
+  background:#2f3a45!important;
+  color:#fff!important;
+  font-weight:900!important;
+  width:230px!important;
+}
+.structure-rules-list{
+  margin:0!important;
+  padding:14px 34px!important;
+  display:grid!important;
+  gap:8px!important;
+  list-style:disc!important;
+}
+.structure-rules-list li{
+  font-size:13px!important;
+  line-height:1.7!important;
+  font-weight:700!important;
+}
+.structure-readable-execution .execution-scroll{
+  overflow:auto!important;
+  max-height:75vh!important;
+}
+.structure-readable-execution .execution-table{
+  min-width:1500px!important;
+  width:max-content!important;
+  table-layout:auto!important;
+}
+.structure-readable-execution .execution-table th{
+  position:sticky!important;
+  top:0!important;
+  z-index:1!important;
+  background:#2f3a45!important;
+  color:#fff!important;
+  text-align:center!important;
+  min-width:120px!important;
+}
+.structure-readable-execution .execution-table td{
+  min-width:120px!important;
+  max-width:260px!important;
+}
+.structure-readable-execution .execution-table td:nth-child(3){
+  background:#e8f0fe!important;
+  font-weight:900!important;
+  text-align:center!important;
+  min-width:210px!important;
+}
+#taskModal.has-structure-sheet-modal .task-modal-dialog,
+#taskModal.task-fullscreen-view.has-structure-sheet-modal .task-modal-dialog{
+  overflow:auto!important;
+}
+#taskModal.has-structure-sheet-modal .structure-section,
+#taskModal.task-fullscreen-view.has-structure-sheet-modal .structure-section{
+  overflow:visible!important;
+  max-height:none!important;
+  height:auto!important;
+}
+
+
+/* v136: readable uploaded structure view - no squeezed Excel preview */
+#taskModal.has-structure-sheet-modal .structure-readable-view,
+.structure-readable-view{
+  display:flex!important;
+  flex-direction:column!important;
+  grid-template-columns:none!important;
+  gap:16px!important;
+  width:100%!important;
+  max-width:none!important;
+  overflow:visible!important;
+}
+#taskModal.has-structure-sheet-modal .structure-readable-card,
+.structure-readable-card{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  border:1px solid var(--border)!important;
+  border-radius:16px!important;
+  background:#fff!important;
+  box-shadow:0 10px 24px rgba(72,42,27,.07)!important;
+  overflow:hidden!important;
+}
+.structure-readable-card h4{
+  margin:0!important;
+  padding:14px 18px!important;
+  text-align:center!important;
+  font-weight:900!important;
+}
+.structure-readable-logic h4{background:#d9ead3!important;color:#193514!important;}
+.structure-readable-writing h4{background:#d7e8fb!important;color:#14324f!important;}
+.structure-readable-execution h4{background:#fff0c2!important;color:#4a2c18!important;}
+#taskModal.has-structure-sheet-modal .structure-readable-table-wrap,
+.structure-readable-table-wrap{
+  width:100%!important;
+  max-height:none!important;
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+}
+.structure-readable-table{
+  width:100%!important;
+  border-collapse:collapse!important;
+  table-layout:auto!important;
+  direction:rtl!important;
+}
+.structure-readable-table th,
+.structure-readable-table td{
+  border:1px solid #ead7cd!important;
+  padding:12px 14px!important;
+  vertical-align:middle!important;
+  white-space:normal!important;
+  line-height:1.8!important;
+  font-size:13px!important;
+}
+.structure-readable-table th{
+  background:#2f3a45!important;
+  color:#fff!important;
+  font-weight:900!important;
+  text-align:center!important;
+}
+.structure-readable-table td{
+  background:#fff!important;
+  color:#1f1f1f!important;
+  text-align:right!important;
+}
+.structure-readable-execution .structure-readable-table-wrap{
+  overflow-x:auto!important;
+  max-height:none!important;
+}
+.structure-readable-execution .execution-table{
+  min-width:1800px!important;
+}
+.structure-readable-execution .execution-table th,
+.structure-readable-execution .execution-table td{
+  min-width:130px!important;
+}
+.structure-readable-execution .execution-table th:nth-child(3),
+.structure-readable-execution .execution-table td:nth-child(3){min-width:220px!important;}
+.structure-readable-execution .execution-table th:nth-child(9),
+.structure-readable-execution .execution-table td:nth-child(9),
+.structure-readable-execution .execution-table th:nth-child(10),
+.structure-readable-execution .execution-table td:nth-child(10),
+.structure-readable-execution .execution-table th:nth-child(12),
+.structure-readable-execution .execution-table td:nth-child(12){
+  background:#fffdf7!important;
+  min-width:190px!important;
+}
+.structure-readable-table [data-structure-cell]{cursor:pointer!important;position:relative!important;}
+.structure-readable-table [data-structure-cell]:hover{outline:2px solid rgba(159,87,68,.35)!important;outline-offset:-2px!important;}
+.structure-readable-table .marked-cell{background:#fff3cd!important;box-shadow:inset 0 0 0 2px #d9923b!important;}
+.structure-readable-table .cell-note-badge{margin-top:6px;background:#ffe4dc;color:#6f2d20;border-radius:8px;padding:5px 8px;font-size:12px;font-weight:800;}
+
+/* v137: عرض الهيكل المرفوع بشكل مقروء وكامل بدون ضغط Excel */
+#taskModal.has-structure-sheet-modal .structure-readable-view,
+.structure-readable-view{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:16px!important;
+  width:100%!important;
+  overflow:visible!important;
+}
+#taskModal.has-structure-sheet-modal .structure-readable-card,
+.structure-readable-card{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  border:1px solid rgba(91,48,38,.18)!important;
+  border-radius:18px!important;
+  background:#fff!important;
+  overflow:visible!important;
+  box-shadow:0 8px 24px rgba(91,48,38,.06)!important;
+}
+.structure-readable-card h4{
+  margin:0!important;
+  padding:12px 14px!important;
+  text-align:center!important;
+  font-weight:900!important;
+  color:#1f302f!important;
+  border-bottom:1px solid rgba(91,48,38,.13)!important;
+}
+.structure-readable-logic h4{background:#dbeed5!important;}
+.structure-readable-writing h4{background:#d8e9fb!important;}
+.structure-readable-execution h4{background:#fff0c8!important;}
+#taskModal.has-structure-sheet-modal .structure-readable-table-wrap,
+.structure-readable-table-wrap{
+  max-height:none!important;
+  height:auto!important;
+  overflow:visible!important;
+  border:0!important;
+  border-radius:0!important;
+  background:#fff!important;
+}
+#taskModal.has-structure-sheet-modal .structure-readable-table-wrap.execution-scroll,
+.structure-readable-table-wrap.execution-scroll{
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+  max-height:none!important;
+}
+.structure-readable-table{
+  width:100%!important;
+  border-collapse:collapse!important;
+  table-layout:auto!important;
+  direction:rtl!important;
+}
+.structure-readable-table th,
+.structure-readable-table td{
+  border:1px solid rgba(91,48,38,.16)!important;
+  padding:10px 12px!important;
+  font-size:13px!important;
+  line-height:1.65!important;
+  white-space:pre-wrap!important;
+  word-break:normal!important;
+  overflow-wrap:anywhere!important;
+  vertical-align:top!important;
+  text-align:right!important;
+}
+.structure-readable-table th{
+  background:#2f3a45!important;
+  color:#fff!important;
+  font-weight:900!important;
+  width:260px!important;
+  min-width:180px!important;
+}
+.structure-readable-table td{background:#fff!important;color:#221712!important;}
+.structure-readable-writing .structure-readable-table td{
+  font-size:14px!important;
+  padding:12px 18px!important;
+}
+.structure-readable-writing .structure-readable-table td:before{
+  content:'•';
+  margin-left:8px;
+  font-weight:900;
+}
+.structure-readable-execution .structure-readable-table{
+  min-width:1280px!important;
+  table-layout:fixed!important;
+}
+.structure-readable-execution .structure-readable-table th{
+  background:#2f3a45!important;
+  color:#fff!important;
+  text-align:center!important;
+  position:sticky!important;
+  top:0!important;
+  z-index:1!important;
+  min-width:auto!important;
+  width:auto!important;
+}
+.structure-readable-execution .structure-readable-table td{
+  text-align:center!important;
+  min-height:54px!important;
+}
+.structure-readable-execution .structure-readable-table td:nth-child(3){
+  background:#e8f0fe!important;
+  font-weight:900!important;
+  direction:ltr!important;
+}
+.structure-help-bar{display:flex!important;gap:10px!important;align-items:center!important;justify-content:space-between!important;}
+.structure-help-bar span{white-space:normal!important;}
+.cell-note-badge{margin-top:6px!important;background:#fff3b0!important;border:1px solid #d6b450!important;border-radius:10px!important;padding:6px!important;color:#3b2b07!important;font-weight:800!important;}
+.marked-cell{outline:2px solid #f59e0b!important;outline-offset:-2px!important;background:#fff8db!important;}
+.has-cell-note{box-shadow:inset 0 0 0 2px #f6c453!important;}
+@media(max-width:900px){
+  .structure-readable-table th{width:160px!important;min-width:140px!important;}
+  .structure-readable-table th,.structure-readable-table td{font-size:12px!important;padding:8px!important;}
+  .structure-readable-execution .structure-readable-table{min-width:1100px!important;}
+}
+
+/* v138: structure review popup and readable workbook layout */
+.structure-review-popup{position:fixed;inset:0;z-index:9999;direction:rtl;font-family:inherit;}
+.structure-review-backdrop{position:absolute;inset:0;background:rgba(20,10,6,.45);backdrop-filter:blur(2px);}
+.structure-review-dialog{position:relative;margin:2vh auto;width:min(96vw,1800px);max-height:96vh;background:#fffaf6;border:1px solid #e5c7b8;border-radius:22px;box-shadow:0 26px 80px rgba(64,32,22,.28);display:flex;flex-direction:column;overflow:hidden;}
+.structure-review-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 22px;border-bottom:1px solid #ead1c4;background:#fff5ee;}
+.structure-review-head h3{margin:0;color:#3f241d;font-size:24px;font-weight:900;}
+.structure-review-head p{margin:5px 0 0;color:#9b7667;font-weight:700;}
+.structure-review-body{padding:18px;overflow:auto;max-height:calc(96vh - 150px);}
+.structure-review-actions{display:flex;gap:10px;justify-content:flex-start;padding:14px 22px;border-top:1px solid #ead1c4;background:#fff8f2;}
+.structure-uploaded-message{margin:12px 0;padding:14px 16px;border:1px dashed #d7b7a6;border-radius:14px;background:#fff6ef;color:#7c4d3e;font-weight:800;}
+.structure-readable-view{display:grid;grid-template-columns:minmax(420px,1.1fr) minmax(420px,.9fr);gap:16px;align-items:start;}
+.structure-readable-view .structure-help-bar{grid-column:1/-1;display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 14px;border:1px solid #ead1c4;border-radius:14px;background:#fff8f2;color:#704434;font-weight:800;}
+.structure-readable-card{border:1px solid #dfc0b0;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 10px 22px rgba(80,45,30,.06);}
+.structure-readable-card h4{margin:0;padding:12px 14px;text-align:center;font-weight:900;border-bottom:1px solid #d9c6b8;}
+.structure-readable-logic h4{background:#d9ead3;color:#163a19;}
+.structure-readable-writing h4{background:#dbeafe;color:#1f3b57;}
+.structure-readable-execution{grid-column:1/-1;}
+.structure-readable-execution h4{background:#fff0c7;color:#553019;}
+.structure-readable-table-wrap{overflow:auto;max-height:none;}
+.structure-readable-table{width:100%;border-collapse:collapse;table-layout:fixed;direction:rtl;}
+.structure-readable-table th,.structure-readable-table td{border:1px solid #e0cfc4;padding:12px 14px;vertical-align:top;line-height:1.7;white-space:pre-wrap;word-break:break-word;font-size:14px;}
+.structure-readable-table th{width:260px;background:#2f3d49;color:#fff;text-align:right;font-weight:900;}
+.structure-readable-table td{background:#fff;color:#221712;}
+.structure-readable-writing .structure-readable-table td{font-size:15px;padding:10px 18px;}
+.structure-readable-writing .structure-readable-table td::before{content:'• ';font-weight:900;color:#4f2c22;}
+.structure-readable-execution .structure-readable-table-wrap{max-height:60vh;overflow:auto;}
+.structure-readable-execution .execution-table{min-width:1450px;table-layout:auto;}
+.structure-readable-execution th{position:sticky;top:0;z-index:1;background:#2f3d49;color:#fff;text-align:center;width:auto;min-width:130px;}
+.structure-readable-execution td{text-align:center;min-width:130px;background:#fff;}
+.structure-readable-execution td:nth-child(3){background:#e8f1ff;font-weight:900;direction:ltr;}
+.structure-readable-table [data-structure-cell]{cursor:pointer;}
+.structure-readable-table [data-structure-cell]:hover{outline:2px solid #b85f4f;outline-offset:-2px;background:#fff7ed;}
+.structure-readable-table .marked-cell{background:#fff3cd!important;box-shadow:inset 0 0 0 2px #d9904c;}
+.structure-readable-table .has-cell-note{background:#ffe8e1!important;}
+.structure-readable-table .cell-note-badge{margin-top:6px;padding:6px 8px;border-radius:10px;background:#fff1ed;color:#8a3d2d;font-size:12px;font-weight:800;text-align:right;}
+@media (max-width: 1000px){.structure-readable-view{grid-template-columns:1fr}.structure-review-dialog{width:98vw;margin:1vh auto}.structure-review-body{padding:10px}}
