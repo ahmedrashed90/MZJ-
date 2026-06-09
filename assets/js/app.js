@@ -4007,12 +4007,39 @@ function filterStructureSectionRowsForDisplay(type, rows){
     return structureDisplayRowHasRealExecutionData(row);
   });
 }
-function structureDistributionRows(structure){
+function normalizeStructureRowReviewStatus(value){
+  const raw = normalizeText(value || '').toLowerCase();
+  if(raw === 'rejected' || raw.includes('مرفوض')) return 'rejected';
+  if(raw === 'needs_changes' || raw === 'changes' || raw.includes('تعديل')) return 'needs_changes';
+  if(raw === 'approved' || raw === 'accepted' || raw.includes('مقبول')) return 'approved';
+  return 'approved';
+}
+function structureRowReviewKey(row, index = 0){
+  const no = normalizeText(row?.taskNo || row?.structureTaskNo || '');
+  const writer = normalizeText(row?.writerCode || row?.contentWriterCode || row?.raw?.['كود كاتب المحتوى'] || row?.raw?.['كود كاتب المحتوي'] || '');
+  const type = normalizeText(row?.contentType || row?.contentName || '');
+  return no || `${writer}::${type}::${Number(index) + 1}`;
+}
+function structureRowsWithReviewStatus(structure){
   const fromTables = parseExecutionRowsFromSheetTables(structure);
   const source = fromTables.length ? fromTables : (Array.isArray(structure?.parsedRows) ? structure.parsedRows : []);
+  const statuses = structure?.rowReviewStatuses || {};
   return source
     .filter(isRealStructureDistributionRow)
-    .map((row, index) => ({ ...row, contentType: normalizeText(row?.contentType || row?.contentName || row?.idea || row?.description || 'نوع محتوى'), taskNo: normalizeText(row?.taskNo || '') || `T${String(index + 1).padStart(2, '0')}` }));
+    .map((row, index) => {
+      const normalized = { ...row, contentType: normalizeText(row?.contentType || row?.contentName || row?.idea || row?.description || 'نوع محتوى'), taskNo: normalizeText(row?.taskNo || '') || `T${String(index + 1).padStart(2, '0')}` };
+      const key = structureRowReviewKey(normalized, index);
+      return { ...normalized, reviewKey: key, reviewStatus: normalizeStructureRowReviewStatus(statuses[key] || normalized.reviewStatus || 'approved') };
+    });
+}
+function structureDistributionRows(structure){
+  if(Array.isArray(structure?.approvedRows) && structure.approvedRows.length){
+    return structure.approvedRows
+      .filter(isRealStructureDistributionRow)
+      .map((row, index) => ({ ...row, contentType: normalizeText(row?.contentType || row?.contentName || row?.idea || row?.description || 'نوع محتوى'), taskNo: normalizeText(row?.taskNo || '') || `T${String(index + 1).padStart(2, '0')}`, reviewStatus: 'approved' }));
+  }
+  const rows = structureRowsWithReviewStatus(structure);
+  return rows.filter(row => normalizeStructureRowReviewStatus(row.reviewStatus) === 'approved');
 }
 function structureTaskNumber(task){
   return normalizeText(task?.structureTaskNo || task?.taskNo || task?.structureRow?.taskNo || '');
@@ -4245,6 +4272,7 @@ function renderReadableStructureWorkbookTable(task, structure, admin){
     ['writerRequest','المطلوب من الكاتب'],
     ['cta','CTA']
   ];
+  const rowReviewStatuses = structure.rowReviewStatuses || {};
   function readableCellAttrs(section, rowIndex, colIndex, value){
     if(!admin) return '';
     return `data-structure-cell="${escapeHtml(task.id)}" data-sheet-name="${escapeHtml(section)}" data-row-index="${escapeHtml(rowIndex)}" data-col-index="${escapeHtml(colIndex)}" data-cell-value="${escapeHtml(value || '')}" title="دبل كليك لإضافة ملاحظة"`;
@@ -4264,12 +4292,19 @@ function renderReadableStructureWorkbookTable(task, structure, admin){
     const meta = noteBadges('readable-writing', index, 0);
     return `<tr><td class="${escapeHtml(meta.className)}" ${readableCellAttrs('readable-writing', index, 0, rule)}>${escapeHtml(rule)}${meta.html}</td></tr>`;
   }).join('')}</tbody></table></div>` : '<div class="empty-state mini-empty">لا توجد قواعد كتابة مضافة في الشيت.</div>'}</section>`;
-  const body = rows.map((row, rowIndex) => `<tr>${executionHeaders.map(([key], colIndex) => {
-    const value = row[key] || '';
-    const meta = noteBadges('readable-execution', rowIndex, colIndex);
-    return `<td class="${escapeHtml(meta.className)}" ${readableCellAttrs('readable-execution', rowIndex, colIndex, value)}>${escapeHtml(value)}${meta.html}</td>`;
-  }).join('')}</tr>`).join('');
-  const executionHtml = `<section class="structure-readable-card structure-readable-execution"><h4>Content Execution Direction - آلية تنفيذ المحتوى</h4><div class="structure-readable-table-wrap execution-scroll"><table class="structure-readable-table execution-table"><thead><tr>${executionHeaders.map(([,label]) => `<th>${escapeHtml(label)}</th>`).join('')}</tr></thead><tbody>${body || `<tr><td colspan="${executionHeaders.length}">لم يتم قراءة تاسكات تنفيذ محتوى من الملف.</td></tr>`}</tbody></table></div></section>`;
+  const body = rows.map((row, rowIndex) => {
+    const reviewKey = row.reviewKey || structureRowReviewKey(row, rowIndex);
+    const currentStatus = normalizeStructureRowReviewStatus(rowReviewStatuses[reviewKey] || row.reviewStatus || 'approved');
+    const reviewCell = admin ? `<td class="structure-row-review-cell"><div class="structure-row-review" data-row-review-key="${escapeHtml(reviewKey)}"><button type="button" class="mini-btn ${currentStatus === 'approved' ? 'active success' : ''}" data-set-structure-row-status="approved" data-task-id="${escapeHtml(task.id)}" data-row-key="${escapeHtml(reviewKey)}">مقبول</button><button type="button" class="mini-btn ${currentStatus === 'needs_changes' ? 'active warn' : ''}" data-set-structure-row-status="needs_changes" data-task-id="${escapeHtml(task.id)}" data-row-key="${escapeHtml(reviewKey)}">تعديل</button><button type="button" class="mini-btn ${currentStatus === 'rejected' ? 'active danger' : ''}" data-set-structure-row-status="rejected" data-task-id="${escapeHtml(task.id)}" data-row-key="${escapeHtml(reviewKey)}">مرفوض</button></div></td>` : '';
+    return `<tr data-structure-review-row="${escapeHtml(reviewKey)}">${admin ? reviewCell : ''}${executionHeaders.map(([key], colIndex) => {
+      const value = row[key] || '';
+      const meta = noteBadges('readable-execution', rowIndex, colIndex);
+      return `<td class="${escapeHtml(meta.className)}" ${readableCellAttrs('readable-execution', rowIndex, colIndex, value)}>${escapeHtml(value)}${meta.html}</td>`;
+    }).join('')}</tr>`;
+  }).join('');
+  const statusHead = admin ? '<th>حالة الصف</th>' : '';
+  const emptyColspan = executionHeaders.length + (admin ? 1 : 0);
+  const executionHtml = `<section class="structure-readable-card structure-readable-execution"><h4>Content Execution Direction - آلية تنفيذ المحتوى</h4><div class="structure-readable-table-wrap execution-scroll"><table class="structure-readable-table execution-table"><thead><tr>${statusHead}${executionHeaders.map(([,label]) => `<th>${escapeHtml(label)}</th>`).join('')}</tr></thead><tbody>${body || `<tr><td colspan="${emptyColspan}">لم يتم قراءة تاسكات تنفيذ محتوى من الملف.</td></tr>`}</tbody></table></div></section>`;
   return `<div class="structure-workbook-view structure-readable-view"><div class="structure-help-bar"><strong>محتوى الحملة</strong><span>تم عرض الهيكل بشكل مقروء. دبل كليك على أي خلية لإضافة ملاحظة.</span></div>${logicHtml}${rulesHtml}${executionHtml}</div>`;
 }
 function renderStructureWorkbookTable(task, structure, admin){
@@ -5589,11 +5624,33 @@ async function addStructureNote(taskId){
   const notes = [...(Array.isArray(structure.notes) ? structure.notes : []), { id: `note-${Date.now()}`, rowIndex: rows[rowIndex] ? rowIndex : 0, field, note, createdAt: new Date().toISOString(), createdBy: getCurrentUser().email || getCurrentUser().name || '' }];
   await updateTaskOnFirebase(task.id, { structure: { ...structure, status: 'needs_changes', notes, reviewedAt: new Date().toISOString() } });
 }
+async function setStructureRowReviewStatus(taskId, rowKey, status){
+  const task = findTaskById(taskId);
+  if(!task || !rowKey) return;
+  const structure = taskStructure(task);
+  const rowReviewStatuses = { ...(structure.rowReviewStatuses || {}) };
+  rowReviewStatuses[rowKey] = normalizeStructureRowReviewStatus(status);
+  await updateTaskOnFirebase(task.id, { structure: encodeStructureWorkbookForFirestore({ ...structure, rowReviewStatuses, status: structure.status === 'approved' ? 'pending_review' : (structure.status || 'pending_review'), reviewedAt: new Date().toISOString(), reviewedBy: getCurrentUser().email || getCurrentUser().name || '' }) });
+  const popup = document.querySelector('.structure-review-popup');
+  if(popup){
+    const row = popup.querySelector(`[data-structure-review-row="${CSS.escape(String(rowKey))}"]`);
+    if(row){
+      row.querySelectorAll('[data-set-structure-row-status]').forEach(btn => {
+        const active = normalizeStructureRowReviewStatus(btn.dataset.setStructureRowStatus) === rowReviewStatuses[rowKey];
+        btn.classList.toggle('active', active);
+        btn.classList.toggle('success', active && rowReviewStatuses[rowKey] === 'approved');
+        btn.classList.toggle('warn', active && rowReviewStatuses[rowKey] === 'needs_changes');
+        btn.classList.toggle('danger', active && rowReviewStatuses[rowKey] === 'rejected');
+      });
+    }
+  }
+  showToast('تم تحديث حالة الصف.');
+}
 async function setStructureStatus(taskId, status){
   const task = findTaskById(taskId);
   if(!task) return;
   let structure = taskStructure(task);
-  if(status === 'approved' && structure.fileData && !structureDistributionRows(structure).length){
+  if(status === 'approved' && structure.fileData && !structureRowsWithReviewStatus(structure).length){
     try{
       showToast('جاري قراءة صفوف الهيكل...');
       const parsed = await parseStructureDataUrl(structure.fileData);
@@ -5602,9 +5659,24 @@ async function setStructureStatus(taskId, status){
       console.error('Structure approve parse error', error);
     }
   }
-  const rowsCount = status === 'approved' ? structureDistributionRows(structure).length : 0;
-  await updateTaskOnFirebase(task.id, { structure: encodeStructureWorkbookForFirestore({ ...structure, status, reviewedAt: new Date().toISOString(), reviewedBy: getCurrentUser().email || getCurrentUser().name || '' }) });
-  if(status === 'approved') showToast(rowsCount ? `تم اعتماد الهيكل واستخراج ${rowsCount} صف للتوزيع.` : 'تم اعتماد الهيكل، لكن لم يتم استخراج صفوف. اضغط إعادة قراءة الشيت أو راجع صفوف نوع المحتوى.');
+  let finalStatus = status;
+  let approvedRows = Array.isArray(structure.approvedRows) ? structure.approvedRows : [];
+  let rowsCount = 0;
+  if(status === 'approved'){
+    const reviewedRows = structureRowsWithReviewStatus(structure);
+    approvedRows = reviewedRows.filter(row => normalizeStructureRowReviewStatus(row.reviewStatus) === 'approved');
+    rowsCount = approvedRows.length;
+    const hasNeedsChanges = reviewedRows.some(row => normalizeStructureRowReviewStatus(row.reviewStatus) === 'needs_changes');
+    if(!rowsCount && hasNeedsChanges) finalStatus = 'needs_changes';
+    if(!rowsCount && !hasNeedsChanges) finalStatus = 'pending_review';
+    structure = { ...structure, approvedRows };
+  }
+  await updateTaskOnFirebase(task.id, { structure: encodeStructureWorkbookForFirestore({ ...structure, status: finalStatus, reviewedAt: new Date().toISOString(), reviewedBy: getCurrentUser().email || getCurrentUser().name || '' }) });
+  if(status === 'approved'){
+    if(rowsCount) showToast(`تم اعتماد ${rowsCount} صف مقبول للتوزيع.`);
+    else if(finalStatus === 'needs_changes') showToast('تم حفظ الصفوف المطلوبة للتعديل. يقدر كاتب المحتوى يرفع الهيكل مرة أخرى.');
+    else showToast('لا توجد صفوف مقبولة للتوزيع. اختار مقبول لصف واحد على الأقل أو راجع صفوف نوع المحتوى.');
+  }
 }
 
 function getFormData(form){
@@ -9378,6 +9450,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if(structureCell){
       if(structureCell.classList.contains('protected-structure-title')) return;
       await toggleStructureCellMark(structureCell.dataset.structureCell, structureCell.dataset.sheetName || '', structureCell.dataset.rowIndex || 0, structureCell.dataset.colIndex || 0);
+      return;
+    }
+    const rowStatusBtn = event.target.closest('[data-set-structure-row-status]');
+    if(rowStatusBtn){
+      event.preventDefault();
+      event.stopPropagation();
+      await setStructureRowReviewStatus(rowStatusBtn.dataset.taskId || '', rowStatusBtn.dataset.rowKey || '', rowStatusBtn.dataset.setStructureRowStatus || 'approved');
       return;
     }
     const structureApprove = event.target.closest('[data-structure-approve]');
