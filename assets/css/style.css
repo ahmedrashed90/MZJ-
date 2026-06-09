@@ -6653,3 +6653,146 @@ body.has-user-dashboard-theme #dashboard.user-mode .content-task-card .content-t
 .structure-row-review .mini-btn.active.success{background:#e9f7e3;border-color:#9dcc8d;color:#2f6b2f;font-weight:800}
 .structure-row-review .mini-btn.active.warn{background:#fff6d8;border-color:#dfbd52;color:#7a5b00;font-weight:800}
 .structure-row-review .mini-btn.active.danger{background:#ffe4df;border-color:#e59b8f;color:#9a2f22;font-weight:800}
+
+/* v171 content task template workflow */
+.task-template-section .task-template-link-note{margin-top:10px;color:#8b6f63;font-weight:800;font-size:12px;background:#fff7f2;border:1px dashed #e8c9ba;border-radius:12px;padding:10px}.approved-content-template-section .structure-task-grid.compact{margin-bottom:8px}.approved-content-template-section .btn{margin-top:10px}
+
+/* v172 Task Template exact fields */
+.task-template-fields-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:10px;
+  margin-top:12px;
+}
+.task-template-field{
+  border:1px solid rgba(150,83,67,.24);
+  background:rgba(255,250,246,.86);
+  border-radius:14px;
+  padding:10px 12px;
+  line-height:1.7;
+}
+.task-template-field span{
+  display:block;
+  color:#8e7166;
+  font-weight:900;
+  font-size:11px;
+  margin-bottom:4px;
+}
+.task-template-field strong{
+  display:block;
+  color:#321814;
+  font-weight:900;
+  font-size:13px;
+  white-space:pre-wrap;
+}
+
+/* v174 - content task template review + equal dashboard card heights */
+#dashboard.user-mode .content-type-list{
+  align-items:stretch!important;
+}
+#dashboard.user-mode .content-task-card{
+  min-height:128px!important;
+  height:128px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:space-between!important;
+  overflow:hidden!important;
+}
+#dashboard.user-mode .content-task-card h3{
+  font-size:13px!important;
+  line-height:1.35!important;
+  max-height:36px!important;
+  overflow:hidden!important;
+  display:-webkit-box!important;
+  -webkit-line-clamp:2!important;
+  -webkit-box-orient:vertical!important;
+}
+#dashboard.user-mode .content-task-card p{
+  font-size:10.5px!important;
+  line-height:1.35!important;
+  max-height:32px!important;
+  overflow:hidden!important;
+  display:-webkit-box!important;
+  -webkit-line-clamp:2!important;
+  -webkit-box-orient:vertical!important;
+}
+#dashboard.user-mode .content-task-actions{
+  margin-top:auto!important;
+}
+.task-template-review-note{
+  width:100%;
+  min-height:86px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:10px 12px;
+  background:#fff;
+  font-weight:800;
+  color:var(--text);
+  resize:vertical;
+}
+.task-template-review-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-end;
+}
+.task-template-review-actions .btn-danger-soft{
+  background:#ffe7e2!important;
+  border-color:#efb9ad!important;
+  color:#8e2f22!important;
+}
+.task-template-review-actions .btn-warning-soft{
+  background:#fff4d6!important;
+  border-color:#e7c875!important;
+  color:#7c5a13!important;
+}
+.approved-content-template-section{
+  margin-top:12px!important;
+}
+
+/* v174 - user dashboard cards: no clipping; keep balanced card size without hiding task data */
+#dashboard.user-mode .content-type-list,
+body.has-user-dashboard-theme #dashboard.user-mode .content-type-list{
+  align-items:stretch!important;
+}
+#dashboard.user-mode .content-task-card,
+body.has-user-dashboard-theme #dashboard.user-mode .content-task-card{
+  min-height:172px!important;
+  height:auto!important;
+  overflow:visible!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:flex-start!important;
+  gap:8px!important;
+}
+#dashboard.user-mode .content-task-card h3,
+body.has-user-dashboard-theme #dashboard.user-mode .content-task-card h3{
+  max-height:none!important;
+  overflow:visible!important;
+  display:block!important;
+  -webkit-line-clamp:unset!important;
+  -webkit-box-orient:unset!important;
+  white-space:normal!important;
+  word-break:break-word!important;
+}
+#dashboard.user-mode .content-task-card p,
+body.has-user-dashboard-theme #dashboard.user-mode .content-task-card p{
+  max-height:none!important;
+  overflow:visible!important;
+  display:block!important;
+  -webkit-line-clamp:unset!important;
+  -webkit-box-orient:unset!important;
+  white-space:normal!important;
+  word-break:break-word!important;
+}
+#dashboard.user-mode .content-task-card .content-task-actions,
+body.has-user-dashboard-theme #dashboard.user-mode .content-task-card .content-task-actions{
+  margin-top:auto!important;
+}
+#dashboard.user-mode .task-metric-row,
+body.has-user-dashboard-theme #dashboard.user-mode .task-metric-row,
+#dashboard.user-mode .task-card-progress,
+body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
+  flex-shrink:0!important;
+}
