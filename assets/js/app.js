@@ -10206,7 +10206,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v164 - no default content-writer checks + remove execution angle/highlight columns from template */
 (function(){
-  const APP_CACHE_VERSION = '164';
+  const APP_CACHE_VERSION = '168';
   try{ window.MZJ_APP_VERSION = APP_CACHE_VERSION; }catch(e){}
 
   const oldSelectedContentDependencyV164 = selectedContentDependency;
@@ -10332,4 +10332,296 @@ async function downloadStructureTemplateForTaskExact(task){
     setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 1200);
     showToast('تم تحميل قالب الهيكل بالأكواد بدون زاوية المحتوى والترجمة التنفيذية في جدول التنفيذ.');
   };
+})();
+
+/* v165 - per-user content-writer linking inside execution roles + clearer dashboard names + full task details scroll */
+(function(){
+  const APP_CACHE_VERSION = '168';
+  try{ window.MZJ_APP_VERSION = APP_CACHE_VERSION; }catch(e){}
+
+  function v165Encode(value){
+    try{ return encodeURIComponent(JSON.stringify(value || [])); }catch(_){ return ''; }
+  }
+  function v165Decode(value){
+    try{ return JSON.parse(decodeURIComponent(value || '[]')) || []; }catch(_){ return []; }
+  }
+  function v165Same(a, b){ return normalizeText(a || '') && normalizeText(a || '') === normalizeText(b || ''); }
+  function v165LinkMatchesContent(link, contentId, contentName){
+    const ids = Array.isArray(link?.contentUserIds) ? link.contentUserIds : [];
+    const names = Array.isArray(link?.contentUserNames) ? link.contentUserNames : [];
+    return ids.some(id => v165Same(id, contentId)) || names.some(name => v165Same(name, contentName));
+  }
+  function v165LinkMatchesExec(link, execId, execName){
+    return v165Same(link?.executorUserId, execId) || v165Same(link?.executorUserName, execName) || v165Same(link?.userId, execId) || v165Same(link?.userName, execName);
+  }
+  function v165PanelRoleBlock(panel, role){
+    return panel?.querySelector(`[data-assignment-role="${role}"]`) || null;
+  }
+  function v165RolePicker(block, role){
+    return block?.querySelector(`.js-role-picker[data-role="${role}"]`) || null;
+  }
+  function v165ContentWriters(){
+    const req = campaignRequestContentAssignees ? campaignRequestContentAssignees() : { ids: [], names: [] };
+    const ids = Array.isArray(req.ids) ? req.ids : [];
+    const names = Array.isArray(req.names) ? req.names : [];
+    const rows = Math.max(ids.length, names.length);
+    return Array.from({ length: rows }, (_, i) => ({
+      id: normalizeText(ids[i] || names[i] || ''),
+      name: normalizeText(names[i] || ids[i] || '')
+    })).filter(item => item.id || item.name);
+  }
+  function v165ExecutorUsers(block, role){
+    const picker = v165RolePicker(block, role);
+    const ids = selectedOptionValues(picker);
+    const names = selectedOptionTexts(picker);
+    const rows = Math.max(ids.length, names.length);
+    return Array.from({ length: rows }, (_, i) => ({
+      id: normalizeText(ids[i] || names[i] || ''),
+      name: normalizeText(names[i] || ids[i] || '')
+    })).filter(item => item.id || item.name);
+  }
+  function v165GetStoredLinks(block){
+    return v165Decode(block?.dataset?.userContentLinks || '');
+  }
+  function v165SetStoredLinks(block, links){
+    if(block) block.dataset.userContentLinks = v165Encode(links || []);
+  }
+  function v165RenderUserContentLinksForBlock(block){
+    if(!block) return [];
+    const role = normalizeDepartmentRole(block.dataset.assignmentRole || '');
+    if(!role || role === 'content') return [];
+    const writers = v165ContentWriters();
+    const execUsers = v165ExecutorUsers(block, role);
+    let wrap = block.querySelector('.js-user-content-linker');
+    if(!wrap){
+      wrap = document.createElement('div');
+      wrap.className = 'user-content-linker js-user-content-linker';
+      const dependency = block.querySelector('.js-content-dependency');
+      if(dependency) dependency.replaceWith(wrap);
+      else block.insertBefore(wrap, block.querySelector('.creative-role-deadline-field') || null);
+    }
+    const previous = v165GetStoredLinks(block);
+    if(!execUsers.length){
+      v165SetStoredLinks(block, []);
+      wrap.innerHTML = '<div class="multi-empty">اختار يوزر من القسم الأول</div>';
+      return [];
+    }
+    if(!writers.length){
+      v165SetStoredLinks(block, []);
+      wrap.innerHTML = '<div class="multi-empty">اختار كاتب محتوى من الخطوة الأولى</div>';
+      return [];
+    }
+    wrap.innerHTML = `<div class="content-dependency-title"><strong>${escapeHtml(defaultRoleSectionName(role))}: ربط كل يوزر بكاتب محتوى</strong><small>اختار لكل يوزر تنفيذي هيشتغل على شغل أي كاتب محتوى</small></div><div class="user-content-link-rows">${execUsers.map(exec => {
+      const old = previous.find(link => v165LinkMatchesExec(link, exec.id, exec.name)) || {};
+      const selectedIds = Array.isArray(old.contentUserIds) ? old.contentUserIds : [];
+      const selectedNames = Array.isArray(old.contentUserNames) ? old.contentUserNames : [];
+      return `<div class="user-content-link-row js-user-content-link-row" data-exec-id="${escapeHtml(exec.id)}" data-exec-name="${escapeHtml(exec.name)}"><div class="user-content-link-name">${escapeHtml(exec.name || exec.id)}</div><div class="user-content-link-options">${writers.map(writer => {
+        const checked = selectedIds.includes(writer.id) || selectedNames.includes(writer.name);
+        return `<label><input type="checkbox" class="js-user-content-link-check" value="${escapeHtml(writer.id)}" data-name="${escapeHtml(writer.name)}"${checked ? ' checked' : ''}> <span>${escapeHtml(writer.name || writer.id)}</span></label>`;
+      }).join('')}</div></div>`;
+    }).join('')}</div>`;
+    return v165SyncUserContentLinks(block);
+  }
+  function v165SyncUserContentLinks(block){
+    if(!block) return [];
+    const role = normalizeDepartmentRole(block.dataset.assignmentRole || '');
+    if(!role || role === 'content') return [];
+    const links = [...block.querySelectorAll('.js-user-content-link-row')].map(row => {
+      const checks = [...row.querySelectorAll('.js-user-content-link-check:checked')];
+      return {
+        executorUserId: normalizeText(row.dataset.execId || ''),
+        executorUserName: normalizeText(row.dataset.execName || ''),
+        userId: normalizeText(row.dataset.execId || ''),
+        userName: normalizeText(row.dataset.execName || ''),
+        role,
+        departmentRole: role,
+        departmentCode: roleCode(role),
+        contentUserIds: checks.map(input => normalizeText(input.value || '')).filter(Boolean),
+        contentUserNames: checks.map(input => normalizeText(input.dataset.name || '')).filter(Boolean)
+      };
+    }).filter(link => link.executorUserId || link.executorUserName);
+    v165SetStoredLinks(block, links);
+    block.querySelectorAll('.js-user-content-link-check').forEach(input => {
+      if(input.checked) input.setAttribute('checked','checked'); else input.removeAttribute('checked');
+    });
+    return links;
+  }
+  function v165RefreshUserContentLinks(panel){
+    if(!panel) return;
+    panel.querySelectorAll('[data-assignment-role]').forEach(block => {
+      const role = normalizeDepartmentRole(block.dataset.assignmentRole || '');
+      if(role && role !== 'content') v165RenderUserContentLinksForBlock(block);
+    });
+  }
+  function v165LinksForPanelRole(panel, role){
+    const block = v165PanelRoleBlock(panel, role);
+    if(!block) return [];
+    // Rebuild if picker changed, then sync current checks.
+    v165RenderUserContentLinksForBlock(block);
+    return v165SyncUserContentLinks(block);
+  }
+
+  const oldSyncPanelDynamicStateV165 = syncPanelDynamicState;
+  syncPanelDynamicState = function(panel){
+    const result = oldSyncPanelDynamicStateV165 ? oldSyncPanelDynamicStateV165(panel) : panel;
+    v165RefreshUserContentLinks(panel);
+    return result;
+  };
+
+  const oldRefreshContentDependencyPickersV165 = refreshContentDependencyPickers;
+  refreshContentDependencyPickers = function(panel){
+    if(oldRefreshContentDependencyPickersV165) oldRefreshContentDependencyPickersV165(panel);
+    v165RefreshUserContentLinks(panel);
+  };
+
+  selectedContentDependency = function(panel, role){
+    const cleanRole = normalizeDepartmentRole(role || '');
+    if(cleanRole && cleanRole !== 'content'){
+      const links = v165LinksForPanelRole(panel, cleanRole).filter(link => (link.contentUserIds || []).length || (link.contentUserNames || []).length);
+      const ids = uniqueList(links.flatMap(link => link.contentUserIds || []).filter(Boolean));
+      const names = uniqueList(links.flatMap(link => link.contentUserNames || []).filter(Boolean));
+      return { ids, names, links };
+    }
+    return { ids: [], names: [], links: [] };
+  };
+
+  const oldSelectedRoleTaskFromPanelV165 = selectedRoleTaskFromPanel;
+  selectedRoleTaskFromPanel = function(panel, role){
+    const task = oldSelectedRoleTaskFromPanelV165 ? oldSelectedRoleTaskFromPanelV165(panel, role) : null;
+    if(!task) return task;
+    const cleanRole = normalizeDepartmentRole(role || '');
+    if(cleanRole && cleanRole !== 'content'){
+      const linked = selectedContentDependency(panel, cleanRole);
+      task.dependencyLinks = Array.isArray(linked.links) ? linked.links : [];
+      task.dependsOnContentUserIds = linked.ids || [];
+      task.dependsOnContentUserNames = linked.names || [];
+      task.upstreamUserIds = linked.ids || [];
+      task.upstreamUserNames = linked.names || [];
+      task.upstreamUserLabel = (linked.names || []).join('، ');
+      task.manualContentWriterLinks = true;
+    }
+    return task;
+  };
+
+  function v165FilterAssignmentForWriter(roleTask, writerTask){
+    if(!roleTask) return roleTask;
+    const writerIds = uniqueList([...(Array.isArray(writerTask?.userIds) ? writerTask.userIds : []), writerTask?.assignedToId, writerTask?.assignedToUid, writerTask?.assigneeUid, writerTask?.userId].map(normalizeText).filter(Boolean));
+    const writerNames = uniqueList([...(Array.isArray(writerTask?.userNames) ? writerTask.userNames : []), writerTask?.assignedToName, writerTask?.assigneeName, writerTask?.userName, writerTask?.displayName].map(normalizeText).filter(Boolean));
+    const links = Array.isArray(roleTask.dependencyLinks) ? roleTask.dependencyLinks : [];
+    if(!links.length) return roleTask;
+    const matched = links.filter(link => {
+      const ids = Array.isArray(link.contentUserIds) ? link.contentUserIds : [];
+      const names = Array.isArray(link.contentUserNames) ? link.contentUserNames : [];
+      return ids.some(id => writerIds.includes(normalizeText(id))) || names.some(name => writerNames.includes(normalizeText(name)));
+    });
+    if(!matched.length) return { ...roleTask, userIds: [], userNames: [], userCodes: [] };
+    const userIds = uniqueList(matched.map(link => normalizeText(link.executorUserId || link.userId || '')).filter(Boolean));
+    const userNames = uniqueList(matched.map(link => normalizeText(link.executorUserName || link.userName || '')).filter(Boolean));
+    return { ...roleTask, userIds, userNames, userCodes: userCodesForTask({ userIds, userNames }) };
+  }
+
+  // Override template generation so each content writer template gets only the execution users linked to that writer.
+  downloadStructureTemplateForTaskExact = async function(task){
+    if(!window.JSZip) throw new Error('JSZip is not loaded');
+    const zip = await window.JSZip.loadAsync(STRUCTURE_TEMPLATE_BASE64_V145, { base64: true });
+    const sheetPath = 'xl/worksheets/sheet1.xml';
+    const sheetFile = zip.file(sheetPath);
+    if(!sheetFile) throw new Error('Structure template sheet is missing');
+    let sheetXml = await sheetFile.async('string');
+    const campaignCode = campaignCodeForTask(task);
+    const creativeCode = templateCreativeLinkCodeForTask({ ...task, campaignCode });
+    const writerCode = contentWriterCodeForTask(task);
+    const writerName = task.assignedToName || task.userName || task.assigneeName || (Array.isArray(task.userNames) ? task.userNames[0] : '') || '';
+    const creativeName = task.creative || task.product || (task.taskType || '').replace(/^طلب\s*هيكل\s*-?/i, '').trim() || '';
+    const campaign = campaignRecordForTask(task) || {};
+    const campaignName = task.campaignName || task.campaignTitle || task.campaign || campaign.campaignName || campaign.name || '';
+    const campaignTypeName = task.campaignTypeName || task.campaignType || task.typeName || task.type || campaign.campaignTypeName || campaign.campaignType || campaign.typeName || campaign.type || '';
+    const creativeShortCode = creativeShortCodeForName(creativeName);
+    const creativeRow = creativeAssignmentForStructureRow(campaign, task, { creativeShortCode, taskNo: creativeCode });
+    const mainRole = creativeDepartmentRole(creativeName || creativeRow?.creative || '');
+    const rawRoleTask = assignmentForRoleFromCreativeRow(creativeRow, mainRole) || {};
+    const roleTask = v165FilterAssignmentForWriter(rawRoleTask, task) || {};
+    const deptCode = roleCode(mainRole);
+    const execUserCodes = uniqueList([...(Array.isArray(roleTask.userCodes) ? roleTask.userCodes : []), ...userCodesForTask(roleTask)]).filter(Boolean).join(',');
+    const userCode = execUserCodes || '';
+    const patches = {
+      A1: campaignCode ? `حمله - ${campaignCode}` : 'حمله -',
+      A35: campaignCode ? `حمله - ${campaignCode}` : 'حمله -',
+      B2: 'اسم الحملة', C2: campaignName || '',
+      B3: 'كود الحملة', C3: campaignCode || '',
+      B4: 'كود الكرييتيف', C4: creativeCode || '',
+      B5: 'الكرييتيف المطلوب للهيكل', C5: creativeName || '',
+      B6: 'كاتب المحتوى', C6: writerName || '',
+      B7: 'كود كاتب المحتوى', C7: writerCode || '',
+      B8: 'نوع الحمله', C8: campaignTypeName || '',
+      B9: 'معنى العنصر داخل MZJ', C9: '',
+      B10: 'دور العنصر في تعزيز الثقة', C10: '',
+      B11: 'الهدف الاستراتيجي للحملة', C11: '',
+      B12: 'الهدف النهائي للحملة', C12: '',
+      B13: 'الترجمة الملموسة للهدف النهائي', C13: '',
+      B14: 'الرسالة الرئيسية', C14: '',
+      B15: 'إحساس الحملة', C15: '',
+      B16: 'الترجمة التنفيذية لإحساس الحملة', C16: '',
+      B17: 'نوع المحتوى', C17: '',
+      B18: 'زاوية المحتوى', C18: '',
+      B19: 'ما يجب إبرازه', C19: '',
+      B20: 'الترجمة التنفيذية لما يجب إبرازه', C20: '',
+      B21: 'ما يجب تجنبه', C21: '',
+      B22: 'CTA', C22: '',
+      I36: 'المطلوب من الكاتب', J36: 'CTA',
+      K36: 'كود الكرييتيف المختصر', L36: 'كود القسم', M36: 'كود اليوزر', N36: 'كود كاتب المحتوى',
+      O36: '', P36: ''
+    };
+    sheetXml = patchWorkbookCellsInlineV148(sheetXml, patches);
+    const writerPrefix = writerCode || '';
+    for(let index = 0; index < 50; index += 1){
+      const rowNumber = 37 + index;
+      const n = String(index + 1).padStart(2, '0');
+      const fullTaskCode = creativeCode ? `${creativeCode}-${creativeShortCode}-${deptCode}-${userCode || 'USER'}-N${n}` : '';
+      const rowPatches = {
+        [`A${rowNumber}`]: index === 0 ? (campaignTypeName || '') : '',
+        [`C${rowNumber}`]: fullTaskCode,
+        [`K${rowNumber}`]: creativeShortCode,
+        [`L${rowNumber}`]: deptCode,
+        [`M${rowNumber}`]: userCode,
+        [`N${rowNumber}`]: writerPrefix,
+        [`O${rowNumber}`]: '',
+        [`P${rowNumber}`]: ''
+      };
+      ['B','D','E','F','G','H','I','J','O','P'].forEach(col => { rowPatches[`${col}${rowNumber}`] = ''; });
+      sheetXml = patchWorkbookCellsInlineV148(sheetXml, rowPatches);
+    }
+    zip.file(sheetPath, sheetXml);
+    const out = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const fileBase = safeStorageSegment([creativeCode, writerName || writerCode || '', creativeName || 'هيكل'].filter(Boolean).join('-'));
+    const blobUrl = URL.createObjectURL(out);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `${fileBase || 'campaign-structure'}-template.xlsx`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 1200);
+    showToast('تم تحميل قالب الهيكل بالأكواد حسب ربط كاتب المحتوى باليوزر التنفيذي.');
+  };
+
+  document.addEventListener('change', function(event){
+    if(event.target.matches('.js-user-content-link-check')){
+      const block = event.target.closest('[data-assignment-role]');
+      v165SyncUserContentLinks(block);
+      updateProductOutput(event.target.closest('.creative-row-card'));
+      renderPublishAgenda();
+      return;
+    }
+    if(event.target.closest('.js-role-picker')){
+      const panel = event.target.closest('.creative-assignment-panel');
+      setTimeout(() => v165RefreshUserContentLinks(panel), 0);
+    }
+    if(event.target.closest('#campaignRequestForm .js-request-content-writers')){
+      setTimeout(() => document.querySelectorAll('.creative-assignment-panel').forEach(v165RefreshUserContentLinks), 0);
+    }
+  }, true);
+
+  // Initial refresh for already-rendered panels.
+  setTimeout(() => document.querySelectorAll('.creative-assignment-panel').forEach(v165RefreshUserContentLinks), 100);
 })();

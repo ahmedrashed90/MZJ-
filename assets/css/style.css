@@ -6426,3 +6426,224 @@ body.creative-popup-open{
 .structure-readable-table .has-cell-note{background:#ffe8e1!important;}
 .structure-readable-table .cell-note-badge{margin-top:6px;padding:6px 8px;border-radius:10px;background:#fff1ed;color:#8a3d2d;font-size:12px;font-weight:800;text-align:right;}
 @media (max-width: 1000px){.structure-readable-view{grid-template-columns:1fr}.structure-review-dialog{width:98vw;margin:1vh auto}.structure-review-body{padding:10px}}
+
+/* v165: per-user content writer linking + clearer dashboard + full details scroll */
+.user-content-linker{border:1px dashed var(--border);background:#fffaf7;border-radius:16px;padding:10px;margin-top:10px}
+.user-content-link-rows{display:grid;gap:8px;margin-top:8px}
+.user-content-link-row{border:1px solid #ead7ca;background:#fff;border-radius:14px;padding:9px}
+.user-content-link-name{font-weight:1000;color:#2d1713;margin-bottom:7px;font-size:14px}
+.user-content-link-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.user-content-link-options label{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid #ead7ca;border-radius:12px;padding:8px 10px;background:#fff;font-weight:900;color:#5a3329}
+.dash-ready-card .task-owner-name,.dash-ready-card em,.receive-list em,.inline-task-row p,.owner-task-card em,.content-task-card p b{font-size:14px!important;font-weight:1000!important;color:#5a3329!important;opacity:1!important}
+.receive-list div span:first-child em{display:block;margin-top:4px;font-size:14px!important;color:#5a3329!important}
+#taskModal.task-fullscreen-view .task-modal-dialog{overflow:auto!important;height:100vh!important;max-height:100vh!important}
+#taskModal.task-fullscreen-view #taskModalContent{height:auto!important;min-height:100%!important;overflow:visible!important}
+#taskModal.task-fullscreen-view .task-detail-fullscreen{height:auto!important;min-height:100%!important;overflow:visible!important;display:flex!important;flex-direction:column!important}
+#taskModal.has-structure-sheet-modal #taskModalContent,#taskModal.has-structure-sheet-modal .task-detail-fullscreen{overflow:auto!important;height:auto!important;min-height:100%!important}
+.task-detail-fullscreen .structure-task-grid strong,.task-detail-fullscreen .campaign-info-box strong,.task-detail-fullscreen .brief-box strong{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+
+/* v166: remove user waiting-board layer and compact dashboard task titles */
+#dashboard.user-mode .waiting-tasks-panel,
+body.has-user-dashboard-theme #dashboard.user-mode .waiting-tasks-panel{
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  padding:0!important;
+  margin:0 0 16px!important;
+}
+#dashboard.user-mode .waiting-tasks-panel .content-type-title,
+body.has-user-dashboard-theme #dashboard.user-mode .waiting-tasks-panel .content-type-title{
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  padding:0 0 10px!important;
+  margin:0 0 10px!important;
+}
+#dashboard.user-mode .waiting-tasks-panel .content-type-title h3,
+body.has-user-dashboard-theme #dashboard.user-mode .waiting-tasks-panel .content-type-title h3{
+  color:#2d1713!important;
+  text-shadow:0 1px 2px rgba(255,255,255,.5);
+}
+#dashboard.user-mode .waiting-tasks-panel .content-task-card,
+body.has-user-dashboard-theme #dashboard.user-mode .waiting-tasks-panel .content-task-card{
+  background:rgba(255,255,255,.88)!important;
+  border:1px solid rgba(224,204,193,.96)!important;
+  box-shadow:0 14px 30px rgba(60,35,28,.10)!important;
+}
+.inline-task-row strong,
+.campaign-task-list-item .task-list-main strong,
+.dash-ready-card .dash-card-top strong,
+.receive-list div span:first-child b{
+  font-size:11.5px!important;
+  line-height:1.45!important;
+  font-weight:900!important;
+  white-space:normal!important;
+  overflow:hidden!important;
+  text-overflow:clip!important;
+  display:-webkit-box!important;
+  -webkit-line-clamp:2!important;
+  -webkit-box-orient:vertical!important;
+}
+.inline-task-row p,
+.campaign-task-list-item .task-list-main p,
+.receive-list div span:first-child em{
+  font-size:10.5px!important;
+  line-height:1.45!important;
+  font-weight:800!important;
+  color:#7f655b!important;
+  white-space:normal!important;
+  overflow:hidden!important;
+  display:-webkit-box!important;
+  -webkit-line-clamp:2!important;
+  -webkit-box-orient:vertical!important;
+}
+.campaign-inline-tasks .inline-task-row,
+.campaign-task-list .campaign-task-list-item{
+  align-items:center!important;
+}
+
+/* v167: make owner/user name prominent and task title smaller in readiness/dashboard cards */
+.dash-ready-card .receive-list div{
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:8px!important;
+}
+.dash-ready-card .receive-list div span:first-child b,
+.receive-list div span:first-child b,
+.inline-task-row strong,
+.campaign-task-list-item .task-list-main strong{
+  font-size:10px!important;
+  line-height:1.35!important;
+  font-weight:900!important;
+  color:#3d241d!important;
+  opacity:.88!important;
+  max-width:100%!important;
+  display:-webkit-box!important;
+  -webkit-line-clamp:2!important;
+  -webkit-box-orient:vertical!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+.dash-ready-card .receive-list div span:first-child em,
+.receive-list div span:first-child em,
+.dash-ready-card .task-owner-name,
+.receive-list em{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:max-content!important;
+  max-width:100%!important;
+  margin-top:6px!important;
+  padding:5px 11px!important;
+  border-radius:999px!important;
+  border:1px solid rgba(133,77,55,.22)!important;
+  background:linear-gradient(135deg,#fff4ed,#efd4c4)!important;
+  color:#5f3027!important;
+  font-size:14px!important;
+  line-height:1.2!important;
+  font-weight:1000!important;
+  font-style:normal!important;
+  box-shadow:0 6px 14px rgba(90,45,35,.08)!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+.dash-ready-card .receive-list div span:first-child em:before,
+.receive-list div span:first-child em:before{
+  content:'👤';
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:20px;
+  height:20px;
+  margin-inline-end:6px;
+  border-radius:999px;
+  background:#7a4338;
+  color:#fff;
+  font-size:10px;
+  line-height:1;
+  box-shadow:0 4px 10px rgba(90,45,35,.15);
+}
+#dashboard.user-mode .content-task-card h3,
+body.has-user-dashboard-theme #dashboard.user-mode .content-task-card h3{
+  font-size:13px!important;
+  line-height:1.35!important;
+  margin-bottom:5px!important;
+}
+#dashboard.user-mode .content-task-card p,
+body.has-user-dashboard-theme #dashboard.user-mode .content-task-card p{
+  font-size:11px!important;
+  line-height:1.45!important;
+  font-weight:900!important;
+  color:#6a4a40!important;
+  display:-webkit-box!important;
+  -webkit-line-clamp:2!important;
+  -webkit-box-orient:vertical!important;
+  overflow:hidden!important;
+}
+#dashboard.user-mode .content-task-card .content-task-actions,
+body.has-user-dashboard-theme #dashboard.user-mode .content-task-card .content-task-actions{
+  grid-template-columns:auto auto!important;
+  justify-content:start!important;
+}
+
+/* v168: user name styling only inside readiness details; remove badge/border from TASK - المطلوب */
+.receive-list div span:first-child em,
+.dash-task-receive-card .receive-list div span:first-child em{
+  display:inline!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  border-radius:0!important;
+  color:#7a574c!important;
+  font-size:11px!important;
+  line-height:1.35!important;
+  font-weight:900!important;
+  white-space:normal!important;
+  max-width:none!important;
+}
+.receive-list div span:first-child em:before,
+.dash-task-receive-card .receive-list div span:first-child em:before{
+  content:none!important;
+  display:none!important;
+}
+.receive-list div span:first-child b,
+.dash-task-receive-card .receive-list div span:first-child b{
+  font-size:11px!important;
+  line-height:1.35!important;
+  -webkit-line-clamp:2!important;
+}
+.ready-col .campaign-task-list-item .task-list-main strong,
+.ready-col .inline-task-row strong,
+#dashboardDetail .campaign-task-list-item .task-list-main strong{
+  font-size:10px!important;
+  line-height:1.25!important;
+  font-weight:900!important;
+  color:#3d241d!important;
+  display:-webkit-box!important;
+  -webkit-line-clamp:2!important;
+  -webkit-box-orient:vertical!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+.ready-col .campaign-task-list-item .task-list-main p,
+.ready-col .inline-task-row p,
+#dashboardDetail .campaign-task-list-item .task-list-main p{
+  font-size:12px!important;
+  line-height:1.45!important;
+  font-weight:1000!important;
+  color:#5f3027!important;
+  display:block!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  -webkit-line-clamp:unset!important;
+}
+.ready-col .campaign-task-list-item,
+#dashboardDetail .campaign-task-list-item{
+  grid-template-columns:minmax(0,1fr) auto auto!important;
+}
