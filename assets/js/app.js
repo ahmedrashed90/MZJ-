@@ -394,7 +394,7 @@ function refreshContentDependencyPickers(panel){
     options.innerHTML = Array.from({length: rows}, (_, i) => {
       const id = contentIds[i] || contentNames[i] || '';
       const name = contentNames[i] || contentIds[i] || '';
-      const checked = hasPrevious ? (selectedIds.includes(id) || selectedNames.includes(name)) : true;
+      const checked = hasPrevious ? (selectedIds.includes(id) || selectedNames.includes(name)) : false;
       return `<label><input type="checkbox" class="js-content-dependency-check" value="${escapeHtml(id)}" data-name="${escapeHtml(name)}"${checked ? ' checked' : ''}> <span>${escapeHtml(name)}</span></label>`;
     }).join('');
     syncContentDependencyState(box);
@@ -4242,8 +4242,6 @@ function renderReadableStructureWorkbookTable(task, structure, admin){
     ['idea','الفكرة'],
     ['description','وصف المحتوى'],
     ['message','الرسالة'],
-    ['contentAngle','زاوية المحتوى'],
-    ['highlightTranslation','الترجمة التنفيذية لما يجب إبرازه'],
     ['writerRequest','المطلوب من الكاتب'],
     ['cta','CTA']
   ];
@@ -10113,5 +10111,225 @@ async function downloadStructureTemplateForTaskExact(task){
     const structureIds = new Set(structureTasks.map(t => t.id));
     const out = [keep, ...rawTasks.filter(task => !structureIds.has(task.id))];
     return out.map((task, index) => ({ ...task, id: task.id || `${campaignId}-task-${String(index + 1).padStart(3,'0')}` }));
+  };
+})();
+
+
+/* v163 - per content writer structure tasks + execution users linked to selected content writers */
+(function(){
+  const MZJ_V163 = true;
+  contentDependencyPickerHtml = function(role){
+    if(role === 'content') return '';
+    const roleLabel = defaultRoleSectionName(role);
+    return `<div class="content-dependency-picker js-content-dependency" data-dependency-for="${escapeHtml(role)}">
+      <div class="content-dependency-title"><strong>${escapeHtml(roleLabel)} يشتغل على شغل أي كاتب محتوى؟</strong><small>اختار كاتب المحتوى يدويًا</small></div>
+      <div class="content-dependency-options"><div class="multi-empty">اختار كاتب محتوى من الخطوة الأولى</div></div>
+    </div>`;
+  };
+
+  refreshContentDependencyPickers = function(panel){
+    if(!panel) return;
+    const requestAssignees = campaignRequestContentAssignees();
+    const contentIds = requestAssignees.ids || [];
+    const contentNames = requestAssignees.names || [];
+    panel.querySelectorAll('.js-content-dependency').forEach(box => {
+      const selectedIds = storedMultiValues(box, 'selectedIds');
+      const selectedNames = storedMultiValues(box, 'selectedNames');
+      const options = box.querySelector('.content-dependency-options');
+      if(!options) return;
+      if(!contentIds.length && !contentNames.length){
+        box.dataset.selectedIds = '';
+        box.dataset.selectedNames = '';
+        options.innerHTML = '<div class="multi-empty">اختار كاتب محتوى من الخطوة الأولى</div>';
+        return;
+      }
+      const rows = Math.max(contentIds.length, contentNames.length);
+      const hasPrevious = selectedIds.length || selectedNames.length;
+      options.innerHTML = Array.from({length: rows}, (_, i) => {
+        const id = contentIds[i] || contentNames[i] || '';
+        const name = contentNames[i] || contentIds[i] || '';
+        const checked = hasPrevious ? (selectedIds.includes(id) || selectedNames.includes(name)) : false;
+        return `<label><input type="checkbox" class="js-content-dependency-check" value="${escapeHtml(id)}" data-name="${escapeHtml(name)}"${checked ? ' checked' : ''}> <span>${escapeHtml(name)}</span></label>`;
+      }).join('');
+      syncContentDependencyState(box);
+    });
+  };
+
+  selectedContentDependency = function(panel, role){
+    const box = panel?.querySelector(`.js-content-dependency[data-dependency-for="${role}"]`);
+    syncContentDependencyState(box);
+    let ids = storedMultiValues(box, 'selectedIds');
+    let names = storedMultiValues(box, 'selectedNames');
+    const requestAssignees = campaignRequestContentAssignees();
+    if(!ids.length && !names.length){
+      ids = requestAssignees.ids || [];
+      names = requestAssignees.names || [];
+    }
+    return { ids, names, links: [] };
+  };
+
+  // Re-render dependency choices when content writers change in step 1.
+  document.addEventListener('change', function(event){
+    if(event.target.closest('#campaignRequestForm .js-request-content-writers')){
+      document.querySelectorAll('.creative-assignment-panel').forEach(refreshContentDependencyPickers);
+    }
+  }, true);
+
+  const oldCreativeAssignmentRoleBlocksHtmlV163 = creativeAssignmentRoleBlocksHtml;
+  creativeAssignmentRoleBlocksHtml = function(creativeName){
+    const mainRole = creativeDepartmentRole(creativeName);
+    const roles = ['shooting','design','montage'];
+    const orderedRoles = [mainRole, ...roles.filter(role => role !== mainRole)];
+    const mainHint = 'القسم التنفيذي المرتبط تلقائيًا بنوع الكريتيف';
+    const optionalHint = 'قسم إضافي اختياري للحملة عند الحاجة';
+    return orderedRoles.map(role => roleAssignmentBlock(role, defaultRoleSectionName(role), role === mainRole ? mainHint : optionalHint)).join('');
+  };
+
+  // Keep each content writer as a separate structure-request task. Do not merge them.
+  buildDepartmentTasks = function(campaignId, payload){
+    return buildCampaignTaskDocs(campaignId, payload).map((task, index) => {
+      const clean = { ...task };
+      delete clean.createdAt;
+      delete clean.updatedAt;
+      clean.id = `${campaignId}-task-${String(index + 1).padStart(3,'0')}`;
+      clean.campaignId = campaignId;
+      clean.received = false;
+      clean.receivedConfirmed = false;
+      clean.progress = 0;
+      clean.status = clean.status || 'pending';
+      clean.attachments = Array.isArray(clean.attachments) ? clean.attachments : [];
+      return clean;
+    });
+  };
+})();
+
+
+/* v164 - no default content-writer checks + remove execution angle/highlight columns from template */
+(function(){
+  const APP_CACHE_VERSION = '164';
+  try{ window.MZJ_APP_VERSION = APP_CACHE_VERSION; }catch(e){}
+
+  const oldSelectedContentDependencyV164 = selectedContentDependency;
+  selectedContentDependency = function(panel, role){
+    const box = panel?.querySelector(`.js-content-dependency[data-dependency-for="${role}"]`);
+    syncContentDependencyState(box);
+    let ids = storedMultiValues(box, 'selectedIds');
+    let names = storedMultiValues(box, 'selectedNames');
+    // لو المستخدم ماختارش كاتب محتوى بنفسه، نسيب الربط فاضي بدل الافتراضي القديم.
+    return { ids, names, links: [] };
+  };
+
+  const oldRefreshContentDependencyPickersV164 = refreshContentDependencyPickers;
+  refreshContentDependencyPickers = function(panel){
+    if(!panel) return;
+    const requestAssignees = campaignRequestContentAssignees();
+    const contentIds = requestAssignees.ids || [];
+    const contentNames = requestAssignees.names || [];
+    panel.querySelectorAll('.js-content-dependency').forEach(box => {
+      const selectedIds = storedMultiValues(box, 'selectedIds');
+      const selectedNames = storedMultiValues(box, 'selectedNames');
+      const options = box.querySelector('.content-dependency-options');
+      if(!options) return;
+      if(!contentIds.length && !contentNames.length){
+        box.dataset.selectedIds = '';
+        box.dataset.selectedNames = '';
+        options.innerHTML = '<div class="multi-empty">اختار كاتب محتوى من الخطوة الأولى</div>';
+        return;
+      }
+      const rows = Math.max(contentIds.length, contentNames.length);
+      const hasPrevious = selectedIds.length || selectedNames.length;
+      options.innerHTML = Array.from({length: rows}, (_, i) => {
+        const id = contentIds[i] || contentNames[i] || '';
+        const name = contentNames[i] || contentIds[i] || '';
+        const checked = hasPrevious ? (selectedIds.includes(id) || selectedNames.includes(name)) : false;
+        return `<label><input type="checkbox" class="js-content-dependency-check" value="${escapeHtml(id)}" data-name="${escapeHtml(name)}"${checked ? ' checked' : ''}> <span>${escapeHtml(name)}</span></label>`;
+      }).join('');
+      syncContentDependencyState(box);
+    });
+  };
+
+  downloadStructureTemplateForTaskExact = async function(task){
+    if(!window.JSZip) throw new Error('JSZip is not loaded');
+    const zip = await window.JSZip.loadAsync(STRUCTURE_TEMPLATE_BASE64_V145, { base64: true });
+    const sheetPath = 'xl/worksheets/sheet1.xml';
+    const sheetFile = zip.file(sheetPath);
+    if(!sheetFile) throw new Error('Structure template sheet is missing');
+    let sheetXml = await sheetFile.async('string');
+    const campaignCode = campaignCodeForTask(task);
+    const creativeCode = templateCreativeLinkCodeForTask({ ...task, campaignCode });
+    const writerCode = contentWriterCodeForTask(task);
+    const writerName = task.assignedToName || task.userName || task.assigneeName || '';
+    const creativeName = task.creative || task.product || (task.taskType || '').replace(/^طلب\s*هيكل\s*-?/i, '').trim() || '';
+    const campaign = campaignRecordForTask(task) || {};
+    const campaignName = task.campaignName || task.campaignTitle || task.campaign || campaign.campaignName || campaign.name || '';
+    const campaignTypeName = task.campaignTypeName || task.campaignType || task.typeName || task.type || campaign.campaignTypeName || campaign.campaignType || campaign.typeName || campaign.type || '';
+    const creativeShortCode = creativeShortCodeForName(creativeName);
+    const creativeRow = creativeAssignmentForStructureRow(campaign, task, { creativeShortCode, taskNo: creativeCode });
+    const mainRole = creativeDepartmentRole(creativeName || creativeRow?.creative || '');
+    const roleTask = assignmentForRoleFromCreativeRow(creativeRow, mainRole) || {};
+    const deptCode = roleCode(mainRole);
+    const execUserCodes = uniqueList([...(Array.isArray(roleTask.userCodes) ? roleTask.userCodes : []), ...userCodesForTask(roleTask)]).filter(Boolean).join(',');
+    const userCode = execUserCodes || 'USER';
+    const patches = {
+      A1: campaignCode ? `حمله - ${campaignCode}` : 'حمله -',
+      A35: campaignCode ? `حمله - ${campaignCode}` : 'حمله -',
+      B2: 'اسم الحملة', C2: campaignName || '',
+      B3: 'كود الحملة', C3: campaignCode || '',
+      B4: 'كود الكرييتيف', C4: creativeCode || '',
+      B5: 'الكرييتيف المطلوب للهيكل', C5: creativeName || '',
+      B6: 'كاتب المحتوى', C6: writerName || '',
+      B7: 'كود كاتب المحتوى', C7: writerCode || '',
+      B8: 'نوع الحمله', C8: campaignTypeName || '',
+      B9: 'معنى العنصر داخل MZJ', C9: '',
+      B10: 'دور العنصر في تعزيز الثقة', C10: '',
+      B11: 'الهدف الاستراتيجي للحملة', C11: '',
+      B12: 'الهدف النهائي للحملة', C12: '',
+      B13: 'الترجمة الملموسة للهدف النهائي', C13: '',
+      B14: 'الرسالة الرئيسية', C14: '',
+      B15: 'إحساس الحملة', C15: '',
+      B16: 'الترجمة التنفيذية لإحساس الحملة', C16: '',
+      B17: 'نوع المحتوى', C17: '',
+      B18: 'زاوية المحتوى', C18: '',
+      B19: 'ما يجب إبرازه', C19: '',
+      B20: 'الترجمة التنفيذية لما يجب إبرازه', C20: '',
+      B21: 'ما يجب تجنبه', C21: '',
+      B22: 'CTA', C22: '',
+      // Content Execution Direction: حذف زاوية المحتوى والترجمة التنفيذية من الجدول فقط.
+      I36: 'المطلوب من الكاتب', J36: 'CTA',
+      K36: 'كود الكرييتيف المختصر', L36: 'كود القسم', M36: 'كود اليوزر', N36: 'كود كاتب المحتوى',
+      O36: '', P36: ''
+    };
+    sheetXml = patchWorkbookCellsInlineV148(sheetXml, patches);
+    const writerPrefix = writerCode || 'N';
+    for(let index = 0; index < 50; index += 1){
+      const rowNumber = 37 + index;
+      const n = String(index + 1).padStart(2, '0');
+      const fullTaskCode = creativeCode ? `${creativeCode}-${creativeShortCode}-${deptCode}-${userCode}-N${n}` : '';
+      const rowPatches = {
+        [`A${rowNumber}`]: index === 0 ? (campaignTypeName || '') : '',
+        [`C${rowNumber}`]: fullTaskCode,
+        [`K${rowNumber}`]: creativeShortCode,
+        [`L${rowNumber}`]: deptCode,
+        [`M${rowNumber}`]: userCode,
+        [`N${rowNumber}`]: writerPrefix,
+        [`O${rowNumber}`]: '',
+        [`P${rowNumber}`]: ''
+      };
+      // B,D,E,F,G,H للكاتب. I,J للمطلوب من الكاتب و CTA. O,P تفريغ بقايا الأعمدة القديمة.
+      ['B','D','E','F','G','H','I','J','O','P'].forEach(col => { rowPatches[`${col}${rowNumber}`] = ''; });
+      sheetXml = patchWorkbookCellsInlineV148(sheetXml, rowPatches);
+    }
+    zip.file(sheetPath, sheetXml);
+    const out = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const fileBase = safeStorageSegment([creativeCode, creativeName || 'هيكل'].filter(Boolean).join('-'));
+    const blobUrl = URL.createObjectURL(out);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `${fileBase || 'campaign-structure'}-template.xlsx`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 1200);
+    showToast('تم تحميل قالب الهيكل بالأكواد بدون زاوية المحتوى والترجمة التنفيذية في جدول التنفيذ.');
   };
 })();
