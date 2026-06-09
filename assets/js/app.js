@@ -10890,10 +10890,32 @@ async function downloadStructureTemplateForTaskExact(task){
   function v171RenderApprovedContentTemplateForExecution(task){
     const tpl = task.contentTaskTemplate || task.approvedContentTemplate || null;
     if(!tpl || tpl.status !== 'approved') return '';
-    const fieldsHtml = v172RenderTaskTemplateFields(tpl);
-    const rows = Array.isArray(tpl.parsedRows) ? tpl.parsedRows : [];
-    const rowsHtml = fieldsHtml || rows.slice(0, 8).map((row, index) => `<div class="structure-task-grid compact"><div><span>رقم</span><strong>${index + 1}</strong></div><div><span>نوع المحتوى</span><strong>${escapeHtml(row.contentType || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(row.idea || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(row.message || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(row.cta || '—')}</strong></div></div>`).join('');
-    return `<div class="modal-section approved-content-template-section"><div class="modal-section-title"><h3>بيانات قسم المحتوى المعتمدة</h3><span>${escapeHtml(tpl.fileName || '')}</span></div>${rowsHtml || '<div class="empty-state mini-empty">تم اعتماد الملف، ولا توجد صفوف مقروءة للعرض.</div>'}${tpl.fileData ? `<a class="btn btn-light" href="${escapeHtml(tpl.fileData)}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل Task Template المعتمد</a>` : ''}</div>`;
+    const normalizedTpl = (typeof v177NormalizeRealTaskTemplate === 'function') ? v177NormalizeRealTaskTemplate(tpl) : tpl;
+    const fields = (typeof v172TaskTemplateFieldsFromTemplate === 'function') ? v172TaskTemplateFieldsFromTemplate(normalizedTpl) : [];
+    const byKey = new Map((fields || []).map(field => [field.key, field]));
+    const read = (key) => normalizeText(byKey.get(key)?.value || normalizedTpl?.parsedRows?.[0]?.[key] || '');
+    const metaFields = [
+      ['campaignName','اسم الحملة'],['campaignCode','رقم الحملة'],['campaignType','نوع الحملة'],['taskNo','رقم التاسك'],['contentType','نوع المحتوى'],['suggestedCreativeName','الاسم المقترح للكرييتيف']
+    ];
+    const briefFields = [
+      ['goal','الهدف'],['message','الرسالة الأساسية'],['cta','CTA']
+    ];
+    const longFields = [
+      ['hook','الهوك'],['script','السكريبت الأساسي'],['caption','الكابشن'],['hashtags','هاشتاج']
+    ];
+    const fieldCard = (key, label, extraClass='') => `<div class="approved-template-card ${extraClass}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(read(key) || '—')}</strong></div>`;
+    const metaHtml = metaFields.map(([key,label]) => fieldCard(key,label)).join('');
+    const briefHtml = briefFields.map(([key,label]) => fieldCard(key,label)).join('');
+    const longHtml = longFields.map(([key,label]) => fieldCard(key,label,'approved-template-long-card')).join('');
+    return `<div class="modal-section approved-content-template-section approved-content-template-section-v183">
+      <div class="modal-section-title"><h3>بيانات قسم المحتوى المعتمدة</h3><span>${escapeHtml(tpl.fileName || '')}</span></div>
+      <div class="approved-template-layout-v183">
+        <div class="approved-template-group"><h4>بيانات أساسية</h4><div class="approved-template-grid approved-template-meta-grid">${metaHtml}</div></div>
+        <div class="approved-template-group"><h4>ملخص المحتوى</h4><div class="approved-template-grid approved-template-brief-grid">${briefHtml}</div></div>
+        <div class="approved-template-group"><h4>النصوص التنفيذية</h4><div class="approved-template-grid approved-template-long-grid">${longHtml}</div></div>
+      </div>
+      ${tpl.fileData ? `<a class="btn btn-light approved-template-download-btn" href="${escapeHtml(tpl.fileData)}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل Task Template المعتمد</a>` : ''}
+    </div>`;
   }
   const previousBuildTaskDetailHtml = buildTaskDetailHtml;
   buildTaskDetailHtml = function(task){
@@ -11183,7 +11205,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v172 - task template exact file support */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v180'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v183'; }catch(_){ }
 })();
 
 /* v182 - keep normal task details as a vertical scrollable detail view, not the structure sheet layout */
