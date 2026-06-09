@@ -10707,7 +10707,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v171 - content task template workflow linked to execution tasks */
 (function(){
-  const VERSION = 'v176';
+  const VERSION = 'v180';
   try{ window.MZJ_APP_VERSION = VERSION; }catch(_){ }
 
   function v171PairKey(parentTask, row, assigneeId, role){
@@ -11014,6 +11014,31 @@ async function downloadStructureTemplateForTaskExact(task){
     row.templateType = 'content_task_template';
     return { ...(parsed || {}), parsedRows:[row], taskTemplateFields: fields };
   }
+  /* v177 - Task Template must use real uploaded file data only, never fallback to structure task fields */
+  function v177NormalizeRealTaskTemplate(parsed){
+    const sourceRow = Array.isArray(parsed?.parsedRows) && parsed.parsedRows[0] ? parsed.parsedRows[0] : {};
+    const directFields = Array.isArray(parsed?.taskTemplateFields) ? parsed.taskTemplateFields : [];
+    const byKey = new Map();
+    directFields.forEach(field => {
+      if(!field) return;
+      const key = field.key || '';
+      if(!key) return;
+      byKey.set(key, { ...field, value: normalizeText(field.value || '') });
+    });
+    V172_TASK_TEMPLATE_LABELS.forEach(([, key, label]) => {
+      const existing = byKey.get(key) || { key, label, value:'' };
+      const value = normalizeText(existing.value || sourceRow?.[key] || sourceRow?.raw?.[label] || '');
+      byKey.set(key, { key, label, value });
+    });
+    const fields = V172_TASK_TEMPLATE_LABELS.map(([, key, label]) => byKey.get(key) || { key, label, value:'' });
+    const realValues = fields.filter(f => normalizeText(f.value));
+    const row = { ...sourceRow, raw:{ ...(sourceRow.raw || {}) }, taskTemplateFields: fields, templateType:'content_task_template_v177' };
+    fields.forEach(field => {
+      row[field.key] = normalizeText(field.value || '');
+      row.raw[field.label] = normalizeText(field.value || '');
+    });
+    return { ...(parsed || {}), parsedRows: realValues.length ? [row] : [], taskTemplateFields: fields, templateKind:'content_task_template_v177' };
+  }
   function v172TaskTemplateFieldsFromTemplate(tpl){
     const direct = Array.isArray(tpl?.taskTemplateFields) ? tpl.taskTemplateFields : [];
     if(direct.length) return direct;
@@ -11038,19 +11063,21 @@ async function downloadStructureTemplateForTaskExact(task){
     const fileData = await fileToDataUrl(file);
     const buffer = await file.arrayBuffer();
     let parsed = v172ParseTaskTemplateWorkbookBuffer(buffer, file.name);
-    if(!(parsed.parsedRows || []).length){
-      parsed = parseStructureWorkbookBuffer(buffer);
+    parsed = v177NormalizeRealTaskTemplate(parsed);
+    // لا نستخدم بيانات هيكل الحملة كبديل هنا؛ Task Template لازم يتقرأ من ملفه الحقيقي فقط.
+    const hasRealTaskTemplateData = (parsed.taskTemplateFields || []).some(field => normalizeText(field.value || ''));
+    if(!hasRealTaskTemplateData){
+      showToast('تعذر قراءة بيانات Task Template من الملف. ارفع قالب Task Template الحقيقي بعد تعبئته.');
+      return;
     }
-    if(!(parsed.sheetTables || []).length && fileData) parsed = await parseStructureDataUrl(fileData);
-    parsed = v176MergeTaskTemplateWithFallback(parsed, task);
     const prev = task.taskTemplate || {};
-    const next = { ...prev, status:'pending_review', fileName:file.name, fileSize:file.size, fileData, parsedRows: parsed.parsedRows || [], sheetTables: parsed.sheetTables || [], taskTemplateFields: parsed.taskTemplateFields || v172TaskTemplateFieldsFromTemplate(parsed), templateKind:'content_task_template_v176', uploadedAt:new Date().toISOString(), uploadedBy:getCurrentUser().email || getCurrentUser().name || '' };
+    const next = { ...prev, status:'pending_review', fileName:file.name, fileSize:file.size, fileData, parsedRows: parsed.parsedRows || [], sheetTables: parsed.sheetTables || [], taskTemplateFields: parsed.taskTemplateFields || v172TaskTemplateFieldsFromTemplate(parsed), templateKind:'content_task_template_v177', uploadedAt:new Date().toISOString(), uploadedBy:getCurrentUser().email || getCurrentUser().name || '' };
     await updateTaskOnFirebase(task.id, { taskTemplate: encodeStructureWorkbookForFirestore(next), status:'pending_task_template_review' });
     showToast('تم رفع Task Template. في انتظار مراجعة الأدمن.');
     refreshOpenTaskModal();
   }
   function v175RenderTaskTemplateReviewView(tpl, task = null){
-    const mergedTpl = task ? v176MergeTaskTemplateWithFallback(tpl || {}, task) : (tpl || {});
+    const mergedTpl = v177NormalizeRealTaskTemplate(tpl || {});
     const fields = v172TaskTemplateFieldsFromTemplate(mergedTpl);
     const rows = Array.isArray(mergedTpl?.parsedRows) ? mergedTpl.parsedRows : [];
     const row = rows[0] || {};
@@ -11087,7 +11114,7 @@ async function downloadStructureTemplateForTaskExact(task){
     const tpl = task.taskTemplate || {};
     const status = decision === 'approved' ? 'approved' : (decision === 'needs_changes' ? 'needs_changes' : 'rejected');
     const decidedTemplate = {
-      ...v176MergeTaskTemplateWithFallback(tpl, task),
+      ...v177NormalizeRealTaskTemplate(tpl),
       status,
       reviewNote: note,
       reviewedAt: new Date().toISOString(),
@@ -11156,5 +11183,19 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v172 - task template exact file support */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v176'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v180'; }catch(_){ }
+})();
+
+/* v182 - keep normal task details as a vertical scrollable detail view, not the structure sheet layout */
+(function(){
+  const prevOpenTaskModalV182 = openTaskModal;
+  openTaskModal = function(task){
+    prevOpenTaskModalV182(task);
+    const modal = document.getElementById('taskModal');
+    if(!modal || !task) return;
+    if(!isCampaignStructureTask(task)){
+      modal.classList.remove('has-structure-sheet-modal');
+      modal.classList.add('task-fullscreen-view');
+    }
+  };
 })();
