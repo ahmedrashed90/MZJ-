@@ -6796,3 +6796,19 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-metric-row,
 body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
   flex-shrink:0!important;
 }
+
+/* v175 - Task Template review has its own layout, not campaign structure layout */
+.task-template-review-popup .structure-review-dialog{max-width:min(1180px,96vw)}
+.task-template-review-view{display:grid;gap:16px;direction:rtl;text-align:right}
+.task-template-review-summary{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 16px;border:1px solid var(--border,#ead2c8);border-radius:16px;background:rgba(255,248,242,.82)}
+.task-template-review-summary h4{margin:0 0 6px;font-size:18px;color:var(--brown,#4b2a20)}
+.task-template-review-summary p{margin:0;color:var(--muted,#9b7d70);font-weight:700}
+.task-template-review-file{display:inline-flex;align-items:center;border-radius:999px;padding:8px 12px;background:#f1dfd2;color:#6b3d31;font-weight:900;white-space:nowrap}
+.task-template-review-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.task-template-review-field{min-height:88px;border:1px solid var(--border,#ead2c8);border-radius:16px;background:#fff;padding:12px;display:flex;flex-direction:column;gap:8px;justify-content:flex-start}
+.task-template-review-field span{font-size:12px;color:#a07e72;font-weight:900}
+.task-template-review-field strong{font-size:15px;line-height:1.7;color:#2f1b16;white-space:pre-wrap;word-break:break-word}
+.task-template-review-table-wrap{overflow:auto;border:1px solid var(--border,#ead2c8);border-radius:16px;background:#fff}
+.task-template-review-table{width:100%;border-collapse:collapse;min-width:760px}
+.task-template-review-table th,.task-template-review-table td{border-bottom:1px solid #f0ded5;padding:11px 12px;text-align:right;vertical-align:top;font-weight:800;color:#3a241e}
+.task-template-review-table th{background:#f6ece5;color:#6b3d31;font-size:12px}

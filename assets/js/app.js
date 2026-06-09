@@ -4886,7 +4886,7 @@ function renderStructureSection(task){
       ${canUpload ? `<button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">إرفاق هيكل الحملة Excel</button>` : ''}
       ${hasStructureFile ? `<span class="structure-file-name structure-attached-label">تم إرفاق الهيكل</span>${structure.fileName ? `<span class="structure-file-name">${escapeHtml(structure.fileName)}</span>` : ''}` : '<span class="structure-file-name muted">لم يتم رفع الهيكل</span>'}
       ${structure.fileData ? `<a class="btn btn-light" href="${escapeHtml(structure.fileData)}" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل الملف المرفوع</a>` : ''}
-      ${admin && hasStructureFile ? `<button class="btn btn-primary" type="button" data-open-structure-review="${escapeHtml(task.id)}">مراجعة الهيكل</button>` : ''}
+      ${hasStructureFile ? `<button class="btn btn-primary" type="button" data-open-structure-review="${escapeHtml(task.id)}">${admin ? 'مراجعة الهيكل' : 'عرض الهيكل'}</button>` : ''}
     </div>
     ${notesHtml}
     ${!admin && hasStructureFile && status !== 'approved' && status !== 'distributed' ? `<div class="structure-uploaded-message">تم رفع الهيكل. في انتظار مراجعة الأدمن.</div>` : ''}
@@ -10285,7 +10285,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v164 - no default content-writer checks + remove execution angle/highlight columns from template */
 (function(){
-  const APP_CACHE_VERSION = '168';
+  const APP_CACHE_VERSION = '175';
   try{ window.MZJ_APP_VERSION = APP_CACHE_VERSION; }catch(e){}
 
   const oldSelectedContentDependencyV164 = selectedContentDependency;
@@ -10415,7 +10415,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v165 - per-user content-writer linking inside execution roles + clearer dashboard names + full task details scroll */
 (function(){
-  const APP_CACHE_VERSION = '168';
+  const APP_CACHE_VERSION = '175';
   try{ window.MZJ_APP_VERSION = APP_CACHE_VERSION; }catch(e){}
 
   function v165Encode(value){
@@ -10707,7 +10707,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v171 - content task template workflow linked to execution tasks */
 (function(){
-  const VERSION = 'v171';
+  const VERSION = 'v176';
   try{ window.MZJ_APP_VERSION = VERSION; }catch(_){ }
 
   function v171PairKey(parentTask, row, assigneeId, role){
@@ -10933,19 +10933,40 @@ async function downloadStructureTemplateForTaskExact(task){
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     if(!sheet) return { parsedRows: [], sheetTables: [], taskTemplateFields: [] };
-    const rawRows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'' });
+    const rawRows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'', blankrows:false });
     const row = { raw:{}, fileName };
-    const fields = [];
-    rawRows.forEach((r) => {
-      const label = normalizeText(r?.[1] || r?.[0] || '');
-      const value = normalizeText(r?.[2] || r?.[1] || '');
-      const found = V172_TASK_TEMPLATE_KEY_MAP.get(v172TaskTemplateKey(label));
+    const fieldsByKey = new Map();
+    function pushField(found, value){
       if(!found) return;
       const [, key, displayLabel] = found;
-      row[key] = value;
-      row.raw[displayLabel] = value;
-      fields.push({ key, label: displayLabel, value });
+      const cleanValue = normalizeText(value || '');
+      const existing = fieldsByKey.get(key);
+      if(existing && normalizeText(existing.value)) return;
+      fieldsByKey.set(key, { key, label: displayLabel, value: cleanValue });
+      row[key] = cleanValue;
+      row.raw[displayLabel] = cleanValue;
+    }
+    rawRows.forEach((r, rowIndex) => {
+      (r || []).forEach((cell, colIndex) => {
+        const found = V172_TASK_TEMPLATE_KEY_MAP.get(v172TaskTemplateKey(cell));
+        if(!found) return;
+        const candidates = [];
+        for(let c = colIndex + 1; c < Math.min((r || []).length, colIndex + 6); c += 1) candidates.push(r[c]);
+        for(let c = colIndex - 1; c >= Math.max(0, colIndex - 3); c -= 1) candidates.push(r[c]);
+        for(let rr = rowIndex + 1; rr < Math.min(rawRows.length, rowIndex + 4); rr += 1) candidates.push(rawRows[rr]?.[colIndex]);
+        const value = candidates.map(v => normalizeText(v || '')).find(v => v && !V172_TASK_TEMPLATE_KEY_MAP.has(v172TaskTemplateKey(v))) || '';
+        pushField(found, value);
+      });
     });
+    // Fallback for the official vertical B:C template if the matrix scan missed anything.
+    rawRows.forEach((r) => {
+      const label = normalizeText(r?.[1] || r?.[0] || '');
+      const found = V172_TASK_TEMPLATE_KEY_MAP.get(v172TaskTemplateKey(label));
+      if(!found) return;
+      const value = normalizeText(r?.[2] || '');
+      pushField(found, value);
+    });
+    const fields = V172_TASK_TEMPLATE_LABELS.map(([, key, label]) => fieldsByKey.get(key) || { key, label, value:'' });
     const hasRealData = fields.some(f => normalizeText(f.value));
     const sheetTables = [buildMergedStructureSheet(sheet, sheetName)].filter(tbl => (tbl.rows || []).length);
     if(!hasRealData) return { parsedRows: [], sheetTables, taskTemplateFields: fields };
@@ -10955,6 +10976,43 @@ async function downloadStructureTemplateForTaskExact(task){
     row.taskTemplateFields = fields;
     row.templateType = 'content_task_template';
     return { parsedRows:[row], sheetTables, taskTemplateFields: fields };
+  }
+  function v176TaskTemplateFallbackRow(task){
+    const campaign = campaignForTask(task) || {};
+    const row = task?.structureRow || {};
+    return {
+      campaignName: campaignNameText(campaign) || task?.campaignName || campaign?.name || '',
+      campaignCode: campaignCodeText(campaign) || task?.campaignCode || campaign?.campaign_code || '',
+      campaignType: campaignTypeText(campaign) || campaign?.campaign_type || task?.campaignType || '',
+      taskNo: task?.structureTaskNo || task?.taskNo || row.taskNo || '',
+      suggestedCreativeName: task?.structureTaskLabel || row.contentName || row.idea || task?.product || taskContentType(task) || '',
+      contentType: taskContentType(task) || row.contentType || task?.contentType || '',
+      goal: row.goal || task?.goal || '',
+      message: row.message || task?.message || '',
+      hook: row.contentAngle || row.idea || row.contentName || '',
+      script: row.writerRequest || row.description || '',
+      cta: row.cta || task?.cta || '',
+      caption: task?.caption || task?.publishCaption || task?.platformCaption || '',
+      hashtags: task?.hashtags || task?.hashtag || task?.publishHashtags || ''
+    };
+  }
+  function v176MergeTaskTemplateWithFallback(parsed, task){
+    const fallback = v176TaskTemplateFallbackRow(task);
+    const sourceRow = Array.isArray(parsed?.parsedRows) && parsed.parsedRows[0] ? parsed.parsedRows[0] : {};
+    const row = { ...fallback, ...sourceRow, raw:{ ...(sourceRow.raw || {}) } };
+    const existingFields = Array.isArray(parsed?.taskTemplateFields) ? parsed.taskTemplateFields : [];
+    const byKey = new Map(existingFields.map(f => [f.key, { ...f }]));
+    V172_TASK_TEMPLATE_LABELS.forEach(([, key, label]) => {
+      const existing = byKey.get(key) || { key, label, value:'' };
+      const value = normalizeText(existing.value || row[key] || fallback[key] || '');
+      byKey.set(key, { key, label, value });
+      row[key] = value;
+      row.raw[label] = value;
+    });
+    const fields = V172_TASK_TEMPLATE_LABELS.map(([, key, label]) => byKey.get(key) || { key, label, value:'' });
+    row.taskTemplateFields = fields;
+    row.templateType = 'content_task_template';
+    return { ...(parsed || {}), parsedRows:[row], taskTemplateFields: fields };
   }
   function v172TaskTemplateFieldsFromTemplate(tpl){
     const direct = Array.isArray(tpl?.taskTemplateFields) ? tpl.taskTemplateFields : [];
@@ -10984,19 +11042,40 @@ async function downloadStructureTemplateForTaskExact(task){
       parsed = parseStructureWorkbookBuffer(buffer);
     }
     if(!(parsed.sheetTables || []).length && fileData) parsed = await parseStructureDataUrl(fileData);
+    parsed = v176MergeTaskTemplateWithFallback(parsed, task);
     const prev = task.taskTemplate || {};
-    const next = { ...prev, status:'pending_review', fileName:file.name, fileSize:file.size, fileData, parsedRows: parsed.parsedRows || [], sheetTables: parsed.sheetTables || [], taskTemplateFields: parsed.taskTemplateFields || v172TaskTemplateFieldsFromTemplate(parsed), templateKind:'content_task_template_v172', uploadedAt:new Date().toISOString(), uploadedBy:getCurrentUser().email || getCurrentUser().name || '' };
+    const next = { ...prev, status:'pending_review', fileName:file.name, fileSize:file.size, fileData, parsedRows: parsed.parsedRows || [], sheetTables: parsed.sheetTables || [], taskTemplateFields: parsed.taskTemplateFields || v172TaskTemplateFieldsFromTemplate(parsed), templateKind:'content_task_template_v176', uploadedAt:new Date().toISOString(), uploadedBy:getCurrentUser().email || getCurrentUser().name || '' };
     await updateTaskOnFirebase(task.id, { taskTemplate: encodeStructureWorkbookForFirestore(next), status:'pending_task_template_review' });
     showToast('تم رفع Task Template. في انتظار مراجعة الأدمن.');
     refreshOpenTaskModal();
   }
+  function v175RenderTaskTemplateReviewView(tpl, task = null){
+    const mergedTpl = task ? v176MergeTaskTemplateWithFallback(tpl || {}, task) : (tpl || {});
+    const fields = v172TaskTemplateFieldsFromTemplate(mergedTpl);
+    const rows = Array.isArray(mergedTpl?.parsedRows) ? mergedTpl.parsedRows : [];
+    const row = rows[0] || {};
+    const fieldHtml = fields.length ? fields.map(field => `<div class="task-template-review-field"><span>${escapeHtml(field.label || field.key || '')}</span><strong>${escapeHtml(field.value || '—')}</strong></div>`).join('') : V172_TASK_TEMPLATE_LABELS.map(([, key, label]) => {
+      const value = normalizeText(row?.[key] || row?.raw?.[label] || '');
+      return `<div class="task-template-review-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || '—')}</strong></div>`;
+    }).join('');
+    const rawRows = rows.length ? rows.map((item, idx) => {
+      const taskNo = normalizeText(item.taskNo || item.taskNumber || item.raw?.['رقم التاسك'] || '');
+      const type = normalizeText(item.contentType || item.raw?.['نوع المحتوي'] || item.raw?.['نوع المحتوى'] || '');
+      const msg = normalizeText(item.message || item.raw?.['الرساله الاساسيه'] || item.raw?.['الرسالة الأساسية'] || '');
+      const cta = normalizeText(item.cta || item.raw?.CTA || '');
+      return `<tr><td>${escapeHtml(idx + 1)}</td><td>${escapeHtml(taskNo || '—')}</td><td>${escapeHtml(type || '—')}</td><td>${escapeHtml(msg || '—')}</td><td>${escapeHtml(cta || '—')}</td></tr>`;
+    }).join('') : '';
+    const fileName = normalizeText(tpl?.fileName || '');
+    return `<div class="task-template-review-view"><div class="task-template-review-summary"><div><h4>بيانات Task Template</h4><p>مراجعة ملف المحتوى المرفوع من كاتب المحتوى بصيغته الخاصة، بعيدًا عن شكل هيكل الحملة.</p></div>${fileName ? `<span class="task-template-review-file">${escapeHtml(fileName)}</span>` : ''}</div><div class="task-template-review-fields">${fieldHtml}</div>${rawRows ? `<div class="task-template-review-table-wrap"><table class="task-template-review-table"><thead><tr><th>#</th><th>رقم التاسك</th><th>نوع المحتوى</th><th>الرسالة الأساسية</th><th>CTA</th></tr></thead><tbody>${rawRows}</tbody></table></div>` : ''}${mergedTpl?.fileData ? `<a class="btn btn-light" href="${escapeHtml(mergedTpl.fileData)}" download="${escapeHtml(fileName || 'task-template.xlsx')}">تحميل ملف Task Template</a>` : ''}</div>`;
+  }
+
   function v171OpenTaskTemplateReview(taskId){
     const task = findTaskById(taskId);
     if(!task) return showToast('تعذر العثور على التاسك.');
     const tpl = task.taskTemplate || {};
     const popup = document.createElement('div');
     popup.className = 'structure-review-popup task-template-review-popup';
-    popup.innerHTML = `<div class="structure-review-backdrop" data-close-structure-review></div><section class="structure-review-dialog" role="dialog" aria-modal="true"><div class="structure-review-head"><div><h3>مراجعة Task Template</h3><p>${escapeHtml(shortTaskName(task))}</p></div><button type="button" class="task-modal-close" data-close-structure-review>×</button></div><div class="structure-review-body">${renderStructureWorkbookTable(task, tpl, isCurrentUserAdmin())}</div><div class="modal-section"><div class="modal-section-title"><h3>قرار الأدمن</h3><span>اعتماد / تعديل / رفض</span></div><textarea class="task-template-review-note" data-task-template-review-note placeholder="اكتب ملاحظات التعديل أو سبب الرفض لو محتاج..."></textarea></div><div class="structure-review-actions task-template-review-actions"><button type="button" class="btn btn-light" data-close-structure-review>إغلاق</button><button type="button" class="btn btn-warning-soft" data-task-template-needs-changes="${escapeHtml(task.id)}">محتاج تعديل</button><button type="button" class="btn btn-danger-soft" data-task-template-reject="${escapeHtml(task.id)}">مرفوض</button><button type="button" class="btn btn-primary" data-task-template-approve="${escapeHtml(task.id)}">اعتماد Task Template</button></div></section>`;
+    popup.innerHTML = `<div class="structure-review-backdrop" data-close-structure-review></div><section class="structure-review-dialog" role="dialog" aria-modal="true"><div class="structure-review-head"><div><h3>مراجعة Task Template</h3><p>${escapeHtml(shortTaskName(task))}</p></div><button type="button" class="task-modal-close" data-close-structure-review>×</button></div><div class="structure-review-body">${v175RenderTaskTemplateReviewView(tpl, task)}</div><div class="modal-section"><div class="modal-section-title"><h3>قرار الأدمن</h3><span>اعتماد / تعديل / رفض</span></div><textarea class="task-template-review-note" data-task-template-review-note placeholder="اكتب ملاحظات التعديل أو سبب الرفض لو محتاج..."></textarea></div><div class="structure-review-actions task-template-review-actions"><button type="button" class="btn btn-light" data-close-structure-review>إغلاق</button><button type="button" class="btn btn-warning-soft" data-task-template-needs-changes="${escapeHtml(task.id)}">محتاج تعديل</button><button type="button" class="btn btn-danger-soft" data-task-template-reject="${escapeHtml(task.id)}">مرفوض</button><button type="button" class="btn btn-primary" data-task-template-approve="${escapeHtml(task.id)}">اعتماد Task Template</button></div></section>`;
     document.body.appendChild(popup);
   }
 
@@ -11008,7 +11087,7 @@ async function downloadStructureTemplateForTaskExact(task){
     const tpl = task.taskTemplate || {};
     const status = decision === 'approved' ? 'approved' : (decision === 'needs_changes' ? 'needs_changes' : 'rejected');
     const decidedTemplate = {
-      ...tpl,
+      ...v176MergeTaskTemplateWithFallback(tpl, task),
       status,
       reviewNote: note,
       reviewedAt: new Date().toISOString(),
@@ -11077,5 +11156,5 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v172 - task template exact file support */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v174'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v176'; }catch(_){ }
 })();
