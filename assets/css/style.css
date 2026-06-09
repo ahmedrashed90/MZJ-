@@ -7349,3 +7349,31 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
   #taskModal.task-modal.show .task-detail-fullscreen .approved-content-template-section-v183 .modal-section-title{flex-direction:column!important;}
   #taskModal.task-modal.show .task-detail-fullscreen .approved-content-template-section-v183 .modal-section-title span{max-width:100%!important;}
 }
+
+
+/* v185 - Make approved Task Template script clearly readable */
+#taskModal.task-modal.show .task-detail-fullscreen .approved-content-template-section-v183 .approved-template-script-card{
+  grid-column:1 / -1!important;
+  min-height:260px!important;
+  padding:16px 18px!important;
+  background:#fff!important;
+}
+#taskModal.task-modal.show .task-detail-fullscreen .approved-content-template-section-v183 .approved-template-script-card span{
+  font-size:13px!important;
+  margin-bottom:10px!important;
+}
+#taskModal.task-modal.show .task-detail-fullscreen .approved-content-template-section-v183 .approved-template-script-card strong{
+  font-size:15px!important;
+  line-height:1.9!important;
+  max-height:none!important;
+  overflow:visible!important;
+  white-space:pre-wrap!important;
+}
+#taskModal.task-modal.show .task-detail-fullscreen .approved-content-template-section-v183 .approved-template-long-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+}
+@media(max-width:900px){
+  #taskModal.task-modal.show .task-detail-fullscreen .approved-content-template-section-v183 .approved-template-long-grid{grid-template-columns:1fr!important;}
+}
+/* v186 publish prep inline editing */
+.prep-meta-actions{display:flex;justify-content:flex-start;margin:10px 0 8px;gap:8px;flex-wrap:wrap}.prep-meta-actions .btn{font-size:12px;padding:8px 12px}.publish-prep-edit-popup .prep-edit-dialog{max-width:min(980px,94vw)}.publish-prep-edit-popup .prep-edit-body{display:grid;gap:16px}.publish-prep-edit-popup .prep-edit-section{border:1px solid rgba(128,72,54,.18);border-radius:16px;background:#fffaf7;padding:14px}.publish-prep-edit-popup .prep-edit-section h4{margin:0 0 12px;color:#5c2e22}.publish-prep-edit-popup .prep-edit-platforms{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.publish-prep-edit-popup .prep-edit-dates{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.publish-prep-edit-popup .prep-edit-dates label{display:grid;gap:8px;font-weight:800;color:#7a5548}.publish-prep-edit-popup .prep-edit-dates input{border:1px solid rgba(128,72,54,.22);border-radius:12px;padding:11px;background:#fff}.publish-prep-edit-popup .publish-platform-type-row{background:#fff;border:1px solid rgba(128,72,54,.2);border-radius:14px;padding:10px;display:grid;gap:8px}.publish-prep-edit-popup .publish-platform-type-row.is-selected{border-color:#a65a49;box-shadow:0 8px 18px rgba(128,72,54,.08)}

@@ -8331,17 +8331,17 @@ async function publishPrepReadyTaskNow(task, submission){
   const liveHashtags = liveHashtagsInput ? normalizeText(liveHashtagsInput.value) : '';
   const effectiveCaption = liveCaption || publishPrepEffectiveCaption(task, submission);
   const effectiveHashtags = liveHashtags || publishPrepEffectiveHashtags(task, submission);
-  const platforms = (task.platforms || []).map(normalizePublishPlatformForApi).filter(Boolean);
+  const platforms = publishPrepEffectivePlatforms(task, submission).map(normalizePublishPlatformForApi).filter(Boolean);
   if(!platforms.length) throw new Error('لا توجد منصات محددة للنشر.');
   const payload = {
     taskId: task.id,
     title: task.title,
     contentType: task.type || task.requiredFile || '',
-    postType: task.postType || '',
-    postTypeLabel: task.postTypeLabel || postTypeLabel(task.postType || ''),
-    requiredDimensions: task.requiredDimensions || null,
-    platformTypes: task.platformTypes || {},
-    platformPublishing: Array.isArray(task.platformPublishing) ? task.platformPublishing : [],
+    postType: publishPrepEffectivePostType(task, submission),
+    postTypeLabel: publishPrepEffectivePostTypeLabel(task, submission),
+    requiredDimensions: submission.requiredDimensions || task.requiredDimensions || null,
+    platformTypes: publishPrepEffectivePlatformTypes(task, submission),
+    platformPublishing: publishPrepEffectivePlatformPublishing(task, submission),
     platforms,
     caption: effectiveCaption,
     hashtags: effectiveHashtags,
@@ -8360,13 +8360,44 @@ async function publishPrepReadyTaskNow(task, submission){
   }
   return data;
 }
+function publishPrepEffectivePlatforms(task, submission = {}){
+  return Array.isArray(submission?.platforms) && submission.platforms.length ? submission.platforms : (Array.isArray(task.platforms) ? task.platforms : []);
+}
+function publishPrepEffectivePlatformPublishing(task, submission = {}){
+  return Array.isArray(submission?.platformPublishing) && submission.platformPublishing.length ? submission.platformPublishing : (Array.isArray(task.platformPublishing) ? task.platformPublishing : []);
+}
+function publishPrepEffectivePlatformTypes(task, submission = {}){
+  return (submission?.platformTypes && typeof submission.platformTypes === 'object') ? submission.platformTypes : (task.platformTypes || {});
+}
+function publishPrepEffectivePublishDate(task, submission = {}){
+  return normalizeText(submission?.publishDate || task.publishDate || '');
+}
+function publishPrepEffectivePublishTime(task, submission = {}){
+  return normalizeText(submission?.publishTime || task.publishTime || '');
+}
+function publishPrepEffectivePostType(task, submission = {}){
+  return normalizeText(submission?.postType || task.postType || '');
+}
+function publishPrepEffectivePostTypeLabel(task, submission = {}){
+  return normalizeText(submission?.postTypeLabel || task.postTypeLabel || postTypeLabel(publishPrepEffectivePostType(task, submission)) || '');
+}
+function publishPrepEffectivePlatformTypeDetails(task, submission = {}){
+  const list = publishPrepEffectivePlatformPublishing(task, submission);
+  if(list.length) return list.map(item => `${item.platform || 'منصة'}: ${item.postTypeLabel || postTypeLabel(item.postType || '') || 'نوع غير محدد'}`).join(' / ');
+  return publishPrepEffectivePostTypeLabel(task, submission) || '';
+}
+function publishPrepHasEffectivePlatformTypeData(task, submission = {}){
+  const list = publishPrepEffectivePlatformPublishing(task, submission);
+  if(list.length) return list.every(item => item.platform && item.postType);
+  return !!(publishPrepEffectivePlatforms(task, submission).length && (publishPrepEffectivePostType(task, submission) || publishPrepEffectivePostTypeLabel(task, submission)));
+}
 function publishPrepMissingFields(task, submission){
   const missing = [];
   if(!publishPrepEffectiveCaption(task, submission)) missing.push('الكابشن');
   if(!publishPrepEffectiveHashtags(task, submission)) missing.push('الهاشتاج');
-  if(!normalizeText(task.publishDate)) missing.push('تاريخ النشر');
-  if(!task.platforms?.length) missing.push('المنصات');
-  if(!publishPrepHasPlatformTypeData(task)) missing.push('نوع المنشور لكل منصة');
+  if(!publishPrepEffectivePublishDate(task, submission)) missing.push('تاريخ النشر');
+  if(!publishPrepEffectivePlatforms(task, submission).length) missing.push('المنصات');
+  if(!publishPrepHasEffectivePlatformTypeData(task, submission)) missing.push('نوع المنشور لكل منصة');
   if(publishPrepTaskProgress(task) < 100) missing.push('اكتمال التاسك 100%');
   if(!publishPrepHasFinalFile(task, submission)) missing.push('الملف النهائي');
   return missing;
@@ -8378,8 +8409,9 @@ function publishPrepCompleteness(task, submission){
 }
 function renderPublishPrepCard(task, submission){
   const status = publishPrepStatus(task, submission);
-  const platforms = task.platforms?.length ? task.platforms.join(' + ') : 'غير محدد';
-  const platformTypeDetails = publishPrepPlatformTypeDetails(task);
+  const effectivePlatforms = publishPrepEffectivePlatforms(task, submission);
+  const platforms = effectivePlatforms.length ? effectivePlatforms.join(' + ') : 'غير محدد';
+  const platformTypeDetails = publishPrepEffectivePlatformTypeDetails(task, submission);
   const completeness = publishPrepCompleteness(task, submission);
   const captionValue = publishPrepEffectiveCaption(task, submission);
   const hashtagsValue = publishPrepEffectiveHashtags(task, submission);
@@ -8409,11 +8441,12 @@ function renderPublishPrepCard(task, submission){
         <div><b>نوع المحتوى</b><span>${escapeHtml(task.type)}</span></div>
         <div><b>المنصات</b><span>${escapeHtml(platforms)}</span></div>
         <div><b>أنواع النشر</b><span>${escapeHtml(platformTypeDetails || 'غير محدد')}</span></div>
-        <div><b>تاريخ النشر</b><span>${escapeHtml(task.publishDate || 'غير محدد')}</span></div>
-        <div><b>وقت النشر</b><span>${escapeHtml(task.publishTime || 'بدون وقت')}</span></div>
+        <div><b>تاريخ النشر</b><span>${escapeHtml(publishPrepEffectivePublishDate(task, submission) || 'غير محدد')}</span></div>
+        <div><b>وقت النشر</b><span>${escapeHtml(publishPrepEffectivePublishTime(task, submission) || 'بدون وقت')}</span></div>
         <div><b>ميعاد التسليم</b><span>${escapeHtml(task.deadline || 'غير محدد')}</span></div>
         <div><b>المطلوب</b><span>${escapeHtml(task.requiredFile || 'ملف نهائي')}</span></div>
       </div>
+      <div class="prep-meta-actions"><button class="btn btn-light" type="button" data-edit-prep-publishing="${escapeHtml(task.id)}">تعديل المنصات وأنواع النشر والتاريخ</button></div>
       <div class="prep-inline-content">
         <label><span>الكابشن</span><textarea data-prep-caption="${escapeHtml(task.id)}" rows="3" placeholder="اكتب الكابشن الخاص بالتاسك">${escapeHtml(captionValue)}</textarea></label>
         <label><span>الهاشتاج</span><textarea data-prep-hashtags="${escapeHtml(task.id)}" rows="2" placeholder="اكتب الهاشتاجات">${escapeHtml(hashtagsValue)}</textarea></label>
@@ -8474,9 +8507,62 @@ function renderPublishPrepPage(){
     </section>`).join('')}</div>`;
 }
 
+function openPublishPrepEditModal(taskId){
+  const task = getPublishingPrepTasks().find(item => item.id === taskId);
+  if(!task){ showToast('تعذر العثور على التاسك.'); return; }
+  const submission = getPublishPrepSubmissions()[taskId] || {};
+  document.querySelectorAll('.publish-prep-edit-popup').forEach(el => el.remove());
+  const meta = {
+    platforms: publishPrepEffectivePlatforms(task, submission),
+    platformPublishing: publishPrepEffectivePlatformPublishing(task, submission),
+    platformTypes: publishPrepEffectivePlatformTypes(task, submission)
+  };
+  const popup = document.createElement('div');
+  popup.className = 'publish-prep-edit-popup publish-platform-popup';
+  popup.innerHTML = `<div class="publish-popup-backdrop" data-close-prep-edit-popup></div>
+    <section class="publish-popup-dialog prep-edit-dialog" role="dialog" aria-modal="true">
+      <div class="publish-popup-head"><div><h3>تعديل بيانات تجهيز النشر</h3><p>${escapeHtml(task.title || 'تاسك')}</p></div><button type="button" class="task-modal-close" data-close-prep-edit-popup>×</button></div>
+      <div class="publish-popup-body prep-edit-body">
+        <div class="prep-edit-section"><h4>المنصات وأنواع النشر</h4><div class="publish-platform-type-list prep-edit-platforms">${publishPlatformRowsHtml(meta)}</div></div>
+        <div class="prep-edit-section prep-edit-dates"><label><span>تاريخ النشر</span><input type="date" class="js-prep-edit-date" value="${escapeHtml(publishPrepEffectivePublishDate(task, submission))}"></label><label><span>وقت النشر</span><input type="time" class="js-prep-edit-time" value="${escapeHtml(publishPrepEffectivePublishTime(task, submission))}"></label></div>
+      </div>
+      <div class="publish-popup-actions"><button type="button" class="btn btn-light" data-close-prep-edit-popup>إلغاء</button><button type="button" class="btn btn-primary" data-save-prep-edit-popup="${escapeHtml(taskId)}">حفظ بيانات النشر</button></div>
+    </section>`;
+  document.body.appendChild(popup);
+  popup.querySelectorAll('.publish-platform-type-row').forEach(refreshPublishPlatformTypeRow);
+}
+function closePublishPrepEditModal(){
+  document.querySelectorAll('.publish-prep-edit-popup').forEach(el => el.remove());
+}
+async function savePublishPrepEditModal(taskId){
+  const popup = document.querySelector('.publish-prep-edit-popup');
+  if(!popup) return;
+  const publishing = collectPublishPlatformPublishing(popup);
+  const platforms = publishing.map(item => item.platform).filter(Boolean);
+  const platformTypes = {};
+  publishing.forEach(item => { if(item.platform) platformTypes[item.platform] = item.postType || ''; });
+  const first = publishing.find(item => item.postType) || {};
+  await updatePublishPrepSubmission(taskId, {
+    platforms,
+    platformPublishing: publishing,
+    platformTypes,
+    postType: publishing.length === 1 ? (first.postType || '') : '',
+    postTypeLabel: publishing.length === 1 ? (first.postTypeLabel || '') : (publishing.length > 1 ? 'أنواع متعددة' : ''),
+    requiredDimensions: publishing.length === 1 ? (first.requiredDimensions || null) : null,
+    publishDate: normalizeText(popup.querySelector('.js-prep-edit-date')?.value || ''),
+    publishTime: normalizeText(popup.querySelector('.js-prep-edit-time')?.value || ''),
+    publishMetaSavedAt: new Date().toISOString(),
+    publishMetaSavedBy: getCurrentUserIdentity()?.email || getCurrentUserIdentity()?.name || 'user'
+  });
+  closePublishPrepEditModal();
+  renderPublishPrepPage();
+  showToast('تم حفظ المنصات وأنواع النشر وتاريخ النشر للتاسك.');
+}
 function bindPublishPrepPage(){
   document.getElementById('refreshPublishPrepBtn')?.addEventListener('click', () => { renderPublishPrepPage(); showToast('تم تحديث تاسكات تجهيز النشر.'); });
   document.getElementById('publishPrepList')?.addEventListener('click', async event => {
+    const editPrepBtn = event.target.closest('[data-edit-prep-publishing]');
+    if(editPrepBtn){ openPublishPrepEditModal(editPrepBtn.dataset.editPrepPublishing || ''); return; }
     const saveContentBtn = event.target.closest('[data-save-prep-content]');
     const readyBtn = event.target.closest('[data-mark-ready-publish]');
     const publishBtn = event.target.closest('[data-publish-ready-task]');
@@ -8564,6 +8650,19 @@ function bindPublishPrepPage(){
     }
   });
 }
+
+
+document.addEventListener('click', async event => {
+  if(event.target.closest('[data-close-prep-edit-popup]')){ closePublishPrepEditModal(); return; }
+  const saveBtn = event.target.closest('[data-save-prep-edit-popup]');
+  if(saveBtn){ await savePublishPrepEditModal(saveBtn.dataset.savePrepEditPopup || ''); }
+});
+document.addEventListener('change', event => {
+  const checkbox = event.target.closest('.publish-prep-edit-popup .js-platform-checkbox');
+  const select = event.target.closest('.publish-prep-edit-popup .js-publish-platform-type-select');
+  if(checkbox){ const row = checkbox.closest('.publish-platform-type-row'); if(row) refreshPublishPlatformTypeRow(row); }
+  if(select){ const row = select.closest('.publish-platform-type-row'); if(row) row.classList.toggle('is-selected', !!select.value || !!row.querySelector('.js-platform-checkbox')?.checked); }
+});
 
 function renderPublishCenterPage(){
   const list = document.getElementById('publishCenterList');
@@ -10903,7 +11002,7 @@ async function downloadStructureTemplateForTaskExact(task){
     const longFields = [
       ['hook','الهوك'],['script','السكريبت الأساسي'],['caption','الكابشن'],['hashtags','هاشتاج']
     ];
-    const fieldCard = (key, label, extraClass='') => `<div class="approved-template-card ${extraClass}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(read(key) || '—')}</strong></div>`;
+    const fieldCard = (key, label, extraClass='') => { const scriptClass = key === 'script' ? ' approved-template-script-card' : ''; return `<div class="approved-template-card ${extraClass}${scriptClass}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(read(key) || '—')}</strong></div>`; };
     const metaHtml = metaFields.map(([key,label]) => fieldCard(key,label)).join('');
     const briefHtml = briefFields.map(([key,label]) => fieldCard(key,label)).join('');
     const longHtml = longFields.map(([key,label]) => fieldCard(key,label,'approved-template-long-card')).join('');
@@ -11205,7 +11304,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v172 - task template exact file support */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v183'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v184'; }catch(_){ }
 })();
 
 /* v182 - keep normal task details as a vertical scrollable detail view, not the structure sheet layout */
@@ -11220,4 +11319,152 @@ async function downloadStructureTemplateForTaskExact(task){
       modal.classList.add('task-fullscreen-view');
     }
   };
+})();
+
+/* v184 - Publish Prep shows approved execution tasks from structure only, with approved Task Template caption/hashtags */
+(function(){
+  const VERSION = 'v184';
+  try{ window.MZJ_APP_VERSION = VERSION; }catch(_){ }
+
+  function v184Clean(value){
+    try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); }
+  }
+  function v184Identity(value){
+    try{ return identityClean(value || ''); }catch(_){ return v184Clean(value).toLowerCase(); }
+  }
+  function v184IsContentTemplateTask(task){
+    const source = v184Identity(task?.source || task?.raw?.source || '');
+    return !!(task?.contentTemplateTask || source.includes('campaignstructurecontenttemplate'));
+  }
+  function v184IsStructureRequestTask(task){
+    const text = v184Identity([
+      task?.taskType, task?.title, task?.name, task?.taskName, task?.sourceRequestStep,
+      task?.raw?.taskType, task?.raw?.title
+    ].filter(Boolean).join(' '));
+    return !!(task?.structureRequestTask || task?.needsStructureUpload || text.includes(v184Identity('طلب هيكل')) || text.includes('structurerequest'));
+  }
+  function v184IsApprovedStructureExecutionTask(task){
+    if(!task || v184IsContentTemplateTask(task) || v184IsStructureRequestTask(task)) return false;
+    const source = v184Identity(task.source || task.raw?.source || '');
+    const structureLike = !!(task.structureGenerated || task.parentStructureTaskId || source.includes('campaignstructuredistribution'));
+    if(!structureLike) return false;
+    const role = normalizeDepartmentRole?.(task.departmentRole || task.assignedDepartmentName || task.contentSectionName || '') || '';
+    if(role === 'content') return false;
+    // These tasks are created only after approved structure rows are distributed.
+    return true;
+  }
+  function v184TplFields(tpl){
+    if(!tpl) return [];
+    const direct = Array.isArray(tpl.taskTemplateFields) ? tpl.taskTemplateFields : [];
+    if(direct.length) return direct;
+    const row = Array.isArray(tpl.parsedRows) ? (tpl.parsedRows[0] || {}) : {};
+    if(Array.isArray(row.taskTemplateFields) && row.taskTemplateFields.length) return row.taskTemplateFields;
+    const raw = row.raw || {};
+    const pairs = [
+      ['caption','الكابشن'], ['hashtags','هاشتاج'], ['message','الرسالة الأساسية'], ['cta','CTA'],
+      ['hook','الهوك'], ['script','السكريبت الأساسي'], ['goal','الهدف'], ['contentType','نوع المحتوى']
+    ];
+    return pairs.map(([key,label]) => ({ key, label, value: v184Clean(row[key] || raw[label] || raw[key] || '') })).filter(x => x.value);
+  }
+  function v184TplValue(tpl, wantedKey, arabicLabels = []){
+    const fields = v184TplFields(tpl);
+    const wanted = v184Identity(wantedKey);
+    const labels = arabicLabels.map(v184Identity);
+    const found = fields.find(f => v184Identity(f.key) === wanted || labels.includes(v184Identity(f.label)));
+    if(found && v184Clean(found.value)) return v184Clean(found.value);
+    const row = Array.isArray(tpl?.parsedRows) ? (tpl.parsedRows[0] || {}) : {};
+    const raw = row.raw || {};
+    return v184Clean(row[wantedKey] || tpl?.[wantedKey] || arabicLabels.map(label => raw[label]).find(Boolean) || '');
+  }
+  function v184ApprovedTemplate(task){
+    const tpl = task?.contentTaskTemplate || task?.approvedContentTemplate || task?.taskTemplate || null;
+    if(!tpl) return null;
+    const status = v184Identity(tpl.status || task?.linkedContentTemplateStatus || '');
+    if(status && status !== 'approved' && !task?.contentTaskTemplate && !task?.approvedContentTemplate) return null;
+    if(tpl.status && v184Identity(tpl.status) !== 'approved') return null;
+    return tpl;
+  }
+  function v184ContentCaption(task){
+    const tpl = v184ApprovedTemplate(task);
+    return v184TplValue(tpl, 'caption', ['الكابشن']) || v184Clean(task?.caption || task?.publishCaption || '');
+  }
+  function v184ContentHashtags(task){
+    const tpl = v184ApprovedTemplate(task);
+    return v184TplValue(tpl, 'hashtags', ['هاشتاج', 'الهاشتاج']) || v184Clean(task?.hashtags || task?.hashtagsText || task?.publishHashtags || '');
+  }
+  function v184HasPublishMeta(task){
+    const publishing = Array.isArray(task?.platformPublishing) ? task.platformPublishing : [];
+    const platforms = Array.isArray(task?.platforms) ? task.platforms : (task?.platform ? [task.platform] : []);
+    return !!(
+      publishing.length || platforms.length || v184Clean(task?.publishDate || task?.date || task?.scheduleDate || task?.scheduledDate || '') ||
+      v184ContentCaption(task) || v184ContentHashtags(task) || (task?.platformTypes && Object.keys(task.platformTypes || {}).length)
+    );
+  }
+  function v184TaskTitle(task){
+    const row = task.structureRow || task.raw?.structureRow || {};
+    const section = task.assignedDepartmentName || task.contentSectionName || '';
+    const content = row.contentType || task.taskType || task.structureTaskLabel || task.product || task.creative || '';
+    const taskNo = row.taskNo || task.taskNo || task.structureTaskNo || '';
+    const shortNo = String(taskNo || '').split('-').slice(-1)[0] || '';
+    const label = [shortNo, content].filter(Boolean).join(' - ');
+    return [section, label || shortTaskName?.(task) || 'تاسك من الهيكل'].filter(Boolean).join(' / ');
+  }
+  function v184NormalizePublishPrepTask(task){
+    const campaign = campaignForPrepTask?.(task) || campaignForTask?.(task) || {};
+    const row = task.structureRow || task.raw?.structureRow || {};
+    const caption = v184ContentCaption(task);
+    const hashtags = v184ContentHashtags(task);
+    const base = {
+      id: `task_${task.id || task.taskId || task.code || task.taskNo || Math.random().toString(36).slice(2)}`,
+      sourceType: 'structure_execution',
+      sourceLabel: task.assignedDepartmentName || task.contentSectionName || 'تاسك منفذ من الهيكل',
+      title: v184TaskTitle(task),
+      campaignName: campaign.campaignName || campaign.name || task.campaignName || '',
+      type: row.contentType || prepTaskTypeLabel?.(task) || task.taskType || '',
+      requiredFile: prepTaskRequiredFileLabel?.(task) || task.requiredFile || 'ملف نهائي',
+      platforms: normalizePrepPlatformList?.(task.platforms || task.platform || campaign.platforms || campaign.platform) || [],
+      platformTypes: task.platformTypes || {},
+      platformPublishing: Array.isArray(task.platformPublishing) ? task.platformPublishing : [],
+      postType: task.postType || task.publishType || '',
+      postTypeLabel: task.postTypeLabel || '',
+      requiredDimensions: task.requiredDimensions || null,
+      caption,
+      hashtags,
+      publishDate: prepTaskDate?.(task, campaign) || task.publishDate || task.date || '',
+      publishTime: task.publishTime || task.scheduleTime || '',
+      deadline: task.deadline || task.dueDate || task.requiredDate || '',
+      notes: task.notes || task.note || task.instructions || row.description || '',
+      raw: task
+    };
+    return typeof enrichPrepTaskFromSchedule === 'function' ? enrichPrepTaskFromSchedule(base, campaign, task) : base;
+  }
+
+  publishPrepTasksFromExistingTasks = function(){
+    const visible = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser() : campaignTasks;
+    return (visible || [])
+      .filter(task => {
+        if(!v184IsApprovedStructureExecutionTask(task)) return false;
+        if(!isCurrentUserAdmin?.() && !(taskAssignedToCurrentUser?.(task) || currentUserMatchesTaskExact?.(task))) return false;
+        return v184HasPublishMeta(task);
+      })
+      .map(v184NormalizePublishPrepTask);
+  };
+
+  getPublishingPrepTasks = function(){
+    const map = new Map();
+    publishPrepTasksFromExistingTasks().forEach(task => {
+      if(!map.has(task.id)) map.set(task.id, task);
+    });
+    return [...map.values()];
+  };
+
+  const oldPublishPrepSearchTextV184 = publishPrepSearchText;
+  publishPrepSearchText = function(task, submission = {}){
+    const raw = task.raw || {};
+    const tpl = v184ApprovedTemplate(raw);
+    const tplText = v184TplFields(tpl).map(f => `${f.label || ''} ${f.value || ''}`).join(' ');
+    return oldPublishPrepSearchTextV184(task, submission) + ' ' + v184Identity(tplText);
+  };
+
+  if(typeof renderPublishPrepPage === 'function' && typeof getRoute === 'function' && getRoute() === 'publish-prep') renderPublishPrepPage();
 })();
