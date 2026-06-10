@@ -58,12 +58,12 @@ function dayNumber(dateText) {
 function getPlatformHours(settings = {}) {
   const oldHour = Number.isFinite(Number(settings.autoPublishHour)) ? Number(settings.autoPublishHour) : 12;
   const raw = settings.autoPublishPlatformHours || {};
-  const allowedHours = [15, 18, 21, 12];
   const hour = (value, fallback) => {
     const n = Number(value);
-    if (allowedHours.includes(n)) return n;
-    if (allowedHours.includes(Number(fallback))) return Number(fallback);
-    return allowedHours.includes(oldHour) ? oldHour : 12;
+    if (Number.isInteger(n) && n >= 0 && n <= 23) return n;
+    const f = Number(fallback);
+    if (Number.isInteger(f) && f >= 0 && f <= 23) return f;
+    return Number.isInteger(oldHour) && oldHour >= 0 && oldHour <= 23 ? oldHour : 12;
   };
   return {
     facebook: hour(raw.facebook, 15),

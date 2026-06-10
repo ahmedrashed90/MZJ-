@@ -339,6 +339,9 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if true;
+      // v193: users are managed from Settings > Users & Permissions.
+      // Allow creating/updating user documents with the approved users schema,
+      // including email/password/pages/role fields used by the internal login fallback.
       allow create: if adminUserKeysValid();
       allow update: if adminUserKeysValid() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["themeSettings", "updatedAt"]);
       allow delete: if true;
