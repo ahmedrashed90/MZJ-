@@ -7417,3 +7417,14 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 .permission-password-control .btn-mini{padding:8px 10px;min-height:0;font-size:11px;white-space:nowrap}
 .permission-password-field small{font-size:10px;color:var(--muted);font-weight:800;line-height:1.5}
 @media(max-width:900px){.permission-password-control{flex-wrap:wrap}.permission-password-control .btn-mini{width:100%}}
+.add-user-permissions-form{border:1px solid var(--border);background:#fffaf6;border-radius:18px;padding:14px;margin:0 0 14px;display:grid;gap:12px}
+.add-user-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.add-user-head strong{display:block;font-size:14px;color:var(--text)}
+.add-user-head small{display:block;margin-top:4px;font-size:11px;color:var(--muted);font-weight:800;line-height:1.5}
+.add-user-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end}
+.add-user-grid .mini-field{display:grid;gap:6px;font-weight:800;color:var(--primary)}
+.add-user-grid .mini-field span{font-size:10px;color:var(--primary);font-weight:900}
+.add-user-grid input,.add-user-grid select{border:1px solid var(--border);border-radius:12px;background:#fff;padding:9px 10px;font-weight:800;color:var(--text);min-height:40px}
+.add-user-pages{border-top:1px dashed var(--border);padding-top:10px}
+@media(max-width:1000px){.add-user-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.add-user-grid{grid-template-columns:1fr}}

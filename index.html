@@ -686,6 +686,20 @@
         </div>
         <div class="card mt users-permissions-card">
           <div class="card-title"><h2>اليوزرات والصلاحيات</h2><button class="btn btn-light" type="button" id="refreshUsersPermissionsBtn">تحديث</button></div>
+          <form id="addUserPermissionsForm" class="add-user-permissions-form">
+            <div class="add-user-head">
+              <div><strong>إضافة يوزر جديد</strong><small>اكتب الميل والباسورد وحدد الصلاحيات، وبعد الحفظ يقدر يدخل مباشرة.</small></div>
+            </div>
+            <div class="add-user-grid">
+              <label class="mini-field"><span>اسم اليوزر</span><input type="text" id="newUserName" placeholder="مثال: Ahmed" autocomplete="off" /></label>
+              <label class="mini-field"><span>البريد الإلكتروني</span><input type="email" id="newUserEmail" placeholder="user@example.com" autocomplete="off" required /></label>
+              <label class="mini-field permission-password-field"><span>كلمة المرور</span><div class="permission-password-control"><input type="password" id="newUserPassword" placeholder="اكتب كلمة المرور" autocomplete="new-password" required /><button type="button" class="btn btn-light btn-mini" id="toggleNewUserPassword">عرض</button></div></label>
+              <label class="mini-field"><span>نوع الحساب</span><select id="newUserRole"><option value="user">يوزر عادي</option><option value="admin">أدمن</option></select></label>
+            </div>
+            <div class="permission-pages add-user-pages" id="newUserPagesAccess"></div>
+            <div class="actions"><button class="btn btn-primary" type="submit">إضافة اليوزر وحفظ الباسورد</button></div>
+            <p class="form-message" id="addUserPermissionsMessage"></p>
+          </form>
           <div id="usersPermissionsList" class="users-permissions-list"><div class="empty-state">جاري تحميل اليوزرات...</div></div>
         </div>
       </section>

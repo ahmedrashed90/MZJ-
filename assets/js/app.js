@@ -9191,6 +9191,7 @@ function fillSettingsForm(){
   renderThemeImagePreview(settings);
 }
 function renderUsersPermissions(){
+  renderNewUserPagesAccess();
   const wrap = document.getElementById('usersPermissionsList');
   if(!wrap) return;
   const pageOptions = routes.filter(r => !['dashboard'].includes(r));
@@ -9203,6 +9204,25 @@ function renderUsersPermissions(){
 }
 function pageLabel(page){
   return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'ربط المنصات','platform-settings':'إعدادات المنصات','publish-prep':'تجهيز النشر',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
+}
+function renderNewUserPagesAccess(){
+  const wrap = document.getElementById('newUserPagesAccess');
+  if(!wrap) return;
+  const pageOptions = routes.filter(r => !['dashboard'].includes(r));
+  wrap.innerHTML = `<label><input type="checkbox" data-new-user-page-key="dashboard" checked disabled> الداش بورد</label>` + pageOptions.map(page => `<label><input type="checkbox" data-new-user-page-key="${page}"> ${pageLabel(page)}</label>`).join('');
+}
+function resetAddUserPermissionsForm(){
+  const form = document.getElementById('addUserPermissionsForm');
+  if(form) form.reset();
+  const pass = document.getElementById('newUserPassword');
+  const toggle = document.getElementById('toggleNewUserPassword');
+  if(pass) pass.type = 'password';
+  if(toggle) toggle.textContent = 'عرض';
+  renderNewUserPagesAccess();
+}
+function buildNewUserDocId(email){
+  const clean = String(email || '').toLowerCase().trim().replace(/[\/#?]/g, '-');
+  return clean || `user-${Date.now()}`;
 }
 function loadSystemSettings(){
   if(!mainDb) return;
@@ -9370,6 +9390,60 @@ function bindSettings(){
     }
   });
   document.getElementById('refreshUsersPermissionsBtn')?.addEventListener('click', renderUsersPermissions);
+  renderNewUserPagesAccess();
+  document.getElementById('toggleNewUserPassword')?.addEventListener('click', () => {
+    const input = document.getElementById('newUserPassword');
+    const btn = document.getElementById('toggleNewUserPassword');
+    if(!input || !btn) return;
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    btn.textContent = showing ? 'عرض' : 'إخفاء';
+  });
+  document.getElementById('addUserPermissionsForm')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if(!mainDb) return;
+    const name = normalizeText(document.getElementById('newUserName')?.value || '');
+    const rawEmail = normalizeText(document.getElementById('newUserEmail')?.value || '');
+    const email = rawEmail.toLowerCase();
+    const password = String(document.getElementById('newUserPassword')?.value || '').trim();
+    const role = document.getElementById('newUserRole')?.value || 'user';
+    const pages = normalizePagesList(['dashboard', ...[...document.querySelectorAll('input[data-new-user-page-key]:checked')].map(input => input.dataset.newUserPageKey).filter(Boolean)]);
+    if(!email || !email.includes('@')){ showMessage('addUserPermissionsMessage','اكتب بريد إلكتروني صحيح.'); return; }
+    if(!password){ showMessage('addUserPermissionsMessage','اكتب كلمة مرور لليوزر الجديد.'); return; }
+    try{
+      const exists = await safeCollection(window.MZJ_USERS_COLLECTION).where('emailLower','==',email).limit(1).get();
+      if(!exists.empty){ showMessage('addUserPermissionsMessage','البريد الإلكتروني موجود بالفعل.'); return; }
+      const docId = buildNewUserDocId(email);
+      const payload = {
+        uid: docId,
+        id: docId,
+        email: rawEmail,
+        emailLower: email,
+        name: name || rawEmail.split('@')[0],
+        displayName: name || rawEmail.split('@')[0],
+        username: name || rawEmail.split('@')[0],
+        role,
+        pages,
+        pagesAccess: pages,
+        password,
+        pass: password,
+        status: 'active',
+        active: true,
+        createdAt: serverTime(),
+        createdBy: getCurrentUser()?.email || getCurrentUser()?.name || '',
+        updatedAt: serverTime()
+      };
+      await safeCollection(window.MZJ_USERS_COLLECTION).doc(docId).set(payload, { merge:false });
+      users.push({ ...payload, id: docId, uid: docId });
+      users.sort((a,b) => String(userName(a)).localeCompare(String(userName(b)), 'ar'));
+      resetAddUserPermissionsForm();
+      renderUsersPermissions();
+      showMessage('addUserPermissionsMessage','تم إضافة اليوزر وحفظ الباسورد والصلاحيات.');
+    }catch(error){
+      console.error('Add user error', error);
+      showMessage('addUserPermissionsMessage', error?.message || 'تعذر إضافة اليوزر. راجع قواعد Firebase.');
+    }
+  });
   document.addEventListener('click', async event => {
     const save = event.target.closest('[data-save-user-pages]');
     const togglePassword = event.target.closest('[data-toggle-user-password]');
