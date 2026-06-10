@@ -7408,3 +7408,12 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 .platform-settings-card.is-pending,.platform-token-row.is-pending{border-color:rgba(59,130,246,.35)}
 .platform-settings-card.is-error,.platform-token-row.is-error{border-color:rgba(220,38,38,.35)}
 @media (max-width:700px){.platform-token-row{grid-template-columns:1fr}.platform-settings-fields div{align-items:flex-start;flex-direction:column}}
+
+/* v190 - user password controls in settings */
+.permission-user-main{gap:8px}
+.permission-password-field{margin-top:4px}
+.permission-password-control{display:flex;gap:8px;align-items:center}
+.permission-password-control input{flex:1;min-width:0;border:1px solid var(--border);border-radius:12px;background:#fff;padding:9px 10px;font-weight:900;color:var(--text);direction:ltr;text-align:left}
+.permission-password-control .btn-mini{padding:8px 10px;min-height:0;font-size:11px;white-space:nowrap}
+.permission-password-field small{font-size:10px;color:var(--muted);font-weight:800;line-height:1.5}
+@media(max-width:900px){.permission-password-control{flex-wrap:wrap}.permission-password-control .btn-mini{width:100%}}

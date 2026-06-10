@@ -1113,7 +1113,7 @@ function refreshDynamicSelects(){
 function loadUsers(){
   if(!mainDb) return;
   safeCollection(window.MZJ_USERS_COLLECTION).onSnapshot(snapshot => {
-    users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, uid: data.uid || doc.id, name: getDocName(data) || doc.id, displayName: data.displayName || '', username: data.username || '', email: data.email || '', emailLower: data.emailLower || String(data.email || '').toLowerCase(), department: data.department || '', departmentId: data.departmentId || '', departmentIds: Array.isArray(data.departmentIds) ? data.departmentIds : [], role: data.role || '', pages: normalizePagesList([...(Array.isArray(data.pages) ? data.pages : []), ...(Array.isArray(data.pagesAccess) ? data.pagesAccess : [])]), pagesAccess: normalizePagesList([...(Array.isArray(data.pages) ? data.pages : []), ...(Array.isArray(data.pagesAccess) ? data.pagesAccess : [])]), themeSettings: data.themeSettings || null }; });
+    users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, uid: data.uid || doc.id, name: getDocName(data) || doc.id, displayName: data.displayName || '', username: data.username || '', email: data.email || '', emailLower: data.emailLower || String(data.email || '').toLowerCase(), department: data.department || '', departmentId: data.departmentId || '', departmentIds: Array.isArray(data.departmentIds) ? data.departmentIds : [], role: data.role || '', password: data.password || data.pass || '', pass: data.pass || data.password || '', pages: normalizePagesList([...(Array.isArray(data.pages) ? data.pages : []), ...(Array.isArray(data.pagesAccess) ? data.pagesAccess : [])]), pagesAccess: normalizePagesList([...(Array.isArray(data.pages) ? data.pages : []), ...(Array.isArray(data.pagesAccess) ? data.pagesAccess : [])]), themeSettings: data.themeSettings || null }; });
     const before = JSON.stringify(getCurrentUser() || {});
     syncCurrentSessionUserFromUsers();
     refreshDynamicSelects(); renderDepartments(); renderUsersPermissions(); renderAdminDashboard(); renderTasksPage();
@@ -9197,7 +9197,8 @@ function renderUsersPermissions(){
   wrap.innerHTML = users.length ? users.map(user => {
     const pages = normalizePagesList([...(Array.isArray(user.pages) ? user.pages : []), ...(Array.isArray(user.pagesAccess) ? user.pagesAccess : [])]);
     const role = normalizeText(user.role || 'user') || 'user';
-    return `<article class="permission-user-card" data-user-id="${escapeHtml(user.id)}"><div class="permission-user-main"><strong>${escapeHtml(userName(user) || 'User')}</strong><small>${escapeHtml(user.email || '')}</small><label class="mini-field"><span>نوع الحساب</span><select data-user-role><option value="user" ${role !== 'admin' ? 'selected' : ''}>يوزر عادي</option><option value="admin" ${role === 'admin' ? 'selected' : ''}>أدمن</option></select></label></div><div class="permission-pages"><label><input type="checkbox" data-page-key="dashboard" checked disabled> الداش بورد</label>${pageOptions.map(page => `<label><input type="checkbox" data-page-key="${page}" ${pages.includes(page) ? 'checked' : ''}> ${pageLabel(page)}</label>`).join('')}</div><button type="button" class="btn btn-primary" data-save-user-pages="${escapeHtml(user.id)}">حفظ الصلاحيات</button></article>`;
+    const currentPassword = user.password || user.pass || '';
+    return `<article class="permission-user-card" data-user-id="${escapeHtml(user.id)}"><div class="permission-user-main"><strong>${escapeHtml(userName(user) || 'User')}</strong><small>${escapeHtml(user.email || '')}</small><label class="mini-field"><span>نوع الحساب</span><select data-user-role><option value="user" ${role !== 'admin' ? 'selected' : ''}>يوزر عادي</option><option value="admin" ${role === 'admin' ? 'selected' : ''}>أدمن</option></select></label><label class="mini-field permission-password-field"><span>كلمة المرور الحالية / الجديدة</span><div class="permission-password-control"><input type="password" data-user-password value="${escapeHtml(currentPassword)}" placeholder="اكتب كلمة مرور جديدة" autocomplete="new-password"><button type="button" class="btn btn-light btn-mini" data-toggle-user-password>عرض</button></div><small>بعد الحفظ تصبح هي كلمة المرور المعتمدة لهذا اليوزر.</small></label></div><div class="permission-pages"><label><input type="checkbox" data-page-key="dashboard" checked disabled> الداش بورد</label>${pageOptions.map(page => `<label><input type="checkbox" data-page-key="${page}" ${pages.includes(page) ? 'checked' : ''}> ${pageLabel(page)}</label>`).join('')}</div><button type="button" class="btn btn-primary" data-save-user-pages="${escapeHtml(user.id)}">حفظ الصلاحيات والباسورد</button></article>`;
   }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
 }
 function pageLabel(page){
@@ -9371,13 +9372,27 @@ function bindSettings(){
   document.getElementById('refreshUsersPermissionsBtn')?.addEventListener('click', renderUsersPermissions);
   document.addEventListener('click', async event => {
     const save = event.target.closest('[data-save-user-pages]');
+    const togglePassword = event.target.closest('[data-toggle-user-password]');
+    if(togglePassword){
+      const control = togglePassword.closest('.permission-password-control');
+      const input = control?.querySelector('[data-user-password]');
+      if(input){
+        const showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        togglePassword.textContent = showing ? 'عرض' : 'إخفاء';
+      }
+      return;
+    }
     if(!save || !mainDb) return;
     const card = save.closest('.permission-user-card');
     const pages = normalizePagesList(['dashboard', ...[...card.querySelectorAll('input[data-page-key]:checked')].map(input => input.dataset.pageKey).filter(Boolean)]);
     const role = card.querySelector('[data-user-role]')?.value || 'user';
-    await safeCollection(window.MZJ_USERS_COLLECTION).doc(save.dataset.saveUserPages).update({ pages, pagesAccess: pages, role, updatedAt: serverTime() });
+    const passwordInput = card.querySelector('[data-user-password]');
+    const password = passwordInput ? String(passwordInput.value || '').trim() : '';
+    if(!password){ showToast('اكتب كلمة مرور لل هذا اليوزر قبل الحفظ.'); return; }
+    await safeCollection(window.MZJ_USERS_COLLECTION).doc(save.dataset.saveUserPages).update({ pages, pagesAccess: pages, role, password, pass: password, passwordUpdatedAt: serverTime(), updatedAt: serverTime() });
     const idx = users.findIndex(u => u.id === save.dataset.saveUserPages);
-    if(idx >= 0){ users[idx] = { ...users[idx], pages, pagesAccess: pages, role }; }
+    if(idx >= 0){ users[idx] = { ...users[idx], pages, pagesAccess: pages, role, password, pass: password }; }
     const currentKeys = uniqueIdentityKeys([getCurrentUser()]);
     const editedKeys = idx >= 0 ? uniqueIdentityKeys([users[idx]]) : [identityClean(save.dataset.saveUserPages)];
     if(identityIntersects(currentKeys, editedKeys)){ syncCurrentSessionUserFromUsers(); applyUserPermissions(); renderRoute(); }
@@ -9497,13 +9512,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // لو مفيش Firebase Auth للحساب القديم، نراجع password داخل users.
-      if(!authUser){
-        const storedPassword = userDoc.password || userDoc.pass || '';
-        if(storedPassword !== password){
-          showMessage('loginMessage', 'كلمة المرور غير صحيحة.');
-          return;
-        }
+      // لو فيه password محفوظ داخل users، هو كلمة المرور المعتمدة حتى لو Firebase Auth قبل كلمة قديمة.
+      // ده يخلي تغيير الباسورد من شاشة اليوزرات والصلاحيات يشتغل فوراً.
+      const storedPassword = userDoc.password || userDoc.pass || '';
+      if(storedPassword && storedPassword !== password){
+        showMessage('loginMessage', 'كلمة المرور غير صحيحة.');
+        return;
+      }
+      if(!authUser && !storedPassword){
+        showMessage('loginMessage', 'كلمة المرور غير محفوظة لهذا الحساب. راجع الأدمن.');
+        return;
       }
 
       localStorage.setItem('mzj_logged_in','1');
