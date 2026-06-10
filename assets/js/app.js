@@ -51,7 +51,7 @@ window.MZJ_WHATSAPP_CONTACTS_COLLECTION = "whatsapp_contacts";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
-const routes = ['dashboard','reports','create-campaign','campaigns','social-publisher','publish-prep','tasks','calendar','stock','departments','settings'];
+const routes = ['dashboard','reports','create-campaign','campaigns','social-publisher','platform-settings','publish-prep','tasks','calendar','stock','departments','settings'];
 const pageAliases = {
   database: 'reports',
   report: 'reports',
@@ -65,6 +65,10 @@ const pageAliases = {
   publish: 'social-publisher',
   social: 'social-publisher',
   'social-publisher': 'social-publisher',
+  'platform-settings': 'platform-settings',
+  platform_settings: 'platform-settings',
+  platforms_settings: 'platform-settings',
+  'إعدادات-المنصات': 'platform-settings',
   'publish-prep': 'publish-prep',
   publish_prep: 'publish-prep',
   publishing_prep: 'publish-prep',
@@ -161,6 +165,7 @@ function renderRoute(){
   if(route === 'stock') renderStock();
   if(route === 'reports') renderDatabasePage();
   if(route === 'social-publisher') renderSocialPublisherPage();
+  if(route === 'platform-settings') renderPlatformSettingsPage();
   if(route === 'publish-prep') renderPublishPrepPage();
 }
 function showMessage(id, text){ const el = document.getElementById(id); if(el) el.textContent = text || ''; }
@@ -7499,6 +7504,7 @@ function loadPublishLogs(){
     publishLogsUnsubscribe = safeCollection(window.MZJ_PUBLISH_LOGS_COLLECTION).orderBy('createdAt','desc').limit(80).onSnapshot(snapshot => {
       publishLogsCache = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: data.id || doc.id, ...data }; });
       if(getRoute() === 'social-publisher') renderSocialPublishLog();
+      if(getRoute() === 'platform-settings') renderPlatformSettingsPage();
     }, error => console.warn('Publish logs load error', error));
   }catch(error){
     console.warn('Publish logs init error', error);
@@ -8776,12 +8782,15 @@ function bindSocialPublisher(){
   document.getElementById('socialYouTubeConnectBtn')?.addEventListener('click', () => { window.location.href = '/api/youtube/login'; });
   document.getElementById('socialYouTubeDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/youtube/logout', { credentials:'include' }); }catch(_){} socialYouTubeConnected=false; socialYouTubeChannel=null; setYouTubeStatus('تم فصل YouTube', false); showToast('تم فصل YouTube.'); });
   document.getElementById('socialDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/meta/logout', { credentials:'include' }); }catch(_){} socialMetaConnected=false; socialMetaPages=[]; renderSocialPagesSelect(); setSocialStatus('تم فصل ربط Meta من هذا المتصفح.', false); showToast('تم فصل الربط.'); });
-  document.getElementById('clearSocialLogBtn')?.addEventListener('click', () => { setSocialPublishLog([]); renderSocialPublishLog(); showToast('تم مسح سجل النشر المحلي.'); });
+  document.getElementById('clearSocialLogBtn')?.addEventListener('click', () => { localStorage.removeItem(SOCIAL_PUBLISH_LOG_KEY); setSocialPublishLog([]); renderSocialPublishLog(); const remoteCount = (publishLogsCache || []).length; showToast(remoteCount ? `تم مسح السجل المحلي. متبقي ${remoteCount} عملية محفوظة في Firebase.` : 'تم مسح سجل النشر المحلي.'); });
   document.getElementById('socialPublishLog')?.addEventListener('click', event => {
     const btn = event.target.closest('[data-delete-social-log]');
     if(!btn) return;
-    setSocialPublishLog(getSocialPublishLog().filter(item => item.id !== btn.dataset.deleteSocialLog));
+    const id = btn.dataset.deleteSocialLog;
+    const beforeRemote = (publishLogsCache || []).some(item => String(item.id || item.logId || '') === String(id));
+    setSocialPublishLog(getLocalSocialPublishLog().filter(item => String(item.id) !== String(id)));
     renderSocialPublishLog();
+    showToast(beforeRemote ? 'تم حذف النسخة المحلية فقط. السجل المحفوظ في Firebase ما زال ظاهرًا.' : 'تم حذف السجل المحلي.');
     if(getRoute() === 'publish-prep') renderPublishPrepPage();
   });
 }
@@ -9043,7 +9052,107 @@ async function validateMersalToken(apiEndpoint, token){
   return true;
 }
 
+
+function hourLabel24(hour){
+  const n = Number(hour);
+  if(!Number.isInteger(n) || n < 0 || n > 23) return '';
+  const period = n < 12 ? 'صباحًا' : 'مساءً';
+  const display = n % 12 === 0 ? 12 : n % 12;
+  return `${display} ${period}`;
+}
+function hourOptionsHtml(selectedValue = ''){
+  const selected = String(selectedValue ?? '');
+  return Array.from({ length: 24 }, (_, hour) => `<option value="${hour}"${selected === String(hour) ? ' selected' : ''}>${hourLabel24(hour)}</option>`).join('');
+}
+function populateAutoPublishHourSelects(){
+  ['autoPublishFacebookHour','autoPublishInstagramHour','autoPublishTiktokHour','autoPublishYoutubeHour','autoPublishSnapchatHour','autoPublishWhatsappHour','autoPublishDefaultHour'].forEach(id => {
+    const select = document.getElementById(id);
+    if(!select) return;
+    const current = select.value;
+    select.innerHTML = hourOptionsHtml(current);
+  });
+}
+function platformConnectionRows(){
+  const selectedPage = getSelectedSocialPage();
+  const hasInstagram = !!(selectedPage && selectedPage.instagram && selectedPage.instagram.id);
+  const mersal = (systemSettings && (systemSettings.mersal || systemSettings.whatsappMersal)) || {};
+  const mersalConnected = !!(mersal.status === 'connected' || mersal.connected || mersal.token || systemSettings?.mersalToken);
+  return [
+    {
+      key:'facebook', name:'Facebook', icon:'f', className:'facebook',
+      status: socialMetaConnected ? 'متصل' : 'غير متصل',
+      state: socialMetaConnected ? 'ready' : 'error',
+      account: selectedPage ? (selectedPage.name || selectedPage.id) : 'لم يتم اختيار صفحة',
+      token: socialMetaConnected ? 'صالح من جلسة الربط الحالية' : 'يحتاج ربط / إعادة ربط',
+      action:'ربط / إعادة ربط Meta', href:'/api/meta/login', note:'يستخدم نفس ربط Meta الموجود في صفحة ربط المنصات.'
+    },
+    {
+      key:'instagram', name:'Instagram', icon:'◎', className:'instagram',
+      status: hasInstagram ? 'متصل' : (socialMetaConnected ? 'ناقص ربط Instagram Business' : 'غير متصل'),
+      state: hasInstagram ? 'ready' : 'warning',
+      account: hasInstagram ? (selectedPage.instagram.username || selectedPage.instagram.name || selectedPage.instagram.id) : 'لا يوجد Instagram Business على الصفحة المختارة',
+      token: hasInstagram ? 'يعتمد على ربط Meta' : 'راجع ربط Instagram بالصفحة',
+      action:'فتح ربط Meta', href:'/api/meta/login', note:'لازم يكون Instagram Business مربوط بصفحة Facebook المختارة.'
+    },
+    {
+      key:'tiktok', name:'TikTok', icon:'♪', className:'tiktok',
+      status: socialTikTokConnected ? 'متصل Sandbox' : 'غير متصل',
+      state: socialTikTokConnected ? 'ready' : 'warning',
+      account: socialTikTokUser ? (socialTikTokUser.display_name || socialTikTokUser.username || 'TikTok') : 'لا يوجد حساب مرتبط',
+      token: socialTikTokConnected ? 'جاهز لاختبارات Draft Upload' : 'يحتاج ربط TikTok',
+      action:'ربط TikTok', href:'/api/tiktok/login', note:'الحالة الحالية مخصصة لاختبارات Sandbox / Draft Upload.'
+    },
+    {
+      key:'youtube', name:'YouTube', icon:'▶', className:'youtube',
+      status: socialYouTubeConnected ? 'متصل' : 'غير متصل',
+      state: socialYouTubeConnected ? 'ready' : 'warning',
+      account: socialYouTubeChannel ? (socialYouTubeChannel.title || socialYouTubeChannel.id || 'YouTube') : 'لا توجد قناة مرتبطة',
+      token: socialYouTubeConnected ? 'صالح من جلسة الربط الحالية' : 'يحتاج ربط YouTube',
+      action:'ربط YouTube', href:'/api/youtube/login', note:'خصوصية الرفع الافتراضية يتم ضبطها من إعدادات مواعيد النشر.'
+    },
+    {
+      key:'snapchat', name:'Snapchat', icon:'👻', className:'snapchat',
+      status:'بانتظار موافقة Snapchat', state:'pending',
+      account:'Public Profile API allowlist قيد الانتظار',
+      token:'لا يوجد توكن قبل موافقة Snap',
+      action:'بانتظار التفعيل', href:'', note:'تم إرسال طلب allowlist، وبعد الموافقة سيتم تفعيل OAuth والـ callback.'
+    },
+    {
+      key:'whatsapp', name:'WhatsApp / مرسال', icon:'☎', className:'whatsapp',
+      status: mersalConnected ? 'متصل' : 'جاهز بعد حفظ إعدادات مرسال',
+      state: mersalConnected ? 'ready' : 'warning',
+      account: mersal.apiEndpoint || systemSettings?.mersalApiEndpoint || 'https://w-mersal.com',
+      token: mersalConnected ? 'تم حفظ إعدادات مرسال' : 'يحتاج Token مرسال',
+      action:'فتح إعدادات مرسال', href:'#settings', note:'إعدادات مرسال محفوظة داخل صفحة الإعدادات.'
+    }
+  ];
+}
+function renderPlatformSettingsPage(){
+  const grid = document.getElementById('platformSettingsGrid');
+  const summary = document.getElementById('platformTokensSummary');
+  if(!grid && !summary) return;
+  const rows = platformConnectionRows();
+  if(grid){
+    grid.innerHTML = rows.map(row => `<article class="card platform-settings-card is-${escapeHtml(row.state)}" data-platform-settings-card="${escapeHtml(row.key)}">
+      <div class="platform-settings-card-head">
+        <div class="social-channel-icon ${escapeHtml(row.className)}">${escapeHtml(row.icon)}</div>
+        <div><h3>${escapeHtml(row.name)}</h3><p>${escapeHtml(row.note)}</p></div>
+      </div>
+      <div class="platform-settings-fields">
+        <div><span>الحالة</span><strong>${escapeHtml(row.status)}</strong></div>
+        <div><span>الحساب / الصفحة</span><strong>${escapeHtml(row.account)}</strong></div>
+        <div><span>التوكن / الصلاحية</span><strong>${escapeHtml(row.token)}</strong></div>
+      </div>
+      ${row.href ? `<a class="btn btn-light full" href="${escapeHtml(row.href)}">${escapeHtml(row.action)}</a>` : `<button class="btn btn-light full" type="button" disabled>${escapeHtml(row.action)}</button>`}
+    </article>`).join('');
+  }
+  if(summary){
+    summary.innerHTML = rows.map(row => `<div class="platform-token-row is-${escapeHtml(row.state)}"><span>${escapeHtml(row.name)}</span><strong>${escapeHtml(row.token)}</strong><small>${escapeHtml(row.status)}</small></div>`).join('');
+  }
+}
+
 function fillSettingsForm(){
+  populateAutoPublishHourSelects();
   const settings = { ...defaultThemeSettings, ...(systemSettings || {}), colors: { ...defaultThemeSettings.colors, ...((systemSettings || {}).colors || {}) } };
   if(document.getElementById('settingSystemName')) settingSystemName.value = settings.systemName || '';
   if(document.getElementById('settingFontFamily')) settingFontFamily.value = settings.fontFamily || 'Tajawal';
@@ -9092,7 +9201,7 @@ function renderUsersPermissions(){
   }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
 }
 function pageLabel(page){
-  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'ربط المنصات','publish-prep':'تجهيز النشر',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
+  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'ربط المنصات','platform-settings':'إعدادات المنصات','publish-prep':'تجهيز النشر',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
 }
 function loadSystemSettings(){
   if(!mainDb) return;
@@ -9112,8 +9221,7 @@ function bindSettings(){
   document.getElementById('autoPublishSettingsForm')?.addEventListener('submit', async event => {
     event.preventDefault();
     if(!mainDb) return;
-    const allowedPublishHours = [15,18,21,12];
-    const cleanHour = value => { const n = Number(value); return allowedPublishHours.includes(n) ? n : 12; };
+    const cleanHour = value => { const n = Number(value); return Number.isInteger(n) && n >= 0 && n <= 23 ? n : 12; };
     const platformHours = {
       facebook: cleanHour(document.getElementById('autoPublishFacebookHour')?.value || 15),
       instagram: cleanHour(document.getElementById('autoPublishInstagramHour')?.value || 18),
@@ -9308,6 +9416,7 @@ function bootstrapData(){
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  populateAutoPublishHourSelects();
   document.addEventListener('click', event => {
     const addTypeBtn = event.target.closest('#addPlatformPostType, [data-add-platform-post-type]');
     if(addTypeBtn){
@@ -9446,6 +9555,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.addEventListener('click', event => { if(event.target.closest('[data-close-calendar-popup]')) closeCalendarDayPopup(); });
   bindCampaignBuilder(); bindDepartments(); bindSettings(); bindSocialPublisher(); bindPublishPrepPage(); bindPublishCenter();
+  document.getElementById('platformSettingsRefreshBtn')?.addEventListener('click', () => { renderPlatformSettingsPage(); loadMetaConnection(); loadTikTokConnection(); loadYouTubeConnection(); showToast('تم تحديث حالة المنصات.'); });
   document.getElementById('dashboard')?.addEventListener('click', async event => {
     const stageBtn = event.target.closest('[data-stage][data-campaign-id]');
     if(stageBtn){ event.stopPropagation(); await togglePublishStage(stageBtn.dataset.campaignId, stageBtn.dataset.stage); return; }

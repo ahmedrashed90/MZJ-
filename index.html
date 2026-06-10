@@ -59,6 +59,7 @@
         <a href="#create-campaign" data-route="create-campaign"><span class="icon">➕</span><span>إنشاء حملة</span></a>
         <a href="#campaigns" data-route="campaigns"><span class="icon">📣</span><span>إدارة الحملات</span></a>
         <a href="#social-publisher" data-route="social-publisher"><span class="icon">🔗</span><span>ربط المنصات</span></a>
+        <a href="#platform-settings" data-route="platform-settings"><span class="icon">🧩</span><span>إعدادات المنصات</span></a>
         <a href="#publish-prep" data-route="publish-prep"><span class="icon">📤</span><span>تجهيز النشر</span></a>
         <a href="#tasks" data-route="tasks"><span class="icon">📈</span><span>المتابعة</span></a>
         <a href="#calendar" data-route="calendar"><span class="icon">📅</span><span>التقويم</span></a>
@@ -265,6 +266,36 @@
             <button class="btn btn-light" type="button" id="clearSocialLogBtn">مسح السجل المحلي</button>
           </div>
           <div id="socialPublishLog" class="social-log-list"><div class="empty-state">لا توجد عمليات نشر مسجلة حتى الآن.</div></div>
+        </div>
+      </section>
+
+
+      <section class="view" id="platform-settings" data-title="إعدادات المنصات">
+        <div class="page-head platform-settings-head">
+          <div class="page-title">
+            <h1>إعدادات المنصات</h1>
+            <p>إدارة حسابات المنصات، حالة التوكنات، والتنبيهات الخاصة بالربط في صفحة واحدة.</p>
+          </div>
+          <div class="social-publisher-actions">
+            <a class="btn btn-light" href="#social-publisher">سجل النشر والحالة</a>
+            <button class="btn btn-light" type="button" id="platformSettingsRefreshBtn">تحديث الحالة</button>
+          </div>
+        </div>
+
+        <div class="platform-settings-grid" id="platformSettingsGrid">
+          <div class="empty-state">جاري تحميل حالة المنصات...</div>
+        </div>
+
+        <div class="card platform-token-card">
+          <div class="section-toolbar small-toolbar">
+            <div>
+              <h2>ملخص التوكنات والمشاكل</h2>
+              <p>أي منصة يظهر عليها انتهاء توكن أو صلاحية ناقصة لن يتم النشر عليها تلقائيًا حتى يتم إعادة الربط.</p>
+            </div>
+          </div>
+          <div id="platformTokensSummary" class="platform-tokens-summary">
+            <div class="empty-state">لا توجد بيانات توكنات بعد.</div>
+          </div>
         </div>
       </section>
 
@@ -563,66 +594,31 @@
               <div class="settings-grid-mini">
                 <label class="field">
                   <span>ساعة Facebook</span>
-                  <select id="autoPublishFacebookHour">
-                  <option value="15">3 مساءً</option>
-                  <option value="18">6 مساءً</option>
-                  <option value="21">9 مساءً</option>
-                  <option value="12">12 ظهرًا</option>
-                  </select>
+                  <select id="autoPublishFacebookHour"><option value="">اختر الساعة</option></select>
                 </label>
                 <label class="field">
                   <span>ساعة Instagram</span>
-                  <select id="autoPublishInstagramHour">
-                  <option value="15">3 مساءً</option>
-                  <option value="18">6 مساءً</option>
-                  <option value="21">9 مساءً</option>
-                  <option value="12">12 ظهرًا</option>
-                  </select>
+                  <select id="autoPublishInstagramHour"><option value="">اختر الساعة</option></select>
                 </label>
                 <label class="field">
                   <span>ساعة TikTok</span>
-                  <select id="autoPublishTiktokHour">
-                  <option value="15">3 مساءً</option>
-                  <option value="18">6 مساءً</option>
-                  <option value="21">9 مساءً</option>
-                  <option value="12">12 ظهرًا</option>
-                  </select>
+                  <select id="autoPublishTiktokHour"><option value="">اختر الساعة</option></select>
                 </label>
                 <label class="field">
                   <span>ساعة YouTube</span>
-                  <select id="autoPublishYoutubeHour">
-                  <option value="15">3 مساءً</option>
-                  <option value="18">6 مساءً</option>
-                  <option value="21">9 مساءً</option>
-                  <option value="12">12 ظهرًا</option>
-                  </select>
+                  <select id="autoPublishYoutubeHour"><option value="">اختر الساعة</option></select>
                 </label>
                 <label class="field">
                   <span>ساعة Snapchat</span>
-                  <select id="autoPublishSnapchatHour">
-                  <option value="15">3 مساءً</option>
-                  <option value="18">6 مساءً</option>
-                  <option value="21">9 مساءً</option>
-                  <option value="12">12 ظهرًا</option>
-                  </select>
+                  <select id="autoPublishSnapchatHour"><option value="">اختر الساعة</option></select>
                 </label>
                 <label class="field">
                   <span>ساعة WhatsApp / مرسال</span>
-                  <select id="autoPublishWhatsappHour">
-                  <option value="15">3 مساءً</option>
-                  <option value="18">6 مساءً</option>
-                  <option value="21">9 مساءً</option>
-                  <option value="12">12 ظهرًا</option>
-                  </select>
+                  <select id="autoPublishWhatsappHour"><option value="">اختر الساعة</option></select>
                 </label>
                 <label class="field">
                   <span>ساعة افتراضية لأي منصة أخرى</span>
-                  <select id="autoPublishDefaultHour">
-                  <option value="15">3 مساءً</option>
-                  <option value="18">6 مساءً</option>
-                  <option value="21">9 مساءً</option>
-                  <option value="12">12 ظهرًا</option>
-                  </select>
+                  <select id="autoPublishDefaultHour"><option value="">اختر الساعة</option></select>
                 </label>
                 <label class="field">
                   <span>خصوصية YouTube الافتراضية</span>
