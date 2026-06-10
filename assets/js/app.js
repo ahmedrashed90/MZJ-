@@ -9390,13 +9390,27 @@ function bindSettings(){
     const passwordInput = card.querySelector('[data-user-password]');
     const password = passwordInput ? String(passwordInput.value || '').trim() : '';
     if(!password){ showToast('اكتب كلمة مرور لل هذا اليوزر قبل الحفظ.'); return; }
-    await safeCollection(window.MZJ_USERS_COLLECTION).doc(save.dataset.saveUserPages).update({ pages, pagesAccess: pages, role, password, pass: password, passwordUpdatedAt: serverTime(), updatedAt: serverTime() });
+    try{
+      // نحفظ الحقول المسموح بها في Firestore rules فقط.
+      // كلمة المرور المعتمدة محفوظة في users/{id}.password ويتم قراءتها عند تسجيل الدخول.
+      await safeCollection(window.MZJ_USERS_COLLECTION).doc(save.dataset.saveUserPages).set({
+        pages,
+        pagesAccess: pages,
+        role,
+        password,
+        updatedAt: serverTime()
+      }, { merge:true });
+    }catch(error){
+      console.error('User permissions/password save error', error);
+      showToast(error?.message || 'تعذر حفظ الباسورد. راجع قواعد Firebase.');
+      return;
+    }
     const idx = users.findIndex(u => u.id === save.dataset.saveUserPages);
     if(idx >= 0){ users[idx] = { ...users[idx], pages, pagesAccess: pages, role, password, pass: password }; }
     const currentKeys = uniqueIdentityKeys([getCurrentUser()]);
     const editedKeys = idx >= 0 ? uniqueIdentityKeys([users[idx]]) : [identityClean(save.dataset.saveUserPages)];
     if(identityIntersects(currentKeys, editedKeys)){ syncCurrentSessionUserFromUsers(); applyUserPermissions(); renderRoute(); }
-    showToast('تم حفظ صلاحيات اليوزر.');
+    showToast('تم حفظ صلاحيات اليوزر والباسورد.');
   });
 }
 

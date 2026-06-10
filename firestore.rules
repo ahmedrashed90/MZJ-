@@ -122,6 +122,8 @@ service cloud.firestore {
         "backgroundImageData",
         "backgroundImageUrl",
         "password",
+        "pass",
+        "passwordUpdatedAt",
         "status",
         "active",
         "createdAt",
