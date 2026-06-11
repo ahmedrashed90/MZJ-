@@ -4913,7 +4913,7 @@ function buildTaskDetailHtml(task){
   const requiredDate = taskRequiredDate(task, campaign);
   const requiredLeft = daysUntilRequiredText(requiredDate);
   const writerBrief = normalizeText(task.contentWriterBrief || task.campaignRequestBrief || campaign.content_writer_brief || campaign.contentWriterBrief || '');
-  const campaignGoalDisplay = isContentTask ? (writerBrief || campaign.campaign_goal || campaign.campaignGoal || '—') : (campaign.campaign_goal || campaign.campaignGoal || '—');
+  const campaignGoalDisplay = campaign.campaign_goal || campaign.campaignGoal || task.campaign_goal || task.campaignGoal || '—';
   const waitingDependency = isTaskWaitingForDependency(task);
   const receiveAction = waitingDependency
     ? '<span class="btn btn-light static-chip waiting-chip">في انتظار اعتماد الهيكل</span>'
@@ -5034,6 +5034,8 @@ function buildCampaignTaskDocs(campaignId, payload){
             campaignId,
             campaignName: payload.campaignName || payload.name || '',
             campaignCode: payload.campaignCode || '',
+            campaignGoal: payload.campaign_goal || payload.campaignGoal || '',
+            campaign_goal: payload.campaign_goal || payload.campaignGoal || '',
             creativeLinkCode: creativeLinkCodeForIndex(payload.campaignCode || '', creativeIndex),
             campaignCreativeCode: creativeLinkCodeForIndex(payload.campaignCode || '', creativeIndex),
             creativeShortCode: creativeRow.creativeShortCode || creativeShortCodeForName(creativeRow.creative || ''),
@@ -12854,4 +12856,29 @@ async function downloadStructureTemplateForTaskExact(task){
   }, true);
 
   setTimeout(() => enhancePanel(document), 200);
+})();
+
+
+/* v202 - campaign goal in step 1 and visible in all task details */
+(function(){
+  function v202Goal(task){
+    try{
+      const campaign = (typeof campaignForTask === 'function' ? campaignForTask(task) : {}) || {};
+      return normalizeText(campaign.campaign_goal || campaign.campaignGoal || task?.campaign_goal || task?.campaignGoal || '');
+    }catch(e){ return ''; }
+  }
+  if(typeof buildTaskDetailHtml === 'function'){
+    const previousBuildTaskDetailHtmlV202 = buildTaskDetailHtml;
+    buildTaskDetailHtml = function(task){
+      let html = previousBuildTaskDetailHtmlV202(task);
+      const goal = v202Goal(task);
+      if(goal && !html.includes('campaign-goal-box-v202')){
+        const goalBox = `<div class="campaign-info-box campaign-goal-box-v202 wide"><span>هدف الحملة</span><strong>${escapeHtml(goal)}</strong></div>`;
+        const oldGoalBoxPattern = /<div class="campaign-info-box"><span>هدف الحملة<\/span><strong>[\s\S]*?<\/strong><\/div>/;
+        if(oldGoalBoxPattern.test(html)) html = html.replace(oldGoalBoxPattern, goalBox);
+        else html = html.replace('<div class="campaign-info-compact">', `<div class="campaign-info-compact">${goalBox}`);
+      }
+      return html;
+    };
+  }
 })();
