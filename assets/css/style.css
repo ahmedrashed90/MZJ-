@@ -7439,3 +7439,9 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
   color: #7b3f31;
   font-weight: 800;
 }
+
+/* v199 - موعد تسليم كتابة محتوى التاسك داخل ربط قسم التصوير بكاتب المحتوى */
+.content-writing-deadline-wrap{display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;border:1px dashed #d9b5a8;border-radius:14px;background:#fffaf7;color:#6f3f35;font-weight:900;flex-wrap:wrap}
+.content-writing-deadline-wrap span{font-size:12px;color:#8b5a4d}
+.content-writing-deadline-wrap input{min-width:170px;border:1px solid #e2bfb2;border-radius:12px;padding:8px 10px;font-family:inherit;background:#fff;color:#2b1a16;font-weight:800}
+.content-writing-deadline-wrap.is-hidden{display:none!important}

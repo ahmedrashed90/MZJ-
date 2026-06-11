@@ -12535,3 +12535,145 @@ async function downloadStructureTemplateForTaskExact(task){
 
   try{ if(typeof getRoute === 'function' && getRoute() === 'dashboard' && typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(_){ }
 })();
+
+/* v199 - shooting executor to content writer deadline inside step 2 */
+(function(){
+  function v199ParseJson(value, fallback){
+    try { return value ? JSON.parse(value) : fallback; } catch(e){ return fallback; }
+  }
+  function v199KeyForRow(row){
+    return normalizeText(row?.dataset?.execId || row?.dataset?.execName || '');
+  }
+  function v199PanelRoleBlock(panel, role){
+    const clean = normalizeDepartmentRole(role || '');
+    return panel?.querySelector(`[data-assignment-role="${clean}"]`) || null;
+  }
+  function v199StoreDeadline(block, row, value){
+    if(!block || !row) return;
+    const key = v199KeyForRow(row);
+    if(!key) return;
+    const map = v199ParseJson(block.dataset.contentWritingDeadlines || '{}', {});
+    if(value) map[key] = value; else delete map[key];
+    block.dataset.contentWritingDeadlines = JSON.stringify(map);
+  }
+  function v199DeadlineForRow(block, row){
+    const key = v199KeyForRow(row);
+    const map = v199ParseJson(block?.dataset?.contentWritingDeadlines || '{}', {});
+    return key ? (map[key] || '') : '';
+  }
+  function v199RowHasWriter(row){
+    return !!row?.querySelector('.js-user-content-link-check:checked');
+  }
+  function v199EnhanceContentDeadlineForBlock(block){
+    if(!block) return;
+    const role = normalizeDepartmentRole(block.dataset.assignmentRole || '');
+    if(role !== 'shooting') return;
+    block.querySelectorAll('.js-user-content-link-row').forEach(row => {
+      let wrap = row.querySelector('.js-content-writing-deadline-wrap');
+      if(!wrap){
+        wrap = document.createElement('label');
+        wrap.className = 'content-writing-deadline-wrap js-content-writing-deadline-wrap';
+        wrap.innerHTML = '<span>موعد تسليم كتابة محتوى التاسك</span><input type="date" class="js-content-writing-deadline" />';
+        row.appendChild(wrap);
+      }
+      const input = wrap.querySelector('.js-content-writing-deadline');
+      if(input && !input.value){ input.value = v199DeadlineForRow(block, row); }
+      wrap.classList.toggle('is-hidden', !v199RowHasWriter(row));
+    });
+  }
+  function v199EnhanceContentDeadlines(panel){
+    const root = panel || document;
+    root.querySelectorAll('[data-assignment-role="shooting"]').forEach(v199EnhanceContentDeadlineForBlock);
+  }
+  function v199ReadShootingLinks(panel){
+    const block = v199PanelRoleBlock(panel, 'shooting');
+    if(!block) return { ids: [], names: [], links: [] };
+    v199EnhanceContentDeadlineForBlock(block);
+    const links = [...block.querySelectorAll('.js-user-content-link-row')].map(row => {
+      const inputDate = row.querySelector('.js-content-writing-deadline');
+      const deadline = normalizeText(inputDate?.value || v199DeadlineForRow(block, row) || '');
+      if(inputDate) v199StoreDeadline(block, row, deadline);
+      const checks = [...row.querySelectorAll('.js-user-content-link-check:checked')];
+      return {
+        executorUserId: normalizeText(row.dataset.execId || ''),
+        executorUserName: normalizeText(row.dataset.execName || ''),
+        userId: normalizeText(row.dataset.execId || ''),
+        userName: normalizeText(row.dataset.execName || ''),
+        role: 'shooting',
+        departmentRole: 'shooting',
+        departmentCode: roleCode('shooting'),
+        contentUserIds: checks.map(input => normalizeText(input.value || '')).filter(Boolean),
+        contentUserNames: checks.map(input => normalizeText(input.dataset.name || '')).filter(Boolean),
+        contentWritingDeadline: deadline,
+        contentWriterDeadline: deadline,
+        contentTaskDeadline: deadline
+      };
+    }).filter(link => (link.executorUserId || link.executorUserName) && ((link.contentUserIds || []).length || (link.contentUserNames || []).length));
+    return {
+      ids: uniqueList(links.flatMap(link => link.contentUserIds || []).filter(Boolean)),
+      names: uniqueList(links.flatMap(link => link.contentUserNames || []).filter(Boolean)),
+      links
+    };
+  }
+
+  const oldSyncPanelDynamicStateV199 = syncPanelDynamicState;
+  syncPanelDynamicState = function(panel){
+    const result = oldSyncPanelDynamicStateV199 ? oldSyncPanelDynamicStateV199(panel) : panel;
+    v199EnhanceContentDeadlines(panel);
+    return result;
+  };
+
+  const oldRefreshContentDependencyPickersV199 = refreshContentDependencyPickers;
+  refreshContentDependencyPickers = function(panel){
+    if(oldRefreshContentDependencyPickersV199) oldRefreshContentDependencyPickersV199(panel);
+    v199EnhanceContentDeadlines(panel);
+  };
+
+  const oldSelectedContentDependencyV199 = selectedContentDependency;
+  selectedContentDependency = function(panel, role){
+    const clean = normalizeDepartmentRole(role || '');
+    if(clean === 'shooting') return v199ReadShootingLinks(panel);
+    return oldSelectedContentDependencyV199 ? oldSelectedContentDependencyV199(panel, role) : { ids: [], names: [], links: [] };
+  };
+
+  const oldSelectedRoleTaskFromPanelV199 = selectedRoleTaskFromPanel;
+  selectedRoleTaskFromPanel = function(panel, role){
+    const task = oldSelectedRoleTaskFromPanelV199 ? oldSelectedRoleTaskFromPanelV199(panel, role) : null;
+    if(!task) return task;
+    if(normalizeDepartmentRole(role || '') === 'shooting'){
+      const linked = v199ReadShootingLinks(panel);
+      task.dependencyLinks = linked.links;
+      task.dependsOnContentUserIds = linked.ids;
+      task.dependsOnContentUserNames = linked.names;
+      task.upstreamUserIds = linked.ids;
+      task.upstreamUserNames = linked.names;
+      task.upstreamUserLabel = (linked.names || []).join('، ');
+      task.contentWritingDeadlines = linked.links.map(link => ({
+        executorUserId: link.executorUserId,
+        executorUserName: link.executorUserName,
+        contentUserIds: link.contentUserIds,
+        contentUserNames: link.contentUserNames,
+        deadline: link.contentWritingDeadline || ''
+      }));
+      task.contentWritingDeadline = uniqueList(linked.links.map(link => link.contentWritingDeadline).filter(Boolean)).join('، ');
+    }
+    return task;
+  };
+
+  document.addEventListener('change', function(event){
+    const row = event.target.closest?.('.js-user-content-link-row');
+    const block = event.target.closest?.('[data-assignment-role="shooting"]');
+    if(!row || !block) return;
+    if(event.target.classList.contains('js-content-writing-deadline')){
+      v199StoreDeadline(block, row, normalizeText(event.target.value || ''));
+    }
+    if(event.target.classList.contains('js-user-content-link-check')){
+      v199EnhanceContentDeadlineForBlock(block);
+    }
+  }, true);
+
+  document.addEventListener('click', function(event){
+    const panel = event.target.closest?.('.creative-assignment-panel');
+    if(panel) setTimeout(() => v199EnhanceContentDeadlines(panel), 30);
+  }, true);
+})();
