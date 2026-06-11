@@ -11193,7 +11193,7 @@ async function downloadStructureTemplateForTaskExact(task){
     const canUpload = !admin && (!tpl.status || tpl.status === 'not_uploaded' || tpl.status === 'needs_changes' || tpl.status === 'rejected');
     return `<div class="modal-section task-template-section"><div class="modal-section-title"><h3>Task Template - قسم المحتوى</h3><span>${escapeHtml(v171TemplateStatusLabel(tpl.status))}</span></div>
       <div class="structure-actions">
-        ${canUpload ? `<a class="btn btn-light" href="assets/templates/task-template-base.xlsx" download="task-template.xlsx">تحميل قالب Task Template</a><button class="btn btn-primary" type="button" data-upload-task-template="${escapeHtml(task.id)}">رفع ملف Task Template</button>` : ''}
+        ${canUpload ? `<button class="btn btn-light" type="button" data-download-task-template="${escapeHtml(task.id)}">تحميل قالب Task Template</button><button class="btn btn-primary" type="button" data-upload-task-template="${escapeHtml(task.id)}">رفع ملف Task Template</button>` : ''}
         ${hasFile ? `<span class="structure-file-name structure-attached-label">تم رفع Task Template</span>${tpl.fileName ? `<span class="structure-file-name">${escapeHtml(tpl.fileName)}</span>` : ''}` : '<span class="structure-file-name muted">لم يتم رفع Task Template</span>'}
         ${tpl.fileData ? `<a class="btn btn-light" href="${escapeHtml(tpl.fileData)}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
         ${admin && hasFile ? `<button class="btn btn-primary" type="button" data-open-task-template-review="${escapeHtml(task.id)}">مراجعة Task Template</button>` : ''}
@@ -11485,6 +11485,71 @@ async function downloadStructureTemplateForTaskExact(task){
     return v174SetTaskTemplateDecision(taskId, 'approved');
   }
 
+  function v194TaskTemplateSeedValues(task){
+    const campaign = campaignForTask(task) || {};
+    const row = task?.structureRow || {};
+    const taskNo = (typeof structureTaskNumber === 'function' ? structureTaskNumber(task) : '') || task?.structureTaskNo || task?.taskNo || row.taskNo || '';
+    const contentType = taskContentType(task) || row.contentType || row.contentName || task?.contentType || task?.taskType || '';
+    return {
+      campaignName: campaignNameText(campaign) || task?.campaignName || campaign?.name || '',
+      campaignCode: campaignCodeText(campaign) || task?.campaignCode || campaign?.campaign_code || '',
+      campaignType: campaignTypeText(campaign) || task?.campaignType || campaign?.campaign_type || '',
+      taskNo,
+      contentType
+    };
+  }
+  function v194CleanFilePart(value, fallback = 'task-template'){
+    const clean = normalizeText(value || '').replace(/[\\/:*?"<>|\s]+/g, '_').replace(/^_+|_+$/g, '');
+    return clean || fallback;
+  }
+  function v194DownloadTaskTemplate(taskId){
+    const task = findTaskById(taskId);
+    if(!task) return showToast('تعذر العثور على التاسك.');
+    if(!window.XLSX) return showToast('مكتبة Excel لم يتم تحميلها.');
+    const seed = v194TaskTemplateSeedValues(task);
+    const rows = [
+      ['Task Template - MZJ Workspace', '', ''],
+      ['', '', ''],
+      ['بيانات السيستم - لا تعدلها', '', ''],
+      ['اسم الحملة', seed.campaignName, 'معبأ تلقائيًا'],
+      ['رقم الحملة', seed.campaignCode, 'كود الحملة'],
+      ['نوع الحملة', seed.campaignType, 'معبأ تلقائيًا'],
+      ['رقم التاسك', seed.taskNo, 'معبأ تلقائيًا'],
+      ['نوع المحتوى', seed.contentType, 'معبأ تلقائيًا'],
+      ['', '', ''],
+      ['بيانات يكتبها قسم المحتوى', '', ''],
+      ['الاسم المقترح للكرييتيف', '', 'اكتب هنا'],
+      ['الهدف', '', 'اكتب هنا'],
+      ['الرسالة الأساسية', '', 'اكتب هنا'],
+      ['الهوك', '', 'اكتب هنا'],
+      ['السكريبت الأساسي', '', 'اكتب هنا'],
+      ['CTA', '', 'اكتب هنا'],
+      ['الكابشن', '', 'اكتب هنا'],
+      ['هاشتاج', '', 'اكتب هنا']
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 28 }, { wch: 58 }, { wch: 24 }];
+    ws['!freeze'] = { xSplit: 0, ySplit: 3 };
+    try{
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:C18');
+      for(let r = range.s.r; r <= range.e.r; r += 1){
+        for(let c = range.s.c; c <= range.e.c; c += 1){
+          const addr = XLSX.utils.encode_cell({ r, c });
+          if(!ws[addr]) continue;
+          ws[addr].s = ws[addr].s || {};
+          ws[addr].s.alignment = { horizontal:'right', vertical:'center', wrapText:true, readingOrder:2 };
+          if(r === 0 || r === 2 || r === 9){ ws[addr].s.font = { bold:true }; }
+        }
+      }
+    }catch(_){ }
+    ws['!margins'] = { left:0.7, right:0.7, top:0.75, bottom:0.75, header:0.3, footer:0.3 };
+    const wb = XLSX.utils.book_new();
+    wb.Workbook = { Views: [{ RTL: true }] };
+    XLSX.utils.book_append_sheet(wb, ws, 'Task Template');
+    const fileName = `${v194CleanFilePart(seed.campaignCode || seed.campaignName, 'campaign')}_${v194CleanFilePart(seed.taskNo, 'task')}_task_template.xlsx`;
+    XLSX.writeFile(wb, fileName, { bookType:'xlsx', cellStyles:true });
+    showToast('تم تحميل Task Template ببيانات الحملة والتاسك، وباقي الخانات يكتبها قسم المحتوى.');
+  }
   function v171EnsureTemplateInput(){
     let input = document.getElementById('taskTemplateFileInput');
     if(!input){
@@ -11504,6 +11569,8 @@ async function downloadStructureTemplateForTaskExact(task){
     return input;
   }
   document.addEventListener('click', async function(event){
+    const downloadTemplate = event.target.closest('[data-download-task-template]');
+    if(downloadTemplate){ event.preventDefault(); event.stopPropagation(); v194DownloadTaskTemplate(downloadTemplate.dataset.downloadTaskTemplate || ''); return; }
     const uploadTemplate = event.target.closest('[data-upload-task-template]');
     if(uploadTemplate){ event.preventDefault(); event.stopPropagation(); const input = v171EnsureTemplateInput(); input.dataset.taskId = uploadTemplate.dataset.uploadTaskTemplate || ''; input.value = ''; input.click(); return; }
     const reviewTemplate = event.target.closest('[data-open-task-template-review]');
