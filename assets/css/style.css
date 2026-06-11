@@ -7428,3 +7428,14 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 .add-user-pages{border-top:1px dashed var(--border);padding-top:10px}
 @media(max-width:1000px){.add-user-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.add-user-grid{grid-template-columns:1fr}}
+
+/* v197 - approved structure request stays first in admin campaign readiness */
+.inline-task-row-structure-first{
+  border-color: rgba(123,63,49,.35);
+  background: linear-gradient(180deg, rgba(255,249,245,.96), rgba(255,255,255,.98));
+}
+.inline-task-row-structure-first > div strong::before{
+  content: 'طلب الهيكل · ';
+  color: #7b3f31;
+  font-weight: 800;
+}

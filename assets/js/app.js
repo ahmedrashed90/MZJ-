@@ -12243,3 +12243,132 @@ async function downloadStructureTemplateForTaskExact(task){
     };
   }
 })();
+
+/* v197 - keep approved structure request visible for admin readiness dashboard */
+(function(){
+  try{ window.MZJ_APP_VERSION = 'v197'; }catch(_){ }
+  function v197StructureStatus(task){
+    try{ return String((taskStructure(task) || {}).status || '').trim(); }catch(_){ return ''; }
+  }
+  function v197IsMainStructureRequest(task){
+    if(!task) return false;
+    try{
+      if(typeof isCampaignContentWritingTask === 'function' && isCampaignContentWritingTask(task)) return true;
+      if(task.needsStructureUpload || task.structureRequest || task.campaignStructureTask) return true;
+      const source = typeof identityClean === 'function' ? identityClean(task.source || task.raw?.source || '') : String(task.source || '').toLowerCase();
+      if(source.includes('structure') && source.includes('campaign') && !source.includes('template')) return true;
+      const type = typeof identityClean === 'function' ? identityClean([task.taskType, task.structureTaskLabel, task.contentSectionName, task.assignedDepartmentName].filter(Boolean).join(' ')) : String(task.taskType || '');
+      return type.includes('طلب هيكل') || (type.includes('كتابه محتوي حمله') || type.includes('كتابه محتوى حمله'));
+    }catch(_){ return false; }
+  }
+  function v197TaskDoneForReadiness(task){
+    try{
+      if(typeof taskProgress === 'function' && taskProgress(task) >= 100) return true;
+      const files = typeof taskFiles === 'function' ? taskFiles(task) : [];
+      return files.some(file => file?.isFinal || file?.uploadKind === 'final' || file?.kind === 'final' || file?.purpose === 'final');
+    }catch(_){ return false; }
+  }
+  function v197AdminTaskSort(a, b){
+    const pa = v197IsMainStructureRequest(a) ? -1 : 0;
+    const pb = v197IsMainStructureRequest(b) ? -1 : 0;
+    if(pa !== pb) return pa - pb;
+    const ai = Number(a?.creativeIndex ?? 9999), bi = Number(b?.creativeIndex ?? 9999);
+    if(ai !== bi) return ai - bi;
+    return String(a?.id || '').localeCompare(String(b?.id || ''));
+  }
+  window.v197IsMainStructureRequest = v197IsMainStructureRequest;
+
+  if(typeof adminDashboardTasksForCampaign === 'function'){
+    adminDashboardTasksForCampaign = function(campaign){
+      try{ return (tasksForCampaign(campaign) || []).slice().sort(v197AdminTaskSort); }
+      catch(_){ return []; }
+    };
+  }
+
+  if(typeof campaignTasksSnapshot === 'function'){
+    campaignTasksSnapshot = function(campaign){
+      const related = typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : [];
+      const received = related.filter(task => task.received || task.receivedConfirmed).length;
+      const progress = typeof campaignRequiredProgressFromTasks === 'function' ? campaignRequiredProgressFromTasks(related) : 0;
+      const publish = typeof campaignPublishProgress === 'function' ? campaignPublishProgress(campaign) : 0;
+      const structureAttached = typeof campaignStructureAttachedCount === 'function' ? campaignStructureAttachedCount(related) : 0;
+      const mainStructureTasks = related.filter(v197IsMainStructureRequest);
+      const nonStructureTasks = related.filter(task => !v197IsMainStructureRequest(task));
+      const hasApprovedStructure = mainStructureTasks.some(task => ['approved','distributed'].includes(v197StructureStatus(task)) || (typeof taskStructureAttached === 'function' && taskStructureAttached(task)));
+      const nonStructureDone = nonStructureTasks.length > 0 && nonStructureTasks.every(v197TaskDoneForReadiness);
+      const keepStructureInReadiness = hasApprovedStructure && !nonStructureDone;
+      return { related, received, progress, publish, total: related.length, structureAttached, hasApprovedStructure, keepStructureInReadiness };
+    };
+  }
+
+  if(typeof renderCampaignInlineTasks === 'function'){
+    renderCampaignInlineTasks = function(campaign){
+      const related = (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []).slice().sort(v197AdminTaskSort);
+      const grouped = typeof groupTasksForKanban === 'function' ? groupTasksForKanban(related) : [];
+      const taskItem = task => `<article class="inline-task-row ${v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}">
+        <div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([taskDepartmentLabel(task), task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div>
+        <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}</span>
+        <b>${taskProgress(task)}%</b>
+        <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
+      </article>`;
+      return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
+    };
+  }
+
+  if(typeof renderAdminDashboard === 'function'){
+    renderAdminDashboard = function(){
+      const allTasks = campaigns.flatMap(campaign => adminDashboardTasksForCampaign(campaign));
+      const count = document.getElementById('dashboardCampaignsCount'); if(count) count.textContent = campaigns.length || '—';
+      const tasksCount = document.getElementById('dashboardTasksCount'); if(tasksCount) tasksCount.textContent = allTasks.length || '—';
+      const adminBoard = document.getElementById('adminDashboardBoard');
+      if(!adminBoard) return;
+      if(!isCurrentUserAdmin()) { renderUserDashboard(); return; }
+      setDashboardMode('admin');
+      const items = campaigns.map(campaign => ({ campaign, ...campaignTasksSnapshot(campaign) }));
+      const requiredItems = items.filter(item => item.total && item.received < item.total);
+      const readinessItems = items.filter(item => item.total && (item.progress < 100 || item.keepStructureInReadiness));
+      const publishItems = items.filter(item => item.progress >= 100 && item.publish < 100 && !item.keepStructureInReadiness);
+      const archiveItems = items.filter(item => item.progress >= 100 && item.publish >= 100 && !item.keepStructureInReadiness);
+
+      const requiredCard = item => `<article class="dash-task-receive-card">
+        <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')}</span></div>
+        <div class="receive-meter"><strong>${item.received}/${item.total}</strong><span>تم الاستلام</span></div>
+        <div class="receive-list">${item.related.map(task => `<div><span><b>${shortTaskName(task)}</b><em>${taskOwnerName(task)}</em></span><span class="receive-state-stack"><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b>${taskStructureAttachedBadge(task)}</span></div>`).join('')}</div>
+      </article>`;
+
+      const readinessCard = item => `<article class="dash-campaign-card dash-ready-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
+        <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${item.progress}%</span></div>
+        <p>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')} · ${item.total} تاسك</p>
+        ${item.structureAttached ? `<div class="structure-attach-alert">تم إرفاق الهيكل · ${item.structureAttached}</div>` : ''}
+        <div class="dash-progress"><span style="width:${Math.min(100,item.progress)}%"></span></div>
+        <button type="button" class="open-details-hint">عرض التاسكات</button>
+      </article>`;
+
+      const publishCard = item => `<article class="dash-campaign-card publish-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
+        <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${item.publish}%</span></div>
+        <p>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || '')}</p>
+        <div class="publish-actions">
+          <button type="button" data-stage="prep" data-campaign-id="${escapeHtml(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.prep ? 'done' : ''}">التجهيز 35%</button>
+          <button type="button" data-stage="approval" data-campaign-id="${escapeHtml(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.approval ? 'done' : ''}">الاعتماد 30%</button>
+          <button type="button" data-stage="publish" data-campaign-id="${escapeHtml(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.publish ? 'done' : ''}">النشر 35%</button>
+        </div>
+      </article>`;
+
+      const archiveCard = item => `<article class="dash-campaign-card archive-card" data-open-campaign="${escapeHtml(item.campaign.id)}">
+        <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>جاهزة</span></div>
+        <p>${escapeHtml(item.campaign.campaignCode || item.campaign.campaign_code || '')}</p>
+      </article>`;
+
+      adminBoard.innerHTML = `
+        ${renderProDashboardHero(allTasks)}
+        <section class="admin-dash-col receive-col"><div class="col-title"><h2>TASK - المطلوب</h2><p>متابعة ضغط اليوزرات على تم الاستلام فقط.</p></div>${requiredItems.length ? requiredItems.map(requiredCard).join('') : '<div class="empty-state soft-empty">كل المطلوب تم استلامه حالياً.</div>'}</section>
+        <section class="admin-dash-col ready-col"><div class="col-title"><h2>جاهزية المطلوب</h2><p>اضغط على حملة لفتح التاسكات بنظام كانبان.</p></div>${readinessItems.length ? readinessItems.map(readinessCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات قيد التجهيز.</div>'}</section>
+        <section class="admin-dash-col publish-col"><div class="col-title"><h2>قسم النشر</h2><p>تظهر هنا بعد اكتمال جاهزية المطلوب.</p></div>${publishItems.length ? publishItems.map(publishCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات جاهزة للنشر.</div>'}</section>
+        <section class="admin-dash-col archive-col"><div class="col-title"><h2>قسم الأرشيف</h2><p>بعد اكتمال النشر، تصبح جاهزة للأرشفة.</p></div>${archiveItems.length ? archiveItems.map(archiveCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات مؤرشفة حالياً.</div>'}</section>`;
+    };
+  }
+
+  try{
+    if(typeof getRoute === 'function' && getRoute() === 'dashboard' && typeof renderAdminDashboard === 'function') renderAdminDashboard();
+  }catch(_){ }
+})();
