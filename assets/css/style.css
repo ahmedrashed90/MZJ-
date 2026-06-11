@@ -7488,3 +7488,65 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 #creativeAssignmentPopup .creative-assignment-panel.is-active{
   overflow:auto!important;
 }
+
+/* v203 - fix content writers selector layout inside structure request */
+.user-content-linker{
+  max-width:100%!important;
+  overflow:visible!important;
+  box-sizing:border-box!important;
+}
+.user-content-link-rows{
+  max-height:360px!important;
+  overflow:auto!important;
+  padding-inline-end:4px!important;
+  overscroll-behavior:contain!important;
+}
+.user-content-link-row{
+  overflow:visible!important;
+  box-sizing:border-box!important;
+}
+.user-content-link-options{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(128px,1fr))!important;
+  gap:7px!important;
+  max-height:142px!important;
+  overflow:auto!important;
+  padding:2px 2px 4px!important;
+  align-items:start!important;
+}
+.user-content-link-options label{
+  min-height:34px!important;
+  height:auto!important;
+  padding:7px 9px!important;
+  border-radius:10px!important;
+  box-sizing:border-box!important;
+  line-height:1.25!important;
+}
+.user-content-link-options label span{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  display:block!important;
+}
+.user-content-link-options input[type="checkbox"]{
+  flex:0 0 auto!important;
+}
+.structure-fullscreen-modal .user-content-linker,
+.task-modal .user-content-linker,
+.campaign-wizard .user-content-linker,
+.campaign-form .user-content-linker{
+  position:relative!important;
+  z-index:2!important;
+}
+.structure-fullscreen-modal .user-content-link-rows,
+.task-modal .user-content-link-rows,
+.campaign-wizard .user-content-link-rows,
+.campaign-form .user-content-link-rows{
+  max-height:320px!important;
+}
+@media(max-width:720px){
+  .user-content-link-rows{max-height:280px!important;}
+  .user-content-link-options{grid-template-columns:1fr!important;max-height:132px!important;}
+  .user-content-link-options label{min-height:32px!important;padding:6px 8px!important;}
+}
