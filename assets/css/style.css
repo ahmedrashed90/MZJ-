@@ -7614,3 +7614,69 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
     grid-template-columns:1fr!important;
   }
 }
+
+
+/* v205 - compact visible selector for structure request content writers */
+#campaignRequestForm .structure-content-writers-field{
+  align-self:start!important;
+}
+#campaignRequestForm .structure-content-writers-field .js-request-content-writers{
+  position:relative!important;
+  width:100%!important;
+  overflow:visible!important;
+}
+#campaignRequestForm .structure-content-writers-field .multi-toggle{
+  min-height:36px!important;
+  padding:6px 10px!important;
+  border-radius:12px!important;
+  font-size:12px!important;
+  line-height:1.25!important;
+  text-align:center!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+#campaignRequestForm .structure-content-writers-field .multi-menu{
+  position:static!important;
+  width:100%!important;
+  min-width:0!important;
+  max-height:118px!important;
+  overflow:auto!important;
+  margin-top:6px!important;
+  padding:6px!important;
+  box-shadow:none!important;
+  border-radius:12px!important;
+  background:#fffaf7!important;
+}
+#campaignRequestForm .structure-content-writers-field .js-request-content-writers.open .multi-menu{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:6px!important;
+}
+#campaignRequestForm .structure-content-writers-field .multi-menu label{
+  min-height:30px!important;
+  padding:5px 8px!important;
+  border-radius:10px!important;
+  font-size:12px!important;
+  line-height:1.2!important;
+  gap:6px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+}
+#campaignRequestForm .structure-content-writers-field .multi-menu label input{
+  width:14px!important;
+  height:14px!important;
+  flex:0 0 auto!important;
+}
+#campaignRequestForm .structure-content-writers-field .field-hint{
+  font-size:10.5px!important;
+  line-height:1.35!important;
+  margin-top:2px!important;
+}
+@media(max-width:780px){
+  #campaignRequestForm .structure-content-writers-field .js-request-content-writers.open .multi-menu{
+    grid-template-columns:1fr!important;
+    max-height:140px!important;
+  }
+}
