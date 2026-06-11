@@ -11064,7 +11064,7 @@ async function downloadStructureTemplateForTaskExact(task){
       assignedDepartmentId: 'content',
       assignedDepartmentName: 'قسم المحتوى',
       departmentRole: 'content',
-      taskType: `Task Template - ${taskLabel}`,
+      taskType: taskLabel,
       structureGenerated: true,
       contentTemplateTask: true,
       source: 'campaign-structure-content-template',
@@ -11502,22 +11502,36 @@ async function downloadStructureTemplateForTaskExact(task){
     const clean = normalizeText(value || '').replace(/[\\/:*?"<>|\s]+/g, '_').replace(/^_+|_+$/g, '');
     return clean || fallback;
   }
-  function v194DownloadTaskTemplate(taskId){
-    const task = findTaskById(taskId);
-    if(!task) return showToast('تعذر العثور على التاسك.');
-    if(!window.XLSX) return showToast('مكتبة Excel لم يتم تحميلها.');
-    const seed = v194TaskTemplateSeedValues(task);
-    const rows = [
-      ['Task Template - MZJ Workspace', '', ''],
-      ['', '', ''],
-      ['بيانات السيستم - لا تعدلها', '', ''],
+  function v195XmlEscape(value){
+    return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  }
+  function v195SheetCell(ref, value, styleIndex = 0){
+    return `<c r="${ref}" t="inlineStr" s="${styleIndex}"><is><t>${v195XmlEscape(value || '')}</t></is></c>`;
+  }
+  function v195SheetRow(rowNo, cells, height = 24){
+    return `<row r="${rowNo}" ht="${height}" customHeight="1">${cells.join('')}</row>`;
+  }
+  function v195TaskTemplateWorkbookBlob(seed){
+    if(!window.JSZip) return null;
+    const zip = new JSZip();
+    const rows = [];
+    rows.push(v195SheetRow(1, [v195SheetCell('A1','Task Template - MZJ Workspace',1), v195SheetCell('B1','',1), v195SheetCell('C1','',1)], 30));
+    rows.push(v195SheetRow(2, [v195SheetCell('A2','',0), v195SheetCell('B2','',0), v195SheetCell('C2','',0)], 10));
+    rows.push(v195SheetRow(3, [v195SheetCell('A3','بيانات السيستم - لا تعدلها',2), v195SheetCell('B3','',2), v195SheetCell('C3','',2)], 26));
+    const systemRows = [
       ['اسم الحملة', seed.campaignName, 'معبأ تلقائيًا'],
       ['رقم الحملة', seed.campaignCode, 'كود الحملة'],
       ['نوع الحملة', seed.campaignType, 'معبأ تلقائيًا'],
       ['رقم التاسك', seed.taskNo, 'معبأ تلقائيًا'],
-      ['نوع المحتوى', seed.contentType, 'معبأ تلقائيًا'],
-      ['', '', ''],
-      ['بيانات يكتبها قسم المحتوى', '', ''],
+      ['نوع المحتوى', seed.contentType, 'معبأ تلقائيًا']
+    ];
+    systemRows.forEach((r, idx) => {
+      const rowNo = idx + 4;
+      rows.push(v195SheetRow(rowNo, [v195SheetCell(`A${rowNo}`, r[0],3), v195SheetCell(`B${rowNo}`, r[1],4), v195SheetCell(`C${rowNo}`, r[2],5)], 24));
+    });
+    rows.push(v195SheetRow(9, [v195SheetCell('A9','',0), v195SheetCell('B9','',0), v195SheetCell('C9','',0)], 10));
+    rows.push(v195SheetRow(10, [v195SheetCell('A10','بيانات يكتبها قسم المحتوى',2), v195SheetCell('B10','',2), v195SheetCell('C10','',2)], 26));
+    const editable = [
       ['الاسم المقترح للكرييتيف', '', 'اكتب هنا'],
       ['الهدف', '', 'اكتب هنا'],
       ['الرسالة الأساسية', '', 'اكتب هنا'],
@@ -11527,28 +11541,77 @@ async function downloadStructureTemplateForTaskExact(task){
       ['الكابشن', '', 'اكتب هنا'],
       ['هاشتاج', '', 'اكتب هنا']
     ];
+    editable.forEach((r, idx) => {
+      const rowNo = idx + 11;
+      const h = ['الرسالة الأساسية','الهوك','السكريبت الأساسي','الكابشن','هاشتاج'].includes(r[0]) ? 42 : 28;
+      rows.push(v195SheetRow(rowNo, [v195SheetCell(`A${rowNo}`, r[0],3), v195SheetCell(`B${rowNo}`, r[1],6), v195SheetCell(`C${rowNo}`, r[2],5)], h));
+    });
+    const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
+  <dimension ref="A1:C18"/>
+  <sheetViews><sheetView workbookViewId="0" rightToLeft="1"><pane ySplit="3" topLeftCell="A4" activePane="bottomRight" state="frozen"/><selection pane="bottomRight" activeCell="B11" sqref="B11"/></sheetView></sheetViews>
+  <sheetFormatPr defaultRowHeight="24"/>
+  <cols><col min="1" max="1" width="28" customWidth="1"/><col min="2" max="2" width="62" customWidth="1"/><col min="3" max="3" width="20" customWidth="1"/></cols>
+  <sheetData>${rows.join('')}</sheetData>
+  <mergeCells count="3"><mergeCell ref="A1:C1"/><mergeCell ref="A3:C3"/><mergeCell ref="A10:C10"/></mergeCells>
+  <pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>
+  <pageSetup orientation="portrait" fitToWidth="1" fitToHeight="0"/>
+</worksheet>`;
+    const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="16"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="12"/><color rgb="FF3B211C"/><name val="Calibri"/></font><font><sz val="11"/><color rgb="FF8B6B5D"/><name val="Calibri"/></font></fonts>
+  <fills count="7"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF6F3F34"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF2E5DC"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFAF6"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF7FAFC"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/><bgColor indexed="64"/></patternFill></fill></fills>
+  <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFE2C6B8"/></left><right style="thin"><color rgb="FFE2C6B8"/></right><top style="thin"><color rgb="FFE2C6B8"/></top><bottom style="thin"><color rgb="FFE2C6B8"/></bottom><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="8"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment readingOrder="2" horizontal="right" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment readingOrder="2" horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment readingOrder="2" horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment readingOrder="2" horizontal="right" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="5" borderId="1" xfId="0" applyFill="1" applyBorder="1"><alignment readingOrder="2" horizontal="right" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment readingOrder="2" horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="6" borderId="1" xfId="0" applyFill="1" applyBorder="1"><alignment readingOrder="2" horizontal="right" vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1"><alignment readingOrder="2" horizontal="right" vertical="center" wrapText="1"/></xf></cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+    zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`);
+    zip.folder('_rels').file('.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`);
+    zip.folder('xl').file('workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView rightToLeft="1"/></bookViews><sheets><sheet name="Task Template" sheetId="1" r:id="rId1"/></sheets></workbook>`);
+    zip.folder('xl').folder('_rels').file('workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
+    zip.folder('xl').folder('worksheets').file('sheet1.xml', sheetXml);
+    zip.folder('xl').file('styles.xml', stylesXml);
+    const now = new Date().toISOString();
+    zip.folder('docProps').file('core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:creator>MZJ Workspace</dc:creator><cp:lastModifiedBy>MZJ Workspace</cp:lastModifiedBy><dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified></cp:coreProperties>`);
+    zip.folder('docProps').file('app.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>MZJ Workspace</Application></Properties>`);
+    return zip.generateAsync({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+  async function v194DownloadTaskTemplate(taskId){
+    const task = findTaskById(taskId);
+    if(!task) return showToast('تعذر العثور على التاسك.');
+    const seed = v194TaskTemplateSeedValues(task);
+    const fileName = `${v194CleanFilePart(seed.campaignCode || seed.campaignName, 'campaign')}_${v194CleanFilePart(seed.taskNo, 'task')}_task_template.xlsx`;
+    try{
+      const blobPromise = v195TaskTemplateWorkbookBlob(seed);
+      if(blobPromise){
+        const blob = await blobPromise;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        showToast('تم تحميل Task Template بتنسيق منظم وببيانات السيستم، وباقي الخانات يكتبها قسم المحتوى.');
+        return;
+      }
+    }catch(error){ console.error('styled task template download failed', error); }
+    if(!window.XLSX) return showToast('مكتبة Excel لم يتم تحميلها.');
+    const rows = [
+      ['Task Template - MZJ Workspace', '', ''], ['', '', ''], ['بيانات السيستم - لا تعدلها', '', ''],
+      ['اسم الحملة', seed.campaignName, 'معبأ تلقائيًا'], ['رقم الحملة', seed.campaignCode, 'كود الحملة'], ['نوع الحملة', seed.campaignType, 'معبأ تلقائيًا'], ['رقم التاسك', seed.taskNo, 'معبأ تلقائيًا'], ['نوع المحتوى', seed.contentType, 'معبأ تلقائيًا'],
+      ['', '', ''], ['بيانات يكتبها قسم المحتوى', '', ''], ['الاسم المقترح للكرييتيف', '', 'اكتب هنا'], ['الهدف', '', 'اكتب هنا'], ['الرسالة الأساسية', '', 'اكتب هنا'], ['الهوك', '', 'اكتب هنا'], ['السكريبت الأساسي', '', 'اكتب هنا'], ['CTA', '', 'اكتب هنا'], ['الكابشن', '', 'اكتب هنا'], ['هاشتاج', '', 'اكتب هنا']
+    ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = [{ wch: 28 }, { wch: 58 }, { wch: 24 }];
-    ws['!freeze'] = { xSplit: 0, ySplit: 3 };
-    try{
-      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:C18');
-      for(let r = range.s.r; r <= range.e.r; r += 1){
-        for(let c = range.s.c; c <= range.e.c; c += 1){
-          const addr = XLSX.utils.encode_cell({ r, c });
-          if(!ws[addr]) continue;
-          ws[addr].s = ws[addr].s || {};
-          ws[addr].s.alignment = { horizontal:'right', vertical:'center', wrapText:true, readingOrder:2 };
-          if(r === 0 || r === 2 || r === 9){ ws[addr].s.font = { bold:true }; }
-        }
-      }
-    }catch(_){ }
-    ws['!margins'] = { left:0.7, right:0.7, top:0.75, bottom:0.75, header:0.3, footer:0.3 };
     const wb = XLSX.utils.book_new();
     wb.Workbook = { Views: [{ RTL: true }] };
     XLSX.utils.book_append_sheet(wb, ws, 'Task Template');
-    const fileName = `${v194CleanFilePart(seed.campaignCode || seed.campaignName, 'campaign')}_${v194CleanFilePart(seed.taskNo, 'task')}_task_template.xlsx`;
-    XLSX.writeFile(wb, fileName, { bookType:'xlsx', cellStyles:true });
-    showToast('تم تحميل Task Template ببيانات الحملة والتاسك، وباقي الخانات يكتبها قسم المحتوى.');
+    XLSX.writeFile(wb, fileName, { bookType:'xlsx' });
+    showToast('تم تحميل Task Template.');
   }
   function v171EnsureTemplateInput(){
     let input = document.getElementById('taskTemplateFileInput');
@@ -12065,4 +12128,71 @@ async function downloadStructureTemplateForTaskExact(task){
     };
   }
   if(typeof renderPublishPrepPage === 'function' && typeof getRoute === 'function' && getRoute() === 'publish-prep') renderPublishPrepPage();
+})();
+
+
+/* v195 - polished Task Template naming + always open approved structure */
+(function(){
+  try{ window.MZJ_APP_VERSION = 'v195'; }catch(_){ }
+  function v195Clean(value){ try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); } }
+  function v195Id(value){ try{ return identityClean(value || ''); }catch(_){ return v195Clean(value).toLowerCase(); } }
+  function v195IsContentTemplateTask(task){
+    const src = v195Id(task?.source || task?.raw?.source || '');
+    return !!(task?.contentTemplateTask || src.includes('campaignstructurecontenttemplate'));
+  }
+  function v195TaskShortNo(value){
+    const text = v195Clean(value || '');
+    const m = text.match(/N\s*0*([0-9]+)/i);
+    if(m) return `N${String(Number(m[1])).padStart(2, '0')}`;
+    return text.split('-').map(x => x.trim()).filter(Boolean).slice(-1)[0] || text;
+  }
+  function v195ContentTemplateTitle(task){
+    const row = task?.structureRow || task?.raw?.structureRow || {};
+    const no = v195TaskShortNo(task?.structureTaskNo || task?.taskNo || row.taskNo || (typeof structureTaskNumber === 'function' ? structureTaskNumber(task) : ''));
+    let type = v195Clean(row.contentType || row.contentName || task?.contentType || task?.structureTaskLabel || task?.product || task?.creative || task?.taskType || '');
+    type = type.replace(/^Task\s*Template\s*-?\s*/i, '').replace(/^قسم\s*المحتو[ىي]\s*\/\s*/i, '').trim();
+    if(no && type.includes(no)) type = type.replace(no, '').replace(/^\s*[-/]+\s*/, '').trim();
+    return [no, type || 'Task Template'].filter(Boolean).join(' - ');
+  }
+  if(typeof shortTaskName === 'function'){
+    const prevShortTaskNameV195 = shortTaskName;
+    shortTaskName = function(task){
+      if(v195IsContentTemplateTask(task)) return escapeHtml(v195ContentTemplateTitle(task));
+      return prevShortTaskNameV195(task);
+    };
+  }
+  if(typeof renderStructureSection === 'function'){
+    const prevRenderStructureSectionV195 = renderStructureSection;
+    renderStructureSection = function(task){
+      let html = prevRenderStructureSectionV195(task);
+      try{
+        const structure = taskStructure(task);
+        const status = structure?.status || '';
+        const hasStructureFile = !!(structure?.fileData || structure?.fileName || structure?.fileSize || (structureSheetTables(structure) || []).length || (structureDistributionRows(structure) || []).length);
+        if(hasStructureFile && (status === 'approved' || status === 'distributed')){
+          html = html.replace(/>مراجعة الهيكل<|>عرض الهيكل</g, '>فتح الهيكل المعتمد<');
+          if(!html.includes('structure-approved-open-extra')){
+            html = html.replace('<div class="structure-approved-message">تم اعتماد الهيكل. ابدأ توزيع تاسكات الهيكل على اليوزرات.</div>', `<div class="structure-approved-message structure-approved-open-extra">تم اعتماد الهيكل. تقدر تفتحه في أي وقت للمراجعة أو التوزيع. <button class="mini-btn" type="button" data-open-structure-review="${escapeHtml(task.id)}">فتح الهيكل المعتمد</button></div>`);
+          }
+        }
+      }catch(_){ }
+      return html;
+    };
+  }
+  if(typeof openStructureReviewPopup === 'function'){
+    const prevOpenStructureReviewPopupV195 = openStructureReviewPopup;
+    openStructureReviewPopup = function(taskId){
+      prevOpenStructureReviewPopupV195(taskId);
+      try{
+        const task = findTaskById(taskId);
+        const status = taskStructure(task)?.status || '';
+        const popup = document.querySelector('.structure-review-popup');
+        if(popup && (status === 'approved' || status === 'distributed')){
+          const title = popup.querySelector('.structure-review-head h3');
+          if(title) title.textContent = 'عرض الهيكل المعتمد';
+          popup.querySelectorAll('[data-structure-approve]').forEach(btn => btn.remove());
+        }
+      }catch(_){ }
+    };
+  }
 })();
