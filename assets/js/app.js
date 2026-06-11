@@ -12372,3 +12372,166 @@ async function downloadStructureTemplateForTaskExact(task){
     if(typeof getRoute === 'function' && getRoute() === 'dashboard' && typeof renderAdminDashboard === 'function') renderAdminDashboard();
   }catch(_){ }
 })();
+
+/* v198 - details after structure distribution + creative types + content Task Template access */
+(function(){
+  try{ window.MZJ_APP_VERSION = 'v198'; }catch(_){ }
+
+  function v198Clean(value){
+    try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); }
+  }
+  function v198Identity(value){
+    try{ return identityClean(value || ''); }catch(_){ return v198Clean(value).toLowerCase(); }
+  }
+  function v198Unique(list){
+    try{ return uniqueList(list); }catch(_){ return Array.from(new Set((list || []).filter(Boolean))); }
+  }
+  function v198TaskIdKeys(task){
+    return v198Unique([
+      task?.id,
+      task?.docId,
+      task?.taskId,
+      task?.linkedExecutionTaskId,
+      task?.linkedContentTemplateTaskId,
+      task?.parentStructureTaskId,
+      task?.contentExecutionPairKey,
+      task?.linkedExecutionPairKey,
+      task?.structureTaskNo,
+      task?.taskNo
+    ].map(v198Clean).filter(Boolean));
+  }
+  function v198TaskMatchesId(task, wanted){
+    const cleanWanted = v198Clean(wanted);
+    if(!cleanWanted) return false;
+    const wantedIdentity = v198Identity(cleanWanted);
+    return v198TaskIdKeys(task).some(key => key === cleanWanted || v198Identity(key) === wantedIdentity);
+  }
+
+  if(typeof findTaskById === 'function'){
+    const prevFindTaskByIdV198 = findTaskById;
+    findTaskById = function(taskId, campaignId = ''){
+      let found = null;
+      try{ found = prevFindTaskByIdV198(taskId, campaignId); }catch(_){ found = null; }
+      if(found) return found;
+      const cleanCampaign = v198Clean(campaignId);
+      const list = Array.isArray(campaigns) ? campaigns : [];
+      const candidates = cleanCampaign ? list.filter(c => [c.id, c.docId, c.campaignId].map(v198Clean).includes(cleanCampaign)) : list;
+      for(const campaign of candidates){
+        const taskSources = [];
+        try{ taskSources.push(...(Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks : [])); }catch(_){ }
+        try{ taskSources.push(...(typeof tasksForCampaign === 'function' ? tasksForCampaign(campaign) : [])); }catch(_){ }
+        const match = taskSources.find(task => v198TaskMatchesId(task, taskId));
+        if(match){
+          try{ return normalizeCampaignTask({ ...match, campaignId: match.campaignId || campaign.id }, campaign); }catch(_){ return { ...match, campaignId: match.campaignId || campaign.id }; }
+        }
+      }
+      return null;
+    };
+  }
+
+  if(typeof renderTaskDetail === 'function'){
+    renderTaskDetail = function(taskId, campaignId = ''){
+      const task = findTaskById(taskId, campaignId);
+      if(!task){
+        try{ showToast('تعذر فتح تفاصيل التاسك. تم تحديث البحث عن التاسكات، جرّب تحديث الصفحة لو استمرت المشكلة.'); }catch(_){ }
+        return;
+      }
+      if(!isCurrentUserAdmin() && !currentUserMatchesTaskExact(task)){
+        try{ showToast('التاسك غير مسند لهذا المستخدم.'); }catch(_){ }
+        return;
+      }
+      openTaskModal(task);
+    };
+  }
+
+  function v198CreativeTypesForTask(task){
+    const campaign = (typeof campaignForTask === 'function' ? campaignForTask(task) : null) || {};
+    const list = Array.isArray(campaign.creatives) ? campaign.creatives : [];
+    const labels = [];
+    const taskLink = v198Clean((typeof taskCreativeLinkCode === 'function' ? taskCreativeLinkCode(task) : '') || task?.creativeLinkCode || task?.campaignCreativeCode || task?.structureCreativeLinkCode).toUpperCase();
+    const taskShort = v198Clean(task?.creativeShortCode || (typeof extractCreativeShortCodeFromTaskNo === 'function' ? extractCreativeShortCodeFromTaskNo(task?.taskNo || task?.structureTaskNo || '') : '')).toUpperCase();
+    list.forEach((item, index) => {
+      const name = v198Clean(item?.creative || item?.product || '');
+      if(!name) return;
+      const itemShort = v198Clean(item?.creativeShortCode || (typeof creativeShortCodeForName === 'function' ? creativeShortCodeForName(name) : '')).toUpperCase();
+      const itemLink = v198Clean(typeof creativeLinkCodeForIndex === 'function' ? creativeLinkCodeForIndex(campaign.campaignCode || campaign.campaign_code || '', index) : '').toUpperCase();
+      if((taskShort && itemShort && taskShort === itemShort) || (taskLink && itemLink && taskLink === itemLink) || v198Identity(task?.creative) === v198Identity(name)) labels.push(name);
+    });
+    if(!labels.length) labels.push(task?.creative, task?.product, task?.structureRow?.creative, task?.structureRow?.contentType);
+    return v198Unique(labels.map(v198Clean).filter(Boolean));
+  }
+
+  function v198ContentTemplateStatusLabel(status){
+    const clean = v198Clean(status || '');
+    if(clean === 'approved') return 'تم اعتماد Task Template';
+    if(clean === 'pending_review') return 'في انتظار مراجعة الأدمن';
+    if(clean === 'needs_changes') return 'محتاج تعديل';
+    if(clean === 'rejected') return 'مرفوض';
+    return 'لم يتم رفع Task Template';
+  }
+  function v198IsContentTaskEligibleForTemplate(task){
+    if(!task) return false;
+    const role = typeof normalizeDepartmentRole === 'function' ? normalizeDepartmentRole(task.departmentRole || task.assignedDepartmentName || task.contentSectionName || '') : '';
+    if(role !== 'content') return false;
+    if(task.contentTemplateTask || task.source === 'campaign-structure-content-template') return true;
+    if(task.structureRow || task.structureGenerated || task.needsTaskTemplate || task.needsContentTemplate) return true;
+    const text = v198Identity([task.taskType, task.structureTaskLabel, task.taskNo, task.structureTaskNo].filter(Boolean).join(' '));
+    return text.includes('task template') || text.includes('محتوي') || text.includes('محتوى');
+  }
+  function v198RenderTaskTemplateSection(task){
+    if(!v198IsContentTaskEligibleForTemplate(task)) return '';
+    const admin = typeof isCurrentUserAdmin === 'function' ? isCurrentUserAdmin() : false;
+    const tpl = task.taskTemplate || {};
+    const hasFile = !!(tpl.fileData || tpl.fileName || tpl.fileSize || (Array.isArray(tpl.sheetTables) && tpl.sheetTables.length) || tpl.sheetTablesJson);
+    const canUpload = !admin && (!tpl.status || ['not_uploaded','needs_changes','rejected'].includes(v198Clean(tpl.status)));
+    const fieldsHtml = (typeof v172RenderTaskTemplateFields === 'function') ? v172RenderTaskTemplateFields(tpl) : '';
+    return `<div class="modal-section task-template-section task-template-section-v198"><div class="modal-section-title"><h3>Task Template - قسم المحتوى</h3><span>${escapeHtml(v198ContentTemplateStatusLabel(tpl.status))}</span></div>
+      <div class="structure-actions">
+        ${canUpload ? `<button class="btn btn-light" type="button" data-download-task-template="${escapeHtml(task.id)}">تحميل قالب Task Template</button><button class="btn btn-primary" type="button" data-upload-task-template="${escapeHtml(task.id)}">رفع ملف Task Template</button>` : ''}
+        ${hasFile ? `<span class="structure-file-name structure-attached-label">تم رفع Task Template</span>${tpl.fileName ? `<span class="structure-file-name">${escapeHtml(tpl.fileName)}</span>` : ''}` : '<span class="structure-file-name muted">لم يتم رفع Task Template</span>'}
+        ${tpl.fileData ? `<a class="btn btn-light" href="${escapeHtml(tpl.fileData)}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
+        ${admin && hasFile ? `<button class="btn btn-primary" type="button" data-open-task-template-review="${escapeHtml(task.id)}">مراجعة Task Template</button>` : ''}
+      </div>
+      ${fieldsHtml}
+      ${task.linkedExecutionDepartmentName || task.linkedExecutionAssigneeName ? `<div class="task-template-link-note">مرتبط بتاسك: ${escapeHtml(task.linkedExecutionDepartmentName || '')} / ${escapeHtml(task.linkedExecutionAssigneeName || '')}</div>` : ''}
+    </div>`;
+  }
+
+  if(typeof buildTaskDetailHtml === 'function'){
+    const prevBuildTaskDetailHtmlV198 = buildTaskDetailHtml;
+    buildTaskDetailHtml = function(task){
+      let html = prevBuildTaskDetailHtmlV198(task);
+      const creativeTypes = v198CreativeTypesForTask(task);
+      if(creativeTypes.length){
+        const creativeCard = `<div class="brief-box creative-types-box-v198"><span>أنواع الكرييتيف المختارة</span><strong>${escapeHtml(creativeTypes.join('، '))}</strong></div>`;
+        if(!html.includes('creative-types-box-v198')){
+          html = html.replace('<div class="modal-section task-brief-row task-brief-row-compact">', `<div class="modal-section task-brief-row task-brief-row-compact">${creativeCard}`);
+        }
+      }
+      const templateSection = v198RenderTaskTemplateSection(task);
+      if(templateSection && !html.includes('task-template-section-v198') && !html.includes('Task Template - قسم المحتوى')){
+        html = html.replace('<div class="modal-section task-actions-section compact-actions-section">', `${templateSection}<div class="modal-section task-actions-section compact-actions-section">`);
+      }
+      return html;
+    };
+  }
+
+  if(typeof renderCampaignInlineTasks === 'function'){
+    const prevRenderCampaignInlineTasksV198 = renderCampaignInlineTasks;
+    renderCampaignInlineTasks = function(campaign){
+      try{
+        const related = (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []).slice().sort(typeof v197AdminTaskSort === 'function' ? v197AdminTaskSort : undefined);
+        const grouped = typeof groupTasksForKanban === 'function' ? groupTasksForKanban(related) : [];
+        const taskItem = task => `<article class="inline-task-row ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}">
+          <div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([taskDepartmentLabel(task), task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div>
+          <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}</span>
+          <b>${taskProgress(task)}%</b>
+          <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">تفاصيل</button>
+        </article>`;
+        return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
+      }catch(error){ console.error('v198 render campaign inline tasks failed', error); return prevRenderCampaignInlineTasksV198(campaign); }
+    };
+  }
+
+  try{ if(typeof getRoute === 'function' && getRoute() === 'dashboard' && typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(_){ }
+})();
