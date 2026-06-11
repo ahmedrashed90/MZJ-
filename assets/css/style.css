@@ -7550,3 +7550,67 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
   .user-content-link-options{grid-template-columns:1fr!important;max-height:132px!important;}
   .user-content-link-options label{min-height:32px!important;padding:6px 8px!important;}
 }
+
+/* v204 - show full structure request content writers selector in step 1 */
+#campaignRequestForm .js-request-content-writers{
+  position:relative!important;
+  width:100%!important;
+  max-width:100%!important;
+  overflow:visible!important;
+  z-index:5!important;
+}
+#campaignRequestForm .js-request-content-writers .multi-toggle{
+  min-height:44px!important;
+  border-radius:14px!important;
+  text-align:center!important;
+  white-space:normal!important;
+  overflow:visible!important;
+}
+#campaignRequestForm .js-request-content-writers .multi-menu{
+  position:static!important;
+  inset:auto!important;
+  top:auto!important;
+  right:auto!important;
+  left:auto!important;
+  width:100%!important;
+  min-width:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+  margin-top:8px!important;
+  padding:10px!important;
+  box-shadow:none!important;
+  border-radius:16px!important;
+  background:#fffaf7!important;
+}
+#campaignRequestForm .js-request-content-writers.open .multi-menu{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important;
+  gap:8px!important;
+}
+#campaignRequestForm .js-request-content-writers .multi-menu label{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:8px!important;
+  min-height:38px!important;
+  padding:8px 10px!important;
+  border:1px solid rgba(150,83,67,.18)!important;
+  background:#fff!important;
+  border-radius:12px!important;
+  line-height:1.35!important;
+  white-space:normal!important;
+}
+#campaignRequestForm .js-request-content-writers .multi-menu label input{
+  flex:0 0 auto!important;
+}
+#campaignRequestForm .request-panel,
+#campaignRequestForm .request-grid,
+#campaignRequestForm .field,
+#campaignRequestForm .field-wide{
+  overflow:visible!important;
+}
+@media(max-width:720px){
+  #campaignRequestForm .js-request-content-writers.open .multi-menu{
+    grid-template-columns:1fr!important;
+  }
+}
