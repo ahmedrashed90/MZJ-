@@ -11515,46 +11515,46 @@ async function downloadStructureTemplateForTaskExact(task){
     if(!window.JSZip) return null;
     const zip = new JSZip();
     const rows = [];
-    rows.push(v195SheetRow(1, [v195SheetCell('A1','Task Template - MZJ Workspace',1), v195SheetCell('B1','',1), v195SheetCell('C1','',1)], 30));
-    rows.push(v195SheetRow(2, [v195SheetCell('A2','',0), v195SheetCell('B2','',0), v195SheetCell('C2','',0)], 10));
-    rows.push(v195SheetRow(3, [v195SheetCell('A3','بيانات السيستم - لا تعدلها',2), v195SheetCell('B3','',2), v195SheetCell('C3','',2)], 26));
+    rows.push(v195SheetRow(1, [v195SheetCell('A1','Task Template - MZJ Workspace',1), v195SheetCell('B1','',1)], 30));
+    rows.push(v195SheetRow(2, [v195SheetCell('A2','',0), v195SheetCell('B2','',0)], 10));
+    rows.push(v195SheetRow(3, [v195SheetCell('A3','بيانات السيستم - لا تعدلها',2), v195SheetCell('B3','',2)], 26));
     const systemRows = [
-      ['اسم الحملة', seed.campaignName, 'معبأ تلقائيًا'],
-      ['رقم الحملة', seed.campaignCode, 'كود الحملة'],
-      ['نوع الحملة', seed.campaignType, 'معبأ تلقائيًا'],
-      ['رقم التاسك', seed.taskNo, 'معبأ تلقائيًا'],
-      ['نوع المحتوى', seed.contentType, 'معبأ تلقائيًا']
+      ['اسم الحملة', seed.campaignName],
+      ['رقم الحملة', seed.campaignCode],
+      ['نوع الحملة', seed.campaignType],
+      ['رقم التاسك', seed.taskNo],
+      ['نوع المحتوى', seed.contentType]
     ];
     systemRows.forEach((r, idx) => {
       const rowNo = idx + 4;
-      rows.push(v195SheetRow(rowNo, [v195SheetCell(`A${rowNo}`, r[0],3), v195SheetCell(`B${rowNo}`, r[1],4), v195SheetCell(`C${rowNo}`, r[2],5)], 24));
+      rows.push(v195SheetRow(rowNo, [v195SheetCell(`A${rowNo}`, r[0],3), v195SheetCell(`B${rowNo}`, r[1],4)], 24));
     });
-    rows.push(v195SheetRow(9, [v195SheetCell('A9','',0), v195SheetCell('B9','',0), v195SheetCell('C9','',0)], 10));
-    rows.push(v195SheetRow(10, [v195SheetCell('A10','بيانات يكتبها قسم المحتوى',2), v195SheetCell('B10','',2), v195SheetCell('C10','',2)], 26));
+    rows.push(v195SheetRow(9, [v195SheetCell('A9','',0), v195SheetCell('B9','',0)], 10));
+    rows.push(v195SheetRow(10, [v195SheetCell('A10','بيانات يكتبها قسم المحتوى',2), v195SheetCell('B10','',2)], 26));
     const editable = [
-      ['الاسم المقترح للكرييتيف', '', 'اكتب هنا'],
-      ['الهدف', '', 'اكتب هنا'],
-      ['الرسالة الأساسية', '', 'اكتب هنا'],
-      ['الهوك', '', 'اكتب هنا'],
-      ['السكريبت الأساسي', '', 'اكتب هنا'],
-      ['CTA', '', 'اكتب هنا'],
-      ['الكابشن', '', 'اكتب هنا'],
-      ['هاشتاج', '', 'اكتب هنا']
+      ['الاسم المقترح للكرييتيف', ''],
+      ['الهدف', ''],
+      ['الرسالة الأساسية', ''],
+      ['الهوك', ''],
+      ['السكريبت الأساسي', ''],
+      ['CTA', ''],
+      ['الكابشن', ''],
+      ['هاشتاج', '']
     ];
     editable.forEach((r, idx) => {
       const rowNo = idx + 11;
       const h = ['الرسالة الأساسية','الهوك','السكريبت الأساسي','الكابشن','هاشتاج'].includes(r[0]) ? 42 : 28;
-      rows.push(v195SheetRow(rowNo, [v195SheetCell(`A${rowNo}`, r[0],3), v195SheetCell(`B${rowNo}`, r[1],6), v195SheetCell(`C${rowNo}`, r[2],5)], h));
+      rows.push(v195SheetRow(rowNo, [v195SheetCell(`A${rowNo}`, r[0],3), v195SheetCell(`B${rowNo}`, r[1],6)], h));
     });
     const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
-  <dimension ref="A1:C18"/>
-  <sheetViews><sheetView workbookViewId="0" rightToLeft="1"><pane ySplit="3" topLeftCell="A4" activePane="bottomRight" state="frozen"/><selection pane="bottomRight" activeCell="B11" sqref="B11"/></sheetView></sheetViews>
+  <dimension ref="A1:B18"/>
+  <sheetViews><sheetView workbookViewId="0" rightToLeft="1"/></sheetViews>
   <sheetFormatPr defaultRowHeight="24"/>
-  <cols><col min="1" max="1" width="28" customWidth="1"/><col min="2" max="2" width="62" customWidth="1"/><col min="3" max="3" width="20" customWidth="1"/></cols>
+  <cols><col min="1" max="1" width="28" customWidth="1"/><col min="2" max="2" width="62" customWidth="1"/></cols>
   <sheetData>${rows.join('')}</sheetData>
-  <mergeCells count="3"><mergeCell ref="A1:C1"/><mergeCell ref="A3:C3"/><mergeCell ref="A10:C10"/></mergeCells>
+  <mergeCells count="3"><mergeCell ref="A1:B1"/><mergeCell ref="A3:B3"/><mergeCell ref="A10:B10"/></mergeCells>
   <pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>
   <pageSetup orientation="portrait" fitToWidth="1" fitToHeight="0"/>
 </worksheet>`;
@@ -11569,7 +11569,7 @@ async function downloadStructureTemplateForTaskExact(task){
 </styleSheet>`;
     zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`);
     zip.folder('_rels').file('.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`);
-    zip.folder('xl').file('workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView rightToLeft="1"/></bookViews><sheets><sheet name="Task Template" sheetId="1" r:id="rId1"/></sheets></workbook>`);
+    zip.folder('xl').file('workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="Task Template" sheetId="1" r:id="rId1"/></sheets></workbook>`);
     zip.folder('xl').folder('_rels').file('workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
     zip.folder('xl').folder('worksheets').file('sheet1.xml', sheetXml);
     zip.folder('xl').file('styles.xml', stylesXml);
@@ -11601,12 +11601,12 @@ async function downloadStructureTemplateForTaskExact(task){
     }catch(error){ console.error('styled task template download failed', error); }
     if(!window.XLSX) return showToast('مكتبة Excel لم يتم تحميلها.');
     const rows = [
-      ['Task Template - MZJ Workspace', '', ''], ['', '', ''], ['بيانات السيستم - لا تعدلها', '', ''],
-      ['اسم الحملة', seed.campaignName, 'معبأ تلقائيًا'], ['رقم الحملة', seed.campaignCode, 'كود الحملة'], ['نوع الحملة', seed.campaignType, 'معبأ تلقائيًا'], ['رقم التاسك', seed.taskNo, 'معبأ تلقائيًا'], ['نوع المحتوى', seed.contentType, 'معبأ تلقائيًا'],
-      ['', '', ''], ['بيانات يكتبها قسم المحتوى', '', ''], ['الاسم المقترح للكرييتيف', '', 'اكتب هنا'], ['الهدف', '', 'اكتب هنا'], ['الرسالة الأساسية', '', 'اكتب هنا'], ['الهوك', '', 'اكتب هنا'], ['السكريبت الأساسي', '', 'اكتب هنا'], ['CTA', '', 'اكتب هنا'], ['الكابشن', '', 'اكتب هنا'], ['هاشتاج', '', 'اكتب هنا']
+      ['Task Template - MZJ Workspace', ''], ['', ''], ['بيانات السيستم - لا تعدلها', ''],
+      ['اسم الحملة', seed.campaignName], ['رقم الحملة', seed.campaignCode], ['نوع الحملة', seed.campaignType], ['رقم التاسك', seed.taskNo], ['نوع المحتوى', seed.contentType],
+      ['', ''], ['بيانات يكتبها قسم المحتوى', ''], ['الاسم المقترح للكرييتيف', ''], ['الهدف', ''], ['الرسالة الأساسية', ''], ['الهوك', ''], ['السكريبت الأساسي', ''], ['CTA', ''], ['الكابشن', ''], ['هاشتاج', '']
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{ wch: 28 }, { wch: 58 }, { wch: 24 }];
+    ws['!cols'] = [{ wch: 28 }, { wch: 70 }];
     const wb = XLSX.utils.book_new();
     wb.Workbook = { Views: [{ RTL: true }] };
     XLSX.utils.book_append_sheet(wb, ws, 'Task Template');
@@ -12190,6 +12190,53 @@ async function downloadStructureTemplateForTaskExact(task){
         if(popup && (status === 'approved' || status === 'distributed')){
           const title = popup.querySelector('.structure-review-head h3');
           if(title) title.textContent = 'عرض الهيكل المعتمد';
+          popup.querySelectorAll('[data-structure-approve]').forEach(btn => btn.remove());
+        }
+      }catch(_){ }
+    };
+  }
+})();
+
+
+/* v196 - Task Template clean column C + stable approved structure open for admins */
+(function(){
+  try{ window.MZJ_APP_VERSION = 'v196'; }catch(_){ }
+  if(typeof renderStructureSection === 'function'){
+    const prevRenderStructureSectionV196 = renderStructureSection;
+    renderStructureSection = function(task){
+      let html = prevRenderStructureSectionV196(task);
+      try{
+        const structure = taskStructure(task) || {};
+        const status = String(structure.status || '').trim();
+        const admin = typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin();
+        const hasStructureFile = !!(structure.fileData || structure.fileName || structure.fileSize || (typeof structureSheetTables === 'function' && (structureSheetTables(structure) || []).length) || (typeof structureDistributionRows === 'function' && (structureDistributionRows(structure) || []).length));
+        if(admin && hasStructureFile && (status === 'approved' || status === 'distributed')){
+          html = html.replace(/>مراجعة الهيكل</g, '>فتح الهيكل المعتمد<').replace(/>عرض الهيكل</g, '>فتح الهيكل المعتمد<');
+          const extraBtn = `<button class="btn btn-primary structure-approved-admin-open" type="button" data-open-structure-review="${escapeHtml(task.id)}">فتح الهيكل المعتمد</button>`;
+          if(!html.includes('structure-approved-admin-open')){
+            if(html.includes('structure-approved-message')){
+              html = html.replace('</div>${structureAssigneeTable(task)}</div>', `${extraBtn}</div>${structureAssigneeTable(task)}</div>`);
+              if(!html.includes('structure-approved-admin-open')) html = html.replace(/(<div class="structure-approved-message"[^>]*>.*?<\/div>)/, `$1${extraBtn}`);
+            }else{
+              html = html.replace('</div>', `${extraBtn}</div>`);
+            }
+          }
+        }
+      }catch(_){ }
+      return html;
+    };
+  }
+  if(typeof openStructureReviewPopup === 'function'){
+    const prevOpenStructureReviewPopupV196 = openStructureReviewPopup;
+    openStructureReviewPopup = function(taskId){
+      prevOpenStructureReviewPopupV196(taskId);
+      try{
+        const task = findTaskById(taskId);
+        const status = String((taskStructure(task) || {}).status || '').trim();
+        const popup = document.querySelector('.structure-review-popup');
+        if(popup && (status === 'approved' || status === 'distributed')){
+          const title = popup.querySelector('.structure-review-head h3');
+          if(title) title.textContent = 'فتح الهيكل المعتمد';
           popup.querySelectorAll('[data-structure-approve]').forEach(btn => btn.remove());
         }
       }catch(_){ }
