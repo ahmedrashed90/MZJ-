@@ -12677,3 +12677,181 @@ async function downloadStructureTemplateForTaskExact(task){
     if(panel) setTimeout(() => v199EnhanceContentDeadlines(panel), 30);
   }, true);
 })();
+
+/* v200 - per shooting/content-writer deadline rows */
+(function(){
+  function safeText(value){ return typeof normalizeText === 'function' ? normalizeText(value || '') : String(value || '').trim(); }
+  function safeRole(value){ return typeof normalizeDepartmentRole === 'function' ? normalizeDepartmentRole(value || '') : safeText(value); }
+  function parseJson(value, fallback){ try { return value ? JSON.parse(value) : fallback; } catch(e){ return fallback; } }
+  function encodeJson(value){ try { return JSON.stringify(value || {}); } catch(e){ return '{}'; } }
+  function uniq(arr){ return typeof uniqueList === 'function' ? uniqueList(arr) : Array.from(new Set((arr || []).filter(Boolean))); }
+  function esc(value){ return typeof escapeHtml === 'function' ? escapeHtml(value || '') : String(value || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+  function rCode(role){ return typeof roleCode === 'function' ? roleCode(role) : role; }
+  function keyPart(value){ return safeText(value).replace(/\s+/g, ' ').toLowerCase(); }
+  function execKey(row){ return keyPart(row?.dataset?.execId || row?.dataset?.execName || ''); }
+  function writerKey(input){ return keyPart(input?.value || input?.dataset?.name || ''); }
+  function pairKey(row, input){ return `${execKey(row)}::${writerKey(input)}`; }
+  function mapFor(block){ return parseJson(block?.dataset?.contentWritingDeadlinesV200 || block?.dataset?.contentWritingDeadlines || '{}', {}); }
+  function setMap(block, map){ if(block) block.dataset.contentWritingDeadlinesV200 = encodeJson(map); }
+  function oldRowDeadline(block, row){
+    const key = execKey(row);
+    const old = parseJson(block?.dataset?.contentWritingDeadlines || '{}', {});
+    return key ? (old[key] || '') : '';
+  }
+  function storePair(block, row, input, value){
+    const key = pairKey(row, input);
+    if(!key || key === '::') return;
+    const map = mapFor(block);
+    if(value) map[key] = value; else delete map[key];
+    setMap(block, map);
+  }
+  function valueForPair(block, row, input){
+    const map = mapFor(block);
+    const key = pairKey(row, input);
+    return key ? (map[key] || '') : '';
+  }
+  function ensureStyle(){
+    if(document.getElementById('v200ContentWriterDeadlineStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'v200ContentWriterDeadlineStyle';
+    style.textContent = `
+      .content-writing-deadline-wrap.js-content-writing-deadline-wrap{display:none!important}
+      .content-writer-deadline-list{display:grid!important;gap:5px!important;margin-top:6px!important;padding:7px!important;border:1px dashed rgba(120,70,50,.22)!important;border-radius:10px!important;background:rgba(255,248,244,.72)!important;max-height:150px!important;overflow:auto!important}
+      .content-writer-deadline-list.is-hidden{display:none!important}
+      .content-writer-deadline-title{font-weight:900!important;color:#6b3b2f!important;font-size:10.5px!important;line-height:1.1!important;margin-bottom:2px!important}
+      .content-writer-deadline-row{display:grid!important;grid-template-columns:minmax(90px,1fr) 118px!important;gap:6px!important;align-items:center!important;margin:0!important}
+      .content-writer-deadline-row span{font-size:10.5px!important;font-weight:800!important;color:#4b2b24!important;line-height:1.1!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+      .content-writer-deadline-row input{width:118px!important;max-width:118px!important;height:28px!important;min-height:28px!important;border:1px solid rgba(120,70,50,.25)!important;border-radius:8px!important;padding:2px 6px!important;background:#fff!important;color:#2d1b16!important;font-size:11px!important;font-family:inherit!important;font-weight:800!important;box-sizing:border-box!important}
+      @media(max-width:720px){.content-writer-deadline-row{grid-template-columns:minmax(70px,1fr) 112px!important}.content-writer-deadline-row input{width:112px!important;max-width:112px!important}}
+    `;
+    document.head.appendChild(style);
+  }
+  function enhanceBlock(block){
+    if(!block || safeRole(block.dataset.assignmentRole || '') !== 'shooting') return;
+    ensureStyle();
+    block.querySelectorAll('.js-user-content-link-row').forEach(row => {
+      const oldWrap = row.querySelector('.js-content-writing-deadline-wrap');
+      if(oldWrap) oldWrap.style.display = 'none';
+      let list = row.querySelector('.js-content-writer-deadline-list');
+      if(!list){
+        list = document.createElement('div');
+        list.className = 'content-writer-deadline-list js-content-writer-deadline-list is-hidden';
+        row.appendChild(list);
+      }
+      const checks = [...row.querySelectorAll('.js-user-content-link-check:checked')];
+      if(!checks.length){
+        list.classList.add('is-hidden');
+        list.innerHTML = '';
+        return;
+      }
+      list.classList.remove('is-hidden');
+      list.innerHTML = `<div class="content-writer-deadline-title">مواعيد تسليم كتابة المحتوى لكل كاتب</div>${checks.map(input => {
+        const current = valueForPair(block, row, input) || oldRowDeadline(block, row) || '';
+        if(current) storePair(block, row, input, current);
+        return `<label class="content-writer-deadline-row"><span>${esc(input.dataset.name || input.value || 'كاتب محتوى')}</span><input type="date" class="js-content-writer-deadline" data-writer-id="${esc(input.value || '')}" data-writer-name="${esc(input.dataset.name || '')}" value="${esc(current)}" /></label>`;
+      }).join('')}`;
+    });
+  }
+  function enhancePanel(panel){
+    const root = panel || document;
+    root.querySelectorAll('[data-assignment-role="shooting"]').forEach(enhanceBlock);
+  }
+  function panelRoleBlock(panel, role){
+    const clean = safeRole(role || '');
+    return panel?.querySelector(`[data-assignment-role="${clean}"]`) || null;
+  }
+  function readShootingLinks(panel){
+    const block = panelRoleBlock(panel, 'shooting');
+    if(!block) return { ids: [], names: [], links: [] };
+    enhanceBlock(block);
+    const links = [...block.querySelectorAll('.js-user-content-link-row')].map(row => {
+      const checks = [...row.querySelectorAll('.js-user-content-link-check:checked')];
+      const perWriter = checks.map(input => {
+        const dateInput = row.querySelector(`.js-content-writer-deadline[data-writer-id="${CSS.escape(input.value || '')}"]`);
+        const deadline = safeText(dateInput?.value || valueForPair(block, row, input) || '');
+        if(deadline) storePair(block, row, input, deadline);
+        return {
+          contentUserId: safeText(input.value || ''),
+          contentUserName: safeText(input.dataset.name || ''),
+          writerId: safeText(input.value || ''),
+          writerName: safeText(input.dataset.name || ''),
+          deadline,
+          contentWritingDeadline: deadline,
+          contentWriterDeadline: deadline,
+          contentTaskDeadline: deadline
+        };
+      });
+      const deadlines = uniq(perWriter.map(item => item.deadline).filter(Boolean));
+      return {
+        executorUserId: safeText(row.dataset.execId || ''),
+        executorUserName: safeText(row.dataset.execName || ''),
+        userId: safeText(row.dataset.execId || ''),
+        userName: safeText(row.dataset.execName || ''),
+        role: 'shooting',
+        departmentRole: 'shooting',
+        departmentCode: rCode('shooting'),
+        contentUserIds: perWriter.map(item => item.contentUserId).filter(Boolean),
+        contentUserNames: perWriter.map(item => item.contentUserName).filter(Boolean),
+        contentWriterDeadlines: perWriter,
+        contentWritingDeadlines: perWriter,
+        contentWritingDeadline: deadlines.join('، '),
+        contentWriterDeadline: deadlines.join('، '),
+        contentTaskDeadline: deadlines.join('، ')
+      };
+    }).filter(link => (link.executorUserId || link.executorUserName) && ((link.contentUserIds || []).length || (link.contentUserNames || []).length));
+    return { ids: uniq(links.flatMap(link => link.contentUserIds || [])), names: uniq(links.flatMap(link => link.contentUserNames || [])), links };
+  }
+
+  const prevSync = typeof syncPanelDynamicState === 'function' ? syncPanelDynamicState : null;
+  if(prevSync){ syncPanelDynamicState = function(panel){ const result = prevSync(panel); enhancePanel(panel); return result; }; }
+
+  const prevRefresh = typeof refreshContentDependencyPickers === 'function' ? refreshContentDependencyPickers : null;
+  if(prevRefresh){ refreshContentDependencyPickers = function(panel){ const result = prevRefresh(panel); enhancePanel(panel); return result; }; }
+
+  const prevSelectedContentDependency = typeof selectedContentDependency === 'function' ? selectedContentDependency : null;
+  selectedContentDependency = function(panel, role){
+    if(safeRole(role || '') === 'shooting') return readShootingLinks(panel);
+    return prevSelectedContentDependency ? prevSelectedContentDependency(panel, role) : { ids: [], names: [], links: [] };
+  };
+
+  const prevSelectedRoleTaskFromPanel = typeof selectedRoleTaskFromPanel === 'function' ? selectedRoleTaskFromPanel : null;
+  selectedRoleTaskFromPanel = function(panel, role){
+    const task = prevSelectedRoleTaskFromPanel ? prevSelectedRoleTaskFromPanel(panel, role) : null;
+    if(task && safeRole(role || '') === 'shooting'){
+      const linked = readShootingLinks(panel);
+      task.dependencyLinks = linked.links;
+      task.dependsOnContentUserIds = linked.ids;
+      task.dependsOnContentUserNames = linked.names;
+      task.upstreamUserIds = linked.ids;
+      task.upstreamUserNames = linked.names;
+      task.upstreamUserLabel = (linked.names || []).join('، ');
+      task.contentWritingDeadlines = linked.links.flatMap(link => (link.contentWriterDeadlines || []).map(item => ({
+        executorUserId: link.executorUserId,
+        executorUserName: link.executorUserName,
+        contentUserId: item.contentUserId,
+        contentUserName: item.contentUserName,
+        deadline: item.deadline || ''
+      })));
+      task.contentWritingDeadline = uniq(task.contentWritingDeadlines.map(item => item.deadline).filter(Boolean)).join('، ');
+    }
+    return task;
+  };
+
+  document.addEventListener('change', function(event){
+    const row = event.target.closest?.('.js-user-content-link-row');
+    const block = event.target.closest?.('[data-assignment-role="shooting"]');
+    if(!row || !block) return;
+    if(event.target.classList.contains('js-content-writer-deadline')){
+      const fakeInput = { value: event.target.dataset.writerId || '', dataset: { name: event.target.dataset.writerName || '' } };
+      storePair(block, row, fakeInput, safeText(event.target.value || ''));
+    }
+    if(event.target.classList.contains('js-user-content-link-check')) setTimeout(() => enhanceBlock(block), 0);
+  }, true);
+
+  document.addEventListener('click', function(event){
+    const panel = event.target.closest?.('.creative-assignment-panel');
+    if(panel) setTimeout(() => enhancePanel(panel), 40);
+  }, true);
+
+  setTimeout(() => enhancePanel(document), 200);
+})();
