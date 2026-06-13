@@ -13109,3 +13109,163 @@ async function downloadStructureTemplateForTaskExact(task){
   }, true);
   setTimeout(renderDeadlineBox, 300);
 })();
+
+/* v207 - force visible content-writer deadlines in step 2 after selecting structure creatives */
+(function(){
+  const VERSION = '207';
+  try{ window.MZJ_APP_VERSION = VERSION; }catch(_){ }
+  const clean = v => (typeof normalizeText === 'function' ? normalizeText(v || '') : String(v || '').trim());
+  const esc = v => (typeof escapeHtml === 'function' ? escapeHtml(v || '') : String(v || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+  const uniq = list => (typeof uniqueList === 'function' ? uniqueList(list) : Array.from(new Set((list || []).map(clean).filter(Boolean))));
+  const splitNames = text => clean(text).split(/[،,|]+/).map(clean).filter(Boolean).filter(x => !/^اختيار/.test(x));
+
+  function ensureStyle(){
+    if(document.getElementById('v207StructureDeadlineStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'v207StructureDeadlineStyle';
+    style.textContent = `
+      .content-writer-deadlines-step2,.v207-row-deadline-box{display:block!important;margin:10px 0 12px!important;padding:10px!important;border:1px dashed rgba(121,67,52,.28)!important;border-radius:14px!important;background:#fff9f5!important;color:#4b2b24!important;box-sizing:border-box!important;clear:both!important;position:relative!important;z-index:3!important}
+      .v207-row-deadline-box{margin:8px 0!important;background:#fff!important;border-style:solid!important}
+      .v207-selected-creatives,.v206-selected-creatives{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;padding:7px 9px!important;border:1px solid rgba(121,67,52,.18)!important;border-radius:11px!important;background:#fff!important;margin-bottom:8px!important;font-size:11.5px!important;font-weight:900!important;line-height:1.4!important}
+      .v207-selected-creatives span,.v206-selected-creatives span{color:#8a4f3f!important;white-space:nowrap!important}
+      .v207-selected-creatives strong,.v206-selected-creatives strong{color:#3d241e!important;text-align:left!important;direction:rtl!important;overflow:hidden!important;text-overflow:ellipsis!important}
+      .v207-selected-creatives.muted strong,.v206-selected-creatives.muted strong{color:#9b7b71!important;font-weight:800!important}
+      .v207-deadline-head,.v206-deadline-head{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;margin:0 0 7px!important;color:#6b3b2f!important}
+      .v207-deadline-head strong,.v206-deadline-head strong{font-size:12px!important;font-weight:950!important}
+      .v207-deadline-head small,.v206-deadline-head small{font-size:10.5px!important;color:#8f6d63!important;font-weight:800!important}
+      .v207-deadline-grid,.v206-deadline-grid{display:grid!important;grid-template-columns:repeat(2,minmax(170px,1fr))!important;gap:7px!important;margin:0!important;max-height:150px!important;overflow:auto!important;padding:2px!important;box-sizing:border-box!important}
+      .v207-writer-deadline-row,.v206-writer-deadline-row{display:grid!important;grid-template-columns:minmax(70px,1fr) 132px!important;align-items:center!important;gap:7px!important;margin:0!important;padding:7px!important;border:1px solid rgba(121,67,52,.16)!important;border-radius:10px!important;background:#fff!important;box-sizing:border-box!important;min-width:0!important}
+      .v207-writer-deadline-row span,.v206-writer-deadline-row span{font-size:11.5px!important;font-weight:900!important;color:#4b2b24!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;min-width:0!important}
+      .v207-writer-deadline-row input,.v206-writer-deadline-row input{width:132px!important;max-width:132px!important;height:30px!important;min-height:30px!important;padding:2px 6px!important;border:1px solid rgba(121,67,52,.28)!important;border-radius:8px!important;background:#fff!important;color:#2d1b16!important;font-size:11px!important;font-weight:800!important;font-family:inherit!important;box-sizing:border-box!important}
+      .v207-panel-writer-deadlines{display:block!important;margin:8px 0!important;padding:8px!important;border:1px solid rgba(121,67,52,.18)!important;border-radius:12px!important;background:#fffaf7!important;clear:both!important}
+      .v207-panel-writer-deadlines .v207-deadline-grid{grid-template-columns:1fr!important;max-height:120px!important}
+      .v207-panel-writer-deadlines .v207-writer-deadline-row{grid-template-columns:minmax(65px,1fr) 126px!important;padding:6px!important}
+      .v207-panel-writer-deadlines .v207-writer-deadline-row input{width:126px!important;max-width:126px!important;height:28px!important;min-height:28px!important}
+      @media(max-width:820px){.v207-deadline-grid,.v206-deadline-grid{grid-template-columns:1fr!important}.v207-deadline-head,.v206-deadline-head{display:block!important}.v207-writer-deadline-row,.v206-writer-deadline-row{grid-template-columns:minmax(65px,1fr) 122px!important}.v207-writer-deadline-row input,.v206-writer-deadline-row input{width:122px!important;max-width:122px!important}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function requestWriters(){
+    const picker = document.querySelector('#campaignRequestForm .js-request-content-writers');
+    if(!picker) return [];
+    let ids = [];
+    let names = [];
+    try{ if(typeof selectedOptionValues === 'function') ids = ids.concat(selectedOptionValues(picker)); }catch(_){ }
+    try{ if(typeof selectedOptionTexts === 'function') names = names.concat(selectedOptionTexts(picker)); }catch(_){ }
+    try{ if(typeof storedMultiValues === 'function'){ ids = ids.concat(storedMultiValues(picker, 'selectedIds')); names = names.concat(storedMultiValues(picker, 'selectedNames')); } }catch(_){ }
+    ids = ids.concat([...picker.querySelectorAll('input[type="checkbox"]:checked')].map(input => clean(input.value)));
+    names = names.concat([...picker.querySelectorAll('input[type="checkbox"]:checked')].map(input => clean(input.dataset.name || input.closest('label')?.textContent || '')));
+    names = names.concat(splitNames(picker.querySelector('.multi-toggle')?.textContent || ''));
+    ids = uniq(ids);
+    names = uniq(names);
+    const max = Math.max(ids.length, names.length);
+    return Array.from({length:max}, (_, i) => ({ id: ids[i] || names[i] || '', name: names[i] || ids[i] || '' })).filter(x => x.id || x.name);
+  }
+
+  function selectedCreatives(){
+    const out = [];
+    document.querySelectorAll('#creativeRows .creative-row-card').forEach(row => {
+      try{ if(typeof selectedCreativeNames === 'function') out.push(...selectedCreativeNames(row)); }catch(_){ }
+      row.querySelectorAll('.js-creative-check:checked,.js-popup-creative-check:checked').forEach(input => out.push(clean(input.value || input.dataset.name || '')));
+      row.querySelectorAll('.creative-assignment-panel').forEach(panel => out.push(clean(panel.dataset.creativeName || panel.querySelector('.creative-assignment-title strong')?.textContent || '')));
+    });
+    return uniq(out);
+  }
+
+  function existingValues(){
+    const byId = {}, byName = {};
+    document.querySelectorAll('.v206-content-writer-deadline,.v207-content-writer-deadline').forEach(input => {
+      const val = clean(input.value || input.getAttribute('value') || '');
+      const id = clean(input.dataset.writerId || '');
+      const name = clean(input.dataset.writerName || '');
+      if(id && val) byId[id] = val;
+      if(name && val) byName[name] = val;
+    });
+    return {byId, byName};
+  }
+
+  function creativeHtml(){
+    const creatives = selectedCreatives();
+    return creatives.length
+      ? `<div class="v207-selected-creatives"><span>الكريتيف المطلوب للهيكل</span><strong>${esc(creatives.join('، '))}</strong></div>`
+      : `<div class="v207-selected-creatives muted"><span>الكريتيف المطلوب للهيكل</span><strong>اختار كريتيف واحد أو أكثر</strong></div>`;
+  }
+
+  function deadlineGridHtml(compact){
+    const writers = requestWriters();
+    const previous = existingValues();
+    const fallback = clean(document.querySelector('#campaignRequestForm [name="structure_deadline"]')?.value || '');
+    if(!writers.length) return `<div class="empty-state mini-empty">اختار يوزرات كتابة المحتوى من الخطوة الأولى عشان تظهر مواعيد تسليم كتابة المحتوى لكل كاتب.</div>`;
+    const rows = writers.map(writer => {
+      const value = previous.byId[writer.id] || previous.byName[writer.name] || fallback || '';
+      return `<label class="v207-writer-deadline-row"><span>${esc(writer.name || writer.id)}</span><input class="v206-content-writer-deadline v207-content-writer-deadline" type="date" value="${esc(value)}" data-writer-id="${esc(writer.id)}" data-writer-name="${esc(writer.name)}"></label>`;
+    }).join('');
+    return `<div class="v207-deadline-head"><strong>مواعيد تسليم كتابة المحتوى لكل كاتب</strong>${compact ? '' : '<small>كل كاتب محتوى له موعد مستقل</small>'}</div><div class="v207-deadline-grid">${rows}</div>`;
+  }
+
+  function ensureTopBox(){
+    const panel = document.querySelector('[data-campaign-wizard-step="2"]');
+    if(!panel) return null;
+    let box = panel.querySelector('#contentWriterDeadlinesStep2');
+    if(!box){
+      box = document.createElement('div');
+      box.id = 'contentWriterDeadlinesStep2';
+      box.className = 'content-writer-deadlines-step2';
+      const creativeRows = panel.querySelector('#creativeRows');
+      if(creativeRows) creativeRows.insertAdjacentElement('beforebegin', box);
+      else panel.appendChild(box);
+    }
+    return box;
+  }
+
+  function renderPanelBoxes(){
+    document.querySelectorAll('#creativeRows .creative-assignment-panel').forEach(panel => {
+      let box = panel.querySelector('.v207-panel-writer-deadlines');
+      if(!box){
+        box = document.createElement('div');
+        box.className = 'v207-panel-writer-deadlines';
+        const after = panel.querySelector('.assignment-users-grid, .creative-assignment-fields, .section-users-grid') || panel.firstElementChild;
+        if(after && after.parentNode === panel) after.insertAdjacentElement('afterend', box); else panel.appendChild(box);
+      }
+      box.innerHTML = creativeHtml() + deadlineGridHtml(true);
+    });
+  }
+
+  function renderV207Deadlines(){
+    ensureStyle();
+    const top = ensureTopBox();
+    if(top) top.innerHTML = creativeHtml() + deadlineGridHtml(false);
+    renderPanelBoxes();
+  }
+
+  function syncSameWriter(source){
+    const id = clean(source.dataset.writerId || '');
+    const name = clean(source.dataset.writerName || '');
+    const value = source.value || '';
+    document.querySelectorAll('.v206-content-writer-deadline,.v207-content-writer-deadline').forEach(input => {
+      if(input === source) return;
+      const sameId = id && clean(input.dataset.writerId || '') === id;
+      const sameName = name && clean(input.dataset.writerName || '') === name;
+      if(sameId || sameName){ input.value = value; input.setAttribute('value', value); }
+    });
+  }
+
+  const oldStep = typeof campaignWizardSetStep === 'function' ? campaignWizardSetStep : null;
+  if(oldStep){
+    campaignWizardSetStep = function(step){ const result = oldStep.apply(this, arguments); if(String(step || '') === '2') setTimeout(renderV207Deadlines, 120); return result; };
+  }
+  const oldRefresh = typeof refreshCreativeAssignmentPanels === 'function' ? refreshCreativeAssignmentPanels : null;
+  if(oldRefresh){ refreshCreativeAssignmentPanels = function(){ const result = oldRefresh.apply(this, arguments); setTimeout(renderV207Deadlines, 100); return result; }; }
+  const oldSavePopup = typeof saveCreativeAssignmentPopup === 'function' ? saveCreativeAssignmentPopup : null;
+  if(oldSavePopup){ saveCreativeAssignmentPopup = function(){ const result = oldSavePopup.apply(this, arguments); setTimeout(renderV207Deadlines, 120); return result; }; }
+
+  document.addEventListener('change', function(event){
+    if(event.target.matches('.v206-content-writer-deadline,.v207-content-writer-deadline')) syncSameWriter(event.target);
+    if(event.target.closest('#campaignRequestForm .js-request-content-writers') || event.target.matches('#campaignRequestForm [name="structure_deadline"]') || event.target.matches('.js-creative-check,.js-popup-creative-check,.js-role-picker input[type="checkbox"]')) setTimeout(renderV207Deadlines, 90);
+  }, true);
+  document.addEventListener('click', function(event){
+    if(event.target.closest('[data-campaign-wizard-next],[data-campaign-wizard-target],.open-creative-assignment-popup,[data-save-creative-assignment-popup],.multi-toggle,.js-role-picker')) setTimeout(renderV207Deadlines, 140);
+  }, true);
+  setTimeout(renderV207Deadlines, 500);
+})();
