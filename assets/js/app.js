@@ -12851,6 +12851,8 @@ async function downloadStructureTemplateForTaskExact(task){
   }, true);
 
   document.addEventListener('click', function(event){
+    // v212: do not rebuild shooting rows while the native calendar is being opened/used.
+    if(event.target?.matches?.('input[type="date"], .js-content-writer-deadline, .v209-linked-writer-deadline') || event.target?.closest?.('.content-writer-deadline-list,.v209-linked-writer-deadlines')) return;
     const panel = event.target.closest?.('.creative-assignment-panel');
     if(panel) setTimeout(() => enhancePanel(panel), 40);
   }, true);
@@ -13472,7 +13474,7 @@ async function downloadStructureTemplateForTaskExact(task){
 })();
 
 /* v211 - stable inline date selectors for linked writer deadlines */
-(function(){
+if(false){(function(){
   function pad(n){ return String(n || '').padStart(2, '0'); }
   function parseDateValue(value){
     const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -13571,4 +13573,55 @@ async function downloadStructureTemplateForTaskExact(task){
   observer.observe(document.documentElement, { childList:true, subtree:true });
   setTimeout(() => scan(document), 300);
   setTimeout(() => scan(document), 1000);
+})();}
+
+
+/* v212 - restore native calendar picker and keep deadline rows stable */
+(function(){
+  function ensureStyle(){
+    if(document.getElementById('v212NativeDatePickerStyle')) return;
+    const style=document.createElement('style');
+    style.id='v212NativeDatePickerStyle';
+    style.textContent=`
+      .v211-date-selects{display:none!important}
+      .v211-date-native-hidden{display:block!important}
+      .v209-linked-writer-deadline-row{grid-template-columns:minmax(90px,1fr) 132px!important;align-items:center!important}
+      .v209-linked-writer-deadline-row input[type="date"],
+      .content-writer-deadline-row input[type="date"]{display:block!important;width:132px!important;max-width:132px!important;height:30px!important;min-height:30px!important;border:1px solid rgba(120,70,50,.25)!important;border-radius:8px!important;background:#fff!important;color:#2d1b16!important;font-size:11px!important;font-weight:800!important;padding:2px 6px!important;box-sizing:border-box!important;position:relative!important;z-index:20!important;pointer-events:auto!important}
+      @media(max-width:720px){.v209-linked-writer-deadline-row{grid-template-columns:1fr!important}.v209-linked-writer-deadline-row input[type="date"],.content-writer-deadline-row input[type="date"]{width:100%!important;max-width:100%!important}}
+    `;
+    document.head.appendChild(style);
+  }
+  function restoreNativeDateInputs(root){
+    ensureStyle();
+    (root || document).querySelectorAll?.('.v209-linked-writer-deadline,.js-content-writer-deadline').forEach(input => {
+      if(input.tagName !== 'INPUT') return;
+      input.type='date';
+      input.classList.remove('v211-date-native-hidden');
+      input.style.display='block';
+      if(input.previousElementSibling?.classList?.contains('v211-date-selects')) input.previousElementSibling.remove();
+    });
+  }
+  ['pointerdown','mousedown','mouseup','click','focusin','focus','keydown'].forEach(type => {
+    document.addEventListener(type, function(event){
+      if(event.target?.matches?.('.v209-linked-writer-deadline,.js-content-writer-deadline,input[type="date"]')){
+        event.stopPropagation();
+      }
+    }, true);
+  });
+  document.addEventListener('change', function(event){
+    if(event.target?.matches?.('.v209-linked-writer-deadline,.js-content-writer-deadline')){
+      // Keep the row visible after selecting the date, but do not rebuild immediately.
+      const input=event.target;
+      input.setAttribute('value', input.value || '');
+    }
+  }, true);
+  const observer=new MutationObserver(muts=>{
+    for(const m of muts){ for(const node of m.addedNodes||[]){ if(node.nodeType===1) restoreNativeDateInputs(node); } }
+  });
+  try{ observer.observe(document.documentElement,{childList:true,subtree:true}); }catch(_){ }
+  document.addEventListener('DOMContentLoaded',()=>restoreNativeDateInputs(document));
+  setTimeout(()=>restoreNativeDateInputs(document),200);
+  setTimeout(()=>restoreNativeDateInputs(document),800);
+  setTimeout(()=>restoreNativeDateInputs(document),1600);
 })();
