@@ -540,6 +540,9 @@ function syncPanelDynamicState(panel){
       if(el.checked) el.setAttribute('checked', 'checked'); else el.removeAttribute('checked');
     }else if(el.tagName === 'SELECT'){
       [...el.options].forEach(option => { if(option.selected) option.setAttribute('selected','selected'); else option.removeAttribute('selected'); });
+    }else if(el.tagName === 'TEXTAREA'){
+      el.setAttribute('value', el.value || '');
+      el.textContent = el.value || '';
     }else{
       el.setAttribute('value', el.value || '');
     }
@@ -2365,6 +2368,7 @@ function roleAssignmentBlock(role, label, hint='', options = {}){
   const isContent = role === 'content';
   const dateLabel = isContent ? 'ميعاد تسليم كاتب المحتوى' : `ميعاد تسليم ${label}`;
   const dateNote = options.dateNote || (isContent ? 'ميعاد تسليم كتابة المحتوى لهذا الكريتيف.' : 'حدد ميعاد التسليم النهائي لهذا القسم.');
+  const noteLabel = isContent ? 'ملاحظة لقسم المحتوى' : `ملاحظة ${label}`;
   const dateAttrs = '';
   return `<div class="creative-role-assignment" data-assignment-role="${escapeHtml(role)}">
     <div class="creative-role-title"><strong>${escapeHtml(label)}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ''}</div>
@@ -2375,6 +2379,11 @@ function roleAssignmentBlock(role, label, hint='', options = {}){
       <span>${escapeHtml(dateLabel)}</span>
       <input class="js-role-deadline js-${role}-deadline" data-role-deadline="${escapeHtml(role)}" type="date"${dateAttrs} />
       <small>${escapeHtml(dateNote)}</small>
+    </label>
+    <label class="creative-role-note-field">
+      <span>${escapeHtml(noteLabel)}</span>
+      <textarea class="js-role-note js-${role}-note" data-role-note="${escapeHtml(role)}" rows="2" placeholder="اكتب ملاحظة خاصة بهذا القسم..."></textarea>
+      <small>الملاحظة هتتحفظ وتظهر في تفاصيل التاسك الخاص بالقسم.</small>
     </label>
   </div>`;
 }
@@ -2630,6 +2639,7 @@ function selectedRoleTaskFromPanel(panel, role){
   const brief = normalizeText(requestForm?.querySelector('[name="content_writer_brief"]')?.value || '');
   const structureDeadline = normalizeText(requestForm?.querySelector('[name="structure_deadline"]')?.value || '');
   const roleDeadline = normalizeText(panel?.querySelector(`.js-role-deadline[data-role-deadline="${role}"]`)?.value || '');
+  const roleNote = normalizeText(panel?.querySelector(`.js-role-note[data-role-note="${role}"]`)?.value || '');
   const creativeName = normalizeText(panel?.dataset.creativeName || '');
   const isContent = role === 'content';
   const isDeferredAfterContent = role !== 'content';
@@ -2658,6 +2668,10 @@ function selectedRoleTaskFromPanel(panel, role){
     dependencyRole: isDeferredAfterContent ? 'content' : '',
     waitingForApproval: isDeferredAfterContent,
     waitingForApprovalLabel: isDeferredAfterContent ? 'في انتظار اعتماد الهيكل' : '',
+    sectionNote: roleNote,
+    departmentNote: roleNote,
+    roleNote: roleNote,
+    assignmentNote: roleNote,
     upstreamRole: isDeferredAfterContent ? 'content' : '',
     upstreamUserIds: isDeferredAfterContent ? linkedContentIds : [],
     upstreamUserNames: isDeferredAfterContent ? linkedContentNames : [],
@@ -4924,6 +4938,8 @@ function buildTaskDetailHtml(task){
   taskBriefBoxes.push(`<div class="brief-box"><span>نوع التاسك</span><strong>${escapeHtml(task.taskType || '—')}</strong></div>`);
   taskBriefBoxes.push(`<div class="brief-box"><span>الكريتيف</span><strong>${escapeHtml(task.creative || task.product || '—')}</strong></div>`);
   if(task.upstreamUserLabel) taskBriefBoxes.push(`<div class="brief-box"><span>تابع لمحتوى</span><strong>${escapeHtml(task.upstreamUserLabel)}</strong></div>`);
+  const taskSectionNote = normalizeText(task.sectionNote || task.departmentNote || task.roleNote || task.assignmentNote || '');
+  if(taskSectionNote) taskBriefBoxes.push(`<div class="brief-box wide"><span>ملاحظة القسم</span><strong>${escapeHtml(taskSectionNote)}</strong></div>`);
   taskBriefBoxes.push(`<div class="brief-box"><span>السيارة المختارة</span><strong>${escapeHtml(task.selectedCar || task.carName || '')}</strong></div>`);
   const contentRequiredBox = isContentTask ? `<div class="campaign-info-box wide"><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(writerBrief || '—')}</strong></div>` : '';
   const structureDataHtml = task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>نوع المحتوى</span><strong>${escapeHtml(taskContentType(task) || '—')}</strong></div><div><span>الهدف</span><strong>${escapeHtml(task.structureRow.goal || '—')}</strong></div><div><span>الهدف الملموس</span><strong>${escapeHtml(task.structureRow.tangibleGoal || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>زاوية المحتوى</span><strong>${escapeHtml(task.structureRow.contentAngle || '—')}</strong></div><div><span>الترجمة التنفيذية لما يجب إبرازه</span><strong>${escapeHtml(task.structureRow.highlightTranslation || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : '';
@@ -13761,4 +13777,36 @@ if(false){(function(){
   setTimeout(()=>cleanup(document), 120);
   setTimeout(()=>cleanup(document), 700);
   setTimeout(()=>cleanup(document), 1500);
+})();
+
+
+/* v215 - section notes in creative assignment step 2 */
+(function(){
+  try{ window.MZJ_APP_VERSION = '215'; }catch(_){ }
+  function norm(v){ return (typeof normalizeText === 'function' ? normalizeText(v || '') : String(v || '').trim()); }
+  function esc(v){ return (typeof escapeHtml === 'function' ? escapeHtml(v || '') : String(v || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))); }
+  function roleTitle(role){ return (typeof defaultRoleSectionName === 'function' ? defaultRoleSectionName(role) : ({content:'قسم المحتوى',design:'قسم التصميم',shooting:'قسم التصوير',montage:'قسم المونتاج',publish:'قسم النشر'}[role] || 'القسم')); }
+  function ensureNoteField(block){
+    if(!block || block.querySelector('.creative-role-note-field')) return;
+    const role = norm(block.dataset.assignmentRole || '');
+    if(!role) return;
+    const label = role === 'content' ? 'ملاحظة لقسم المحتوى' : `ملاحظة ${roleTitle(role)}`;
+    const holder = document.createElement('label');
+    holder.className = 'creative-role-note-field';
+    holder.innerHTML = `<span>${esc(label)}</span><textarea class="js-role-note js-${esc(role)}-note" data-role-note="${esc(role)}" rows="2" placeholder="اكتب ملاحظة خاصة بهذا القسم..."></textarea><small>الملاحظة هتتحفظ وتظهر في تفاصيل التاسك الخاص بالقسم.</small>`;
+    const deadline = block.querySelector('.creative-role-deadline-field');
+    if(deadline && deadline.parentNode) deadline.parentNode.insertBefore(holder, deadline.nextSibling); else block.appendChild(holder);
+  }
+  function ensureAllNotes(root){
+    (root || document).querySelectorAll?.('.creative-role-assignment[data-assignment-role]')?.forEach(ensureNoteField);
+  }
+  document.addEventListener('input', function(event){
+    if(event.target?.classList?.contains('js-role-note')) event.target.textContent = event.target.value || '';
+  }, true);
+  document.addEventListener('change', function(event){
+    if(event.target?.classList?.contains('js-role-note')) event.target.textContent = event.target.value || '';
+  }, true);
+  document.addEventListener('click', function(){ setTimeout(() => ensureAllNotes(document), 80); }, true);
+  document.addEventListener('change', function(){ setTimeout(() => ensureAllNotes(document), 80); }, true);
+  setTimeout(() => ensureAllNotes(document), 400);
 })();

@@ -7715,3 +7715,41 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
   .v206-deadline-grid{grid-template-columns:1fr}
   .v206-writer-deadline-row input{width:128px}
 }
+
+/* v215 - section notes in creative assignment step 2 */
+.creative-role-note-field{
+  display:grid!important;
+  gap:6px!important;
+  margin-top:8px!important;
+  padding:8px!important;
+  border:1px dashed rgba(121,67,52,.22)!important;
+  border-radius:12px!important;
+  background:rgba(255,249,245,.78)!important;
+  grid-column:1 / -1!important;
+}
+.creative-role-note-field span{
+  font-size:11px!important;
+  font-weight:900!important;
+  color:#6b3b2f!important;
+}
+.creative-role-note-field textarea{
+  width:100%!important;
+  min-height:46px!important;
+  max-height:90px!important;
+  resize:vertical!important;
+  border:1px solid rgba(121,67,52,.25)!important;
+  border-radius:10px!important;
+  background:#fff!important;
+  color:#2d1b16!important;
+  padding:8px 10px!important;
+  font-family:inherit!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  line-height:1.5!important;
+  box-sizing:border-box!important;
+}
+.creative-role-note-field small{
+  font-size:10px!important;
+  color:#8f6d63!important;
+  font-weight:700!important;
+}
