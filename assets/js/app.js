@@ -13810,3 +13810,130 @@ if(false){(function(){
   document.addEventListener('change', function(){ setTimeout(() => ensureAllNotes(document), 80); }, true);
   setTimeout(() => ensureAllNotes(document), 400);
 })();
+
+/* v216 - fill structure template content type rows by selected creative quantities */
+(function(){
+  try{ window.MZJ_APP_VERSION = '216'; }catch(_){ }
+  function n(v){ return (typeof normalizeText === 'function' ? normalizeText(v || '') : String(v || '').trim()); }
+  function uniq(list){ return (typeof uniqueList === 'function') ? uniqueList(list) : Array.from(new Set(list)); }
+  function getCampaign(task){ try{ return (typeof campaignRecordForTask === 'function' ? campaignRecordForTask(task) : null) || {}; }catch(_){ return {}; } }
+  function creativeCountRowsForTemplate(task){
+    const campaign = getCampaign(task);
+    const rows = Array.isArray(campaign.creatives) ? campaign.creatives : [];
+    const out = [];
+    rows.forEach(row => {
+      const name = n(row.creative || row.product || row.name || row.label || '');
+      if(!name) return;
+      const qty = Math.max(1, Math.min(50, Number(row.quantity || row.qty || row.count || 1)));
+      for(let i = 0; i < qty; i += 1) out.push(name);
+    });
+    if(out.length) return out.slice(0, 50);
+    if(Array.isArray(task?.creativeBundleNames) && task.creativeBundleNames.length){
+      return uniq(task.creativeBundleNames.map(n).filter(Boolean)).slice(0, 50);
+    }
+    const single = n(task?.creative || task?.product || (task?.taskType || '').replace(/^طلب\s*هيكل\s*-?/i, '').trim());
+    const qty = Math.max(1, Math.min(50, Number(task?.quantity || 1)));
+    return single ? Array.from({ length: qty }, () => single).slice(0, 50) : [];
+  }
+  const previousExact = (typeof downloadStructureTemplateForTaskExact === 'function') ? downloadStructureTemplateForTaskExact : null;
+  downloadStructureTemplateForTaskExact = async function(task){
+    try{
+      if(!window.JSZip) throw new Error('JSZip is not loaded');
+      const zip = await window.JSZip.loadAsync(STRUCTURE_TEMPLATE_BASE64_V145, { base64: true });
+      const sheetPath = 'xl/worksheets/sheet1.xml';
+      const sheetFile = zip.file(sheetPath);
+      if(!sheetFile) throw new Error('Structure template sheet is missing');
+      let sheetXml = await sheetFile.async('string');
+      const campaignCode = campaignCodeForTask(task);
+      const creativeCode = templateCreativeLinkCodeForTask({ ...task, campaignCode });
+      const writerCode = contentWriterCodeForTask(task);
+      const writerName = task.assignedToName || task.userName || task.assigneeName || (Array.isArray(task.userNames) ? task.userNames[0] : '') || '';
+      const campaign = getCampaign(task);
+      const contentTypes = creativeCountRowsForTemplate(task);
+      const creativeSummary = contentTypes.length
+        ? uniq(contentTypes).map(name => {
+            const count = contentTypes.filter(item => item === name).length;
+            return count > 1 ? `${name} × ${count}` : name;
+          }).join('، ')
+        : n(task.creative || task.product || '');
+      const creativeName = creativeSummary || n(task.creative || task.product || (task.taskType || '').replace(/^طلب\s*هيكل\s*-?/i, '').trim() || '');
+      const campaignName = task.campaignName || task.campaignTitle || task.campaign || campaign.campaignName || campaign.name || '';
+      const campaignTypeName = task.campaignTypeName || task.campaignType || task.typeName || task.type || campaign.campaignTypeName || campaign.campaignType || campaign.typeName || campaign.type || '';
+      const firstCreative = contentTypes[0] || creativeName;
+      const creativeShortCode = creativeShortCodeForName(firstCreative);
+      const creativeRow = creativeAssignmentForStructureRow(campaign, task, { creativeShortCode, taskNo: creativeCode });
+      const mainRole = creativeDepartmentRole(firstCreative || creativeRow?.creative || '');
+      const rawRoleTask = assignmentForRoleFromCreativeRow(creativeRow, mainRole) || {};
+      const roleTask = (typeof v165FilterAssignmentForWriter === 'function') ? (v165FilterAssignmentForWriter(rawRoleTask, task) || {}) : rawRoleTask;
+      const deptCode = roleCode(mainRole);
+      const execUserCodes = uniq([...(Array.isArray(roleTask.userCodes) ? roleTask.userCodes : []), ...userCodesForTask(roleTask)]).filter(Boolean).join(',');
+      const userCode = execUserCodes || '';
+      const patches = {
+        A1: campaignCode ? `حمله - ${campaignCode}` : 'حمله -',
+        A35: campaignCode ? `حمله - ${campaignCode}` : 'حمله -',
+        B2: 'اسم الحملة', C2: campaignName || '',
+        B3: 'كود الحملة', C3: campaignCode || '',
+        B4: 'كود الكرييتيف', C4: creativeCode || '',
+        B5: 'الكرييتيف المطلوب للهيكل', C5: creativeSummary || creativeName || '',
+        B6: 'كاتب المحتوى', C6: writerName || '',
+        B7: 'كود كاتب المحتوى', C7: writerCode || '',
+        B8: 'نوع الحمله', C8: campaignTypeName || '',
+        B9: 'معنى العنصر داخل MZJ', C9: '',
+        B10: 'دور العنصر في تعزيز الثقة', C10: '',
+        B11: 'الهدف الاستراتيجي للحملة', C11: '',
+        B12: 'الهدف النهائي للحملة', C12: '',
+        B13: 'الترجمة الملموسة للهدف النهائي', C13: '',
+        B14: 'الرسالة الرئيسية', C14: '',
+        B15: 'إحساس الحملة', C15: '',
+        B16: 'الترجمة التنفيذية لإحساس الحملة', C16: '',
+        B17: 'نوع المحتوى', C17: '',
+        B18: 'زاوية المحتوى', C18: '',
+        B19: 'ما يجب إبرازه', C19: '',
+        B20: 'الترجمة التنفيذية لما يجب إبرازه', C20: '',
+        B21: 'ما يجب تجنبه', C21: '',
+        B22: 'CTA', C22: '',
+        I36: 'المطلوب من الكاتب', J36: 'CTA',
+        K36: 'كود الكرييتيف المختصر', L36: 'كود القسم', M36: 'كود اليوزر', N36: 'كود كاتب المحتوى',
+        O36: '', P36: ''
+      };
+      sheetXml = patchWorkbookCellsInlineV148(sheetXml, patches);
+      const writerPrefix = writerCode || '';
+      for(let index = 0; index < 50; index += 1){
+        const rowNumber = 37 + index;
+        const n2 = String(index + 1).padStart(2, '0');
+        const contentType = contentTypes[index] || '';
+        const rowCreativeShortCode = contentType ? creativeShortCodeForName(contentType) : creativeShortCode;
+        const fullTaskCode = creativeCode ? `${creativeCode}-${rowCreativeShortCode}-${deptCode}-${userCode || 'USER'}-N${n2}` : '';
+        const rowPatches = {
+          [`A${rowNumber}`]: index === 0 ? (campaignTypeName || '') : '',
+          [`B${rowNumber}`]: contentType,
+          [`C${rowNumber}`]: contentType ? fullTaskCode : '',
+          [`K${rowNumber}`]: contentType ? rowCreativeShortCode : '',
+          [`L${rowNumber}`]: contentType ? deptCode : '',
+          [`M${rowNumber}`]: contentType ? userCode : '',
+          [`N${rowNumber}`]: contentType ? writerPrefix : '',
+          [`O${rowNumber}`]: '',
+          [`P${rowNumber}`]: ''
+        };
+        ['D','E','F','G','H','I','J','O','P'].forEach(col => { rowPatches[`${col}${rowNumber}`] = ''; });
+        sheetXml = patchWorkbookCellsInlineV148(sheetXml, rowPatches);
+      }
+      zip.file(sheetPath, sheetXml);
+      const out = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const fileBase = safeStorageSegment([creativeCode, writerName || writerCode || '', 'هيكل'].filter(Boolean).join('-'));
+      const blobUrl = URL.createObjectURL(out);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${fileBase || 'campaign-structure'}-template.xlsx`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 1200);
+      showToast('تم تحميل قالب الهيكل بالأكواد مع تكرار نوع المحتوى حسب عدد كل كرييتيف.');
+    }catch(error){
+      console.error('v216 structure template creative quantity download failed', error);
+      if(previousExact) return previousExact(task);
+      showToast('تعذر تحميل قالب الهيكل.');
+    }
+  };
+})();
