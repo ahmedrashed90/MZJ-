@@ -13269,3 +13269,196 @@ async function downloadStructureTemplateForTaskExact(task){
   }, true);
   setTimeout(renderV207Deadlines, 500);
 })();
+
+/* v208 - show per content-writer deadlines directly inside every executive user link row */
+(function(){
+  function clean(value){ return typeof normalizeText === 'function' ? normalizeText(value || '') : String(value || '').trim(); }
+  function roleOf(value){ return typeof normalizeDepartmentRole === 'function' ? normalizeDepartmentRole(value || '') : clean(value); }
+  function esc(value){ return typeof escapeHtml === 'function' ? escapeHtml(value || '') : String(value || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+  function uniq(arr){ return typeof uniqueList === 'function' ? uniqueList(arr || []) : Array.from(new Set((arr || []).filter(Boolean))); }
+  function code(role){ return typeof roleCode === 'function' ? roleCode(role) : role; }
+  function parseJson(value, fallback){ try { return value ? JSON.parse(value) : fallback; } catch(_){ return fallback; } }
+  function encodeJson(value){ try { return JSON.stringify(value || {}); } catch(_){ return '{}'; } }
+  function keyPart(value){ return clean(value).replace(/\s+/g, ' ').toLowerCase(); }
+  function execKey(row){ return keyPart(row?.dataset?.execId || row?.dataset?.execName || ''); }
+  function writerKey(input){ return keyPart(input?.value || input?.dataset?.name || ''); }
+  function pairKey(row, input){ return `${execKey(row)}::${writerKey(input)}`; }
+  function mapFor(block){
+    return Object.assign(
+      {},
+      parseJson(block?.dataset?.contentWritingDeadlinesV200 || '{}', {}),
+      parseJson(block?.dataset?.contentWriterDeadlinesV208 || '{}', {})
+    );
+  }
+  function setMap(block, map){ if(block) block.dataset.contentWriterDeadlinesV208 = encodeJson(map || {}); }
+  function store(block, row, input, value){
+    if(!block || !row || !input) return;
+    const key = pairKey(row, input);
+    if(!key || key === '::') return;
+    const map = mapFor(block);
+    if(value) map[key] = value; else delete map[key];
+    setMap(block, map);
+  }
+  function valueFor(block, row, input){
+    const key = pairKey(row, input);
+    const map = mapFor(block);
+    return key ? (map[key] || '') : '';
+  }
+  function ensureStyle(){
+    if(document.getElementById('v208WriterDeadlineStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'v208WriterDeadlineStyle';
+    style.textContent = `
+      .v208-writer-deadline-list{display:grid!important;gap:5px!important;margin:7px 0 0!important;padding:7px!important;border:1px dashed rgba(121,67,52,.22)!important;border-radius:10px!important;background:#fffaf7!important;box-sizing:border-box!important;max-height:120px!important;overflow:auto!important;clear:both!important}
+      .v208-writer-deadline-list.is-hidden{display:none!important}
+      .v208-writer-deadline-title{font-size:10.5px!important;font-weight:900!important;color:#6b3b2f!important;line-height:1.15!important;margin:0 0 2px!important}
+      .v208-writer-deadline-row{display:grid!important;grid-template-columns:minmax(70px,1fr) 122px!important;gap:6px!important;align-items:center!important;margin:0!important;padding:5px!important;border:1px solid rgba(121,67,52,.12)!important;border-radius:8px!important;background:#fff!important;box-sizing:border-box!important;min-width:0!important}
+      .v208-writer-deadline-row span{font-size:10.5px!important;font-weight:800!important;color:#4b2b24!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;min-width:0!important}
+      .v208-writer-deadline-row input{width:122px!important;max-width:122px!important;height:27px!important;min-height:27px!important;padding:2px 5px!important;border:1px solid rgba(121,67,52,.24)!important;border-radius:7px!important;background:#fff!important;color:#2d1b16!important;font-size:10.5px!important;font-weight:800!important;font-family:inherit!important;box-sizing:border-box!important}
+      .creative-role-assignment .js-user-content-link-row{overflow:visible!important;align-items:start!important}
+      @media(max-width:720px){.v208-writer-deadline-row{grid-template-columns:1fr!important}.v208-writer-deadline-row input{width:100%!important;max-width:100%!important}}
+    `;
+    document.head.appendChild(style);
+  }
+  function enhanceBlock(block){
+    const role = roleOf(block?.dataset?.assignmentRole || '');
+    if(!block || !role || role === 'content') return;
+    ensureStyle();
+    block.querySelectorAll('.js-user-content-link-row').forEach(row => {
+      let list = row.querySelector('.v208-writer-deadline-list');
+      if(!list){
+        list = document.createElement('div');
+        list.className = 'v208-writer-deadline-list is-hidden';
+        row.appendChild(list);
+      }
+      const checked = [...row.querySelectorAll('.js-user-content-link-check:checked')];
+      if(!checked.length){
+        list.classList.add('is-hidden');
+        list.innerHTML = '';
+        return;
+      }
+      list.classList.remove('is-hidden');
+      list.innerHTML = `<div class="v208-writer-deadline-title">مواعيد تسليم كتابة المحتوى لكل كاتب</div>${checked.map(input => {
+        const val = valueFor(block, row, input) || clean(input.dataset.deadline || '');
+        return `<label class="v208-writer-deadline-row"><span>${esc(input.dataset.name || input.value || 'كاتب محتوى')}</span><input type="date" class="v208-content-writer-deadline" data-writer-id="${esc(input.value || '')}" data-writer-name="${esc(input.dataset.name || '')}" value="${esc(val)}"></label>`;
+      }).join('')}`;
+    });
+  }
+  function enhancePanel(panel){
+    const root = panel || document;
+    root.querySelectorAll('[data-assignment-role]').forEach(block => {
+      const role = roleOf(block.dataset.assignmentRole || '');
+      if(role && role !== 'content') enhanceBlock(block);
+    });
+  }
+  function readLinks(block){
+    const role = roleOf(block?.dataset?.assignmentRole || '');
+    if(!block || !role || role === 'content') return { ids: [], names: [], links: [] };
+    enhanceBlock(block);
+    const links = [...block.querySelectorAll('.js-user-content-link-row')].map(row => {
+      const checked = [...row.querySelectorAll('.js-user-content-link-check:checked')];
+      const perWriter = checked.map(input => {
+        const dateInput = row.querySelector(`.v208-content-writer-deadline[data-writer-id="${CSS.escape(input.value || '')}"]`);
+        const deadline = clean(dateInput?.value || valueFor(block, row, input) || '');
+        if(deadline) store(block, row, input, deadline);
+        return {
+          contentUserId: clean(input.value || ''),
+          contentUserName: clean(input.dataset.name || ''),
+          writerId: clean(input.value || ''),
+          writerName: clean(input.dataset.name || ''),
+          deadline,
+          contentWritingDeadline: deadline,
+          contentWriterDeadline: deadline,
+          contentTaskDeadline: deadline
+        };
+      });
+      const deadlines = uniq(perWriter.map(item => item.deadline).filter(Boolean));
+      return {
+        executorUserId: clean(row.dataset.execId || ''),
+        executorUserName: clean(row.dataset.execName || ''),
+        userId: clean(row.dataset.execId || ''),
+        userName: clean(row.dataset.execName || ''),
+        role,
+        departmentRole: role,
+        departmentCode: code(role),
+        contentUserIds: perWriter.map(item => item.contentUserId).filter(Boolean),
+        contentUserNames: perWriter.map(item => item.contentUserName).filter(Boolean),
+        contentWriterDeadlines: perWriter,
+        contentWritingDeadlines: perWriter,
+        contentWritingDeadline: deadlines.join('، '),
+        contentWriterDeadline: deadlines.join('، '),
+        contentTaskDeadline: deadlines.join('، ')
+      };
+    }).filter(link => (link.executorUserId || link.executorUserName) && ((link.contentUserIds || []).length || (link.contentUserNames || []).length));
+    return { ids: uniq(links.flatMap(link => link.contentUserIds || [])), names: uniq(links.flatMap(link => link.contentUserNames || [])), links };
+  }
+
+  const oldSyncPanelDynamicStateV208 = typeof syncPanelDynamicState === 'function' ? syncPanelDynamicState : null;
+  if(oldSyncPanelDynamicStateV208){
+    syncPanelDynamicState = function(panel){
+      const result = oldSyncPanelDynamicStateV208.apply(this, arguments);
+      setTimeout(() => enhancePanel(panel), 0);
+      return result;
+    };
+  }
+  const oldRefreshContentDependencyPickersV208 = typeof refreshContentDependencyPickers === 'function' ? refreshContentDependencyPickers : null;
+  if(oldRefreshContentDependencyPickersV208){
+    refreshContentDependencyPickers = function(panel){
+      const result = oldRefreshContentDependencyPickersV208.apply(this, arguments);
+      setTimeout(() => enhancePanel(panel), 0);
+      return result;
+    };
+  }
+  const oldSelectedContentDependencyV208 = typeof selectedContentDependency === 'function' ? selectedContentDependency : null;
+  selectedContentDependency = function(panel, role){
+    const cleanRole = roleOf(role || '');
+    const block = panel?.querySelector?.(`[data-assignment-role="${cleanRole}"]`);
+    if(block && cleanRole && cleanRole !== 'content' && block.querySelector('.js-user-content-link-row')) return readLinks(block);
+    return oldSelectedContentDependencyV208 ? oldSelectedContentDependencyV208.apply(this, arguments) : { ids: [], names: [], links: [] };
+  };
+  const oldSelectedRoleTaskFromPanelV208 = typeof selectedRoleTaskFromPanel === 'function' ? selectedRoleTaskFromPanel : null;
+  selectedRoleTaskFromPanel = function(panel, role){
+    const task = oldSelectedRoleTaskFromPanelV208 ? oldSelectedRoleTaskFromPanelV208.apply(this, arguments) : null;
+    const cleanRole = roleOf(role || '');
+    if(task && cleanRole && cleanRole !== 'content'){
+      const linked = selectedContentDependency(panel, cleanRole);
+      if(linked && Array.isArray(linked.links)){
+        task.dependencyLinks = linked.links;
+        task.dependsOnContentUserIds = linked.ids || [];
+        task.dependsOnContentUserNames = linked.names || [];
+        task.upstreamUserIds = linked.ids || [];
+        task.upstreamUserNames = linked.names || [];
+        task.upstreamUserLabel = (linked.names || []).join('، ');
+        task.contentWritingDeadlines = linked.links.flatMap(link => (link.contentWriterDeadlines || link.contentWritingDeadlines || []).map(item => ({
+          executorUserId: link.executorUserId,
+          executorUserName: link.executorUserName,
+          contentUserId: item.contentUserId || item.writerId || '',
+          contentUserName: item.contentUserName || item.writerName || '',
+          deadline: item.deadline || item.contentWritingDeadline || ''
+        })));
+        task.contentWriterDeadlines = task.contentWritingDeadlines;
+        task.contentWritingDeadline = uniq(task.contentWritingDeadlines.map(item => item.deadline).filter(Boolean)).join('، ');
+        task.contentWriterDeadline = task.contentWritingDeadline;
+        task.contentTaskDeadline = task.contentWritingDeadline;
+      }
+    }
+    return task;
+  };
+
+  document.addEventListener('change', function(event){
+    const row = event.target.closest?.('.js-user-content-link-row');
+    const block = event.target.closest?.('[data-assignment-role]');
+    if(row && block && event.target.classList.contains('v208-content-writer-deadline')){
+      const fakeInput = { value: event.target.dataset.writerId || '', dataset: { name: event.target.dataset.writerName || '' } };
+      store(block, row, fakeInput, clean(event.target.value || ''));
+    }
+    if((event.target.classList.contains('js-user-content-link-check') || event.target.closest?.('.js-role-picker')) && block){
+      setTimeout(() => enhanceBlock(block), 20);
+    }
+  }, true);
+  document.addEventListener('click', function(event){
+    const panel = event.target.closest?.('.creative-assignment-panel');
+    if(panel) setTimeout(() => enhancePanel(panel), 80);
+  }, true);
+  setTimeout(() => enhancePanel(document), 500);
+})();
