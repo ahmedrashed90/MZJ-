@@ -12882,3 +12882,230 @@ async function downloadStructureTemplateForTaskExact(task){
     };
   }
 })();
+
+/* v206 - show selected structure creatives and per-content-writer deadlines in step 2 */
+(function(){
+  const VERSION = '206';
+  try{ window.MZJ_APP_VERSION = VERSION; }catch(_){ }
+  const clean = value => (typeof normalizeText === 'function' ? normalizeText(value || '') : String(value || '').trim());
+  const esc = value => (typeof escapeHtml === 'function' ? escapeHtml(value || '') : String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+  const uniq = list => (typeof uniqueList === 'function' ? uniqueList(list) : [...new Set((list || []).filter(Boolean))]);
+
+  function selectedStructureCreatives(){
+    const names = [];
+    document.querySelectorAll('#creativeRows .creative-row-card').forEach(row => {
+      if(typeof selectedCreativeNames === 'function') names.push(...selectedCreativeNames(row));
+      row.querySelectorAll('.creative-assignment-panel').forEach(panel => names.push(clean(panel.dataset.creativeName || '')));
+    });
+    return uniq(names.map(clean).filter(Boolean));
+  }
+
+  function writerRowsFromRequest(){
+    const assignees = typeof campaignRequestContentAssignees === 'function' ? campaignRequestContentAssignees() : { ids: [], names: [] };
+    const rows = Math.max((assignees.ids || []).length, (assignees.names || []).length);
+    return Array.from({ length: rows }, (_, i) => ({
+      id: clean((assignees.ids || [])[i] || (assignees.names || [])[i] || ''),
+      name: clean((assignees.names || [])[i] || (assignees.ids || [])[i] || '')
+    })).filter(item => item.id || item.name);
+  }
+
+  function currentDeadlineValues(){
+    const values = { byId: {}, byName: {} };
+    document.querySelectorAll('.v206-content-writer-deadline').forEach(input => {
+      const value = clean(input.value || '');
+      const id = clean(input.dataset.writerId || '');
+      const name = clean(input.dataset.writerName || '');
+      if(id) values.byId[id] = value;
+      if(name) values.byName[name] = value;
+    });
+    return values;
+  }
+
+  function ensureDeadlineBox(){
+    const panel = document.querySelector('[data-campaign-wizard-step="2"]');
+    if(!panel) return null;
+    let box = panel.querySelector('#contentWriterDeadlinesStep2');
+    if(box) return box;
+    box = document.createElement('div');
+    box.id = 'contentWriterDeadlinesStep2';
+    box.className = 'content-writer-deadlines-step2';
+    box.innerHTML = '<div class="empty-state mini-empty">اختار يوزرات كتابة المحتوى من الخطوة الأولى لعرض مواعيد التسليم.</div>';
+    const toolbar = panel.querySelector('.section-toolbar');
+    if(toolbar && toolbar.parentNode) toolbar.insertAdjacentElement('afterend', box);
+    else panel.insertBefore(box, panel.firstChild);
+    return box;
+  }
+
+  function renderDeadlineBox(){
+    const box = ensureDeadlineBox();
+    if(!box) return;
+    const writers = writerRowsFromRequest();
+    const previous = currentDeadlineValues();
+    const fallbackDate = clean(document.querySelector('#campaignRequestForm [name="structure_deadline"]')?.value || '');
+    const creatives = selectedStructureCreatives();
+    const creativeHtml = creatives.length
+      ? `<div class="v206-selected-creatives"><span>الكريتيف المطلوب للهيكل</span><strong>${esc(creatives.join('، '))}</strong></div>`
+      : `<div class="v206-selected-creatives muted"><span>الكريتيف المطلوب للهيكل</span><strong>اختار كريتيف واحد أو أكثر من زر اختيار الكريتيفات واليوزرات</strong></div>`;
+    if(!writers.length){
+      box.innerHTML = `${creativeHtml}<div class="empty-state mini-empty">اختار يوزرات كتابة المحتوى من الخطوة الأولى عشان تظهر مواعيد تسليم كتابة المحتوى لكل كاتب.</div>`;
+      return;
+    }
+    const rowsHtml = writers.map(writer => {
+      const value = previous.byId[writer.id] || previous.byName[writer.name] || fallbackDate || '';
+      return `<label class="v206-writer-deadline-row"><span>${esc(writer.name || writer.id)}</span><input class="v206-content-writer-deadline" type="date" value="${esc(value)}" data-writer-id="${esc(writer.id)}" data-writer-name="${esc(writer.name)}"></label>`;
+    }).join('');
+    box.innerHTML = `${creativeHtml}<div class="v206-deadline-head"><strong>مواعيد تسليم كتابة المحتوى لكل كاتب</strong><small>كل كاتب محتوى له موعد مستقل، والموعد هيتحفظ في التاسك بتاعه.</small></div><div class="v206-deadline-grid">${rowsHtml}</div>`;
+  }
+
+  function deadlinePayload(){
+    const list = [];
+    const byId = {};
+    const byName = {};
+    document.querySelectorAll('.v206-content-writer-deadline').forEach(input => {
+      const id = clean(input.dataset.writerId || '');
+      const name = clean(input.dataset.writerName || '');
+      const deadline = clean(input.value || '');
+      if(!id && !name) return;
+      const item = { writerId: id, contentUserId: id, writerName: name, contentUserName: name, deadline, contentWritingDeadline: deadline, contentWriterDeadline: deadline };
+      list.push(item);
+      if(id) byId[id] = deadline;
+      if(name) byName[name] = deadline;
+    });
+    return { list, byId, byName };
+  }
+
+  function dateForUserFromPayload(payload, userId, userName){
+    const id = clean(userId || '');
+    const name = clean(userName || '');
+    if(id && payload.byId[id] !== undefined) return payload.byId[id] || '';
+    if(name && payload.byName[name] !== undefined) return payload.byName[name] || '';
+    return '';
+  }
+
+  const previousCampaignWizardSetStepV206 = typeof campaignWizardSetStep === 'function' ? campaignWizardSetStep : null;
+  if(previousCampaignWizardSetStepV206){
+    campaignWizardSetStep = function(step){
+      const result = previousCampaignWizardSetStepV206(step);
+      if(String(step || '') === '2') setTimeout(renderDeadlineBox, 80);
+      return result;
+    };
+  }
+
+  const previousOpenCreativeAssignmentPopupV206 = typeof openCreativeAssignmentPopup === 'function' ? openCreativeAssignmentPopup : null;
+  if(previousOpenCreativeAssignmentPopupV206){
+    openCreativeAssignmentPopup = function(row){
+      const result = previousOpenCreativeAssignmentPopupV206(row);
+      setTimeout(renderDeadlineBox, 120);
+      return result;
+    };
+  }
+
+  const previousSaveCreativeAssignmentPopupV206 = typeof saveCreativeAssignmentPopup === 'function' ? saveCreativeAssignmentPopup : null;
+  if(previousSaveCreativeAssignmentPopupV206){
+    saveCreativeAssignmentPopup = function(){
+      const result = previousSaveCreativeAssignmentPopupV206();
+      setTimeout(renderDeadlineBox, 80);
+      return result;
+    };
+  }
+
+  const previousRefreshCreativeAssignmentPanelsV206 = typeof refreshCreativeAssignmentPanels === 'function' ? refreshCreativeAssignmentPanels : null;
+  if(previousRefreshCreativeAssignmentPanelsV206){
+    refreshCreativeAssignmentPanels = function(row){
+      const result = previousRefreshCreativeAssignmentPanelsV206(row);
+      setTimeout(renderDeadlineBox, 60);
+      return result;
+    };
+  }
+
+  const previousCollectCampaignRowsV206 = typeof collectCampaignRows === 'function' ? collectCampaignRows : null;
+  if(previousCollectCampaignRowsV206){
+    collectCampaignRows = function(){
+      renderDeadlineBox();
+      const rows = previousCollectCampaignRowsV206.apply(this, arguments) || [];
+      const deadlines = deadlinePayload();
+      const requiredCreatives = selectedStructureCreatives();
+      rows.forEach(row => {
+        (row.tasks || []).forEach(task => {
+          const role = clean(task.departmentRole || task.contentSectionName || '').toLowerCase();
+          const isContentTask = role === 'content' || task.needsStructureUpload || task.structureRequestTask;
+          if(!isContentTask) return;
+          task.contentWriterDeadlines = deadlines.list;
+          task.contentWritingDeadlines = deadlines.list;
+          task.contentWriterDeadlinesById = deadlines.byId;
+          task.contentWriterDeadlinesByName = deadlines.byName;
+          task.writerDeadlineMode = 'per_content_writer';
+          if(requiredCreatives.length){
+            task.creativeBundleNames = requiredCreatives;
+            task.structureRequiredCreatives = requiredCreatives;
+            task.structureCreativeLabel = requiredCreatives.join('، ');
+          }
+        });
+      });
+      return rows;
+    };
+  }
+
+  const previousBuildCampaignTaskDocsV206 = typeof buildCampaignTaskDocs === 'function' ? buildCampaignTaskDocs : null;
+  if(previousBuildCampaignTaskDocsV206){
+    buildCampaignTaskDocs = function(campaignId, payload){
+      const docs = previousBuildCampaignTaskDocsV206.apply(this, arguments) || [];
+      const deadlines = deadlinePayload();
+      const requiredCreatives = uniq((payload?.creatives || []).flatMap(row => {
+        const fromTasks = (row.tasks || []).flatMap(task => task.structureRequiredCreatives || task.creativeBundleNames || []);
+        return [row.creative, ...fromTasks].map(clean).filter(Boolean);
+      }));
+      docs.forEach(doc => {
+        const isStructure = !!doc.needsStructureUpload || clean(doc.departmentRole || '') === 'content' || clean(doc.sourceRequestStep || '') === 'campaign_request_data';
+        if(!isStructure) return;
+        const perUserDate = dateForUserFromPayload(deadlines, doc.userId || doc.assignedToId || doc.assigneeUid, doc.userName || doc.assignedToName || doc.assigneeName);
+        if(perUserDate){
+          doc.requiredDate = perUserDate;
+          doc.dueDate = perUserDate;
+          doc.structureDeadline = perUserDate;
+          doc.contentWritingDeadline = perUserDate;
+          doc.contentWriterDeadline = perUserDate;
+          doc.contentTaskDeadline = perUserDate;
+        }
+        if(requiredCreatives.length){
+          doc.creativeBundleNames = requiredCreatives;
+          doc.structureRequiredCreatives = requiredCreatives;
+          doc.structureCreativeLabel = requiredCreatives.join('، ');
+          if(doc.needsStructureUpload) doc.creative = requiredCreatives.join('، ');
+        }
+      });
+      return docs;
+    };
+  }
+
+  if(typeof buildTaskDetailHtml === 'function'){
+    const previousBuildTaskDetailHtmlV206 = buildTaskDetailHtml;
+    buildTaskDetailHtml = function(task){
+      let html = previousBuildTaskDetailHtmlV206(task);
+      const isStructure = !!task?.needsStructureUpload || clean(task?.departmentRole || '') === 'content' || clean(task?.sourceRequestStep || '') === 'campaign_request_data';
+      const creativeList = uniq([...(Array.isArray(task?.structureRequiredCreatives) ? task.structureRequiredCreatives : []), ...(Array.isArray(task?.creativeBundleNames) ? task.creativeBundleNames : []), task?.structureCreativeLabel, task?.creative].flatMap(item => Array.isArray(item) ? item : String(item || '').split('،')).map(clean).filter(Boolean));
+      const deadline = clean(task?.contentWritingDeadline || task?.contentWriterDeadline || task?.contentTaskDeadline || task?.structureDeadline || task?.requiredDate || task?.dueDate || '');
+      const boxes = [];
+      if(isStructure && creativeList.length) boxes.push(`<div class="campaign-info-box wide v206-structure-creatives-box"><span>الكريتيف المطلوب للهيكل</span><strong>${esc(creativeList.join('، '))}</strong></div>`);
+      if(isStructure && deadline) boxes.push(`<div class="campaign-info-box v206-content-deadline-box"><span>موعد تسليم كتابة المحتوى</span><strong>${esc(typeof formatDateShort === 'function' ? formatDateShort(deadline) : deadline)}</strong></div>`);
+      if(boxes.length && !html.includes('v206-structure-creatives-box')){
+        if(html.includes('<div class="campaign-info-compact">')) html = html.replace('<div class="campaign-info-compact">', `<div class="campaign-info-compact">${boxes.join('')}`);
+        else html = boxes.join('') + html;
+      }
+      return html;
+    };
+  }
+
+  document.addEventListener('change', function(event){
+    if(event.target.closest('#campaignRequestForm .js-request-content-writers') || event.target.matches('#campaignRequestForm [name="structure_deadline"]') || event.target.matches('.js-creative-check') || event.target.matches('.js-popup-creative-check')){
+      setTimeout(renderDeadlineBox, 60);
+    }
+    if(event.target.matches('.v206-content-writer-deadline')){
+      event.target.setAttribute('value', event.target.value || '');
+    }
+  }, true);
+  document.addEventListener('click', function(event){
+    if(event.target.closest('[data-campaign-wizard-next], [data-campaign-wizard-target], [data-save-creative-assignment-popup], .open-creative-assignment-popup')) setTimeout(renderDeadlineBox, 120);
+  }, true);
+  setTimeout(renderDeadlineBox, 300);
+})();

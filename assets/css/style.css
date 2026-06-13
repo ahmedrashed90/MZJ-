@@ -7680,3 +7680,38 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
     max-height:140px!important;
   }
 }
+
+/* v206 compact step-2 content writer deadlines */
+.content-writer-deadlines-step2{
+  margin:10px 0 14px;
+  padding:12px;
+  border:1px dashed rgba(126,71,55,.26);
+  border-radius:18px;
+  background:rgba(255,250,247,.72);
+}
+.v206-selected-creatives{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:9px 12px;
+  border:1px solid rgba(126,71,55,.18);
+  border-radius:14px;
+  background:#fff;
+  margin-bottom:10px;
+}
+.v206-selected-creatives span,.v206-deadline-head small{color:#9a7569;font-weight:700;font-size:12px}
+.v206-selected-creatives strong{color:#4b2a21;font-size:13px;line-height:1.5;text-align:left;direction:rtl}
+.v206-selected-creatives.muted strong{color:#a88e84;font-weight:700}
+.v206-deadline-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-bottom:8px}
+.v206-deadline-head strong{color:#4b2a21;font-size:14px}
+.v206-deadline-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
+.v206-writer-deadline-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid rgba(126,71,55,.18);border-radius:14px;background:#fff;min-height:44px}
+.v206-writer-deadline-row span{font-weight:800;color:#5a352b;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:105px}
+.v206-writer-deadline-row input{width:132px;max-width:132px;height:34px;border:1px solid rgba(126,71,55,.22);border-radius:10px;padding:0 8px;background:#fff;color:#3f251f;font-size:12px}
+@media (max-width: 760px){
+  .v206-selected-creatives,.v206-deadline-head{display:block}
+  .v206-selected-creatives strong{display:block;margin-top:4px;text-align:right}
+  .v206-deadline-grid{grid-template-columns:1fr}
+  .v206-writer-deadline-row input{width:128px}
+}
