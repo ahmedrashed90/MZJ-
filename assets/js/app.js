@@ -13300,15 +13300,12 @@ async function downloadStructureTemplateForTaskExact(task){
     try{ window.__MZJ_V209_WRITER_DEADLINES__ = store; }catch(_){ }
   }
   function getValue(block, row, writerId, writerName){
+    // v213: keep dates independent per creative + section + executor + writer.
+    // Do not inherit the date from the global writer deadline block or from
+    // another section, because that made dates chosen in التصميم appear
+    // automatically in التصوير / المونتاج.
     const key = rowKey(block, row, writerId, writerName);
-    if(store[key]) return store[key];
-    const global = document.querySelector(`.v206-content-writer-deadline[data-writer-id="${CSS.escape(writerId || '')}"],.v207-content-writer-deadline[data-writer-id="${CSS.escape(writerId || '')}"]`);
-    if(global?.value) return global.value;
-    if(writerName){
-      const byName = [...document.querySelectorAll('.v206-content-writer-deadline,.v207-content-writer-deadline')].find(input => clean(input.dataset.writerName || '') === clean(writerName));
-      if(byName?.value) return byName.value;
-    }
-    return clean(document.querySelector('#campaignRequestForm [name="structure_deadline"]')?.value || '');
+    return store[key] || '';
   }
 
   function ensureStyle(){
@@ -13624,4 +13621,65 @@ if(false){(function(){
   setTimeout(()=>restoreNativeDateInputs(document),200);
   setTimeout(()=>restoreNativeDateInputs(document),800);
   setTimeout(()=>restoreNativeDateInputs(document),1600);
+})();
+
+
+/* v213 - isolate writer deadlines per section and compact creative chooser */
+(function(){
+  try{ window.MZJ_APP_VERSION = '213'; }catch(_){ }
+  function ensureStyle(){
+    if(document.getElementById('v213WriterDeadlineAndCreativeCompactStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'v213WriterDeadlineAndCreativeCompactStyle';
+    style.textContent = `
+      /* Show only the per-execution-section deadline block. Hide older global/duplicate blocks. */
+      .content-writer-deadlines-step2,
+      .v207-panel-writer-deadlines,
+      .content-writer-deadline-list.js-content-writer-deadline-list,
+      .content-writing-deadline-wrap.js-content-writing-deadline-wrap{display:none!important}
+      .v209-linked-writer-deadlines{display:grid!important;max-height:118px!important;overflow:auto!important;padding:7px!important;margin-top:6px!important;gap:5px!important}
+      .v209-linked-writer-deadlines.is-hidden{display:none!important}
+      .v209-linked-writer-deadlines-title{font-size:10.5px!important;margin:0!important;line-height:1.15!important}
+      .v209-linked-writer-deadline-row{grid-template-columns:minmax(85px,1fr) 122px!important;gap:5px!important;min-height:28px!important}
+      .v209-linked-writer-deadline-row input[type="date"]{height:27px!important;min-height:27px!important;width:122px!important;max-width:122px!important;font-size:10.5px!important;padding:1px 5px!important}
+      .v209-linked-writer-deadline-row span{font-size:10.5px!important;line-height:1.15!important}
+      /* Compact the creative picker area so the users/sections area gets more visible space. */
+      .creative-assignment-popup-dialog{max-height:92vh!important}
+      .creative-popup-checks{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(132px,1fr))!important;gap:5px!important;max-height:168px!important;overflow:auto!important;padding:5px!important}
+      .popup-creative-check-card{min-height:30px!important;padding:5px 7px!important;border-radius:8px!important;gap:5px!important}
+      .popup-creative-index{width:22px!important;height:22px!important;min-width:22px!important;font-size:10px!important;border-radius:7px!important}
+      .popup-creative-text strong{font-size:9.8px!important;line-height:1.05!important;max-height:22px!important;overflow:hidden!important}
+      .popup-creative-text small{font-size:8.8px!important;line-height:1!important;max-height:11px!important;overflow:hidden!important}
+      .popup-creative-check-ui{width:18px!important;height:18px!important;min-width:18px!important;border-radius:6px!important;font-size:10px!important}
+      .creative-popup-body,.creative-popup-panels{gap:8px!important}
+      @media(max-width:720px){.creative-popup-checks{grid-template-columns:repeat(2,minmax(120px,1fr))!important;max-height:150px!important}.v209-linked-writer-deadline-row{grid-template-columns:1fr!important}.v209-linked-writer-deadline-row input[type="date"]{width:100%!important;max-width:100%!important}}
+    `;
+    document.head.appendChild(style);
+  }
+  function hideDuplicateDeadlineBlocks(root){
+    ensureStyle();
+    (root || document).querySelectorAll?.('.content-writer-deadlines-step2,.v207-panel-writer-deadlines,.content-writer-deadline-list.js-content-writer-deadline-list,.content-writing-deadline-wrap.js-content-writing-deadline-wrap').forEach(el => {
+      el.style.setProperty('display','none','important');
+    });
+    (root || document).querySelectorAll?.('.v209-linked-writer-deadline').forEach(input => {
+      if(input.tagName === 'INPUT'){
+        input.type = 'date';
+        input.classList.remove('v211-date-native-hidden');
+        input.style.setProperty('display','block','important');
+      }
+    });
+  }
+  ['DOMContentLoaded','change','click','input'].forEach(type => {
+    document.addEventListener(type, function(){ setTimeout(() => hideDuplicateDeadlineBlocks(document), type === 'DOMContentLoaded' ? 0 : 40); }, true);
+  });
+  const observer = new MutationObserver(function(mutations){
+    for(const m of mutations){
+      for(const node of m.addedNodes || []){
+        if(node.nodeType === 1) hideDuplicateDeadlineBlocks(node);
+      }
+    }
+  });
+  try{ observer.observe(document.documentElement, { childList:true, subtree:true }); }catch(_){ }
+  setTimeout(() => hideDuplicateDeadlineBlocks(document), 100);
+  setTimeout(() => hideDuplicateDeadlineBlocks(document), 700);
 })();
