@@ -13470,3 +13470,105 @@ async function downloadStructureTemplateForTaskExact(task){
   }, true);
   setTimeout(() => enhancePanel(document), 300);
 })();
+
+/* v211 - stable inline date selectors for linked writer deadlines */
+(function(){
+  function pad(n){ return String(n || '').padStart(2, '0'); }
+  function parseDateValue(value){
+    const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? { y: m[1], m: m[2], d: m[3] } : { y: '', m: '', d: '' };
+  }
+  function daysInMonth(y, m){
+    const year = Number(y || new Date().getFullYear());
+    const month = Number(m || 1);
+    return new Date(year, month, 0).getDate();
+  }
+  function makeOptions(max, selected, label){
+    let html = `<option value="">${label}</option>`;
+    for(let i=1;i<=max;i++){
+      const v = pad(i);
+      html += `<option value="${v}"${v === selected ? ' selected' : ''}>${v}</option>`;
+    }
+    return html;
+  }
+  function makeYearOptions(selected){
+    const now = new Date().getFullYear();
+    let html = '<option value="">سنة</option>';
+    for(let y=now-1; y<=now+5; y++){
+      const v = String(y);
+      html += `<option value="${v}"${v === selected ? ' selected' : ''}>${v}</option>`;
+    }
+    return html;
+  }
+  function ensureStyle(){
+    if(document.getElementById('v211StableDateSelectStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'v211StableDateSelectStyle';
+    style.textContent = `
+      .v209-linked-writer-deadline-row{grid-template-columns:minmax(90px,1fr) 210px!important;align-items:center!important}
+      .v211-date-selects{width:210px!important;max-width:210px!important;display:grid!important;grid-template-columns:1fr 1fr 1.35fr!important;gap:4px!important;direction:ltr!important;position:relative!important;z-index:5!important}
+      .v211-date-selects select{height:28px!important;min-height:28px!important;border:1px solid rgba(120,70,50,.25)!important;border-radius:8px!important;background:#fff!important;color:#2d1b16!important;font-size:10.5px!important;font-weight:800!important;padding:2px 4px!important;box-sizing:border-box!important;outline:none!important;cursor:pointer!important}
+      .v211-date-selects select:focus{border-color:#8b4b3d!important;box-shadow:0 0 0 2px rgba(139,75,61,.10)!important}
+      .v211-date-native-hidden{display:none!important}
+      @media(max-width:720px){.v209-linked-writer-deadline-row{grid-template-columns:1fr!important}.v211-date-selects{width:100%!important;max-width:100%!important}}
+    `;
+    document.head.appendChild(style);
+  }
+  function convertInput(input){
+    if(!input || input.dataset.v211Converted === '1') return;
+    ensureStyle();
+    const parts = parseDateValue(input.value || '');
+    const wrap = document.createElement('div');
+    wrap.className = 'v211-date-selects';
+    wrap.innerHTML = `<select class="v211-day" aria-label="اليوم">${makeOptions(daysInMonth(parts.y, parts.m), parts.d, 'يوم')}</select><select class="v211-month" aria-label="الشهر">${makeOptions(12, parts.m, 'شهر')}</select><select class="v211-year" aria-label="السنة">${makeYearOptions(parts.y)}</select>`;
+    input.classList.add('v211-date-native-hidden');
+    input.type = 'hidden';
+    input.dataset.v211Converted = '1';
+    input.parentNode.insertBefore(wrap, input);
+    const day = wrap.querySelector('.v211-day');
+    const month = wrap.querySelector('.v211-month');
+    const year = wrap.querySelector('.v211-year');
+    function refreshDays(){
+      const current = day.value;
+      const max = daysInMonth(year.value, month.value);
+      day.innerHTML = makeOptions(max, current && Number(current) <= max ? current : '', 'يوم');
+    }
+    function sync(){
+      if(year.value && month.value && day.value){
+        input.value = `${year.value}-${month.value}-${day.value}`;
+      }else{
+        input.value = '';
+      }
+      input.dispatchEvent(new Event('change', { bubbles:true }));
+    }
+    month.addEventListener('change', function(e){ e.stopPropagation(); refreshDays(); sync(); });
+    year.addEventListener('change', function(e){ e.stopPropagation(); refreshDays(); sync(); });
+    day.addEventListener('change', function(e){ e.stopPropagation(); sync(); });
+    ['pointerdown','mousedown','mouseup','click','focusin'].forEach(type => {
+      wrap.addEventListener(type, function(e){ e.stopPropagation(); }, true);
+    });
+  }
+  function scan(root){
+    (root || document).querySelectorAll?.('.v209-linked-writer-deadline:not([data-v211-converted="1"])')?.forEach(convertInput);
+  }
+  document.addEventListener('DOMContentLoaded', function(){ scan(document); });
+  document.addEventListener('change', function(e){
+    if(e.target?.classList?.contains('js-user-content-link-check') || e.target?.classList?.contains('js-creative-check') || e.target?.classList?.contains('js-popup-creative-check')){
+      setTimeout(() => scan(document), 120);
+    }
+  }, true);
+  document.addEventListener('click', function(){ setTimeout(() => scan(document), 120); }, true);
+  const observer = new MutationObserver(function(mutations){
+    for(const m of mutations){
+      for(const node of m.addedNodes || []){
+        if(node.nodeType === 1){
+          if(node.matches?.('.v209-linked-writer-deadline')) convertInput(node);
+          else scan(node);
+        }
+      }
+    }
+  });
+  observer.observe(document.documentElement, { childList:true, subtree:true });
+  setTimeout(() => scan(document), 300);
+  setTimeout(() => scan(document), 1000);
+})();
