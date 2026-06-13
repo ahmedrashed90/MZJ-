@@ -13683,3 +13683,82 @@ if(false){(function(){
   setTimeout(() => hideDuplicateDeadlineBlocks(document), 100);
   setTimeout(() => hideDuplicateDeadlineBlocks(document), 700);
 })();
+
+/* v214 - remove duplicate writer deadline blocks and stop sticky inner scroll */
+(function(){
+  try{ window.MZJ_APP_VERSION = '214'; }catch(_){ }
+  function ensureStyle(){
+    if(document.getElementById('v214DeadlineDuplicateScrollFixStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'v214DeadlineDuplicateScrollFixStyle';
+    style.textContent = `
+      .js-user-content-link-row{overflow:visible!important}
+      .v209-linked-writer-deadlines{
+        max-height:none!important;
+        overflow:visible!important;
+        scrollbar-width:auto!important;
+        display:grid!important;
+        gap:5px!important;
+      }
+      .v209-linked-writer-deadline-row{min-height:27px!important}
+      .v209-linked-writer-deadline-row input[type="date"]{
+        position:relative!important;
+        z-index:50!important;
+        pointer-events:auto!important;
+      }
+      .content-writer-deadline-list.js-content-writer-deadline-list,
+      .content-writing-deadline-wrap.js-content-writing-deadline-wrap,
+      .v207-panel-writer-deadlines,
+      .content-writer-deadlines-step2{display:none!important}
+    `;
+    document.head.appendChild(style);
+  }
+  function filledScore(box){
+    return Array.from(box.querySelectorAll('input[type="date"],.v209-linked-writer-deadline'))
+      .reduce((n,input)=> n + ((input.value || input.getAttribute('value') || '').trim() ? 1 : 0), 0);
+  }
+  function cleanupRow(row){
+    if(!row || !row.querySelectorAll) return;
+    const boxes = Array.from(row.querySelectorAll(':scope > .v209-linked-writer-deadlines'));
+    if(boxes.length <= 1) return;
+    let keep = boxes[0];
+    boxes.forEach(box => {
+      if(filledScore(box) > filledScore(keep)) keep = box;
+    });
+    boxes.forEach(box => { if(box !== keep) box.remove(); });
+  }
+  function cleanup(root){
+    ensureStyle();
+    const scope = root && root.querySelectorAll ? root : document;
+    scope.querySelectorAll('.js-user-content-link-row').forEach(cleanupRow);
+    scope.querySelectorAll('.content-writer-deadline-list.js-content-writer-deadline-list,.content-writing-deadline-wrap.js-content-writing-deadline-wrap,.v207-panel-writer-deadlines,.content-writer-deadlines-step2').forEach(el=>{
+      el.style.setProperty('display','none','important');
+    });
+    scope.querySelectorAll('.v209-linked-writer-deadline').forEach(input=>{
+      if(input.tagName === 'INPUT'){
+        input.type = 'date';
+        input.classList.remove('v211-date-native-hidden');
+        input.style.setProperty('display','block','important');
+      }
+    });
+  }
+  ['DOMContentLoaded','change','input','click'].forEach(type=>{
+    document.addEventListener(type, function(event){
+      if(event.target?.matches?.('.v209-linked-writer-deadline,input[type="date"]')){
+        event.target.setAttribute('value', event.target.value || '');
+      }
+      setTimeout(()=>cleanup(document), type === 'DOMContentLoaded' ? 0 : 80);
+    }, true);
+  });
+  const observer = new MutationObserver(function(mutations){
+    for(const m of mutations){
+      for(const node of m.addedNodes || []){
+        if(node.nodeType === 1) setTimeout(()=>cleanup(node), 20);
+      }
+    }
+  });
+  try{ observer.observe(document.documentElement,{childList:true,subtree:true}); }catch(_){ }
+  setTimeout(()=>cleanup(document), 120);
+  setTimeout(()=>cleanup(document), 700);
+  setTimeout(()=>cleanup(document), 1500);
+})();
