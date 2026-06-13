@@ -13270,102 +13270,118 @@ async function downloadStructureTemplateForTaskExact(task){
   setTimeout(renderV207Deadlines, 500);
 })();
 
-/* v208 - show per content-writer deadlines directly inside every executive user link row */
+/* v209 - content-writer deadlines for all execution sections */
 (function(){
-  function clean(value){ return typeof normalizeText === 'function' ? normalizeText(value || '') : String(value || '').trim(); }
-  function roleOf(value){ return typeof normalizeDepartmentRole === 'function' ? normalizeDepartmentRole(value || '') : clean(value); }
-  function esc(value){ return typeof escapeHtml === 'function' ? escapeHtml(value || '') : String(value || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
-  function uniq(arr){ return typeof uniqueList === 'function' ? uniqueList(arr || []) : Array.from(new Set((arr || []).filter(Boolean))); }
-  function code(role){ return typeof roleCode === 'function' ? roleCode(role) : role; }
-  function parseJson(value, fallback){ try { return value ? JSON.parse(value) : fallback; } catch(_){ return fallback; } }
-  function encodeJson(value){ try { return JSON.stringify(value || {}); } catch(_){ return '{}'; } }
+  const VERSION = '209';
+  try{ window.MZJ_APP_VERSION = VERSION; }catch(_){ }
+  const clean = value => (typeof normalizeText === 'function' ? normalizeText(value || '') : String(value || '').trim());
+  const esc = value => (typeof escapeHtml === 'function' ? escapeHtml(value || '') : String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+  const uniq = list => (typeof uniqueList === 'function' ? uniqueList(list) : Array.from(new Set((list || []).filter(Boolean))));
+  const safeRole = value => (typeof normalizeDepartmentRole === 'function' ? normalizeDepartmentRole(value || '') : clean(value));
+  const rCode = role => (typeof roleCode === 'function' ? roleCode(role) : role);
+  const roleLabel = role => (typeof defaultRoleSectionName === 'function' ? defaultRoleSectionName(role) : ({design:'قسم التصميم',shooting:'قسم التصوير',montage:'قسم المونتاج',publish:'قسم النشر'}[role] || 'القسم'));
+  const EXEC_ROLES = ['design','shooting','montage','publish'];
+  const store = window.__MZJ_V209_WRITER_DEADLINES__ || (window.__MZJ_V209_WRITER_DEADLINES__ = {});
+
   function keyPart(value){ return clean(value).replace(/\s+/g, ' ').toLowerCase(); }
-  function execKey(row){ return keyPart(row?.dataset?.execId || row?.dataset?.execName || ''); }
-  function writerKey(input){ return keyPart(input?.value || input?.dataset?.name || ''); }
-  function pairKey(row, input){ return `${execKey(row)}::${writerKey(input)}`; }
-  function mapFor(block){
-    return Object.assign(
-      {},
-      parseJson(block?.dataset?.contentWritingDeadlinesV200 || '{}', {}),
-      parseJson(block?.dataset?.contentWriterDeadlinesV208 || '{}', {})
-    );
+  function rowKey(block, row, writerId, writerName){
+    const role = safeRole(block?.dataset?.assignmentRole || '');
+    const creative = keyPart(block?.closest?.('.creative-assignment-panel')?.dataset?.creativeName || '');
+    const exec = keyPart(row?.dataset?.execId || row?.dataset?.execName || '');
+    const writer = keyPart(writerId || writerName || '');
+    return [creative, role, exec, writer].join('::');
   }
-  function setMap(block, map){ if(block) block.dataset.contentWriterDeadlinesV208 = encodeJson(map || {}); }
-  function store(block, row, input, value){
-    if(!block || !row || !input) return;
-    const key = pairKey(row, input);
-    if(!key || key === '::') return;
-    const map = mapFor(block);
-    if(value) map[key] = value; else delete map[key];
-    setMap(block, map);
+  function setValue(block, row, writerId, writerName, value){
+    const key = rowKey(block, row, writerId, writerName);
+    if(!key || key.endsWith('::')) return;
+    if(value) store[key] = value; else delete store[key];
+    try{ window.__MZJ_V209_WRITER_DEADLINES__ = store; }catch(_){ }
   }
-  function valueFor(block, row, input){
-    const key = pairKey(row, input);
-    const map = mapFor(block);
-    return key ? (map[key] || '') : '';
+  function getValue(block, row, writerId, writerName){
+    const key = rowKey(block, row, writerId, writerName);
+    if(store[key]) return store[key];
+    const global = document.querySelector(`.v206-content-writer-deadline[data-writer-id="${CSS.escape(writerId || '')}"],.v207-content-writer-deadline[data-writer-id="${CSS.escape(writerId || '')}"]`);
+    if(global?.value) return global.value;
+    if(writerName){
+      const byName = [...document.querySelectorAll('.v206-content-writer-deadline,.v207-content-writer-deadline')].find(input => clean(input.dataset.writerName || '') === clean(writerName));
+      if(byName?.value) return byName.value;
+    }
+    return clean(document.querySelector('#campaignRequestForm [name="structure_deadline"]')?.value || '');
   }
+
   function ensureStyle(){
-    if(document.getElementById('v208WriterDeadlineStyle')) return;
+    if(document.getElementById('v209AllSectionWriterDeadlinesStyle')) return;
     const style = document.createElement('style');
-    style.id = 'v208WriterDeadlineStyle';
+    style.id = 'v209AllSectionWriterDeadlinesStyle';
     style.textContent = `
-      .v208-writer-deadline-list{display:grid!important;gap:5px!important;margin:7px 0 0!important;padding:7px!important;border:1px dashed rgba(121,67,52,.22)!important;border-radius:10px!important;background:#fffaf7!important;box-sizing:border-box!important;max-height:120px!important;overflow:auto!important;clear:both!important}
-      .v208-writer-deadline-list.is-hidden{display:none!important}
-      .v208-writer-deadline-title{font-size:10.5px!important;font-weight:900!important;color:#6b3b2f!important;line-height:1.15!important;margin:0 0 2px!important}
-      .v208-writer-deadline-row{display:grid!important;grid-template-columns:minmax(70px,1fr) 122px!important;gap:6px!important;align-items:center!important;margin:0!important;padding:5px!important;border:1px solid rgba(121,67,52,.12)!important;border-radius:8px!important;background:#fff!important;box-sizing:border-box!important;min-width:0!important}
-      .v208-writer-deadline-row span{font-size:10.5px!important;font-weight:800!important;color:#4b2b24!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;min-width:0!important}
-      .v208-writer-deadline-row input{width:122px!important;max-width:122px!important;height:27px!important;min-height:27px!important;padding:2px 5px!important;border:1px solid rgba(121,67,52,.24)!important;border-radius:7px!important;background:#fff!important;color:#2d1b16!important;font-size:10.5px!important;font-weight:800!important;font-family:inherit!important;box-sizing:border-box!important}
-      .creative-role-assignment .js-user-content-link-row{overflow:visible!important;align-items:start!important}
-      @media(max-width:720px){.v208-writer-deadline-row{grid-template-columns:1fr!important}.v208-writer-deadline-row input{width:100%!important;max-width:100%!important}}
+      .content-writer-deadline-list.js-content-writer-deadline-list{display:none!important}
+      .v209-linked-writer-deadlines{display:grid!important;gap:6px!important;margin-top:7px!important;padding:8px!important;border:1px dashed rgba(120,70,50,.22)!important;border-radius:10px!important;background:rgba(255,248,244,.75)!important;max-height:165px!important;overflow:auto!important;grid-column:1 / -1!important}
+      .v209-linked-writer-deadlines.is-hidden{display:none!important}
+      .v209-linked-writer-deadlines-title{font-size:11px!important;font-weight:900!important;color:#6b3b2f!important;line-height:1.2!important;margin-bottom:2px!important}
+      .v209-linked-writer-deadline-row{display:grid!important;grid-template-columns:minmax(90px,1fr) 122px!important;gap:6px!important;align-items:center!important;margin:0!important}
+      .v209-linked-writer-deadline-row span{font-size:11px!important;font-weight:800!important;color:#3f241e!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+      .v209-linked-writer-deadline-row input{width:122px!important;max-width:122px!important;height:28px!important;min-height:28px!important;border:1px solid rgba(120,70,50,.25)!important;border-radius:8px!important;background:#fff!important;color:#2d1b16!important;font-size:11px!important;font-weight:800!important;padding:2px 6px!important;box-sizing:border-box!important}
+      @media(max-width:720px){.v209-linked-writer-deadline-row{grid-template-columns:1fr!important}.v209-linked-writer-deadline-row input{width:100%!important;max-width:100%!important}}
     `;
     document.head.appendChild(style);
   }
+
   function enhanceBlock(block){
-    const role = roleOf(block?.dataset?.assignmentRole || '');
-    if(!block || !role || role === 'content') return;
+    if(!block) return;
+    const role = safeRole(block.dataset.assignmentRole || '');
+    if(!EXEC_ROLES.includes(role)) return;
     ensureStyle();
     block.querySelectorAll('.js-user-content-link-row').forEach(row => {
-      let list = row.querySelector('.v208-writer-deadline-list');
-      if(!list){
-        list = document.createElement('div');
-        list.className = 'v208-writer-deadline-list is-hidden';
-        row.appendChild(list);
+      row.querySelectorAll('.content-writing-deadline-wrap,.js-content-writing-deadline-wrap,.content-writer-deadline-list.js-content-writer-deadline-list').forEach(el => { el.style.display = 'none'; });
+      let box = row.querySelector('.v209-linked-writer-deadlines');
+      if(!box){
+        box = document.createElement('div');
+        box.className = 'v209-linked-writer-deadlines is-hidden';
+        row.appendChild(box);
       }
-      const checked = [...row.querySelectorAll('.js-user-content-link-check:checked')];
-      if(!checked.length){
-        list.classList.add('is-hidden');
-        list.innerHTML = '';
+      const checks = [...row.querySelectorAll('.js-user-content-link-check:checked')];
+      if(!checks.length){
+        box.classList.add('is-hidden');
+        box.innerHTML = '';
         return;
       }
-      list.classList.remove('is-hidden');
-      list.innerHTML = `<div class="v208-writer-deadline-title">مواعيد تسليم كتابة المحتوى لكل كاتب</div>${checked.map(input => {
-        const val = valueFor(block, row, input) || clean(input.dataset.deadline || '');
-        return `<label class="v208-writer-deadline-row"><span>${esc(input.dataset.name || input.value || 'كاتب محتوى')}</span><input type="date" class="v208-content-writer-deadline" data-writer-id="${esc(input.value || '')}" data-writer-name="${esc(input.dataset.name || '')}" value="${esc(val)}"></label>`;
+      box.classList.remove('is-hidden');
+      box.innerHTML = `<div class="v209-linked-writer-deadlines-title">مواعيد تسليم كتابة المحتوى لكل كاتب</div>${checks.map(input => {
+        const writerId = clean(input.value || '');
+        const writerName = clean(input.dataset.name || input.parentElement?.textContent || 'كاتب محتوى');
+        const value = getValue(block, row, writerId, writerName);
+        if(value) setValue(block, row, writerId, writerName, value);
+        return `<label class="v209-linked-writer-deadline-row"><span>${esc(writerName || writerId || 'كاتب محتوى')}</span><input type="date" class="v209-linked-writer-deadline" data-writer-id="${esc(writerId)}" data-writer-name="${esc(writerName)}" value="${esc(value)}"></label>`;
       }).join('')}`;
     });
   }
   function enhancePanel(panel){
     const root = panel || document;
-    root.querySelectorAll('[data-assignment-role]').forEach(block => {
-      const role = roleOf(block.dataset.assignmentRole || '');
-      if(role && role !== 'content') enhanceBlock(block);
-    });
+    root.querySelectorAll('[data-assignment-role]').forEach(enhanceBlock);
   }
-  function readLinks(block){
-    const role = roleOf(block?.dataset?.assignmentRole || '');
-    if(!block || !role || role === 'content') return { ids: [], names: [], links: [] };
+  function blockFor(panel, role){
+    const cleanRole = safeRole(role || '');
+    return panel?.querySelector(`[data-assignment-role="${cleanRole}"]`) || null;
+  }
+  function readLinks(panel, role){
+    const cleanRole = safeRole(role || '');
+    if(!EXEC_ROLES.includes(cleanRole)) return { ids: [], names: [], links: [] };
+    const block = blockFor(panel, cleanRole);
+    if(!block) return { ids: [], names: [], links: [] };
     enhanceBlock(block);
     const links = [...block.querySelectorAll('.js-user-content-link-row')].map(row => {
-      const checked = [...row.querySelectorAll('.js-user-content-link-check:checked')];
-      const perWriter = checked.map(input => {
-        const dateInput = row.querySelector(`.v208-content-writer-deadline[data-writer-id="${CSS.escape(input.value || '')}"]`);
-        const deadline = clean(dateInput?.value || valueFor(block, row, input) || '');
-        if(deadline) store(block, row, input, deadline);
+      const checks = [...row.querySelectorAll('.js-user-content-link-check:checked')];
+      const perWriter = checks.map(input => {
+        const writerId = clean(input.value || '');
+        const writerName = clean(input.dataset.name || input.parentElement?.textContent || '');
+        const dateInput = [...row.querySelectorAll('.v209-linked-writer-deadline')].find(el => clean(el.dataset.writerId || '') === writerId || clean(el.dataset.writerName || '') === writerName);
+        const deadline = clean(dateInput?.value || getValue(block, row, writerId, writerName) || '');
+        if(deadline) setValue(block, row, writerId, writerName, deadline);
         return {
-          contentUserId: clean(input.value || ''),
-          contentUserName: clean(input.dataset.name || ''),
-          writerId: clean(input.value || ''),
-          writerName: clean(input.dataset.name || ''),
+          contentUserId: writerId,
+          contentUserName: writerName,
+          writerId,
+          writerName,
           deadline,
           contentWritingDeadline: deadline,
           contentWriterDeadline: deadline,
@@ -13378,9 +13394,10 @@ async function downloadStructureTemplateForTaskExact(task){
         executorUserName: clean(row.dataset.execName || ''),
         userId: clean(row.dataset.execId || ''),
         userName: clean(row.dataset.execName || ''),
-        role,
-        departmentRole: role,
-        departmentCode: code(role),
+        role: cleanRole,
+        departmentRole: cleanRole,
+        departmentCode: rCode(cleanRole),
+        departmentName: roleLabel(cleanRole),
         contentUserIds: perWriter.map(item => item.contentUserId).filter(Boolean),
         contentUserNames: perWriter.map(item => item.contentUserName).filter(Boolean),
         contentWriterDeadlines: perWriter,
@@ -13393,54 +13410,39 @@ async function downloadStructureTemplateForTaskExact(task){
     return { ids: uniq(links.flatMap(link => link.contentUserIds || [])), names: uniq(links.flatMap(link => link.contentUserNames || [])), links };
   }
 
-  const oldSyncPanelDynamicStateV208 = typeof syncPanelDynamicState === 'function' ? syncPanelDynamicState : null;
-  if(oldSyncPanelDynamicStateV208){
-    syncPanelDynamicState = function(panel){
-      const result = oldSyncPanelDynamicStateV208.apply(this, arguments);
-      setTimeout(() => enhancePanel(panel), 0);
-      return result;
-    };
-  }
-  const oldRefreshContentDependencyPickersV208 = typeof refreshContentDependencyPickers === 'function' ? refreshContentDependencyPickers : null;
-  if(oldRefreshContentDependencyPickersV208){
-    refreshContentDependencyPickers = function(panel){
-      const result = oldRefreshContentDependencyPickersV208.apply(this, arguments);
-      setTimeout(() => enhancePanel(panel), 0);
-      return result;
-    };
-  }
-  const oldSelectedContentDependencyV208 = typeof selectedContentDependency === 'function' ? selectedContentDependency : null;
+  const prevSync = typeof syncPanelDynamicState === 'function' ? syncPanelDynamicState : null;
+  if(prevSync){ syncPanelDynamicState = function(panel){ const result = prevSync.apply(this, arguments); setTimeout(() => enhancePanel(panel), 0); return result; }; }
+
+  const prevRefresh = typeof refreshContentDependencyPickers === 'function' ? refreshContentDependencyPickers : null;
+  if(prevRefresh){ refreshContentDependencyPickers = function(panel){ const result = prevRefresh.apply(this, arguments); setTimeout(() => enhancePanel(panel), 0); return result; }; }
+
+  const prevSelectedContentDependency = typeof selectedContentDependency === 'function' ? selectedContentDependency : null;
   selectedContentDependency = function(panel, role){
-    const cleanRole = roleOf(role || '');
-    const block = panel?.querySelector?.(`[data-assignment-role="${cleanRole}"]`);
-    if(block && cleanRole && cleanRole !== 'content' && block.querySelector('.js-user-content-link-row')) return readLinks(block);
-    return oldSelectedContentDependencyV208 ? oldSelectedContentDependencyV208.apply(this, arguments) : { ids: [], names: [], links: [] };
+    const cleanRole = safeRole(role || '');
+    if(EXEC_ROLES.includes(cleanRole)) return readLinks(panel, cleanRole);
+    return prevSelectedContentDependency ? prevSelectedContentDependency.apply(this, arguments) : { ids: [], names: [], links: [] };
   };
-  const oldSelectedRoleTaskFromPanelV208 = typeof selectedRoleTaskFromPanel === 'function' ? selectedRoleTaskFromPanel : null;
+
+  const prevSelectedRoleTaskFromPanel = typeof selectedRoleTaskFromPanel === 'function' ? selectedRoleTaskFromPanel : null;
   selectedRoleTaskFromPanel = function(panel, role){
-    const task = oldSelectedRoleTaskFromPanelV208 ? oldSelectedRoleTaskFromPanelV208.apply(this, arguments) : null;
-    const cleanRole = roleOf(role || '');
-    if(task && cleanRole && cleanRole !== 'content'){
-      const linked = selectedContentDependency(panel, cleanRole);
-      if(linked && Array.isArray(linked.links)){
-        task.dependencyLinks = linked.links;
-        task.dependsOnContentUserIds = linked.ids || [];
-        task.dependsOnContentUserNames = linked.names || [];
-        task.upstreamUserIds = linked.ids || [];
-        task.upstreamUserNames = linked.names || [];
-        task.upstreamUserLabel = (linked.names || []).join('، ');
-        task.contentWritingDeadlines = linked.links.flatMap(link => (link.contentWriterDeadlines || link.contentWritingDeadlines || []).map(item => ({
-          executorUserId: link.executorUserId,
-          executorUserName: link.executorUserName,
-          contentUserId: item.contentUserId || item.writerId || '',
-          contentUserName: item.contentUserName || item.writerName || '',
-          deadline: item.deadline || item.contentWritingDeadline || ''
-        })));
-        task.contentWriterDeadlines = task.contentWritingDeadlines;
-        task.contentWritingDeadline = uniq(task.contentWritingDeadlines.map(item => item.deadline).filter(Boolean)).join('، ');
-        task.contentWriterDeadline = task.contentWritingDeadline;
-        task.contentTaskDeadline = task.contentWritingDeadline;
-      }
+    const task = prevSelectedRoleTaskFromPanel ? prevSelectedRoleTaskFromPanel.apply(this, arguments) : null;
+    const cleanRole = safeRole(role || '');
+    if(task && EXEC_ROLES.includes(cleanRole)){
+      const linked = readLinks(panel, cleanRole);
+      task.dependencyLinks = linked.links;
+      task.dependsOnContentUserIds = linked.ids;
+      task.dependsOnContentUserNames = linked.names;
+      task.upstreamUserIds = linked.ids;
+      task.upstreamUserNames = linked.names;
+      task.upstreamUserLabel = (linked.names || []).join('، ');
+      task.contentWritingDeadlines = linked.links.flatMap(link => (link.contentWriterDeadlines || []).map(item => ({
+        executorUserId: link.executorUserId,
+        executorUserName: link.executorUserName,
+        contentUserId: item.contentUserId,
+        contentUserName: item.contentUserName,
+        deadline: item.deadline || ''
+      })));
+      task.contentWritingDeadline = uniq(task.contentWritingDeadlines.map(item => item.deadline).filter(Boolean)).join('، ');
     }
     return task;
   };
@@ -13448,17 +13450,23 @@ async function downloadStructureTemplateForTaskExact(task){
   document.addEventListener('change', function(event){
     const row = event.target.closest?.('.js-user-content-link-row');
     const block = event.target.closest?.('[data-assignment-role]');
-    if(row && block && event.target.classList.contains('v208-content-writer-deadline')){
-      const fakeInput = { value: event.target.dataset.writerId || '', dataset: { name: event.target.dataset.writerName || '' } };
-      store(block, row, fakeInput, clean(event.target.value || ''));
+    if(!row || !block || !EXEC_ROLES.includes(safeRole(block.dataset.assignmentRole || ''))) return;
+    if(event.target.classList.contains('v209-linked-writer-deadline')){
+      setValue(block, row, event.target.dataset.writerId || '', event.target.dataset.writerName || '', clean(event.target.value || ''));
     }
-    if((event.target.classList.contains('js-user-content-link-check') || event.target.closest?.('.js-role-picker')) && block){
-      setTimeout(() => enhanceBlock(block), 20);
-    }
+    if(event.target.classList.contains('js-user-content-link-check')) setTimeout(() => enhanceBlock(block), 0);
   }, true);
+
   document.addEventListener('click', function(event){
-    const panel = event.target.closest?.('.creative-assignment-panel');
-    if(panel) setTimeout(() => enhancePanel(panel), 80);
+    // v210: Do not re-render the assignment panel while the user is opening/using
+    // a native date picker. Re-rendering the row replaces the input element and
+    // makes the calendar popup disappear immediately.
+    if(event.target?.matches?.('input[type="date"], .v209-linked-writer-deadline') || event.target?.closest?.('.v209-linked-writer-deadlines')) return;
+    const panel = event.target.closest?.('.creative-assignment-panel') || document.querySelector('[data-campaign-wizard-step="2"]');
+    setTimeout(() => enhancePanel(panel || document), 60);
   }, true);
-  setTimeout(() => enhancePanel(document), 500);
+  document.addEventListener('change', function(event){
+    if(event.target.matches('.js-role-picker input[type="checkbox"],.js-creative-check,.js-popup-creative-check')) setTimeout(() => enhancePanel(document), 100);
+  }, true);
+  setTimeout(() => enhancePanel(document), 300);
 })();
