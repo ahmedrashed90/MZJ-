@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/snapchat/callback",
+      "destination": "/snapchat/callback/index.html"
+    },
+    {
+      "source": "/snapchat/callback/",
+      "destination": "/snapchat/callback/index.html"
+    },
+    {
       "source": "/api/meta/:path*",
       "destination": "/api/meta?path=:path*"
     },

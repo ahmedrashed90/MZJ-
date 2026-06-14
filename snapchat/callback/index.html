@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ربط Snapchat - MZJ Marketing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.png">
+  <style>
+    :root{--primary:#5A3329;--secondary:#B85E4F;--surface:#FAF6F1;--bg:#F3E5D6;--line:#E5CBBE;--text:#2D1713;--muted:#8E7166;--ok:#3b7f3a;--bad:#9b2f2f}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:Tajawal,Arial,sans-serif;background:linear-gradient(135deg,#fff 0%,var(--bg) 100%);color:var(--text);display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{width:min(680px,100%);background:rgba(255,255,255,.88);border:1px solid var(--line);border-radius:24px;box-shadow:0 22px 60px rgba(90,51,41,.14);padding:34px;text-align:center}
+    .icon{width:72px;height:72px;margin:0 auto 16px;border-radius:22px;background:var(--surface);display:grid;place-items:center;font-size:38px;border:1px solid var(--line)}
+    h1{margin:0 0 10px;font-size:30px;font-weight:900} p{margin:8px 0;color:var(--muted);font-size:17px;line-height:1.8}.status{margin:22px 0 0;padding:16px;border-radius:16px;border:1px solid var(--line);background:#fff;font-weight:800}.ok{color:var(--ok)}.bad{color:var(--bad)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;margin-top:22px;padding:12px 22px;border-radius:14px;border:1px solid var(--primary);background:var(--primary);color:white;text-decoration:none;font-weight:800}.muted{font-size:13px;color:var(--muted);word-break:break-word}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="icon">👻</div>
+    <h1 id="title">استقبال ربط Snapchat</h1>
+    <p id="message">جاري فحص نتيجة الرجوع من Snapchat...</p>
+    <div class="status" id="statusBox">برجاء الانتظار</div>
+    <p class="muted" id="debugLine"></p>
+    <a class="btn" href="/">العودة إلى MZJ Marketing</a>
+  </main>
+  <script>
+    (function(){
+      var params = new URLSearchParams(window.location.search || '');
+      var code = params.get('code');
+      var state = params.get('state');
+      var error = params.get('error');
+      var errorDescription = params.get('error_description') || params.get('error_reason') || '';
+      var title = document.getElementById('title');
+      var message = document.getElementById('message');
+      var statusBox = document.getElementById('statusBox');
+      var debugLine = document.getElementById('debugLine');
+      if (error) {
+        title.textContent = 'تعذر ربط Snapchat';
+        message.textContent = 'رجع Snapchat برسالة خطأ. راجع تفاصيل الخطأ ثم حاول الربط مرة أخرى.';
+        statusBox.className = 'status bad';
+        statusBox.textContent = errorDescription || error;
+        debugLine.textContent = 'error=' + error;
+        return;
+      }
+      if (code) {
+        try {
+          localStorage.setItem('mzj_snapchat_oauth_callback', JSON.stringify({ code: code, state: state || '', receivedAt: new Date().toISOString() }));
+        } catch(e) {}
+        title.textContent = 'تم استلام كود ربط Snapchat';
+        message.textContent = 'تم استقبال كود OAuth بنجاح. سيتم الرجوع إلى إعدادات المنصات لإكمال الربط بعد تفعيل صلاحية Public Profile API.';
+        statusBox.className = 'status ok';
+        statusBox.textContent = 'تم الاستلام بنجاح';
+        debugLine.textContent = 'code=' + code.slice(0, 8) + '...';
+        setTimeout(function(){ window.location.href = '/#platform-settings'; }, 2500);
+        return;
+      }
+      title.textContent = 'رابط Callback جاهز';
+      message.textContent = 'هذه الصفحة مخصصة لاستقبال رجوع Snapchat بعد تسجيل الدخول. افتحها من زر ربط Snapchat داخل النظام وليس مباشرة من المتصفح.';
+      statusBox.textContent = 'لم يتم إرسال كود OAuth بعد';
+    })();
+  </script>
+</body>
+</html>
