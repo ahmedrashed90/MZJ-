@@ -11264,14 +11264,23 @@ async function downloadStructureTemplateForTaskExact(task){
 
   /* v172 - exact Task Template parser: key/value sheet uploaded by content writer */
   function v172TaskTemplateKey(value){
-    return normalizeText(value || '').replace(/[\s\u200f\u200e]+/g,' ').replace(/[ةه]/g,'ه').replace(/[ىي]/g,'ي').replace(/[^\u0600-\u06FFa-zA-Z0-9 ]/g,'').trim().toLowerCase();
+    return normalizeText(value || '')
+      .replace(/[أإآٱ]/g,'ا')
+      .replace(/[ؤ]/g,'و')
+      .replace(/[ئ]/g,'ي')
+      .replace(/[\s\u200f\u200e]+/g,' ')
+      .replace(/[ةه]/g,'ه')
+      .replace(/[ىي]/g,'ي')
+      .replace(/[^\u0600-\u06FFa-zA-Z0-9 ]/g,'')
+      .trim()
+      .toLowerCase();
   }
   const V172_TASK_TEMPLATE_LABELS = [
     ['اسم الحمله', 'campaignName', 'اسم الحملة'],
     ['رقم الحمله', 'campaignCode', 'رقم الحملة'],
     ['نوع الحمله', 'campaignType', 'نوع الحملة'],
     ['رقم التاسك', 'taskNo', 'رقم التاسك'],
-    ['الاسم المقترح للكريتييف', 'suggestedCreativeName', 'الاسم المقترح للكرييتيف'],
+    ['الاسم المقترح للكرييتيف', 'suggestedCreativeName', 'الاسم المقترح للكرييتيف'],
     ['نوع المحتوي', 'contentType', 'نوع المحتوى'],
     ['الهدف', 'goal', 'الهدف'],
     ['الرساله الاساسيه', 'message', 'الرسالة الأساسية'],
@@ -11281,7 +11290,27 @@ async function downloadStructureTemplateForTaskExact(task){
     ['الكابشن', 'caption', 'الكابشن'],
     ['هاشتاج', 'hashtags', 'هاشتاج']
   ];
-  const V172_TASK_TEMPLATE_KEY_MAP = new Map(V172_TASK_TEMPLATE_LABELS.map(item => [v172TaskTemplateKey(item[0]), item]));
+  const V172_TASK_TEMPLATE_ALIASES = [
+    ['اسم الحملة', 'campaignName', 'اسم الحملة'],
+    ['رقم الحملة', 'campaignCode', 'رقم الحملة'],
+    ['نوع الحملة', 'campaignType', 'نوع الحملة'],
+    ['الاسم المقترح للكريتييف', 'suggestedCreativeName', 'الاسم المقترح للكرييتيف'],
+    ['الاسم المقترح للكرياتيف', 'suggestedCreativeName', 'الاسم المقترح للكرييتيف'],
+    ['الاسم المقترح للكريتيف', 'suggestedCreativeName', 'الاسم المقترح للكرييتيف'],
+    ['نوع المحتوى', 'contentType', 'نوع المحتوى'],
+    ['الرسالة الأساسية', 'message', 'الرسالة الأساسية'],
+    ['الرسالة الاساسية', 'message', 'الرسالة الأساسية'],
+    ['الرسالة الأساسيه', 'message', 'الرسالة الأساسية'],
+    ['السكريبت الأساسي', 'script', 'السكريبت الأساسي'],
+    ['السكريبت الاساسي', 'script', 'السكريبت الأساسي'],
+    ['السكربت الأساسي', 'script', 'السكريبت الأساسي'],
+    ['السكربت الاساسي', 'script', 'السكريبت الأساسي'],
+    ['الهاشتاج', 'hashtags', 'هاشتاج']
+  ];
+  const V172_TASK_TEMPLATE_KEY_MAP = new Map();
+  [...V172_TASK_TEMPLATE_LABELS, ...V172_TASK_TEMPLATE_ALIASES].forEach(item => {
+    V172_TASK_TEMPLATE_KEY_MAP.set(v172TaskTemplateKey(item[0]), item);
+  });
   function v172ParseTaskTemplateWorkbookBuffer(buffer, fileName = ''){
     if(!window.XLSX) return { parsedRows: [], sheetTables: [], taskTemplateFields: [] };
     const workbook = XLSX.read(buffer, { type: 'array', cellDates:false, cellStyles:true });
@@ -11297,6 +11326,7 @@ async function downloadStructureTemplateForTaskExact(task){
       const cleanValue = normalizeText(value || '');
       const existing = fieldsByKey.get(key);
       if(existing && normalizeText(existing.value)) return;
+      if(existing && !cleanValue) return;
       fieldsByKey.set(key, { key, label: displayLabel, value: cleanValue });
       row[key] = cleanValue;
       row.raw[displayLabel] = cleanValue;
@@ -11315,11 +11345,14 @@ async function downloadStructureTemplateForTaskExact(task){
     });
     // Fallback for the official vertical B:C template if the matrix scan missed anything.
     rawRows.forEach((r) => {
-      const label = normalizeText(r?.[1] || r?.[0] || '');
-      const found = V172_TASK_TEMPLATE_KEY_MAP.get(v172TaskTemplateKey(label));
-      if(!found) return;
-      const value = normalizeText(r?.[2] || '');
-      pushField(found, value);
+      const cells = Array.isArray(r) ? r : [];
+      for(let c = 0; c < Math.min(cells.length, 6); c += 1){
+        const label = normalizeText(cells[c] || '');
+        const found = V172_TASK_TEMPLATE_KEY_MAP.get(v172TaskTemplateKey(label));
+        if(!found) continue;
+        const value = normalizeText(cells[c + 1] || cells[c + 2] || cells[c - 1] || '');
+        pushField(found, value);
+      }
     });
     const fields = V172_TASK_TEMPLATE_LABELS.map(([, key, label]) => fieldsByKey.get(key) || { key, label, value:'' });
     const hasRealData = fields.some(f => normalizeText(f.value));
