@@ -11336,10 +11336,33 @@ async function downloadStructureTemplateForTaskExact(task){
         const found = V172_TASK_TEMPLATE_KEY_MAP.get(v172TaskTemplateKey(cell));
         if(!found) return;
         const candidates = [];
-        for(let c = colIndex + 1; c < Math.min((r || []).length, colIndex + 6); c += 1) candidates.push(r[c]);
-        for(let c = colIndex - 1; c >= Math.max(0, colIndex - 3); c -= 1) candidates.push(r[c]);
-        for(let rr = rowIndex + 1; rr < Math.min(rawRows.length, rowIndex + 4); rr += 1) candidates.push(rawRows[rr]?.[colIndex]);
-        const value = candidates.map(v => normalizeText(v || '')).find(v => v && !V172_TASK_TEMPLATE_KEY_MAP.has(v172TaskTemplateKey(v))) || '';
+        const currentRow = Array.isArray(r) ? r : [];
+        // Same row first: check both sides by distance because Excel RTL can display A/B reversed.
+        for(let offset = 1; offset <= Math.max(8, currentRow.length); offset += 1){
+          const rightIndex = colIndex + offset;
+          const leftIndex = colIndex - offset;
+          if(rightIndex < currentRow.length) candidates.push(currentRow[rightIndex]);
+          if(leftIndex >= 0) candidates.push(currentRow[leftIndex]);
+        }
+        // Then check the next rows around the same column and the whole row. Some users paste long Arabic text below the label.
+        for(let rr = rowIndex + 1; rr < Math.min(rawRows.length, rowIndex + 8); rr += 1){
+          const nextRow = Array.isArray(rawRows[rr]) ? rawRows[rr] : [];
+          for(let offset = 0; offset <= Math.max(8, nextRow.length); offset += 1){
+            const rightIndex = colIndex + offset;
+            const leftIndex = colIndex - offset;
+            if(rightIndex < nextRow.length) candidates.push(nextRow[rightIndex]);
+            if(leftIndex >= 0 && leftIndex !== rightIndex) candidates.push(nextRow[leftIndex]);
+          }
+          nextRow.forEach(v => candidates.push(v));
+        }
+        const value = candidates.map(v => normalizeText(v || '')).find(v => {
+          const clean = normalizeText(v || '');
+          if(!clean) return false;
+          const key = v172TaskTemplateKey(clean);
+          if(V172_TASK_TEMPLATE_KEY_MAP.has(key)) return false;
+          if(key.includes(v172TaskTemplateKey('بيانات السيستم')) || key.includes(v172TaskTemplateKey('بيانات يكتبها قسم المحتوى')) || key.includes('task template')) return false;
+          return true;
+        }) || '';
         pushField(found, value);
       });
     });
@@ -11427,9 +11450,45 @@ async function downloadStructureTemplateForTaskExact(task){
     });
     return { ...(parsed || {}), parsedRows: realValues.length ? [row] : [], taskTemplateFields: fields, templateKind:'content_task_template_v177' };
   }
+  function v219DecodeTaskTemplateFileData(fileData){
+    try{
+      const text = String(fileData || '');
+      if(!text || !text.includes(',')) return null;
+      const base64 = text.split(',').pop() || '';
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for(let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return bytes.buffer;
+    }catch(_){ return null; }
+  }
+  function v219MergeTaskTemplateFields(primaryFields, reparsedFields){
+    const byKey = new Map();
+    (Array.isArray(primaryFields) ? primaryFields : []).forEach(field => {
+      if(field?.key) byKey.set(field.key, { ...field, value: normalizeText(field.value || '') });
+    });
+    (Array.isArray(reparsedFields) ? reparsedFields : []).forEach(field => {
+      if(!field?.key) return;
+      const current = byKey.get(field.key) || { key: field.key, label: field.label || field.key, value:'' };
+      const nextValue = normalizeText(field.value || '');
+      if(nextValue) byKey.set(field.key, { ...current, label: current.label || field.label, value: nextValue });
+    });
+    return V172_TASK_TEMPLATE_LABELS.map(([, key, label]) => byKey.get(key) || { key, label, value:'' });
+  }
+  function v219ReparseTaskTemplateFieldsFromFileData(tpl){
+    try{
+      const buffer = v219DecodeTaskTemplateFileData(tpl?.fileData || '');
+      if(!buffer) return [];
+      const parsed = v177NormalizeRealTaskTemplate(v172ParseTaskTemplateWorkbookBuffer(buffer, tpl?.fileName || ''));
+      return Array.isArray(parsed?.taskTemplateFields) ? parsed.taskTemplateFields : [];
+    }catch(error){ console.warn('Task Template reparse from fileData failed', error); return []; }
+  }
   function v172TaskTemplateFieldsFromTemplate(tpl){
     const direct = Array.isArray(tpl?.taskTemplateFields) ? tpl.taskTemplateFields : [];
-    if(direct.length) return direct;
+    if(direct.length){
+      // Existing uploaded templates may have been parsed by an older parser. Re-read the stored XLSX to fill any missing cells.
+      const reparsed = v219ReparseTaskTemplateFieldsFromFileData(tpl);
+      return reparsed.length ? v219MergeTaskTemplateFields(direct, reparsed) : direct;
+    }
     const row = Array.isArray(tpl?.parsedRows) ? tpl.parsedRows[0] : null;
     if(Array.isArray(row?.taskTemplateFields) && row.taskTemplateFields.length) return row.taskTemplateFields;
     const fields = [];
@@ -11701,7 +11760,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v172 - task template exact file support */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v184'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
 })();
 
 /* v182 - keep normal task details as a vertical scrollable detail view, not the structure sheet layout */
@@ -13970,3 +14029,7 @@ if(false){(function(){
     }
   };
 })();
+
+
+/* v219 - robust Task Template field reparse from stored uploaded XLSX */
+try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
