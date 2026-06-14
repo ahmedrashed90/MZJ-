@@ -14033,3 +14033,254 @@ if(false){(function(){
 
 /* v219 - robust Task Template field reparse from stored uploaded XLSX */
 try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
+
+/* v220 - Dashboard Task Template badges + content approval waiting state + owner color settings */
+(function(){
+  try{ window.MZJ_APP_VERSION = 'v220'; }catch(_){ }
+
+  function v220Text(value){
+    try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); }
+  }
+  function v220Identity(value){
+    try{ return identityClean(value || ''); }catch(_){ return v220Text(value).toLowerCase(); }
+  }
+  function v220Esc(value){
+    try{ return escapeHtml(value || ''); }catch(_){ return String(value || '').replace(/[&<>"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s])); }
+  }
+  function v220TaskNo(task){
+    const values = [
+      (typeof structureTaskNumber === 'function' ? structureTaskNumber(task) : ''),
+      task?.taskNo, task?.structureTaskNo, task?.taskNumber, task?.code, task?.taskCode,
+      task?.structureRow?.taskNo, task?.structureRow?.taskNumber, task?.raw?.['رقم التاسك']
+    ];
+    return v220Text(values.find(Boolean) || '');
+  }
+  function v220TaskIdChip(task){
+    const no = v220TaskNo(task);
+    return no ? `<span class="task-id-chip-v220">${v220Esc(no)}</span>` : '';
+  }
+  function v220TemplateStatus(task){
+    const tpl = task?.taskTemplate || task?.contentTaskTemplate || task?.approvedContentTemplate || {};
+    return v220Text(tpl.status || task?.linkedContentTemplateStatus || task?.contentTemplateStatus || task?.status || '');
+  }
+  function v220TaskTemplateAttached(task){
+    const tpl = task?.taskTemplate || task?.contentTaskTemplate || task?.approvedContentTemplate || {};
+    return !!(tpl.fileData || tpl.fileName || tpl.fileSize || tpl.uploadedAt || tpl.status === 'pending_review' || tpl.status === 'approved' || tpl.status === 'needs_changes' || tpl.status === 'rejected');
+  }
+  function v220TaskTemplateBadge(task){
+    if(v220TaskTemplateAttached(task)) return '<b class="state-chip is-task-template-attached-v220">تم إرفاق Task Template</b>';
+    const status = v220Identity(v220TemplateStatus(task));
+    if(status.includes('pending_task_template') || status.includes('task_template_approved')) return '<b class="state-chip is-task-template-attached-v220">تم إرفاق Task Template</b>';
+    return '';
+  }
+  function v220CampaignTaskTemplateCount(tasks){
+    return (tasks || []).filter(v220TaskTemplateAttached).length;
+  }
+  function v220NeedsContentApproval(task){
+    const role = (typeof normalizeDepartmentRole === 'function') ? normalizeDepartmentRole(task?.departmentRole || task?.assignedDepartmentName || task?.contentSectionName || '') : '';
+    const status = v220Identity(task?.linkedContentTemplateStatus || task?.contentTemplateStatus || '');
+    if(role === 'content') return false;
+    if(status && !['approved','معتمد'].some(key => status.includes(v220Identity(key)))) return true;
+    if(task?.waitingForApproval && (task?.contentExecutionPairKey || task?.linkedExecutionPairKey || task?.linkedContentTemplateTaskId)) return true;
+    return false;
+  }
+  function v220OwnerKeys(task){
+    return [
+      task?.assignedToUid, task?.assignedToId, task?.assigneeUid, task?.userUid, task?.userId,
+      task?.assignedToEmail, task?.assigneeEmail, task?.userEmail,
+      task?.assignedToName, task?.assigneeName, task?.userName
+    ].map(v220Text).filter(Boolean);
+  }
+  function v220OwnerColor(taskOrUser){
+    const map = (systemSettings && systemSettings.ownerColors) || {};
+    const keys = taskOrUser && (taskOrUser.email || taskOrUser.uid || taskOrUser.name || taskOrUser.displayName)
+      ? [taskOrUser.id, taskOrUser.uid, taskOrUser.email, taskOrUser.name, taskOrUser.displayName].map(v220Text).filter(Boolean)
+      : v220OwnerKeys(taskOrUser);
+    for(const key of keys){ if(map[key]) return map[key]; }
+    for(const key of keys){ const id = v220Identity(key); const foundKey = Object.keys(map).find(item => v220Identity(item) === id); if(foundKey) return map[foundKey]; }
+    return '';
+  }
+  function v220ReadableTextColor(hex){
+    const clean = String(hex || '').replace('#','');
+    if(!/^[0-9a-f]{6}$/i.test(clean)) return '#2D1713';
+    const r = parseInt(clean.slice(0,2),16), g = parseInt(clean.slice(2,4),16), b = parseInt(clean.slice(4,6),16);
+    return ((r * 299 + g * 587 + b * 114) / 1000) >= 150 ? '#2D1713' : '#FFFFFF';
+  }
+  function v220OwnerBadge(task){
+    const name = (typeof rawTaskOwnerName === 'function' ? rawTaskOwnerName(task) : v220Text(task?.assignedToName || task?.assigneeName || task?.userName || 'بدون مسؤول')) || 'بدون مسؤول';
+    const color = v220OwnerColor(task) || '#C89F84';
+    const text = v220ReadableTextColor(color);
+    return `<em class="owner-color-badge-v220" style="--owner-color:${v220Esc(color)};--owner-text:${v220Esc(text)}">${v220Esc(name)}</em>`;
+  }
+
+  if(typeof receivedLabel === 'function'){
+    const prevReceivedLabelV220 = receivedLabel;
+    receivedLabel = function(task){
+      if(v220NeedsContentApproval(task)) return 'في انتظار اعتماد المحتوى';
+      return prevReceivedLabelV220(task);
+    };
+  }
+  if(typeof receivedClass === 'function'){
+    const prevReceivedClassV220 = receivedClass;
+    receivedClass = function(task){
+      if(v220NeedsContentApproval(task)) return 'is-content-waiting-v220';
+      return prevReceivedClassV220(task);
+    };
+  }
+
+
+  function v220RenderOwnerColorSettings(){
+    const wrap = document.getElementById('ownerColorSettingsList');
+    if(!wrap) return;
+    const list = Array.isArray(users) ? users : [];
+    if(!list.length){ wrap.innerHTML = '<div class="empty-state mini-empty">لا توجد يوزرات حالياً.</div>'; return; }
+    wrap.innerHTML = list.map(user => {
+      const name = (typeof userName === 'function' ? userName(user) : '') || user.name || user.displayName || user.email || 'User';
+      const key = user.id || user.uid || user.email || name;
+      const color = v220OwnerColor(user) || '#C89F84';
+      return `<article class="owner-color-row-v220" data-owner-color-key="${v220Esc(key)}">
+        <div><strong>${v220Esc(name)}</strong><small>${v220Esc(user.email || key)}</small></div>
+        <input type="color" data-owner-color-input value="${v220Esc(color)}" aria-label="لون ${v220Esc(name)}">
+        <span class="owner-color-badge-v220" style="--owner-color:${v220Esc(color)};--owner-text:${v220Esc(v220ReadableTextColor(color))}">${v220Esc(name)}</span>
+      </article>`;
+    }).join('');
+  }
+
+  function v220EnsureOwnerSettingsCard(){
+    if(document.getElementById('ownerColorSettingsList')) return;
+    const grid = document.querySelector('#settings .settings-grid');
+    if(!grid) return;
+    const card = document.createElement('div');
+    card.className = 'card settings-card wide owner-color-settings-card-v220';
+    card.innerHTML = `<div class="card-title"><h2>تعيين لون لكل مسؤول</h2><button class="btn btn-primary" type="button" id="saveOwnerColorsBtn">حفظ ألوان المسؤولين</button></div>
+      <p class="muted small">اختار لون لكل مسؤول. نفس اللون هيظهر في الداش بورد على اسم المسؤول مع بوردر واضح.</p>
+      <div id="ownerColorSettingsList" class="owner-color-settings-list-v220"><div class="empty-state">جاري تحميل اليوزرات...</div></div>
+      <p class="form-message" id="ownerColorSettingsMessage"></p>`;
+    grid.appendChild(card);
+  }
+
+  if(typeof fillSettingsForm === 'function'){
+    const prevFillSettingsFormV220 = fillSettingsForm;
+    fillSettingsForm = function(){
+      prevFillSettingsFormV220();
+      v220EnsureOwnerSettingsCard();
+      v220RenderOwnerColorSettings();
+    };
+  }
+  if(typeof renderUsersPermissions === 'function'){
+    const prevRenderUsersPermissionsV220 = renderUsersPermissions;
+    renderUsersPermissions = function(){
+      prevRenderUsersPermissionsV220();
+      v220EnsureOwnerSettingsCard();
+      v220RenderOwnerColorSettings();
+    };
+  }
+
+  document.addEventListener('input', function(event){
+    const input = event.target?.closest?.('[data-owner-color-input]');
+    if(!input) return;
+    const row = input.closest('.owner-color-row-v220');
+    const badge = row?.querySelector('.owner-color-badge-v220');
+    if(badge){ badge.style.setProperty('--owner-color', input.value); badge.style.setProperty('--owner-text', v220ReadableTextColor(input.value)); }
+  });
+  document.addEventListener('click', async function(event){
+    const btn = event.target?.closest?.('#saveOwnerColorsBtn');
+    if(!btn) return;
+    if(!mainDb) return;
+    const ownerColors = { ...((systemSettings && systemSettings.ownerColors) || {}) };
+    document.querySelectorAll('.owner-color-row-v220').forEach(row => {
+      const key = v220Text(row.dataset.ownerColorKey || '');
+      const value = row.querySelector('[data-owner-color-input]')?.value || '';
+      if(key && value) ownerColors[key] = value;
+    });
+    await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({ ownerColors, updatedAt: serverTime() }, { merge:true });
+    if(typeof showMessage === 'function') showMessage('ownerColorSettingsMessage','تم حفظ ألوان المسؤولين.');
+    try{ if(typeof renderAdminDashboard === 'function' && getRoute && getRoute() === 'dashboard') renderAdminDashboard(); }catch(_){ }
+  });
+
+  if(typeof campaignTasksSnapshot === 'function'){
+    const prevCampaignTasksSnapshotV220 = campaignTasksSnapshot;
+    campaignTasksSnapshot = function(campaign){
+      const snap = prevCampaignTasksSnapshotV220(campaign);
+      const related = snap.related || (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []);
+      return { ...snap, taskTemplateAttached: v220CampaignTaskTemplateCount(related), contentWaiting: related.filter(v220NeedsContentApproval).length };
+    };
+  }
+
+  if(typeof renderAdminDashboard === 'function'){
+    renderAdminDashboard = function(){
+      const allTasks = campaigns.flatMap(campaign => adminDashboardTasksForCampaign(campaign));
+      const count = document.getElementById('dashboardCampaignsCount'); if(count) count.textContent = campaigns.length || '—';
+      const tasksCount = document.getElementById('dashboardTasksCount'); if(tasksCount) tasksCount.textContent = allTasks.length || '—';
+      const adminBoard = document.getElementById('adminDashboardBoard');
+      if(!adminBoard) return;
+      if(!isCurrentUserAdmin()) { renderUserDashboard(); return; }
+      setDashboardMode('admin');
+      const items = campaigns.map(campaign => ({ campaign, ...campaignTasksSnapshot(campaign) }));
+      const requiredItems = items.filter(item => item.total && item.received < item.total);
+      const readinessItems = items.filter(item => item.total && (item.progress < 100 || item.keepStructureInReadiness || item.taskTemplateAttached || item.contentWaiting));
+      const publishItems = items.filter(item => item.progress >= 100 && item.publish < 100 && !item.keepStructureInReadiness && !item.contentWaiting);
+      const archiveItems = items.filter(item => item.progress >= 100 && item.publish >= 100 && !item.keepStructureInReadiness && !item.contentWaiting);
+
+      const taskLine = task => `<div class="task-line-v220"><span>${v220TaskIdChip(task)}<b>${shortTaskName(task)}</b>${v220OwnerBadge(task)}</span><span class="receive-state-stack"><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b>${taskStructureAttachedBadge(task)}${v220TaskTemplateBadge(task)}</span></div>`;
+      const requiredCard = item => `<article class="dash-task-receive-card">
+        <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${v220Esc(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')}</span></div>
+        <div class="receive-meter"><strong>${item.received}/${item.total}</strong><span>تم الاستلام</span></div>
+        ${item.taskTemplateAttached ? `<div class="task-template-attach-alert-v220">تم إرفاق Task Template · ${item.taskTemplateAttached}</div>` : ''}
+        ${item.contentWaiting ? `<div class="content-approval-alert-v220">في انتظار اعتماد المحتوى · ${item.contentWaiting}</div>` : ''}
+        <div class="receive-list">${item.related.map(taskLine).join('')}</div>
+      </article>`;
+
+      const readinessCard = item => `<article class="dash-campaign-card dash-ready-card" data-open-campaign="${v220Esc(item.campaign.id)}">
+        <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${item.progress}%</span></div>
+        <p>${v220Esc(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')} · ${item.total} تاسك</p>
+        ${item.structureAttached ? `<div class="structure-attach-alert">تم إرفاق الهيكل · ${item.structureAttached}</div>` : ''}
+        ${item.taskTemplateAttached ? `<div class="task-template-attach-alert-v220">تم إرفاق Task Template · ${item.taskTemplateAttached}</div>` : ''}
+        ${item.contentWaiting ? `<div class="content-approval-alert-v220">في انتظار اعتماد المحتوى · ${item.contentWaiting}</div>` : ''}
+        <div class="dash-progress"><span style="width:${Math.min(100,item.progress)}%"></span></div>
+        <button type="button" class="open-details-hint">عرض التاسكات</button>
+      </article>`;
+
+      const publishCard = item => `<article class="dash-campaign-card publish-card" data-open-campaign="${v220Esc(item.campaign.id)}">
+        <div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${item.publish}%</span></div>
+        <p>${v220Esc(item.campaign.campaignCode || item.campaign.campaign_code || '')}</p>
+        <div class="publish-actions">
+          <button type="button" data-stage="prep" data-campaign-id="${v220Esc(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.prep ? 'done' : ''}">التجهيز 35%</button>
+          <button type="button" data-stage="approval" data-campaign-id="${v220Esc(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.approval ? 'done' : ''}">الاعتماد 30%</button>
+          <button type="button" data-stage="publish" data-campaign-id="${v220Esc(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.publish ? 'done' : ''}">النشر 35%</button>
+        </div>
+      </article>`;
+      const archiveCard = item => `<article class="dash-campaign-card archive-card" data-open-campaign="${v220Esc(item.campaign.id)}"><div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>جاهزة</span></div><p>${v220Esc(item.campaign.campaignCode || item.campaign.campaign_code || '')}</p></article>`;
+
+      adminBoard.innerHTML = `
+        ${renderProDashboardHero(allTasks)}
+        <section class="admin-dash-col receive-col"><div class="col-title"><h2>TASK - المطلوب</h2><p>متابعة الاستلام + Task Template + اعتماد المحتوى.</p></div>${requiredItems.length ? requiredItems.map(requiredCard).join('') : '<div class="empty-state soft-empty">كل المطلوب تم استلامه حالياً.</div>'}</section>
+        <section class="admin-dash-col ready-col"><div class="col-title"><h2>جاهزية المطلوب</h2><p>اضغط على حملة لفتح التاسكات بنظام كانبان.</p></div>${readinessItems.length ? readinessItems.map(readinessCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات قيد التجهيز.</div>'}</section>
+        <section class="admin-dash-col publish-col"><div class="col-title"><h2>قسم النشر</h2><p>تظهر هنا بعد اكتمال جاهزية المطلوب واعتماد المحتوى.</p></div>${publishItems.length ? publishItems.map(publishCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات جاهزة للنشر.</div>'}</section>
+        <section class="admin-dash-col archive-col"><div class="col-title"><h2>قسم الأرشيف</h2><p>بعد اكتمال النشر، تصبح جاهزة للأرشفة.</p></div>${archiveItems.length ? archiveItems.map(archiveCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات مؤرشفة حالياً.</div>'}</section>`;
+    };
+  }
+
+  if(typeof renderCampaignInlineTasks === 'function'){
+    const prevRenderCampaignInlineTasksV220 = renderCampaignInlineTasks;
+    renderCampaignInlineTasks = function(campaign){
+      try{
+        const related = (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []).slice().sort(typeof v197AdminTaskSort === 'function' ? v197AdminTaskSort : undefined);
+        const grouped = typeof groupTasksForKanban === 'function' ? groupTasksForKanban(related) : [];
+        const taskItem = task => `<article class="inline-task-row ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}">
+          <div><strong>${v220TaskIdChip(task)}${shortTaskName(task)}</strong><p>${v220Esc([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))} ${v220OwnerBadge(task)}</p></div>
+          <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${v220TaskTemplateBadge(task)}</span>
+          <b>${taskProgress(task)}%</b>
+          <button type="button" class="mini-btn" data-open-task="${v220Esc(task.id)}" data-task-campaign="${v220Esc(campaign.id || task.campaignId || '')}">تفاصيل</button>
+        </article>`;
+        return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
+      }catch(error){ console.error('v220 render campaign inline tasks failed', error); return prevRenderCampaignInlineTasksV220(campaign); }
+    };
+  }
+
+  try{
+    v220EnsureOwnerSettingsCard();
+    v220RenderOwnerColorSettings();
+    if(typeof getRoute === 'function' && getRoute() === 'dashboard' && typeof renderAdminDashboard === 'function') renderAdminDashboard();
+  }catch(_){ }
+})();
