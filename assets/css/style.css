@@ -7853,3 +7853,57 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
   .task-line-v221 .receive-state-stack{margin-top:8px!important}
   .inline-task-row.inline-task-row-v221{grid-template-columns:1fr!important}
 }
+
+/* v222 - actual sheet task number + content writer badge */
+.task-id-real-v222{
+  border-radius:8px!important;
+  background:#fffaf7!important;
+  border:1px solid #e2c2b2!important;
+  color:#5d3329!important;
+  text-align:left!important;
+  direction:ltr!important;
+  font-size:10.5px!important;
+  letter-spacing:.12px!important;
+}
+.assignee-writer-stack-v222{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:flex-start!important;
+  gap:7px!important;
+  flex-wrap:wrap!important;
+}
+.content-writer-badge-v222{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:5px!important;
+  width:max-content!important;
+  max-width:100%!important;
+  padding:5px 10px!important;
+  border-radius:11px!important;
+  background:#fff!important;
+  color:#4b2a21!important;
+  border:2px dashed color-mix(in srgb,var(--writer-color,#f6e7d8) 70%,#6f3f34)!important;
+  box-shadow:0 5px 12px rgba(45,23,19,.07)!important;
+  font-style:normal!important;
+  font-weight:900!important;
+  font-size:11.5px!important;
+  line-height:1.35!important;
+  white-space:nowrap!important;
+}
+.content-writer-badge-v222 span{
+  color:#8a5b4b!important;
+  font-size:10px!important;
+  font-weight:900!important;
+}
+.content-writer-badge-v222 b{
+  color:#3b211b!important;
+  font-weight:950!important;
+}
+.task-line-v222 .task-title-v221{gap:8px!important}
+.inline-task-row-v222 .assignee-writer-stack-v222{margin-top:7px!important}
+.inline-task-row-v222 .inline-task-main-v221 p{margin-bottom:0!important}
+@media (max-width:760px){
+  .assignee-writer-stack-v222{display:grid!important;grid-template-columns:1fr!important;gap:6px!important}
+  .content-writer-badge-v222,.owner-color-badge-v221{width:100%!important;justify-content:center!important}
+}

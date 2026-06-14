@@ -14493,3 +14493,225 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   }
   try{ ensureOwnerSettingsCardV221(); renderOwnerColorSettingsV221(); if(typeof getRoute === 'function' && getRoute() === 'dashboard' && typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(_){ }
 })();
+
+/* v222 - show only real task number from sheet + show approved content writer beside execution assignee */
+(function(){
+  try{ window.MZJ_APP_VERSION = 'v222'; }catch(_){ }
+  function txt(value){ try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); } }
+  function ident(value){ try{ return identityClean(value || ''); }catch(_){ return txt(value).toLowerCase(); } }
+  function html(value){ try{ return escapeHtml(value || ''); }catch(_){ return String(value || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); } }
+  function uniq(list){ try{ return uniqueList(list || []); }catch(_){ return Array.from(new Set((list || []).filter(Boolean))); } }
+  function readable(hex){
+    const clean = String(hex || '').replace('#','');
+    if(!/^[0-9a-f]{6}$/i.test(clean)) return '#2D1713';
+    const r = parseInt(clean.slice(0,2),16), g = parseInt(clean.slice(2,4),16), b = parseInt(clean.slice(4,6),16);
+    return ((r * 299 + g * 587 + b * 114) / 1000) >= 150 ? '#2D1713' : '#FFFFFF';
+  }
+  function userKeysFromTask(task){
+    return uniq([
+      task?.assignedToUid, task?.assignedToId, task?.assigneeUid, task?.userUid, task?.userId,
+      task?.assignedToEmail, task?.assigneeEmail, task?.userEmail,
+      task?.assignedToName, task?.assigneeName, task?.userName
+    ].map(txt).filter(Boolean));
+  }
+  function colorForKeys(keys, fallback){
+    const map = (systemSettings && systemSettings.ownerColors) || {};
+    for(const key of keys){ if(map[key]) return map[key]; }
+    for(const key of keys){ const clean = ident(key); const found = Object.keys(map).find(item => ident(item) === clean); if(found) return map[found]; }
+    return fallback || '#C89F84';
+  }
+  function ownerName(task){
+    return (typeof rawTaskOwnerName === 'function' ? rawTaskOwnerName(task) : '') || txt(task?.assignedToName || task?.assigneeName || task?.userName || 'بدون مسؤول') || 'بدون مسؤول';
+  }
+  function ownerBadge(task){
+    const name = ownerName(task);
+    const color = colorForKeys(userKeysFromTask(task), '#C89F84');
+    return `<em class="owner-color-badge-v220 owner-color-badge-v221" style="--owner-color:${html(color)};--owner-text:${html(readable(color))}">${html(name)}</em>`;
+  }
+  function writerFromParentTask(parentTask){
+    const user = (typeof findUserByAnyIdentity === 'function') ? (findUserByAnyIdentity([
+      parentTask?.assignedToId, parentTask?.assignedToUid, parentTask?.assigneeUid, parentTask?.userId,
+      parentTask?.assignedToEmail, parentTask?.assigneeEmail, parentTask?.userEmail,
+      parentTask?.assignedToName, parentTask?.assigneeName, parentTask?.userName
+    ]) || {}) : {};
+    const name = (typeof userName === 'function' ? userName(user) : '') || txt(parentTask?.assignedToName || parentTask?.assigneeName || parentTask?.userName || parentTask?.displayName || '');
+    return {
+      id: txt(user.id || user.uid || parentTask?.assignedToId || parentTask?.assignedToUid || parentTask?.assigneeUid || parentTask?.userId || ''),
+      uid: txt(user.uid || parentTask?.assignedToUid || parentTask?.assigneeUid || parentTask?.userUid || ''),
+      email: txt(user.email || parentTask?.assignedToEmail || parentTask?.assigneeEmail || parentTask?.userEmail || ''),
+      name
+    };
+  }
+  function writerKeys(task){
+    return uniq([
+      task?.contentWriterId, task?.contentWriterUid, task?.contentWriterEmail, task?.contentWriterName,
+      task?.approvedContentWriterId, task?.approvedContentWriterUid, task?.approvedContentWriterEmail, task?.approvedContentWriterName,
+      task?.structureApprovedFromId, task?.structureApprovedFromUid, task?.structureApprovedFromEmail, task?.structureApprovedFromName,
+      task?.sourceContentWriterId, task?.sourceContentWriterEmail, task?.sourceContentWriterName
+    ].map(txt).filter(Boolean));
+  }
+  function writerNameForTask(task){
+    return txt(task?.contentWriterName || task?.approvedContentWriterName || task?.structureApprovedFromName || task?.sourceContentWriterName || task?.upstreamUserLabel || (Array.isArray(task?.upstreamUserNames) ? task.upstreamUserNames.join('، ') : ''));
+  }
+  function writerBadge(task){
+    const name = writerNameForTask(task);
+    if(!name) return '';
+    const keys = writerKeys(task);
+    const color = colorForKeys(keys, '#F6E7D8');
+    const text = readable(color);
+    return `<em class="content-writer-badge-v222" style="--writer-color:${html(color)};--writer-text:${html(text)}"><span>كاتب المحتوى</span><b>${html(name)}</b></em>`;
+  }
+  function actualVisibleTaskNo(raw){
+    const text = txt(raw).toUpperCase();
+    if(!text) return '';
+    const match = text.match(/\b([A-Z]{1,4}(?:-[A-Z0-9]{1,16}){2,}-N\d{1,3})\b/i);
+    if(match) return match[1].toUpperCase();
+    if(/-N\d{1,3}\b/i.test(text) && text.split('-').length >= 4) return text;
+    return '';
+  }
+  function actualTaskNo(task){
+    const row = task?.structureRow || {};
+    const raw = task?.raw || {};
+    const values = [
+      row.taskNo, row.structureTaskNo, row.taskNumber, row['رقم التاسك'], row['كود تاسك الهيكل'],
+      raw.taskNo, raw.structureTaskNo, raw.taskNumber, raw['رقم التاسك'], raw['كود تاسك الهيكل'],
+      task?.taskNo, task?.structureTaskNo, task?.taskNumber
+    ];
+    for(const value of values){
+      const no = actualVisibleTaskNo(value);
+      if(no) return no;
+    }
+    return '';
+  }
+  function taskNoBlock(task){
+    const no = actualTaskNo(task);
+    return no ? `<div class="task-id-full-v221 task-id-real-v222">${html(no)}</div>` : '';
+  }
+  function templateStatus(task){
+    const tpl = task?.taskTemplate || task?.contentTaskTemplate || task?.approvedContentTemplate || {};
+    return txt(tpl.status || task?.linkedContentTemplateStatus || task?.contentTemplateStatus || task?.status || '');
+  }
+  function taskTemplateAttached(task){
+    const tpl = task?.taskTemplate || task?.contentTaskTemplate || task?.approvedContentTemplate || {};
+    return !!(tpl.fileData || tpl.fileName || tpl.fileSize || tpl.uploadedAt || ['pending_review','approved','needs_changes','rejected'].includes(String(tpl.status || '')));
+  }
+  function taskTemplateBadge(task){
+    if(taskTemplateAttached(task)) return '<b class="state-chip is-task-template-attached-v220">تم إرفاق Task Template</b>';
+    const status = ident(templateStatus(task));
+    return (status.includes('pending_task_template') || status.includes('task_template_approved')) ? '<b class="state-chip is-task-template-attached-v220">تم إرفاق Task Template</b>' : '';
+  }
+  function needsContentApproval(task){
+    const role = (typeof normalizeDepartmentRole === 'function') ? normalizeDepartmentRole(task?.departmentRole || task?.assignedDepartmentName || task?.contentSectionName || '') : '';
+    const status = ident(task?.linkedContentTemplateStatus || task?.contentTemplateStatus || '');
+    if(role === 'content') return false;
+    if(status && !['approved','معتمد'].some(key => status.includes(ident(key)))) return true;
+    if(task?.waitingForApproval && (task?.contentExecutionPairKey || task?.linkedExecutionPairKey || task?.linkedContentTemplateTaskId)) return true;
+    return false;
+  }
+  if(typeof buildStructureTaskFromRow === 'function'){
+    const oldBuild = buildStructureTaskFromRow;
+    buildStructureTaskFromRow = function(campaign, parentTask, row, assigneeId, rowIndex, publishMeta = {}){
+      const task = oldBuild(campaign, parentTask, row, assigneeId, rowIndex, publishMeta);
+      const writer = writerFromParentTask(parentTask || {});
+      const actualNo = actualVisibleTaskNo(row?.taskNo || row?.structureTaskNo || task?.taskNo || task?.structureTaskNo || '');
+      return {
+        ...task,
+        taskNo: actualNo || txt(row?.taskNo || task?.taskNo || ''),
+        structureTaskNo: actualNo || txt(row?.taskNo || task?.structureTaskNo || ''),
+        contentWriterId: writer.id,
+        contentWriterUid: writer.uid,
+        contentWriterEmail: writer.email,
+        contentWriterName: writer.name,
+        approvedContentWriterId: writer.id,
+        approvedContentWriterUid: writer.uid,
+        approvedContentWriterEmail: writer.email,
+        approvedContentWriterName: writer.name,
+        structureApprovedFromId: writer.id,
+        structureApprovedFromUid: writer.uid,
+        structureApprovedFromEmail: writer.email,
+        structureApprovedFromName: writer.name,
+        structureApprovedFromTaskId: parentTask?.id || '',
+        structureApprovedFromTaskNo: actualVisibleTaskNo(parentTask?.taskNo || parentTask?.structureTaskNo || '') || '',
+        approvedStructureSource: 'content_writer'
+      };
+    };
+  }
+  if(typeof mergeStructureAdditionIntoExistingTask === 'function'){
+    const oldMerge = mergeStructureAdditionIntoExistingTask;
+    mergeStructureAdditionIntoExistingTask = function(existing, addition, parentTask){
+      const merged = oldMerge(existing, addition, parentTask);
+      return {
+        ...merged,
+        contentWriterId: addition.contentWriterId || merged.contentWriterId || '',
+        contentWriterUid: addition.contentWriterUid || merged.contentWriterUid || '',
+        contentWriterEmail: addition.contentWriterEmail || merged.contentWriterEmail || '',
+        contentWriterName: addition.contentWriterName || merged.contentWriterName || '',
+        approvedContentWriterId: addition.approvedContentWriterId || merged.approvedContentWriterId || '',
+        approvedContentWriterUid: addition.approvedContentWriterUid || merged.approvedContentWriterUid || '',
+        approvedContentWriterEmail: addition.approvedContentWriterEmail || merged.approvedContentWriterEmail || '',
+        approvedContentWriterName: addition.approvedContentWriterName || merged.approvedContentWriterName || '',
+        structureApprovedFromId: addition.structureApprovedFromId || merged.structureApprovedFromId || parentTask?.assignedToId || '',
+        structureApprovedFromUid: addition.structureApprovedFromUid || merged.structureApprovedFromUid || parentTask?.assignedToUid || '',
+        structureApprovedFromEmail: addition.structureApprovedFromEmail || merged.structureApprovedFromEmail || parentTask?.assignedToEmail || '',
+        structureApprovedFromName: addition.structureApprovedFromName || merged.structureApprovedFromName || ownerName(parentTask || {}),
+        structureApprovedFromTaskId: addition.structureApprovedFromTaskId || merged.structureApprovedFromTaskId || parentTask?.id || '',
+        structureApprovedFromTaskNo: addition.structureApprovedFromTaskNo || merged.structureApprovedFromTaskNo || actualVisibleTaskNo(parentTask?.taskNo || parentTask?.structureTaskNo || '') || '',
+        approvedStructureSource: 'content_writer'
+      };
+    };
+  }
+  function renderAssigneeAndWriter(task){
+    const writer = writerBadge(task);
+    return `<div class="assignee-writer-stack-v222">${ownerBadge(task)}${writer}</div>`;
+  }
+  if(typeof campaignTasksSnapshot === 'function'){
+    const oldSnap = campaignTasksSnapshot;
+    campaignTasksSnapshot = function(campaign){
+      const snap = oldSnap(campaign);
+      const related = snap.related || (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []);
+      return { ...snap, taskTemplateAttached: (related || []).filter(taskTemplateAttached).length, contentWaiting: (related || []).filter(needsContentApproval).length };
+    };
+  }
+  if(typeof receivedLabel === 'function'){
+    const oldReceivedLabel = receivedLabel;
+    receivedLabel = function(task){ return needsContentApproval(task) ? 'في انتظار اعتماد المحتوى' : oldReceivedLabel(task); };
+  }
+  if(typeof receivedClass === 'function'){
+    const oldReceivedClass = receivedClass;
+    receivedClass = function(task){ return needsContentApproval(task) ? 'is-content-waiting-v220' : oldReceivedClass(task); };
+  }
+  if(typeof renderAdminDashboard === 'function'){
+    renderAdminDashboard = function(){
+      const allTasks = campaigns.flatMap(campaign => adminDashboardTasksForCampaign(campaign));
+      const count = document.getElementById('dashboardCampaignsCount'); if(count) count.textContent = campaigns.length || '—';
+      const tasksCount = document.getElementById('dashboardTasksCount'); if(tasksCount) tasksCount.textContent = allTasks.length || '—';
+      const adminBoard = document.getElementById('adminDashboardBoard');
+      if(!adminBoard) return;
+      if(!isCurrentUserAdmin()) { renderUserDashboard(); return; }
+      setDashboardMode('admin');
+      const items = campaigns.map(campaign => ({ campaign, ...campaignTasksSnapshot(campaign) }));
+      const requiredItems = items.filter(item => item.total && item.received < item.total);
+      const readinessItems = items.filter(item => item.total && (item.progress < 100 || item.keepStructureInReadiness || item.taskTemplateAttached || item.contentWaiting));
+      const publishItems = items.filter(item => item.progress >= 100 && item.publish < 100 && !item.keepStructureInReadiness && !item.contentWaiting);
+      const archiveItems = items.filter(item => item.progress >= 100 && item.publish >= 100 && !item.keepStructureInReadiness && !item.contentWaiting);
+      const taskLine = task => `<div class="task-line-v220 task-line-v221 task-line-v222">${taskNoBlock(task)}<div class="task-main-row-v221"><div class="task-title-v221"><b>${shortTaskName(task)}</b>${renderAssigneeAndWriter(task)}</div><span class="receive-state-stack"><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span></div></div>`;
+      const requiredCard = item => `<article class="dash-task-receive-card"><div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${html(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')}</span></div><div class="receive-meter"><strong>${item.received}/${item.total}</strong><span>تم الاستلام</span></div>${item.taskTemplateAttached ? `<div class="task-template-attach-alert-v220">تم إرفاق Task Template · ${item.taskTemplateAttached}</div>` : ''}${item.contentWaiting ? `<div class="content-approval-alert-v220">في انتظار اعتماد المحتوى · ${item.contentWaiting}</div>` : ''}<div class="receive-list">${item.related.map(taskLine).join('')}</div></article>`;
+      const readinessCard = item => `<article class="dash-campaign-card dash-ready-card" data-open-campaign="${html(item.campaign.id)}"><div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${item.progress}%</span></div><p>${html(item.campaign.campaignCode || item.campaign.campaign_code || 'بدون كود')} · ${item.total} تاسك</p>${item.structureAttached ? `<div class="structure-attach-alert">تم إرفاق الهيكل · ${item.structureAttached}</div>` : ''}${item.taskTemplateAttached ? `<div class="task-template-attach-alert-v220">تم إرفاق Task Template · ${item.taskTemplateAttached}</div>` : ''}${item.contentWaiting ? `<div class="content-approval-alert-v220">في انتظار اعتماد المحتوى · ${item.contentWaiting}</div>` : ''}<div class="dash-progress"><span style="width:${Math.min(100,item.progress)}%"></span></div><button type="button" class="open-details-hint">عرض التاسكات</button></article>`;
+      const publishCard = item => `<article class="dash-campaign-card publish-card" data-open-campaign="${html(item.campaign.id)}"><div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>${item.publish}%</span></div><p>${html(item.campaign.campaignCode || item.campaign.campaign_code || '')}</p><div class="publish-actions"><button type="button" data-stage="prep" data-campaign-id="${html(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.prep ? 'done' : ''}">التجهيز 35%</button><button type="button" data-stage="approval" data-campaign-id="${html(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.approval ? 'done' : ''}">الاعتماد 30%</button><button type="button" data-stage="publish" data-campaign-id="${html(item.campaign.id)}" class="mini-btn ${item.campaign.publishStages?.publish ? 'done' : ''}">النشر 35%</button></div></article>`;
+      const archiveCard = item => `<article class="dash-campaign-card archive-card" data-open-campaign="${html(item.campaign.id)}"><div class="dash-card-top"><strong>${shortCampaignTitle(item.campaign)}</strong><span>جاهزة</span></div><p>${html(item.campaign.campaignCode || item.campaign.campaign_code || '')}</p></article>`;
+      adminBoard.innerHTML = `${renderProDashboardHero(allTasks)}<section class="admin-dash-col receive-col"><div class="col-title"><h2>TASK - المطلوب</h2><p>متابعة الاستلام + Task Template + اعتماد المحتوى.</p></div>${requiredItems.length ? requiredItems.map(requiredCard).join('') : '<div class="empty-state soft-empty">كل المطلوب تم استلامه حالياً.</div>'}</section><section class="admin-dash-col ready-col"><div class="col-title"><h2>جاهزية المطلوب</h2><p>اضغط على حملة لفتح التاسكات بنظام كانبان.</p></div>${readinessItems.length ? readinessItems.map(readinessCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات قيد التجهيز.</div>'}</section><section class="admin-dash-col publish-col"><div class="col-title"><h2>قسم النشر</h2><p>تظهر هنا بعد اكتمال جاهزية المطلوب واعتماد المحتوى.</p></div>${publishItems.length ? publishItems.map(publishCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات جاهزة للنشر.</div>'}</section><section class="admin-dash-col archive-col"><div class="col-title"><h2>قسم الأرشيف</h2><p>بعد اكتمال النشر، تصبح جاهزة للأرشفة.</p></div>${archiveItems.length ? archiveItems.map(archiveCard).join('') : '<div class="empty-state soft-empty">لا توجد حملات مؤرشفة حالياً.</div>'}</section>`;
+    };
+  }
+  if(typeof renderCampaignInlineTasks === 'function'){
+    const oldInline = renderCampaignInlineTasks;
+    renderCampaignInlineTasks = function(campaign){
+      try{
+        const related = (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []).slice().sort(typeof v197AdminTaskSort === 'function' ? v197AdminTaskSort : undefined);
+        const grouped = typeof groupTasksForKanban === 'function' ? groupTasksForKanban(related) : [];
+        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 inline-task-row-v222 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${html([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))}</p>${renderAssigneeAndWriter(task)}</div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${html(task.id)}" data-task-campaign="${html(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
+        return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
+      }catch(error){ console.error('v222 render campaign inline tasks failed', error); return oldInline(campaign); }
+    };
+  }
+  try{ if(typeof getRoute === 'function' && getRoute() === 'dashboard' && typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(_){ }
+})();
