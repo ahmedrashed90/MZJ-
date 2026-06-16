@@ -15764,35 +15764,50 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     return opts.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
   }
   async function renderShotRealtime(ctx, canvas, shot, index, total, meta){
-    const {el:video,url} = await loadMediaElement(shot.file, 'video');
-    const start = Math.max(0, Math.min(shot.start || 0, Math.max(0, (video.duration || 0) - .1)));
-    video.currentTime = start;
-    await new Promise(resolve => { video.onseeked = resolve; setTimeout(resolve, 900); });
-    try{ await video.play(); }catch(_){ }
+    let video = null;
+    let url = null;
+    if(shot.file){
+      try{
+        const loaded = await loadMediaElement(shot.file, 'video');
+        video = loaded.el; url = loaded.url;
+        const start = Math.max(0, Math.min(shot.start || 0, Math.max(0, (video.duration || 0) - .1)));
+        video.currentTime = start;
+        await new Promise(resolve => { video.onseeked = resolve; setTimeout(resolve, 900); });
+        try{ await video.play(); }catch(_){ }
+      }catch(_){ video = null; }
+    }
     const shotStart = performance.now();
     return new Promise(resolve => {
       function frame(now){
         const elapsed = (now - shotStart) / 1000;
-        const p = Math.min(1, elapsed / shot.use);
+        const duration = Math.max(.4, Number(shot.use) || 1.2);
+        const p = Math.min(1, elapsed / duration);
         ctx.fillStyle = '#030712'; ctx.fillRect(0,0,canvas.width, canvas.height);
-        drawCover(ctx, video, canvas.width, canvas.height, 1.025 + p * .045);
-        const captions = meta.captions;
+        if(video && video.readyState >= 2 && !video.error){
+          drawCover(ctx, video, canvas.width, canvas.height, 1.025 + p * .045);
+        }else{
+          drawPreviewEmptyBase(ctx, canvas.width, canvas.height, shot.file ? 'تعذر عرض الفيديو' : 'مشهد بدون فيديو', shot.title || '');
+        }
+        const captions = meta.captions || [];
         const cap = shot.caption || (captions.length ? captions[Math.min(captions.length-1, Math.floor(((meta.absoluteTime + elapsed) / Math.max(1, meta.totalDuration)) * captions.length))] : shot.title);
         drawOverlay(ctx, canvas.width, canvas.height, { shot, carName:meta.carName, brandName:meta.brandName, caption:cap, logo:meta.logo, progress:p });
-        setProgress(((meta.absoluteTime + elapsed) / meta.totalDuration) * 100);
-        if(elapsed < shot.use && !video.ended){ requestAnimationFrame(frame); }
-        else { video.pause(); URL.revokeObjectURL(url); resolve(); }
+        setProgress(((meta.absoluteTime + elapsed) / Math.max(.1, meta.totalDuration)) * 100);
+        if(elapsed < duration && !(video && video.ended)){ requestAnimationFrame(frame); }
+        else { if(video) video.pause(); if(url) URL.revokeObjectURL(url); resolve(); }
       }
       requestAnimationFrame(frame);
     });
   }
   async function generateChecklistVideo(){
     if(checklistRendering) return;
-    const shots = selectedShotRows();
-    if(!shots.length){ studioLog('اختار فيديو واحد على الأقل من الـ Checklist.'); return; }
+    const shots = activeShotRows();
+    if(!shots.length){ studioLog('اختار مشهد واحد على الأقل من الـ Checklist أو استورد ملف السكريبت.'); return; }
     checklistRendering = true;
+    const btn = $('checklistGenerateBtn');
+    const oldBtnText = btn ? btn.textContent : '';
+    if(btn){ btn.disabled = true; btn.textContent = 'جاري تجهيز الملف...'; }
     setProgress(0);
-    $('checklistDownloads') && ($('checklistDownloads').innerHTML = '');
+    $('checklistDownloads') && ($('checklistDownloads').innerHTML = '<span class="checklist-rendering-note">جاري تجهيز الفيديو النهائي بنفس أبعاد نوع النشر المختار...</span>');
     try{
       const dims = selectedDims();
       const canvas = document.createElement('canvas');
@@ -15846,7 +15861,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
         duration:totalDuration,
         captionSettings: captionSettings(),
         voiceoverScript: shots.map(s => s.voiceover).filter(Boolean).join('\n'),
-        shots:shots.map(s => ({id:s.id,title:s.title,part:s.part,file:s.file.name,start:s.start,duration:s.use,voiceover:s.voiceover,caption:s.caption}))
+        shots:shots.map(s => ({id:s.id,title:s.title,part:s.part,file:s.file ? s.file.name : '',start:s.start,duration:s.use,voiceover:s.voiceover,caption:s.caption}))
       };
       const planUrl = URL.createObjectURL(new Blob([JSON.stringify(plan,null,2)], {type:'application/json'}));
       const out = $('checklistDownloads');
@@ -15855,8 +15870,13 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       studioLog('تم تجهيز الملف النهائي. اضغط تحميل الفيديو النهائي.');
     }catch(error){
       console.error(error);
-      studioLog('خطأ أثناء التصدير: ' + (error.message || error));
+      const msg = 'خطأ أثناء التصدير: ' + (error.message || error);
+      studioLog(msg);
+      const out = $('checklistDownloads');
+      if(out) out.innerHTML = `<span class="checklist-render-error">${escapeHtml(msg)}</span>`;
     }finally{
+      const btn = $('checklistGenerateBtn');
+      if(btn){ btn.disabled = false; btn.textContent = 'تجهيز الملف النهائي'; }
       checklistRendering = false;
     }
   }
