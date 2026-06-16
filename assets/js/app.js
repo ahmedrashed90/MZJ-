@@ -14988,6 +14988,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   ].map(([id,title,shoot,part,use]) => ({ id,title,shoot,part,use }));
   let checklistStudioReady = false;
   let checklistRendering = false;
+  const checklistPreviewState = { playing:false, paused:false, raf:0, time:0, total:0, startPerf:0, shots:[], currentIndex:-1, video:null, videoUrl:'', logo:null, draggingCaption:false, customX:.5, customY:.72 };
 
   function $(id){ return document.getElementById(id); }
   function studioLog(text){ const el = $('checklistLog'); if(el) el.textContent = text; }
@@ -15360,7 +15361,9 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       showSceneNumber: !!$('checklistShowSceneNumber')?.checked,
       showPartLabel: !!$('checklistShowPartLabel')?.checked,
       showCaptionBox: $('checklistShowCaptionBox')?.checked !== false,
-      showLogo: $('checklistShowLogo')?.checked !== false
+      showLogo: $('checklistShowLogo')?.checked !== false,
+      customX: checklistPreviewState.customX || .5,
+      customY: checklistPreviewState.customY || .72
     };
   }
   function drawPreviewPlaceholder(){
@@ -15373,22 +15376,152 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const shot = activeShotRows()[0] || CHECKLIST_SHOTS[3];
     drawOverlay(ctx,w,h,{shot,carName:$('checklistCarName')?.value || 'اسم السيارة',brandName:$('checklistBrandName')?.value || 'MZJ',caption:(shot.caption || 'كابشن المشهد'),logo:null,progress:.5});
   }
-  async function previewChecklistVideo(){
-    const shots = selectedShotRows();
-    const canvas = $('checklistPreviewCanvas');
-    if(!canvas){ return; }
-    if(!shots.length){ studioLog('المعاينة السريعة تعمل بالكابشن والإعدادات الحالية. لا يوجد فيديو مختار لعرض لقطات حقيقية.'); drawPreviewPlaceholder(); return; }
-    const ctx = canvas.getContext('2d', { alpha:false });
-    const totalDuration = shots.reduce((sum,s)=>sum+s.use,0);
-    const logo = await loadImageFile($('checklistLogoFile')?.files?.[0] || null).catch(()=>null);
-    const meta = { totalDuration, absoluteTime:0, carName:$('checklistCarName')?.value || '', brandName:$('checklistBrandName')?.value || '', logo, captions:captionsFromScript() };
-    studioLog(`بدأت المعاينة: ${shots.length} مشهد`);
+  function previewTimelineShots(){
+    let shots = selectedShotRows();
+    if(!shots.length) shots = activeShotRows();
+    if(!shots.length) shots = CHECKLIST_SHOTS.map(shotRowData).slice(0, 1);
+    return shots;
+  }
+  function updatePreviewControls(){
+    const scrub = $('checklistPreviewScrub');
+    const time = $('checklistPreviewTime');
+    const status = $('checklistPreviewStatus');
+    if(scrub){ scrub.max = String(Math.max(0, checklistPreviewState.total || 0)); scrub.value = String(Math.max(0, Math.min(checklistPreviewState.time || 0, checklistPreviewState.total || 0))); }
+    if(time) time.textContent = `${(checklistPreviewState.time || 0).toFixed(1)}s / ${(checklistPreviewState.total || 0).toFixed(1)}s`;
+    if(status) status.textContent = checklistPreviewState.playing ? 'تشغيل' : 'متوقف';
+  }
+  function shotAtTime(time){
+    const shots = checklistPreviewState.shots && checklistPreviewState.shots.length ? checklistPreviewState.shots : previewTimelineShots();
+    let acc = 0;
     for(let i=0;i<shots.length;i++){
-      await renderShotRealtime(ctx, canvas, shots[i], i, shots.length, meta);
-      meta.absoluteTime += shots[i].use;
+      const dur = Math.max(.1, Number(shots[i].use) || 1);
+      if(time <= acc + dur || i === shots.length - 1) return {shot:shots[i], index:i, local:Math.max(0, time - acc), start:acc};
+      acc += dur;
     }
-    if(logo?.url) URL.revokeObjectURL(logo.url);
-    studioLog('انتهت المعاينة.');
+    return {shot:shots[0], index:0, local:0, start:0};
+  }
+  function stopPreviewPlayback(){
+    checklistPreviewState.playing = false;
+    checklistPreviewState.paused = true;
+    if(checklistPreviewState.raf) cancelAnimationFrame(checklistPreviewState.raf);
+    checklistPreviewState.raf = 0;
+    try{ checklistPreviewState.video?.pause(); }catch(_){ }
+    updatePreviewControls();
+  }
+  function cleanupPreviewVideo(){
+    try{ checklistPreviewState.video?.pause(); }catch(_){ }
+    if(checklistPreviewState.videoUrl){ try{ URL.revokeObjectURL(checklistPreviewState.videoUrl); }catch(_){ } }
+    checklistPreviewState.video = null;
+    checklistPreviewState.videoUrl = '';
+    checklistPreviewState.currentIndex = -1;
+  }
+  async function ensurePreviewVideo(item){
+    if(!item.shot.file) return null;
+    if(checklistPreviewState.currentIndex === item.index && checklistPreviewState.video) return checklistPreviewState.video;
+    cleanupPreviewVideo();
+    const {el,url} = await loadMediaElement(item.shot.file, 'video');
+    el.muted = true;
+    el.playsInline = true;
+    checklistPreviewState.video = el;
+    checklistPreviewState.videoUrl = url;
+    checklistPreviewState.currentIndex = item.index;
+    return el;
+  }
+  async function drawPreviewAt(time, allowPlay=false){
+    const canvas = $('checklistPreviewCanvas');
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha:false });
+    const item = shotAtTime(time);
+    const p = Math.max(0, Math.min(1, item.local / Math.max(.1, Number(item.shot.use) || 1)));
+    ctx.fillStyle = '#030712'; ctx.fillRect(0,0,canvas.width, canvas.height);
+    if(item.shot.file){
+      try{
+        const video = await ensurePreviewVideo(item);
+        const target = Math.max(0, (Number(item.shot.start) || 0) + item.local);
+        if(Math.abs((video.currentTime || 0) - target) > .35) video.currentTime = Math.min(target, Math.max(0, (video.duration || target + .1) - .05));
+        if(allowPlay && checklistPreviewState.playing){ try{ await video.play(); }catch(_){ } }
+        if(video.readyState >= 2) drawCover(ctx, video, canvas.width, canvas.height, 1.025 + p * .045);
+        else { ctx.fillStyle = '#111827'; ctx.fillRect(0,0,canvas.width,canvas.height); }
+      }catch(_){
+        const grad = ctx.createLinearGradient(0,0,canvas.width,canvas.height); grad.addColorStop(0,'#111827'); grad.addColorStop(1,'#1e293b'); ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+      }
+    }else{
+      const grad = ctx.createLinearGradient(0,0,canvas.width,canvas.height); grad.addColorStop(0,'#111827'); grad.addColorStop(1,'#1e293b'); ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+    const logo = checklistPreviewState.logo || null;
+    drawOverlay(ctx,canvas.width,canvas.height,{shot:item.shot,carName:$('checklistCarName')?.value || 'اسم السيارة',brandName:$('checklistBrandName')?.value || 'MZJ',caption:(item.shot.caption || 'كابشن المشهد'),logo,progress:p});
+    checklistPreviewState.time = Math.max(0, Math.min(time, checklistPreviewState.total || 0));
+    updatePreviewControls();
+  }
+  async function startPreviewPlayback(){
+    checklistPreviewState.shots = previewTimelineShots();
+    checklistPreviewState.total = checklistPreviewState.shots.reduce((a,b)=>a+(Number(b.use)||1),0);
+    if(!checklistPreviewState.total) checklistPreviewState.total = 1;
+    if(!checklistPreviewState.logo){ checklistPreviewState.logo = await loadImageFile($('checklistLogoFile')?.files?.[0] || null).catch(()=>null); }
+    if(checklistPreviewState.time >= checklistPreviewState.total) checklistPreviewState.time = 0;
+    checklistPreviewState.playing = true;
+    checklistPreviewState.paused = false;
+    checklistPreviewState.startPerf = performance.now() - (checklistPreviewState.time * 1000);
+    studioLog('بدأت معاينة الفيديو. اضغط Space للإيقاف أو اسحب الشريط للتحريك.');
+    async function tick(now){
+      if(!checklistPreviewState.playing) return;
+      const t = Math.min(checklistPreviewState.total, (now - checklistPreviewState.startPerf) / 1000);
+      await drawPreviewAt(t, true);
+      if(t >= checklistPreviewState.total){ stopPreviewPlayback(); studioLog('انتهت المعاينة.'); return; }
+      checklistPreviewState.raf = requestAnimationFrame(tick);
+    }
+    checklistPreviewState.raf = requestAnimationFrame(tick);
+  }
+  async function previewChecklistVideo(){
+    stopPreviewPlayback();
+    cleanupPreviewVideo();
+    if(checklistPreviewState.logo?.url){ try{ URL.revokeObjectURL(checklistPreviewState.logo.url); }catch(_){ } }
+    checklistPreviewState.logo = await loadImageFile($('checklistLogoFile')?.files?.[0] || null).catch(()=>null);
+    checklistPreviewState.shots = previewTimelineShots();
+    checklistPreviewState.total = checklistPreviewState.shots.reduce((a,b)=>a+(Number(b.use)||1),0) || 1;
+    checklistPreviewState.time = 0;
+    updatePreviewControls();
+    await startPreviewPlayback();
+  }
+  async function toggleChecklistPreview(){
+    if(checklistPreviewState.playing){ stopPreviewPlayback(); return; }
+    await startPreviewPlayback();
+  }
+  function setupPreviewInteractions(){
+    const canvas = $('checklistPreviewCanvas');
+    const scrub = $('checklistPreviewScrub');
+    $('checklistPreviewPlayPauseBtn')?.addEventListener('click', toggleChecklistPreview);
+    scrub?.addEventListener('input', async () => {
+      stopPreviewPlayback();
+      checklistPreviewState.time = Number(scrub.value) || 0;
+      await drawPreviewAt(checklistPreviewState.time, false);
+    });
+    canvas?.addEventListener('pointerdown', e => {
+      const rect = canvas.getBoundingClientRect();
+      checklistPreviewState.draggingCaption = true;
+      canvas.setPointerCapture?.(e.pointerId);
+      checklistPreviewState.customX = (e.clientX - rect.left) / rect.width;
+      checklistPreviewState.customY = (e.clientY - rect.top) / rect.height;
+      const pos = $('checklistCaptionPosition'); if(pos) pos.value = 'custom';
+      drawPreviewAt(checklistPreviewState.time || 0, false);
+    });
+    canvas?.addEventListener('pointermove', e => {
+      if(!checklistPreviewState.draggingCaption) return;
+      const rect = canvas.getBoundingClientRect();
+      checklistPreviewState.customX = Math.max(.08, Math.min(.92, (e.clientX - rect.left) / rect.width));
+      checklistPreviewState.customY = Math.max(.08, Math.min(.92, (e.clientY - rect.top) / rect.height));
+      drawPreviewAt(checklistPreviewState.time || 0, false);
+    });
+    ['pointerup','pointercancel','pointerleave'].forEach(type => canvas?.addEventListener(type, e => { checklistPreviewState.draggingCaption = false; try{ canvas.releasePointerCapture?.(e.pointerId); }catch(_){} }));
+    document.addEventListener('keydown', e => {
+      const activeView = document.querySelector('.view.active')?.id || location.hash.replace('#','');
+      if(e.code === 'Space' && activeView === 'checklist-reel'){
+        const tag = (document.activeElement?.tagName || '').toLowerCase();
+        if(['input','textarea','select','button'].includes(tag)) return;
+        e.preventDefault();
+        toggleChecklistPreview();
+      }
+    });
   }
 
   function setupChecklistStudio(){
@@ -15409,11 +15542,11 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     $('checklistBuildScriptBtn')?.addEventListener('click', () => { const text = buildSelectedVoiceoverScript(); studioLog(text ? 'تم تجميع سكريبت المشاهد المختارة.' : 'اختار مشاهد أو اكتب فويس أوفر للمشاهد أولاً.'); });
     $('checklistDownloadTemplateBtn')?.addEventListener('click', downloadChecklistTemplate);
     $('checklistGenerateBtn')?.addEventListener('click', generateChecklistVideo);
-    $('checklistGenerateBtnBottom')?.addEventListener('click', generateChecklistVideo);
     $('checklistPreviewBtn')?.addEventListener('click', previewChecklistVideo);
+    setupPreviewInteractions();
     $('checklistResetBtn')?.addEventListener('click', resetChecklist);
-    $('checklistCaptionSize')?.addEventListener('input', () => { const lbl = $('checklistCaptionSizeLabel'); if(lbl) lbl.textContent = $('checklistCaptionSize').value + 'px'; drawPreviewPlaceholder(); });
-    ['checklistCaptionColor','checklistCaptionBg','checklistCaptionAccent','checklistShowCarName','checklistShowBrandName','checklistShowSceneNumber','checklistShowPartLabel','checklistShowCaptionBox','checklistShowLogo'].forEach(id => $(id)?.addEventListener('change', drawPreviewPlaceholder));
+    $('checklistCaptionSize')?.addEventListener('input', () => { const lbl = $('checklistCaptionSizeLabel'); if(lbl) lbl.textContent = $('checklistCaptionSize').value + 'px'; drawPreviewAt(checklistPreviewState.time || 0, false); });
+    ['checklistCaptionColor','checklistCaptionBg','checklistCaptionAccent','checklistCaptionPosition','checklistCaptionFont','checklistCaptionIn','checklistCaptionOut','checklistCaptionSeparator','checklistShowCarName','checklistShowBrandName','checklistShowSceneNumber','checklistShowPartLabel','checklistShowCaptionBox','checklistShowLogo'].forEach(id => $(id)?.addEventListener('change', () => drawPreviewAt(checklistPreviewState.time || 0, false)));
     drawPreviewPlaceholder();
     $('checklistPartsStrip')?.addEventListener('click', e => {
       const btn = e.target.closest('[data-focus-part]');
@@ -15485,6 +15618,11 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     return `rgba(${r},${g},${b},${alpha})`;
   }
   function captionXY(w,h,boxW,boxH,position){
+    if(position === 'custom'){
+      const x = Math.max(0, Math.min(1, checklistPreviewState.customX || .5));
+      const y = Math.max(0, Math.min(1, checklistPreviewState.customY || .72));
+      return [Math.max(8, Math.min(w - boxW - 8, (x * w) - boxW / 2)), Math.max(8, Math.min(h - boxH - 8, (y * h) - boxH / 2))];
+    }
     if(position === 'top') return [(w-boxW)/2, h*.17];
     if(position === 'center') return [(w-boxW)/2, (h-boxH)/2];
     if(position === 'bottom') return [(w-boxW)/2, h*.79];
