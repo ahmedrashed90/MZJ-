@@ -14994,6 +14994,77 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   function setProgress(v){ const bar = $('checklistProgressBar'); if(bar) bar.style.width = `${Math.max(0, Math.min(100, v))}%`; }
   function partTitle(key){ return CHECKLIST_PARTS.find(p => p.key === key)?.title || key; }
   function safeFileName(text){ return String(text || 'mzj-reel').replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,'_').slice(0,80); }
+  function normalizeHeaderKey(value){
+    return String(value || '').trim().toLowerCase().replace(/[\s_\-.]+/g,'').replace(/[أإآا]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي');
+  }
+  function rowValue(row, names){
+    const keys = Object.keys(row || {});
+    for(const name of names){
+      const want = normalizeHeaderKey(name);
+      const found = keys.find(k => normalizeHeaderKey(k) === want || normalizeHeaderKey(k).includes(want));
+      if(found != null && row[found] != null && String(row[found]).trim() !== '') return row[found];
+    }
+    return '';
+  }
+  function setShotText(id, voiceover, caption){
+    const v = document.querySelector(`[data-shot-voiceover="${id}"]`);
+    const c = document.querySelector(`[data-shot-caption="${id}"]`);
+    if(v && voiceover !== undefined) v.value = String(voiceover || '').trim();
+    if(c && caption !== undefined) c.value = String(caption || '').trim();
+  }
+  function buildSelectedVoiceoverScript(){
+    const shots = selectedShotRows();
+    const text = shots.map(s => s.voiceover).filter(Boolean).join('\n');
+    const script = $('checklistScript');
+    if(script) script.value = text;
+    updateChecklistSummary();
+    return text;
+  }
+  function downloadChecklistTemplate(){
+    const rows = CHECKLIST_SHOTS.map(s => ({
+      'رقم المشهد': s.id,
+      'اسم المشهد': s.title,
+      'فويس أوفر': '',
+      'كابشن': '',
+      'بداية الاستخدام': 0,
+      'مدة الاستخدام': s.use
+    }));
+    if(window.XLSX){
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'script');
+      XLSX.writeFile(wb, 'MZJ_checklist_script_template.xlsx');
+      return;
+    }
+    const csv = ['رقم المشهد,اسم المشهد,فويس أوفر,كابشن,بداية الاستخدام,مدة الاستخدام'].concat(rows.map(r => Object.values(r).map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))).join('\n');
+    const url = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'}));
+    const a = document.createElement('a'); a.href = url; a.download = 'MZJ_checklist_script_template.csv'; a.click(); URL.revokeObjectURL(url);
+  }
+  async function importChecklistScriptSheet(){
+    const file = $('checklistScriptSheetFile')?.files?.[0];
+    if(!file){ studioLog('اختار ملف CSV / Excel أولاً.'); return; }
+    if(!window.XLSX){ studioLog('مكتبة قراءة Excel غير جاهزة في الصفحة.'); return; }
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+    let imported = 0;
+    rows.forEach((row, index) => {
+      const rawId = rowValue(row, ['رقم المشهد','رقم','scene_number','scene','id','shot']);
+      const id = Number(rawId || index + 1);
+      if(!id || !CHECKLIST_SHOTS.some(s => s.id === id)) return;
+      const voiceover = rowValue(row, ['فويس أوفر','فويس','voiceover','voice_over','script','نص الفويس','التعليق الصوتي']);
+      const caption = rowValue(row, ['كابشن','caption','نص الكابشن','عنوان الشاشة','screen caption','text']);
+      const start = rowValue(row, ['بداية الاستخدام','من الثانية','start','start_second','start time']);
+      const duration = rowValue(row, ['مدة الاستخدام','استخدام في النهائي','duration','use','use_duration','end']);
+      setShotText(id, voiceover, caption);
+      if(start !== ''){ const el = document.querySelector(`[data-shot-start="${id}"]`); if(el) el.value = Number(start) || 0; }
+      if(duration !== ''){ const el = document.querySelector(`[data-shot-use="${id}"]`); if(el) el.value = Math.max(.4, Number(duration) || Number(el.value) || 1.2); }
+      imported++;
+    });
+    buildSelectedVoiceoverScript();
+    studioLog(`تم استيراد سكريبت ${imported} مشهد من الملف.`);
+  }
 
   function filteredPlatformTypes(platformName){
     let types = [];
@@ -15065,6 +15136,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       <td><label class="checklist-mini-file"><input type="file" accept="video/*" data-shot-file="${s.id}"><span data-shot-file-name="${s.id}">اختيار فيديو</span></label></td>
       <td><input class="control checklist-small-input" type="number" min="0" step="0.1" value="0" data-shot-start="${s.id}"></td>
       <td><input class="control checklist-small-input" type="number" min="0.4" step="0.1" value="${s.use}" data-shot-use="${s.id}"></td>
+      <td><textarea class="checklist-scene-text" data-shot-voiceover="${s.id}" placeholder="فويس أوفر المشهد"></textarea></td>
+      <td><textarea class="checklist-scene-text is-caption" data-shot-caption="${s.id}" placeholder="كابشن الشاشة"></textarea></td>
       <td><span class="checklist-status" data-shot-status="${s.id}">غير مختار</span></td>
     </tr>`).join('');
   }
@@ -15082,6 +15155,9 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       const name = $(`checklist${kind}Name`);
       if(input && name) name.textContent = input.files?.[0]?.name || (kind === 'Voice' ? 'اختار voiceover.mp3' : kind === 'Music' ? 'اختار music.mp3 اختياري' : 'اختار logo.png اختياري');
     });
+    const sheetInput = $('checklistScriptSheetFile');
+    const sheetName = $('checklistScriptSheetName');
+    if(sheetInput && sheetName) sheetName.textContent = sheetInput.files?.[0]?.name || 'اختار CSV / Excel';
     updateChecklistSummary();
   }
   function selectedShotRows(){
@@ -15093,7 +15169,9 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
         ...s,
         file,
         start: Number(document.querySelector(`[data-shot-start="${s.id}"]`)?.value || 0) || 0,
-        use: Math.max(0.4, Number(document.querySelector(`[data-shot-use="${s.id}"]`)?.value || s.use) || s.use)
+        use: Math.max(0.4, Number(document.querySelector(`[data-shot-use="${s.id}"]`)?.value || s.use) || s.use),
+        voiceover: String(document.querySelector(`[data-shot-voiceover="${s.id}"]`)?.value || '').trim(),
+        caption: String(document.querySelector(`[data-shot-caption="${s.id}"]`)?.value || '').trim()
       };
     }).filter(Boolean);
   }
@@ -15109,6 +15187,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   function resetChecklist(){
     document.querySelectorAll('#checklist-reel input[type="file"]').forEach(input => { input.value = ''; });
     document.querySelectorAll('[data-shot-start]').forEach(input => input.value = '0');
+    document.querySelectorAll('[data-shot-voiceover],[data-shot-caption]').forEach(input => input.value = '');
     CHECKLIST_SHOTS.forEach(s => { const inp = document.querySelector(`[data-shot-use="${s.id}"]`); if(inp) inp.value = s.use; });
     $('checklistDownloads') && ($('checklistDownloads').innerHTML = '');
     setProgress(0); studioLog('تم مسح الاختيارات.'); updateFileLabels();
@@ -15123,7 +15202,11 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     $('checklistPlatformSelect')?.addEventListener('change', populatePlatformSelectors);
     $('checklistPublishTypeSelect')?.addEventListener('change', updateOutputSpec);
     document.querySelectorAll('#checklist-reel input').forEach(input => input.addEventListener('change', updateFileLabels));
+    document.querySelectorAll('[data-shot-voiceover],[data-shot-caption],[data-shot-use],[data-shot-start]').forEach(input => input.addEventListener('input', updateChecklistSummary));
     $('checklistScript')?.addEventListener('input', updateChecklistSummary);
+    $('checklistImportScriptBtn')?.addEventListener('click', importChecklistScriptSheet);
+    $('checklistBuildScriptBtn')?.addEventListener('click', () => { const text = buildSelectedVoiceoverScript(); studioLog(text ? 'تم تجميع سكريبت المشاهد المختارة.' : 'اختار مشاهد أو اكتب فويس أوفر للمشاهد أولاً.'); });
+    $('checklistDownloadTemplateBtn')?.addEventListener('click', downloadChecklistTemplate);
     $('checklistGenerateBtn')?.addEventListener('click', generateChecklistVideo);
     $('checklistGenerateBtnBottom')?.addEventListener('click', generateChecklistVideo);
     $('checklistResetBtn')?.addEventListener('click', resetChecklist);
@@ -15244,7 +15327,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
         ctx.fillStyle = '#030712'; ctx.fillRect(0,0,canvas.width, canvas.height);
         drawCover(ctx, video, canvas.width, canvas.height, 1.025 + p * .045);
         const captions = meta.captions;
-        const cap = captions.length ? captions[Math.min(captions.length-1, Math.floor(((meta.absoluteTime + elapsed) / Math.max(1, meta.totalDuration)) * captions.length))] : shot.title;
+        const cap = shot.caption || (captions.length ? captions[Math.min(captions.length-1, Math.floor(((meta.absoluteTime + elapsed) / Math.max(1, meta.totalDuration)) * captions.length))] : shot.title);
         drawOverlay(ctx, canvas.width, canvas.height, { shot, carName:meta.carName, brandName:meta.brandName, caption:cap, logo:meta.logo, progress:p });
         setProgress(((meta.absoluteTime + elapsed) / meta.totalDuration) * 100);
         if(elapsed < shot.use && !video.ended){ requestAnimationFrame(frame); }
@@ -15305,7 +15388,14 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       const platform = safeFileName($('checklistPlatformSelect')?.value || 'platform');
       const name = `MZJ_${car}_${platform}_${dims.width}x${dims.height}.${ext}`;
       const plan = {
-        carName: $('checklistCarName')?.value || '', brandName: $('checklistBrandName')?.value || '', platform:$('checklistPlatformSelect')?.value || '', publishType:$('checklistPublishTypeSelect')?.selectedOptions?.[0]?.textContent || '', dimensions:dims, duration:totalDuration, shots:shots.map(s => ({id:s.id,title:s.title,part:s.part,file:s.file.name,start:s.start,duration:s.use}))
+        carName: $('checklistCarName')?.value || '',
+        brandName: $('checklistBrandName')?.value || '',
+        platform:$('checklistPlatformSelect')?.value || '',
+        publishType:$('checklistPublishTypeSelect')?.selectedOptions?.[0]?.textContent || '',
+        dimensions:dims,
+        duration:totalDuration,
+        voiceoverScript: shots.map(s => s.voiceover).filter(Boolean).join('\n'),
+        shots:shots.map(s => ({id:s.id,title:s.title,part:s.part,file:s.file.name,start:s.start,duration:s.use,voiceover:s.voiceover,caption:s.caption}))
       };
       const planUrl = URL.createObjectURL(new Blob([JSON.stringify(plan,null,2)], {type:'application/json'}));
       const out = $('checklistDownloads');

@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=206" />
+  <link rel="stylesheet" href="assets/css/style.css?v=207" />
   <link rel="icon" type="image/x-icon" href="assets/favicon.png">
 </head>
 <body>
@@ -344,9 +344,16 @@
             <div class="card checklist-studio-card">
               <div class="checklist-section-title">
                 <span class="checklist-badge">3</span>
-                <div><h2>السكريبت والكابشن</h2><p>كل سطر يظهر ككابشن قصير أثناء الفيديو.</p></div>
+                <div><h2>استيراد سكريبت المشاهد</h2><p>استورد ملف CSV / Excel من فريق التسويق. كل صف فيه رقم المشهد + الفويس أوفر + الكابشن + مدة الاستخدام.</p></div>
               </div>
-              <textarea id="checklistScript" class="checklist-script" placeholder="اكتب السكريبت هنا...\nكل سطر يتحول لكابشن متحرك."></textarea>
+              <label class="checklist-file-drop"><span>📄 ملف CSV / Excel</span><strong id="checklistScriptSheetName">اختار CSV / Excel</strong><input id="checklistScriptSheetFile" type="file" accept=".csv,.xlsx,.xls"></label>
+              <div class="checklist-import-actions">
+                <button class="btn btn-primary" type="button" id="checklistImportScriptBtn">استيراد السكريبت والكابشن</button>
+                <button class="btn btn-light" type="button" id="checklistDownloadTemplateBtn">تحميل نموذج Excel</button>
+              </div>
+              <button class="btn btn-light full" type="button" id="checklistBuildScriptBtn">تجميع سكريبت الفويس أوفر من المشاهد المختارة</button>
+              <textarea id="checklistScript" class="checklist-script" placeholder="بعد الاستيراد أو التجميع هيظهر هنا سكريبت الفويس أوفر الكامل بنفس ترتيب المشاهد المختارة."></textarea>
+              <p class="muted small">أعمدة الملف المدعومة: رقم المشهد، اسم المشهد، فويس أوفر، كابشن، بداية الاستخدام، مدة الاستخدام.</p>
             </div>
 
             <div class="card checklist-summary-card">
@@ -374,6 +381,8 @@
                       <th>الفيديو من الجهاز</th>
                       <th>من الثانية</th>
                       <th>استخدام في النهائي</th>
+                      <th>فويس أوفر المشهد</th>
+                      <th>كابشن الشاشة</th>
                       <th>حالة</th>
                     </tr>
                   </thead>
@@ -837,6 +846,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="assets/js/jszip.min.js?v=160"></script>
-    <script src="assets/js/app.js?v=215"></script>
+    <script src="assets/js/app.js?v=216"></script>
 </body>
 </html>
