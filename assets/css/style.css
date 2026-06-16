@@ -8118,3 +8118,86 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 #checklist-reel .checklist-preview-actions .btn{min-width:145px}
 @media (max-width:1200px){#checklist-reel .checklist-preview-layout{grid-template-columns:1fr!important}#checklist-reel .checklist-preview-stage{max-width:460px}#checklist-reel .checklist-style-card-in-preview .checklist-style-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}#checklist-reel .checklist-preview-control-box{position:static}}
 @media (max-width:640px){#checklist-reel .checklist-preview-stage{max-width:310px}#checklist-reel .checklist-preview-caption-overlay{font-size:20px;padding:8px 12px;border-radius:16px}#checklist-reel .checklist-style-card-in-preview .checklist-style-grid{grid-template-columns:1fr!important}}
+
+/* v-checklist-caption-style-panel-below-scrub */
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview{
+  margin-top:0!important;
+  padding:16px!important;
+  border-radius:20px!important;
+  background:linear-gradient(180deg,#ffffff,#fffaf6)!important;
+  border:1px solid rgba(180,86,65,.16)!important;
+  box-shadow:0 12px 30px rgba(15,23,42,.06)!important;
+}
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview .checklist-section-title{
+  display:flex!important;
+  align-items:center!important;
+  gap:10px!important;
+  margin-bottom:12px!important;
+  padding-bottom:10px!important;
+  border-bottom:1px solid rgba(148,163,184,.18)!important;
+}
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview .checklist-badge{
+  width:30px!important;
+  height:30px!important;
+  min-width:30px!important;
+  font-size:13px!important;
+}
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview h2{
+  font-size:18px!important;
+  line-height:1.2!important;
+  margin:0 0 3px!important;
+}
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview p{
+  font-size:12px!important;
+  line-height:1.6!important;
+  margin:0!important;
+  color:#8a6d61!important;
+}
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview .checklist-style-grid{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:10px!important;
+  align-items:end!important;
+}
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview .field{
+  background:#fff!important;
+  border:1px solid rgba(148,163,184,.20)!important;
+  border-radius:14px!important;
+  padding:9px 10px!important;
+  min-height:74px!important;
+}
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview .field span{
+  display:block!important;
+  margin-bottom:6px!important;
+  font-size:12px!important;
+  font-weight:900!important;
+  color:#3b2a24!important;
+}
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview .select,
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview input[type=color]{
+  width:100%!important;
+  height:38px!important;
+  min-height:38px!important;
+}
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview input[type=range]{
+  width:100%!important;
+  height:30px!important;
+}
+#checklist-reel .checklist-preview-panel .checklist-style-card-in-preview small{
+  display:block!important;
+  margin-top:2px!important;
+  text-align:left!important;
+  direction:ltr!important;
+  color:#2563eb!important;
+  font-weight:900!important;
+}
+@media (min-width:1400px){
+  #checklist-reel .checklist-preview-layout{grid-template-columns:minmax(440px,560px) minmax(420px,1fr)!important;}
+  #checklist-reel .checklist-preview-panel .checklist-style-card-in-preview .checklist-style-grid{grid-template-columns:repeat(2,minmax(180px,1fr))!important;}
+}
+@media (max-width:1100px){
+  #checklist-reel .checklist-preview-panel .checklist-style-card-in-preview .checklist-style-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+}
+@media (max-width:640px){
+  #checklist-reel .checklist-preview-panel .checklist-style-card-in-preview .checklist-style-grid{grid-template-columns:1fr!important;}
+}
