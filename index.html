@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=207" />
+  <link rel="stylesheet" href="assets/css/style.css?v=208" />
   <link rel="icon" type="image/x-icon" href="assets/favicon.png">
 </head>
 <body>
@@ -315,94 +315,128 @@
           </div>
         </div>
 
-        <div class="checklist-studio-layout">
-          <aside class="checklist-studio-side">
+        <div class="checklist-control-stack">
+          <div class="checklist-top-grid">
             <div class="card checklist-studio-card">
               <div class="checklist-section-title">
                 <span class="checklist-badge">1</span>
-                <div><h2>بيانات الريل</h2><p>اختار المنصة ونوع النشر من إعدادات المنصات داخل السيستم.</p></div>
+                <div><h2>بيانات الريل</h2><p>اختار المنصة والأبعاد، وحدد البيانات اللي تظهر فوق الفيديو.</p></div>
               </div>
-              <div class="checklist-form-grid one">
-                <label class="field"><span>اسم العربية</span><input id="checklistCarName" type="text" placeholder="مثال: MG HS Deluxe 2025"></label>
-                <label class="field"><span>اسم البراند / المعرض</span><input id="checklistBrandName" type="text" placeholder="مثال: MZJ"></label>
+              <div class="checklist-form-grid compact">
+                <label class="field"><span>اسم العربية</span><input id="checklistCarName" type="text" placeholder="مثال: Hyundai Staria 2026"></label>
+                <label class="field"><span>اسم البراند / المعرض</span><input id="checklistBrandName" type="text" placeholder="مثال: معرض محمد العجمي"></label>
                 <label class="field"><span>المنصة</span><select id="checklistPlatformSelect" class="select"></select></label>
                 <label class="field"><span>نوع النشر والأبعاد</span><select id="checklistPublishTypeSelect" class="select"></select></label>
-                <div class="checklist-output-spec" id="checklistOutputSpec">الأبعاد: —</div>
+              </div>
+              <div class="checklist-output-spec" id="checklistOutputSpec">الأبعاد: —</div>
+              <div class="checklist-switches">
+                <label><input type="checkbox" id="checklistShowCarName" checked><span>إظهار اسم السيارة</span></label>
+                <label><input type="checkbox" id="checklistShowBrandName" checked><span>إظهار اسم المعرض</span></label>
+                <label><input type="checkbox" id="checklistShowSceneNumber"><span>إظهار رقم المشهد</span></label>
+                <label><input type="checkbox" id="checklistShowPartLabel"><span>إظهار قسم اللقطة</span></label>
+                <label><input type="checkbox" id="checklistShowCaptionBox" checked><span>خلفية للكابشن</span></label>
+                <label><input type="checkbox" id="checklistShowLogo" checked><span>إظهار اللوجو</span></label>
               </div>
             </div>
 
             <div class="card checklist-studio-card">
               <div class="checklist-section-title">
                 <span class="checklist-badge">2</span>
-                <div><h2>الصوت والهوية</h2><p>كل الملفات بتتختار من جهازك فقط.</p></div>
+                <div><h2>الصوت والهوية</h2><p>اختار الفويس أوفر، الموسيقى واللوجو من جهازك.</p></div>
               </div>
-              <label class="checklist-file-drop"><span>🎙️ فويس أوفر</span><strong id="checklistVoiceName">اختار voiceover.mp3</strong><input id="checklistVoiceFile" type="file" accept="audio/*"></label>
-              <label class="checklist-file-drop"><span>🎵 موسيقى خلفية</span><strong id="checklistMusicName">اختار music.mp3 اختياري</strong><input id="checklistMusicFile" type="file" accept="audio/*"></label>
-              <label class="checklist-file-drop"><span>🖼️ لوجو</span><strong id="checklistLogoName">اختار logo.png اختياري</strong><input id="checklistLogoFile" type="file" accept="image/*"></label>
+              <div class="checklist-file-grid">
+                <label class="checklist-file-drop"><span>🎙️ فويس أوفر</span><strong id="checklistVoiceName">اختار voiceover.mp3</strong><input id="checklistVoiceFile" type="file" accept="audio/*"></label>
+                <label class="checklist-file-drop"><span>🎵 موسيقى خلفية</span><strong id="checklistMusicName">اختار music.mp3 اختياري</strong><input id="checklistMusicFile" type="file" accept="audio/*"></label>
+                <label class="checklist-file-drop"><span>🖼️ لوجو</span><strong id="checklistLogoName">اختار logo.png اختياري</strong><input id="checklistLogoFile" type="file" accept="image/*"></label>
+              </div>
             </div>
 
             <div class="card checklist-studio-card">
               <div class="checklist-section-title">
                 <span class="checklist-badge">3</span>
-                <div><h2>استيراد سكريبت المشاهد</h2><p>استورد ملف CSV / Excel من فريق التسويق. كل صف فيه رقم المشهد + الفويس أوفر + الكابشن + مدة الاستخدام.</p></div>
+                <div><h2>استيراد سكريبت المشاهد</h2><p>استورد CSV / Excel من فريق التسويق، ثم جمّع سكريبت الفويس أوفر.</p></div>
               </div>
               <label class="checklist-file-drop"><span>📄 ملف CSV / Excel</span><strong id="checklistScriptSheetName">اختار CSV / Excel</strong><input id="checklistScriptSheetFile" type="file" accept=".csv,.xlsx,.xls"></label>
               <div class="checklist-import-actions">
                 <button class="btn btn-primary" type="button" id="checklistImportScriptBtn">استيراد السكريبت والكابشن</button>
                 <button class="btn btn-light" type="button" id="checklistDownloadTemplateBtn">تحميل نموذج Excel</button>
+                <button class="btn btn-light" type="button" id="checklistBuildScriptBtn">تجميع سكريبت الفويس أوفر</button>
               </div>
-              <button class="btn btn-light full" type="button" id="checklistBuildScriptBtn">تجميع سكريبت الفويس أوفر من المشاهد المختارة</button>
-              <textarea id="checklistScript" class="checklist-script" placeholder="بعد الاستيراد أو التجميع هيظهر هنا سكريبت الفويس أوفر الكامل بنفس ترتيب المشاهد المختارة."></textarea>
-              <p class="muted small">أعمدة الملف المدعومة: رقم المشهد، اسم المشهد، فويس أوفر، كابشن، بداية الاستخدام، مدة الاستخدام.</p>
+              <textarea id="checklistScript" class="checklist-script small" placeholder="هيظهر هنا سكريبت الفويس أوفر الكامل للمشاهد المختارة."></textarea>
+              <p class="muted small">الأعمدة: رقم المشهد، فويس أوفر، كابشن، بداية الاستخدام، مدة الاستخدام. وأعمدة اختيارية: caption_trend / highlight_word.</p>
             </div>
+          </div>
 
-            <div class="card checklist-summary-card">
-              <h2>ملخص المخرجات</h2>
-              <div id="checklistSummary" class="checklist-summary-list"></div>
-              <small>التصدير من المتصفح مباشرة. الصيغة تكون WebM في أغلب المتصفحات، وMP4 إذا كان المتصفح يدعمها.</small>
+          <div class="card checklist-style-card">
+            <div class="checklist-section-title">
+              <span class="checklist-badge">4</span>
+              <div><h2>ستايل الكابشن والحركات</h2><p>تحكم في مكان الكابشن، الخط، الألوان، حركة الدخول والخروج والفاصل بين اللقطات.</p></div>
             </div>
-          </aside>
+            <div class="checklist-style-grid">
+              <label class="field"><span>Preset الترند</span><select id="checklistCaptionPreset" class="select"><option value="arabic-review">Arabic Review</option><option value="tiktok-pop">TikTok Pop</option><option value="fast-hype">Fast Hype</option><option value="luxury-clean">Luxury Clean</option><option value="badge-specs">Badge Specs</option></select></label>
+              <label class="field"><span>مكان الكابشن</span><select id="checklistCaptionPosition" class="select"><option value="bottom">أسفل</option><option value="center-bottom" selected>وسط تحت</option><option value="center">وسط</option><option value="top">أعلى</option></select></label>
+              <label class="field"><span>نوع الخط</span><select id="checklistCaptionFont" class="select"><option value="Tajawal" selected>Tajawal</option><option value="Arial">Arial</option><option value="Tahoma">Tahoma</option><option value="Cairo">Cairo</option><option value="system">System</option></select></label>
+              <label class="field"><span>حجم الخط</span><input id="checklistCaptionSize" type="range" min="34" max="86" value="56"><small id="checklistCaptionSizeLabel">56px</small></label>
+              <label class="field"><span>لون الكابشن</span><input id="checklistCaptionColor" type="color" value="#ffffff"></label>
+              <label class="field"><span>لون خلفية الكابشن</span><input id="checklistCaptionBg" type="color" value="#080d19"></label>
+              <label class="field"><span>لون التمييز</span><input id="checklistCaptionAccent" type="color" value="#facc15"></label>
+              <label class="field"><span>حركة الدخول</span><select id="checklistCaptionIn" class="select"><option value="pop" selected>Trend Pop</option><option value="zoom">Punch Zoom</option><option value="slide-up">Slide Up</option><option value="fade">Fade In</option><option value="typewriter">Typewriter</option></select></label>
+              <label class="field"><span>حركة الخروج</span><select id="checklistCaptionOut" class="select"><option value="fade-scale" selected>Fade + Scale</option><option value="fade">Fade Out</option><option value="slide-down">Slide Down</option><option value="zoom-out">Zoom Out</option><option value="flash">Flash Out</option></select></label>
+              <label class="field"><span>الفاصل بين اللقطات</span><select id="checklistCaptionSeparator" class="select"><option value="none">بدون</option><option value="flash" selected>Flash سريع</option><option value="line">خط سريع</option><option value="swipe">Swipe / Whip</option></select></label>
+            </div>
+          </div>
 
-          <section class="checklist-studio-main">
-            <div class="card checklist-timeline-card">
-              <div class="checklist-section-title wide">
-                <span class="checklist-badge">4</span>
-                <div><h2>اختيار المشاهد من الجهاز</h2><p>اختار ملف فيديو لكل مشهد من الـ Checklist. المشاهد غير المختارة لن تدخل في الفيديو النهائي.</p></div>
+          <div class="checklist-work-grid">
+            <section class="checklist-studio-main">
+              <div class="card checklist-timeline-card">
+                <div class="checklist-section-title wide">
+                  <span class="checklist-badge">5</span>
+                  <div><h2>اختيار المشاهد من الجهاز</h2><p>فعّل المشهد، اختار الفيديو، وعدل الفويس أوفر والكابشن لكل لقطة.</p></div>
+                </div>
+                <div class="checklist-parts-strip" id="checklistPartsStrip"></div>
+                <div class="checklist-table-wrap">
+                  <table class="checklist-editor-table">
+                    <thead>
+                      <tr>
+                        <th>استخدام</th>
+                        <th>رقم</th>
+                        <th>المشهد</th>
+                        <th>قسم الريل</th>
+                        <th>مدة التصوير</th>
+                        <th>الفيديو من الجهاز</th>
+                        <th>من الثانية</th>
+                        <th>استخدام في النهائي</th>
+                        <th>فويس أوفر المشهد</th>
+                        <th>كابشن الشاشة</th>
+                        <th>حالة</th>
+                      </tr>
+                    </thead>
+                    <tbody id="checklistRows"></tbody>
+                  </table>
+                </div>
               </div>
-              <div class="checklist-parts-strip" id="checklistPartsStrip"></div>
-              <div class="checklist-table-wrap">
-                <table class="checklist-editor-table">
-                  <thead>
-                    <tr>
-                      <th>رقم</th>
-                      <th>المشهد</th>
-                      <th>قسم الريل</th>
-                      <th>مدة التصوير</th>
-                      <th>الفيديو من الجهاز</th>
-                      <th>من الثانية</th>
-                      <th>استخدام في النهائي</th>
-                      <th>فويس أوفر المشهد</th>
-                      <th>كابشن الشاشة</th>
-                      <th>حالة</th>
-                    </tr>
-                  </thead>
-                  <tbody id="checklistRows"></tbody>
-                </table>
-              </div>
-            </div>
 
-            <div class="card checklist-render-card">
-              <div class="checklist-render-head">
-                <div><h2>تصدير الفيديو النهائي</h2><p>بعد الضغط على التصدير سيعمل الفيديو في الخلفية بنفس مدة الريل تقريبًا.</p></div>
-                <button class="btn btn-primary" type="button" id="checklistGenerateBtnBottom">تجهيز الملف النهائي</button>
+              <div class="card checklist-render-card">
+                <div class="checklist-render-head">
+                  <div><h2>تصدير الفيديو النهائي</h2><p>التصدير من المتصفح مباشرة بنفس إعدادات الكابشن والحركات.</p></div>
+                  <div class="actions"><button class="btn btn-light" type="button" id="checklistPreviewBtn">معاينة الفيديو</button><button class="btn btn-primary" type="button" id="checklistGenerateBtnBottom">تجهيز الملف النهائي</button></div>
+                </div>
+                <div class="checklist-progress"><div id="checklistProgressBar"></div></div>
+                <div class="checklist-log" id="checklistLog">جاهز لاختيار الملفات.</div>
+                <div class="checklist-downloads" id="checklistDownloads"></div>
               </div>
-              <div class="checklist-progress"><div id="checklistProgressBar"></div></div>
-              <div class="checklist-log" id="checklistLog">جاهز لاختيار الملفات.</div>
-              <div class="checklist-downloads" id="checklistDownloads"></div>
-            </div>
-          </section>
-        </div>
-      </section>
+            </section>
+
+            <aside class="checklist-preview-side">
+              <div class="card checklist-preview-card">
+                <h2>معاينة الفيديو</h2>
+                <div class="checklist-preview-frame"><canvas id="checklistPreviewCanvas" width="360" height="640"></canvas></div>
+                <div id="checklistSummary" class="checklist-summary-list"></div>
+                <small>المعاينة للتأكد من الكابشن والمكان والحركة. التصدير النهائي يطلع بنفس الأبعاد المختارة.</small>
+              </div>
+            </aside>
+          </div>
+        </div>      </section>
 
       <section class="view" id="publish-prep" data-title="تجهيز النشر">
         <div class="page-head publish-prep-head">
@@ -846,6 +880,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="assets/js/jszip.min.js?v=160"></script>
-    <script src="assets/js/app.js?v=216"></script>
+    <script src="assets/js/app.js?v=217"></script>
 </body>
 </html>

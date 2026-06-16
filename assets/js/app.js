@@ -15013,7 +15013,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     if(c && caption !== undefined) c.value = String(caption || '').trim();
   }
   function buildSelectedVoiceoverScript(){
-    const shots = selectedShotRows();
+    let shots = activeShotRows();
+    if(!shots.length) shots = CHECKLIST_SHOTS.map(shotRowData).filter(s => s.voiceover);
     const text = shots.map(s => s.voiceover).filter(Boolean).join('\n');
     const script = $('checklistScript');
     if(script) script.value = text;
@@ -15058,6 +15059,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       const start = rowValue(row, ['بداية الاستخدام','من الثانية','start','start_second','start time']);
       const duration = rowValue(row, ['مدة الاستخدام','استخدام في النهائي','duration','use','use_duration','end']);
       setShotText(id, voiceover, caption);
+      const enabled = document.querySelector(`[data-shot-enabled="${id}"]`);
+      if(enabled && (voiceover || caption)) enabled.checked = true;
       if(start !== ''){ const el = document.querySelector(`[data-shot-start="${id}"]`); if(el) el.value = Number(start) || 0; }
       if(duration !== ''){ const el = document.querySelector(`[data-shot-use="${id}"]`); if(el) el.value = Math.max(.4, Number(duration) || Number(el.value) || 1.2); }
       imported++;
@@ -15129,6 +15132,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const body = $('checklistRows');
     if(!body) return;
     body.innerHTML = CHECKLIST_SHOTS.map(s => `<tr data-shot-row="${s.id}" data-part="${s.part}">
+      <td><input class="checklist-row-check" type="checkbox" data-shot-enabled="${s.id}"></td>
       <td><strong>${s.id}</strong></td>
       <td><div class="checklist-shot-title">${escapeHtml(s.title)}</div></td>
       <td><span class="checklist-part-tag is-${s.part}">${escapeHtml(partTitle(s.part))}</span></td>
@@ -15147,8 +15151,11 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       const label = document.querySelector(`[data-shot-file-name="${id}"]`);
       const status = document.querySelector(`[data-shot-status="${id}"]`);
       const file = input.files?.[0];
+      const enabled = document.querySelector(`[data-shot-enabled="${id}"]`);
+      if(file && enabled) enabled.checked = true;
+      const active = !!(file || enabled?.checked);
       if(label) label.textContent = file ? file.name : 'اختيار فيديو';
-      if(status){ status.textContent = file ? 'جاهز' : 'غير مختار'; status.classList.toggle('is-ready', !!file); }
+      if(status){ status.textContent = file ? 'جاهز' : (active ? 'مختار بدون فيديو' : 'غير مختار'); status.classList.toggle('is-ready', active); }
     });
     ['Voice','Music','Logo'].forEach(kind => {
       const input = $(`checklist${kind}File`);
@@ -15160,38 +15167,111 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     if(sheetInput && sheetName) sheetName.textContent = sheetInput.files?.[0]?.name || 'اختار CSV / Excel';
     updateChecklistSummary();
   }
+  function shotRowData(s){
+    const input = document.querySelector(`[data-shot-file="${s.id}"]`);
+    const file = input?.files?.[0] || null;
+    const enabled = !!document.querySelector(`[data-shot-enabled="${s.id}"]`)?.checked;
+    return {
+      ...s,
+      file,
+      enabled,
+      start: Number(document.querySelector(`[data-shot-start="${s.id}"]`)?.value || 0) || 0,
+      use: Math.max(0.4, Number(document.querySelector(`[data-shot-use="${s.id}"]`)?.value || s.use) || s.use),
+      voiceover: String(document.querySelector(`[data-shot-voiceover="${s.id}"]`)?.value || '').trim(),
+      caption: String(document.querySelector(`[data-shot-caption="${s.id}"]`)?.value || '').trim()
+    };
+  }
+  function activeShotRows(){
+    return CHECKLIST_SHOTS.map(shotRowData).filter(s => s.enabled || s.file);
+  }
   function selectedShotRows(){
-    return CHECKLIST_SHOTS.map(s => {
-      const input = document.querySelector(`[data-shot-file="${s.id}"]`);
-      const file = input?.files?.[0] || null;
-      if(!file) return null;
-      return {
-        ...s,
-        file,
-        start: Number(document.querySelector(`[data-shot-start="${s.id}"]`)?.value || 0) || 0,
-        use: Math.max(0.4, Number(document.querySelector(`[data-shot-use="${s.id}"]`)?.value || s.use) || s.use),
-        voiceover: String(document.querySelector(`[data-shot-voiceover="${s.id}"]`)?.value || '').trim(),
-        caption: String(document.querySelector(`[data-shot-caption="${s.id}"]`)?.value || '').trim()
-      };
-    }).filter(Boolean);
+    return CHECKLIST_SHOTS.map(shotRowData).filter(s => !!s.file);
   }
   function updateChecklistSummary(){
+    const active = activeShotRows();
     const shots = selectedShotRows();
-    const total = shots.reduce((sum, s) => sum + s.use, 0);
-    const parts = CHECKLIST_PARTS.map(p => ({...p, count: shots.filter(s => s.part === p.key).length, duration: shots.filter(s => s.part === p.key).reduce((a,b)=>a+b.use,0)}));
+    const total = active.reduce((sum, s) => sum + s.use, 0);
+    const parts = CHECKLIST_PARTS.map(p => ({...p, count: active.filter(s => s.part === p.key).length, duration: active.filter(s => s.part === p.key).reduce((a,b)=>a+b.use,0)}));
     const box = $('checklistSummary');
     if(box){
-      box.innerHTML = `<div><span>المشاهد المختارة</span><strong>${shots.length}</strong></div><div><span>مدة الفيديو التقريبية</span><strong>${total.toFixed(1)} ثانية</strong></div><div><span>الفويس أوفر</span><strong>${$('checklistVoiceFile')?.files?.[0] ? 'موجود' : 'غير مختار'}</strong></div>` + parts.map(p => `<div><span>${escapeHtml(p.title)}</span><strong>${p.count} / ${p.duration.toFixed(1)}s</strong></div>`).join('');
+      box.innerHTML = `<div><span>المشاهد المفعلة</span><strong>${active.length}</strong></div><div><span>لها فيديو</span><strong>${shots.length}</strong></div><div><span>مدة الفيديو التقريبية</span><strong>${total.toFixed(1)} ثانية</strong></div><div><span>الفويس أوفر</span><strong>${$('checklistVoiceFile')?.files?.[0] ? 'موجود' : 'غير مختار'}</strong></div>` + parts.map(p => `<div><span>${escapeHtml(p.title)}</span><strong>${p.count} / ${p.duration.toFixed(1)}s</strong></div>`).join('');
     }
   }
   function resetChecklist(){
     document.querySelectorAll('#checklist-reel input[type="file"]').forEach(input => { input.value = ''; });
+    document.querySelectorAll('[data-shot-enabled]').forEach(input => input.checked = false);
     document.querySelectorAll('[data-shot-start]').forEach(input => input.value = '0');
     document.querySelectorAll('[data-shot-voiceover],[data-shot-caption]').forEach(input => input.value = '');
     CHECKLIST_SHOTS.forEach(s => { const inp = document.querySelector(`[data-shot-use="${s.id}"]`); if(inp) inp.value = s.use; });
     $('checklistDownloads') && ($('checklistDownloads').innerHTML = '');
     setProgress(0); studioLog('تم مسح الاختيارات.'); updateFileLabels();
   }
+  function applyCaptionPreset(source){
+    if(!source || source.id !== 'checklistCaptionPreset') return;
+    const preset = source.value;
+    const set = (id, value) => { const el = $(id); if(el) el.value = value; };
+    const setColor = (id, value) => set(id, value);
+    if(preset === 'tiktok-pop'){
+      set('checklistCaptionPosition','center-bottom'); set('checklistCaptionIn','pop'); set('checklistCaptionOut','fade-scale'); set('checklistCaptionSeparator','flash'); set('checklistCaptionSize','60'); setColor('checklistCaptionAccent','#facc15');
+    }else if(preset === 'fast-hype'){
+      set('checklistCaptionPosition','center'); set('checklistCaptionIn','zoom'); set('checklistCaptionOut','flash'); set('checklistCaptionSeparator','swipe'); set('checklistCaptionSize','66'); setColor('checklistCaptionAccent','#22c55e');
+    }else if(preset === 'luxury-clean'){
+      set('checklistCaptionPosition','bottom'); set('checklistCaptionIn','slide-up'); set('checklistCaptionOut','fade'); set('checklistCaptionSeparator','line'); set('checklistCaptionSize','50'); setColor('checklistCaptionAccent','#d4af37');
+    }else if(preset === 'badge-specs'){
+      set('checklistCaptionPosition','center-bottom'); set('checklistCaptionIn','pop'); set('checklistCaptionOut','zoom-out'); set('checklistCaptionSeparator','flash'); set('checklistCaptionSize','58'); setColor('checklistCaptionAccent','#38bdf8');
+    }else{
+      set('checklistCaptionPosition','center-bottom'); set('checklistCaptionIn','pop'); set('checklistCaptionOut','fade-scale'); set('checklistCaptionSeparator','flash'); set('checklistCaptionSize','56'); setColor('checklistCaptionAccent','#facc15');
+    }
+    const lbl = $('checklistCaptionSizeLabel'); if(lbl) lbl.textContent = ($('checklistCaptionSize')?.value || '56') + 'px';
+  }
+  function captionSettings(){
+    return {
+      preset: $('checklistCaptionPreset')?.value || 'arabic-review',
+      position: $('checklistCaptionPosition')?.value || 'center-bottom',
+      font: $('checklistCaptionFont')?.value || 'Tajawal',
+      size: Math.max(28, Number($('checklistCaptionSize')?.value || 56) || 56),
+      color: $('checklistCaptionColor')?.value || '#ffffff',
+      bg: $('checklistCaptionBg')?.value || '#080d19',
+      accent: $('checklistCaptionAccent')?.value || '#facc15',
+      inAnim: $('checklistCaptionIn')?.value || 'pop',
+      outAnim: $('checklistCaptionOut')?.value || 'fade-scale',
+      separator: $('checklistCaptionSeparator')?.value || 'flash',
+      showCarName: $('checklistShowCarName')?.checked !== false,
+      showBrandName: $('checklistShowBrandName')?.checked !== false,
+      showSceneNumber: !!$('checklistShowSceneNumber')?.checked,
+      showPartLabel: !!$('checklistShowPartLabel')?.checked,
+      showCaptionBox: $('checklistShowCaptionBox')?.checked !== false,
+      showLogo: $('checklistShowLogo')?.checked !== false
+    };
+  }
+  function drawPreviewPlaceholder(){
+    const canvas = $('checklistPreviewCanvas');
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.fillStyle = '#030712'; ctx.fillRect(0,0,w,h);
+    const grad = ctx.createLinearGradient(0,0,w,h); grad.addColorStop(0,'#111827'); grad.addColorStop(1,'#1e293b'); ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
+    const shot = activeShotRows()[0] || CHECKLIST_SHOTS[3];
+    drawOverlay(ctx,w,h,{shot,carName:$('checklistCarName')?.value || 'اسم السيارة',brandName:$('checklistBrandName')?.value || 'MZJ',caption:(shot.caption || 'كابشن المشهد'),logo:null,progress:.5});
+  }
+  async function previewChecklistVideo(){
+    const shots = selectedShotRows();
+    const canvas = $('checklistPreviewCanvas');
+    if(!canvas){ return; }
+    if(!shots.length){ studioLog('اختار فيديو واحد على الأقل للمعاينة.'); drawPreviewPlaceholder(); return; }
+    const ctx = canvas.getContext('2d', { alpha:false });
+    const totalDuration = shots.reduce((sum,s)=>sum+s.use,0);
+    const logo = await loadImageFile($('checklistLogoFile')?.files?.[0] || null).catch(()=>null);
+    const meta = { totalDuration, absoluteTime:0, carName:$('checklistCarName')?.value || '', brandName:$('checklistBrandName')?.value || '', logo, captions:captionsFromScript() };
+    studioLog(`بدأت المعاينة: ${shots.length} مشهد`);
+    for(let i=0;i<shots.length;i++){
+      await renderShotRealtime(ctx, canvas, shots[i], i, shots.length, meta);
+      meta.absoluteTime += shots[i].use;
+    }
+    if(logo?.url) URL.revokeObjectURL(logo.url);
+    studioLog('انتهت المعاينة.');
+  }
+
   function setupChecklistStudio(){
     if(checklistStudioReady) return;
     checklistStudioReady = true;
@@ -15202,6 +15282,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     $('checklistPlatformSelect')?.addEventListener('change', populatePlatformSelectors);
     $('checklistPublishTypeSelect')?.addEventListener('change', updateOutputSpec);
     document.querySelectorAll('#checklist-reel input').forEach(input => input.addEventListener('change', updateFileLabels));
+    document.querySelectorAll('#checklist-reel select').forEach(input => input.addEventListener('change', () => { applyCaptionPreset(input); updateChecklistSummary(); drawPreviewPlaceholder(); }));
     document.querySelectorAll('[data-shot-voiceover],[data-shot-caption],[data-shot-use],[data-shot-start]').forEach(input => input.addEventListener('input', updateChecklistSummary));
     $('checklistScript')?.addEventListener('input', updateChecklistSummary);
     $('checklistImportScriptBtn')?.addEventListener('click', importChecklistScriptSheet);
@@ -15209,7 +15290,11 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     $('checklistDownloadTemplateBtn')?.addEventListener('click', downloadChecklistTemplate);
     $('checklistGenerateBtn')?.addEventListener('click', generateChecklistVideo);
     $('checklistGenerateBtnBottom')?.addEventListener('click', generateChecklistVideo);
+    $('checklistPreviewBtn')?.addEventListener('click', previewChecklistVideo);
     $('checklistResetBtn')?.addEventListener('click', resetChecklist);
+    $('checklistCaptionSize')?.addEventListener('input', () => { const lbl = $('checklistCaptionSizeLabel'); if(lbl) lbl.textContent = $('checklistCaptionSize').value + 'px'; drawPreviewPlaceholder(); });
+    ['checklistCaptionColor','checklistCaptionBg','checklistCaptionAccent','checklistShowCarName','checklistShowBrandName','checklistShowSceneNumber','checklistShowPartLabel','checklistShowCaptionBox','checklistShowLogo'].forEach(id => $(id)?.addEventListener('change', drawPreviewPlaceholder));
+    drawPreviewPlaceholder();
     $('checklistPartsStrip')?.addEventListener('click', e => {
       const btn = e.target.closest('[data-focus-part]');
       if(!btn) return;
@@ -15273,40 +15358,71 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const raw = $('checklistScript')?.value || '';
     return raw.split('\n').map(x => x.trim()).filter(Boolean);
   }
+  function hexToRgba(hex, alpha){
+    const clean = String(hex || '#000000').replace('#','');
+    const ok = /^[0-9a-f]{6}$/i.test(clean) ? clean : '000000';
+    const r = parseInt(ok.slice(0,2),16), g = parseInt(ok.slice(2,4),16), b = parseInt(ok.slice(4,6),16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  function captionXY(w,h,boxW,boxH,position){
+    if(position === 'top') return [(w-boxW)/2, h*.17];
+    if(position === 'center') return [(w-boxW)/2, (h-boxH)/2];
+    if(position === 'bottom') return [(w-boxW)/2, h*.79];
+    return [(w-boxW)/2, h*.69];
+  }
+  function easeOutBack(x){ const c1=1.70158, c3=c1+1; return 1 + c3*Math.pow(x-1,3) + c1*Math.pow(x-1,2); }
+  function drawSeparator(ctx,w,h,style,progress){
+    const t = Math.max(0, Math.min(1, progress));
+    if(style === 'flash' && (t < .07 || t > .93)){ ctx.fillStyle = `rgba(255,255,255,${t < .07 ? (.22*(1-t/.07)) : (.16*((t-.93)/.07))})`; ctx.fillRect(0,0,w,h); }
+    if(style === 'line' && t < .22){ ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fillRect(w*(1-t/.22), h*.52, w*.28, 4); }
+    if(style === 'swipe' && t < .18){ ctx.fillStyle = 'rgba(255,255,255,.16)'; ctx.save(); ctx.translate(w*(1-t/.18),0); ctx.rotate(-0.16); ctx.fillRect(-w*.08, -h*.1, w*.18, h*1.25); ctx.restore(); }
+  }
   function drawOverlay(ctx, w, h, meta){
     const { shot, carName, brandName, caption, logo, progress } = meta;
-    const fade = Math.min(1, progress / 0.18, (1 - progress) / 0.14);
-    const gTop = ctx.createLinearGradient(0,0,0,h*0.24); gTop.addColorStop(0,'rgba(0,0,0,.62)'); gTop.addColorStop(1,'rgba(0,0,0,0)');
+    const st = captionSettings();
+    const inP = Math.max(0, Math.min(1, progress / .22));
+    const outP = Math.max(0, Math.min(1, (1 - progress) / .18));
+    const alpha = Math.max(.05, Math.min(1, inP, outP));
+    const gTop = ctx.createLinearGradient(0,0,0,h*0.24); gTop.addColorStop(0,'rgba(0,0,0,.60)'); gTop.addColorStop(1,'rgba(0,0,0,0)');
     ctx.fillStyle = gTop; ctx.fillRect(0,0,w,h*0.25);
-    const gBot = ctx.createLinearGradient(0,h*.55,0,h); gBot.addColorStop(0,'rgba(0,0,0,0)'); gBot.addColorStop(1,'rgba(0,0,0,.75)');
+    const gBot = ctx.createLinearGradient(0,h*.55,0,h); gBot.addColorStop(0,'rgba(0,0,0,0)'); gBot.addColorStop(1,'rgba(0,0,0,.72)');
     ctx.fillStyle = gBot; ctx.fillRect(0,h*.52,w,h*.48);
-    ctx.save(); ctx.globalAlpha = Math.max(.2, fade);
+    drawSeparator(ctx,w,h,st.separator,progress);
+    ctx.save();
     ctx.direction = 'rtl'; ctx.textAlign = 'right';
     const pad = w * .06;
-    ctx.fillStyle = 'rgba(255,255,255,.94)';
-    ctx.font = `900 ${Math.round(w*.045)}px Tajawal, Arial`;
-    ctx.fillText(carName || 'MZJ Car Reel', w - pad, pad + 20);
-    ctx.font = `800 ${Math.round(w*.025)}px Tajawal, Arial`;
-    ctx.fillStyle = 'rgba(255,255,255,.70)';
-    ctx.fillText(`${brandName || 'MZJ'} • ${partTitle(shot.part)}`, w - pad, pad + 56);
-    const cap = caption || shot.title;
-    const boxW = w * .86, boxH = h * .12, boxX = (w - boxW)/2, boxY = h * .73;
-    roundRect(ctx, boxX, boxY, boxW, boxH, 26);
-    ctx.fillStyle = 'rgba(8,13,25,.70)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#fff';
-    ctx.font = `900 ${Math.round(w*.052)}px Tajawal, Arial`;
-    drawWrappedText(ctx, cap, w/2, boxY + boxH*.42, boxW*.88, Math.round(w*.065), 2);
-    ctx.textAlign = 'left'; ctx.direction = 'ltr';
-    ctx.font = `800 ${Math.round(w*.025)}px Arial`;
-    ctx.fillStyle = 'rgba(255,255,255,.68)';
-    ctx.fillText(String(shot.id).padStart(2,'0'), pad, pad + 20);
-    if(logo?.img){
-      const lw = w*.14, lh = lw * (logo.img.height / logo.img.width);
-      ctx.globalAlpha = .92;
-      ctx.drawImage(logo.img, pad, h - pad - lh, lw, lh);
+    if(st.showCarName){ ctx.fillStyle = 'rgba(255,255,255,.94)'; ctx.font = `900 ${Math.round(w*.045)}px Tajawal, Arial`; ctx.fillText(carName || 'MZJ Car Reel', w - pad, pad + 20); }
+    if(st.showBrandName || st.showPartLabel){ ctx.font = `800 ${Math.round(w*.025)}px Tajawal, Arial`; ctx.fillStyle = 'rgba(255,255,255,.72)'; ctx.fillText(`${st.showBrandName ? (brandName || 'MZJ') : ''}${st.showBrandName && st.showPartLabel ? ' • ' : ''}${st.showPartLabel ? partTitle(shot.part) : ''}`, w - pad, pad + 56); }
+    if(st.showSceneNumber){ ctx.textAlign = 'left'; ctx.direction = 'ltr'; ctx.font = `800 ${Math.round(w*.025)}px Arial`; ctx.fillStyle = 'rgba(255,255,255,.72)'; ctx.fillText(String(shot.id).padStart(2,'0'), pad, pad + 20); ctx.direction='rtl'; }
+    if(st.showLogo && logo?.img){ const lw = w*.14, lh = lw * (logo.img.height / logo.img.width); ctx.globalAlpha = .92; ctx.drawImage(logo.img, pad, h - pad - lh, lw, lh); ctx.globalAlpha = 1; }
+    const cap = caption || shot.caption || shot.title;
+    const size = Math.round(w * (st.size / 1080));
+    const boxW = w * .86, boxH = Math.max(h * .10, size * 2.05);
+    let [boxX, boxY] = captionXY(w,h,boxW,boxH,st.position);
+    let scale = 1, ty = 0;
+    if(st.inAnim === 'pop') scale = .82 + .18 * easeOutBack(inP);
+    if(st.inAnim === 'zoom') scale = .72 + .28 * easeOutBack(inP);
+    if(st.inAnim === 'slide-up') ty += (1 - inP) * 46;
+    if(st.inAnim === 'fade') scale = 1;
+    if(st.outAnim === 'fade-scale' && progress > .82) scale *= (.96 + .04*outP);
+    if(st.outAnim === 'zoom-out' && progress > .82) scale *= (.85 + .15*outP);
+    if(st.outAnim === 'slide-down' && progress > .82) ty += (1 - outP) * 38;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(w/2, boxY + boxH/2 + ty);
+    ctx.scale(scale, scale);
+    ctx.translate(-w/2, -(boxY + boxH/2));
+    if(st.showCaptionBox){ roundRect(ctx, boxX, boxY, boxW, boxH, 26); ctx.fillStyle = hexToRgba(st.bg,.72); ctx.fill(); ctx.strokeStyle = hexToRgba(st.accent,.48); ctx.lineWidth = Math.max(2,w*.003); ctx.stroke(); }
+    ctx.textAlign = 'center'; ctx.direction = 'rtl';
+    ctx.fillStyle = st.color;
+    ctx.font = `900 ${size}px ${st.font === 'system' ? 'Tajawal, Arial, sans-serif' : st.font + ', Tajawal, Arial'}`;
+    if(st.inAnim === 'typewriter'){
+      const n = Math.max(1, Math.ceil(String(cap).length * inP));
+      drawWrappedText(ctx, String(cap).slice(0,n), w/2, boxY + boxH*.45, boxW*.88, Math.round(size*1.2), 2);
+    }else{
+      drawWrappedText(ctx, cap, w/2, boxY + boxH*.45, boxW*.88, Math.round(size*1.2), 2);
     }
+    ctx.restore();
     ctx.restore();
   }
   function chooseMime(){
@@ -15394,6 +15510,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
         publishType:$('checklistPublishTypeSelect')?.selectedOptions?.[0]?.textContent || '',
         dimensions:dims,
         duration:totalDuration,
+        captionSettings: captionSettings(),
         voiceoverScript: shots.map(s => s.voiceover).filter(Boolean).join('\n'),
         shots:shots.map(s => ({id:s.id,title:s.title,part:s.part,file:s.file.name,start:s.start,duration:s.use,voiceover:s.voiceover,caption:s.caption}))
       };
