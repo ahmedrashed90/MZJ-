@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=206" />
+  <link rel="stylesheet" href="assets/css/style.css?v=205" />
   <link rel="icon" type="image/x-icon" href="assets/favicon.png">
 </head>
 <body>
@@ -61,7 +61,6 @@
         <a href="#social-publisher" data-route="social-publisher"><span class="icon">🔗</span><span>ربط المنصات</span></a>
         <a href="#platform-settings" data-route="platform-settings"><span class="icon">🧩</span><span>إعدادات المنصات</span></a>
         <a href="#publish-prep" data-route="publish-prep"><span class="icon">📤</span><span>تجهيز النشر</span></a>
-        <a href="#checklist-reel" data-route="checklist-reel"><span class="icon">🎬</span><span>Checklist ريل السيارات</span></a>
         <a href="#tasks" data-route="tasks"><span class="icon">📈</span><span>المتابعة</span></a>
         <a href="#calendar" data-route="calendar"><span class="icon">📅</span><span>التقويم</span></a>
         <a href="#stock" data-route="stock"><span class="icon">🚗</span><span>الاستوك</span></a>
@@ -298,100 +297,6 @@
           <div id="platformTokensSummary" class="platform-tokens-summary">
             <div class="empty-state">لا توجد بيانات توكنات بعد.</div>
           </div>
-        </div>
-      </section>
-
-
-
-      <section class="view" id="checklist-reel" data-title="Checklist ريل السيارات">
-        <div class="page-head checklist-reel-head">
-          <div class="page-title">
-            <h1>Checklist ريل السيارات</h1>
-            <p>اختار مشاهد الـ Checklist من جهازك، حدد المنصة والأبعاد، أضف الفويس أوفر والسكريبت، وصدّر فيديو رأسي جاهز للريل أو الستوري بدون API.</p>
-          </div>
-          <div class="actions">
-            <button class="btn btn-light" type="button" id="checklistResetBtn">مسح الاختيارات</button>
-            <button class="btn btn-primary" type="button" id="checklistGenerateBtn">تجهيز الملف النهائي</button>
-          </div>
-        </div>
-
-        <div class="checklist-studio-layout">
-          <aside class="checklist-studio-side">
-            <div class="card checklist-studio-card">
-              <div class="checklist-section-title">
-                <span class="checklist-badge">1</span>
-                <div><h2>بيانات الريل</h2><p>اختار المنصة ونوع النشر من إعدادات المنصات داخل السيستم.</p></div>
-              </div>
-              <div class="checklist-form-grid one">
-                <label class="field"><span>اسم العربية</span><input id="checklistCarName" type="text" placeholder="مثال: MG HS Deluxe 2025"></label>
-                <label class="field"><span>اسم البراند / المعرض</span><input id="checklistBrandName" type="text" placeholder="مثال: MZJ"></label>
-                <label class="field"><span>المنصة</span><select id="checklistPlatformSelect" class="select"></select></label>
-                <label class="field"><span>نوع النشر والأبعاد</span><select id="checklistPublishTypeSelect" class="select"></select></label>
-                <div class="checklist-output-spec" id="checklistOutputSpec">الأبعاد: —</div>
-              </div>
-            </div>
-
-            <div class="card checklist-studio-card">
-              <div class="checklist-section-title">
-                <span class="checklist-badge">2</span>
-                <div><h2>الصوت والهوية</h2><p>كل الملفات بتتختار من جهازك فقط.</p></div>
-              </div>
-              <label class="checklist-file-drop"><span>🎙️ فويس أوفر</span><strong id="checklistVoiceName">اختار voiceover.mp3</strong><input id="checklistVoiceFile" type="file" accept="audio/*"></label>
-              <label class="checklist-file-drop"><span>🎵 موسيقى خلفية</span><strong id="checklistMusicName">اختار music.mp3 اختياري</strong><input id="checklistMusicFile" type="file" accept="audio/*"></label>
-              <label class="checklist-file-drop"><span>🖼️ لوجو</span><strong id="checklistLogoName">اختار logo.png اختياري</strong><input id="checklistLogoFile" type="file" accept="image/*"></label>
-            </div>
-
-            <div class="card checklist-studio-card">
-              <div class="checklist-section-title">
-                <span class="checklist-badge">3</span>
-                <div><h2>السكريبت والكابشن</h2><p>كل سطر يظهر ككابشن قصير أثناء الفيديو.</p></div>
-              </div>
-              <textarea id="checklistScript" class="checklist-script" placeholder="اكتب السكريبت هنا...\nكل سطر يتحول لكابشن متحرك."></textarea>
-            </div>
-
-            <div class="card checklist-summary-card">
-              <h2>ملخص المخرجات</h2>
-              <div id="checklistSummary" class="checklist-summary-list"></div>
-              <small>التصدير من المتصفح مباشرة. الصيغة تكون WebM في أغلب المتصفحات، وMP4 إذا كان المتصفح يدعمها.</small>
-            </div>
-          </aside>
-
-          <section class="checklist-studio-main">
-            <div class="card checklist-timeline-card">
-              <div class="checklist-section-title wide">
-                <span class="checklist-badge">4</span>
-                <div><h2>اختيار المشاهد من الجهاز</h2><p>اختار ملف فيديو لكل مشهد من الـ Checklist. المشاهد غير المختارة لن تدخل في الفيديو النهائي.</p></div>
-              </div>
-              <div class="checklist-parts-strip" id="checklistPartsStrip"></div>
-              <div class="checklist-table-wrap">
-                <table class="checklist-editor-table">
-                  <thead>
-                    <tr>
-                      <th>رقم</th>
-                      <th>المشهد</th>
-                      <th>قسم الريل</th>
-                      <th>مدة التصوير</th>
-                      <th>الفيديو من الجهاز</th>
-                      <th>من الثانية</th>
-                      <th>استخدام في النهائي</th>
-                      <th>حالة</th>
-                    </tr>
-                  </thead>
-                  <tbody id="checklistRows"></tbody>
-                </table>
-              </div>
-            </div>
-
-            <div class="card checklist-render-card">
-              <div class="checklist-render-head">
-                <div><h2>تصدير الفيديو النهائي</h2><p>بعد الضغط على التصدير سيعمل الفيديو في الخلفية بنفس مدة الريل تقريبًا.</p></div>
-                <button class="btn btn-primary" type="button" id="checklistGenerateBtnBottom">تجهيز الملف النهائي</button>
-              </div>
-              <div class="checklist-progress"><div id="checklistProgressBar"></div></div>
-              <div class="checklist-log" id="checklistLog">جاهز لاختيار الملفات.</div>
-              <div class="checklist-downloads" id="checklistDownloads"></div>
-            </div>
-          </section>
         </div>
       </section>
 
