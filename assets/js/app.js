@@ -15366,16 +15366,83 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       customY: checklistPreviewState.customY || .72
     };
   }
+  function currentPreviewItem(){
+    return shotAtTime(checklistPreviewState.time || 0);
+  }
+  function cssFontForCaption(st){
+    return st.font === 'system' ? 'Tajawal, Arial, sans-serif' : `${st.font || 'Tajawal'}, Tajawal, Arial, sans-serif`;
+  }
+  function overlayPositionPercent(st){
+    if(st.position === 'custom') return [checklistPreviewState.customX || .5, checklistPreviewState.customY || .72];
+    if(st.position === 'top') return [.5, .18];
+    if(st.position === 'center') return [.5, .5];
+    if(st.position === 'bottom') return [.5, .84];
+    return [.5, .72];
+  }
+  function updatePreviewCaptionDom(item, progress=.5){
+    const el = $('checklistPreviewCaptionOverlay');
+    if(!el) return;
+    const shot = item?.shot || activeShotRows()[0] || CHECKLIST_SHOTS[0];
+    const st = captionSettings();
+    const text = item?.caption || shot?.caption || shot?.title || 'كابشن الشاشة';
+    el.textContent = text;
+    const [x,y] = overlayPositionPercent(st);
+    el.style.left = `${Math.max(.05, Math.min(.95, x)) * 100}%`;
+    el.style.top = `${Math.max(.05, Math.min(.95, y)) * 100}%`;
+    el.style.fontFamily = cssFontForCaption(st);
+    el.style.fontSize = `${Math.max(18, Math.min(52, Math.round((Number(st.size) || 56) * .52)))}px`;
+    el.style.color = st.color || '#ffffff';
+    el.style.background = st.showCaptionBox ? hexToRgba(st.bg || '#080d19', .74) : 'transparent';
+    el.style.borderColor = st.showCaptionBox ? hexToRgba(st.accent || '#facc15', .55) : 'transparent';
+    el.style.padding = st.showCaptionBox ? '10px 18px' : '4px 8px';
+    const inP = Math.max(0, Math.min(1, progress / .22));
+    const outP = Math.max(0, Math.min(1, (1 - progress) / .18));
+    const alpha = Math.max(.12, Math.min(1, inP, outP));
+    let scale = 1, ty = 0;
+    if(st.inAnim === 'pop') scale = .82 + .18 * easeOutBack(inP);
+    if(st.inAnim === 'zoom') scale = .72 + .28 * easeOutBack(inP);
+    if(st.inAnim === 'slide-up') ty += (1 - inP) * 30;
+    if(st.outAnim === 'fade-scale' && progress > .82) scale *= (.96 + .04*outP);
+    if(st.outAnim === 'zoom-out' && progress > .82) scale *= (.85 + .15*outP);
+    if(st.outAnim === 'slide-down' && progress > .82) ty += (1 - outP) * 24;
+    el.style.opacity = alpha.toFixed(3);
+    el.style.transform = `translate(-50%, calc(-50% + ${ty}px)) scale(${scale})`;
+  }
+  function drawPreviewEmptyBase(ctx,w,h,title='معاينة بدون فيديو',sub='اختار فيديو من الجدول أو فعّل المشاهد لمعاينة الكابشنات'){
+    const grad = ctx.createLinearGradient(0,0,w,h);
+    grad.addColorStop(0,'#0f172a'); grad.addColorStop(.55,'#111827'); grad.addColorStop(1,'#020617');
+    ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
+    ctx.save();
+    ctx.direction='rtl'; ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,255,255,.82)'; ctx.font=`900 ${Math.round(w*.055)}px Tajawal, Arial`;
+    ctx.fillText(title, w/2, h*.38);
+    ctx.fillStyle='rgba(255,255,255,.55)'; ctx.font=`700 ${Math.round(w*.033)}px Tajawal, Arial`;
+    drawWrappedText(ctx, sub, w/2, h*.44, w*.78, Math.round(w*.045), 2);
+    ctx.restore();
+  }
+  function waitVideoReady(video, target){
+    return new Promise(resolve => {
+      let done = false;
+      const finish = () => { if(done) return; done = true; video.onseeked = null; video.onloadeddata = null; resolve(); };
+      video.onseeked = finish;
+      video.onloadeddata = finish;
+      try{ video.currentTime = Math.max(0, Math.min(target, Math.max(0, (video.duration || target + .1) - .05))); }catch(_){ finish(); }
+      setTimeout(finish, 420);
+    });
+  }
+
   function drawPreviewPlaceholder(){
     const canvas = $('checklistPreviewCanvas');
     if(!canvas) return;
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
-    ctx.fillStyle = '#030712'; ctx.fillRect(0,0,w,h);
-    const grad = ctx.createLinearGradient(0,0,w,h); grad.addColorStop(0,'#111827'); grad.addColorStop(1,'#1e293b'); ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
     const shot = activeShotRows()[0] || CHECKLIST_SHOTS[3];
-    drawOverlay(ctx,w,h,{shot,carName:$('checklistCarName')?.value || 'اسم السيارة',brandName:$('checklistBrandName')?.value || 'MZJ',caption:(shot.caption || 'كابشن المشهد'),logo:null,progress:.5});
+    drawPreviewEmptyBase(ctx,w,h,'معاينة الكابشن', 'اضغط معاينة الفيديو بعد اختيار اللقطات، واسحب الكابشن لتغيير مكانه.');
+    const item = {shot, caption:(shot.caption || 'كابشن المشهد')};
+    drawOverlay(ctx,w,h,{shot,carName:$('checklistCarName')?.value || 'اسم السيارة',brandName:$('checklistBrandName')?.value || 'MZJ',caption:item.caption,logo:null,progress:.5});
+    updatePreviewCaptionDom(item, .5);
   }
+
   function previewTimelineShots(){
     let shots = selectedShotRows();
     if(!shots.length) shots = activeShotRows();
@@ -15438,18 +15505,20 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       try{
         const video = await ensurePreviewVideo(item);
         const target = Math.max(0, (Number(item.shot.start) || 0) + item.local);
-        if(Math.abs((video.currentTime || 0) - target) > .35) video.currentTime = Math.min(target, Math.max(0, (video.duration || target + .1) - .05));
+        if(Math.abs((video.currentTime || 0) - target) > .28 || video.readyState < 2) await waitVideoReady(video, target);
         if(allowPlay && checklistPreviewState.playing){ try{ await video.play(); }catch(_){ } }
         if(video.readyState >= 2) drawCover(ctx, video, canvas.width, canvas.height, 1.025 + p * .045);
-        else { ctx.fillStyle = '#111827'; ctx.fillRect(0,0,canvas.width,canvas.height); }
+        else { drawPreviewEmptyBase(ctx, canvas.width, canvas.height, 'جاري تحميل اللقطة', item.shot.title || ''); }
       }catch(_){
-        const grad = ctx.createLinearGradient(0,0,canvas.width,canvas.height); grad.addColorStop(0,'#111827'); grad.addColorStop(1,'#1e293b'); ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+        drawPreviewEmptyBase(ctx, canvas.width, canvas.height, 'تعذر عرض الفيديو', item.shot.title || '');
       }
     }else{
-      const grad = ctx.createLinearGradient(0,0,canvas.width,canvas.height); grad.addColorStop(0,'#111827'); grad.addColorStop(1,'#1e293b'); ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+      drawPreviewEmptyBase(ctx, canvas.width, canvas.height, 'معاينة بدون فيديو', item.shot.title || 'اختار فيديو لهذا المشهد من الجدول');
     }
     const logo = checklistPreviewState.logo || null;
-    drawOverlay(ctx,canvas.width,canvas.height,{shot:item.shot,carName:$('checklistCarName')?.value || 'اسم السيارة',brandName:$('checklistBrandName')?.value || 'MZJ',caption:(item.shot.caption || 'كابشن المشهد'),logo,progress:p});
+    const previewCaption = item.shot.caption || 'كابشن المشهد';
+    drawOverlay(ctx,canvas.width,canvas.height,{shot:item.shot,carName:$('checklistCarName')?.value || 'اسم السيارة',brandName:$('checklistBrandName')?.value || 'MZJ',caption:previewCaption,logo,progress:p});
+    updatePreviewCaptionDom({shot:item.shot, caption:previewCaption}, p);
     checklistPreviewState.time = Math.max(0, Math.min(time, checklistPreviewState.total || 0));
     updatePreviewControls();
   }
@@ -15489,6 +15558,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   }
   function setupPreviewInteractions(){
     const canvas = $('checklistPreviewCanvas');
+    const overlay = $('checklistPreviewCaptionOverlay');
     const scrub = $('checklistPreviewScrub');
     $('checklistPreviewPlayPauseBtn')?.addEventListener('click', toggleChecklistPreview);
     scrub?.addEventListener('input', async () => {
@@ -15496,23 +15566,29 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       checklistPreviewState.time = Number(scrub.value) || 0;
       await drawPreviewAt(checklistPreviewState.time, false);
     });
-    canvas?.addEventListener('pointerdown', e => {
-      const rect = canvas.getBoundingClientRect();
+    const beginCaptionDrag = e => {
+      const stage = document.querySelector('#checklist-reel .checklist-preview-stage') || canvas;
+      const rect = stage.getBoundingClientRect();
       checklistPreviewState.draggingCaption = true;
-      canvas.setPointerCapture?.(e.pointerId);
-      checklistPreviewState.customX = (e.clientX - rect.left) / rect.width;
-      checklistPreviewState.customY = (e.clientY - rect.top) / rect.height;
+      (overlay || canvas)?.setPointerCapture?.(e.pointerId);
+      checklistPreviewState.customX = Math.max(.08, Math.min(.92, (e.clientX - rect.left) / rect.width));
+      checklistPreviewState.customY = Math.max(.08, Math.min(.92, (e.clientY - rect.top) / rect.height));
       const pos = $('checklistCaptionPosition'); if(pos) pos.value = 'custom';
       drawPreviewAt(checklistPreviewState.time || 0, false);
-    });
-    canvas?.addEventListener('pointermove', e => {
+    };
+    const moveCaptionDrag = e => {
       if(!checklistPreviewState.draggingCaption) return;
-      const rect = canvas.getBoundingClientRect();
+      const stage = document.querySelector('#checklist-reel .checklist-preview-stage') || canvas;
+      const rect = stage.getBoundingClientRect();
       checklistPreviewState.customX = Math.max(.08, Math.min(.92, (e.clientX - rect.left) / rect.width));
       checklistPreviewState.customY = Math.max(.08, Math.min(.92, (e.clientY - rect.top) / rect.height));
       drawPreviewAt(checklistPreviewState.time || 0, false);
-    });
-    ['pointerup','pointercancel','pointerleave'].forEach(type => canvas?.addEventListener(type, e => { checklistPreviewState.draggingCaption = false; try{ canvas.releasePointerCapture?.(e.pointerId); }catch(_){} }));
+    };
+    overlay?.addEventListener('pointerdown', beginCaptionDrag);
+    canvas?.addEventListener('pointerdown', beginCaptionDrag);
+    window.addEventListener('pointermove', moveCaptionDrag);
+    ['pointerup','pointercancel'].forEach(type => window.addEventListener(type, e => { checklistPreviewState.draggingCaption = false; try{ overlay?.releasePointerCapture?.(e.pointerId); canvas?.releasePointerCapture?.(e.pointerId); }catch(_){} }));
+    overlay?.addEventListener('click', () => { overlay.focus(); document.querySelector('.checklist-style-card-in-preview')?.scrollIntoView({behavior:'smooth', block:'nearest'}); });
     document.addEventListener('keydown', e => {
       const activeView = document.querySelector('.view.active')?.id || location.hash.replace('#','');
       if(e.code === 'Space' && activeView === 'checklist-reel'){

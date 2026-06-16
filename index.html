@@ -367,24 +367,7 @@
             </div>
           </div>
 
-          <div class="card checklist-style-card">
-            <div class="checklist-section-title">
-              <span class="checklist-badge">4</span>
-              <div><h2>ستايل الكابشن والحركات</h2><p>تحكم في مكان الكابشن، الخط، الألوان، حركة الدخول والخروج والفاصل بين اللقطات.</p></div>
-            </div>
-            <div class="checklist-style-grid">
-              <label class="field"><span>Preset الترند</span><select id="checklistCaptionPreset" class="select"><option value="arabic-review">Arabic Review</option><option value="tiktok-pop">TikTok Pop</option><option value="fast-hype">Fast Hype</option><option value="luxury-clean">Luxury Clean</option><option value="badge-specs">Badge Specs</option></select></label>
-              <label class="field"><span>مكان الكابشن</span><select id="checklistCaptionPosition" class="select"><option value="bottom">أسفل</option><option value="center-bottom" selected>وسط تحت</option><option value="center">وسط</option><option value="top">أعلى</option><option value="custom">مخصص بالسحب</option></select></label>
-              <label class="field"><span>نوع الخط</span><select id="checklistCaptionFont" class="select"><option value="Tajawal" selected>Tajawal</option><option value="Arial">Arial</option><option value="Tahoma">Tahoma</option><option value="Cairo">Cairo</option><option value="system">System</option></select></label>
-              <label class="field"><span>حجم الخط</span><input id="checklistCaptionSize" type="range" min="34" max="86" value="56"><small id="checklistCaptionSizeLabel">56px</small></label>
-              <label class="field"><span>لون الكابشن</span><input id="checklistCaptionColor" type="color" value="#ffffff"></label>
-              <label class="field"><span>لون خلفية الكابشن</span><input id="checklistCaptionBg" type="color" value="#080d19"></label>
-              <label class="field"><span>لون التمييز</span><input id="checklistCaptionAccent" type="color" value="#facc15"></label>
-              <label class="field"><span>حركة الدخول</span><select id="checklistCaptionIn" class="select"><option value="pop" selected>Trend Pop</option><option value="zoom">Punch Zoom</option><option value="slide-up">Slide Up</option><option value="fade">Fade In</option><option value="typewriter">Typewriter</option></select></label>
-              <label class="field"><span>حركة الخروج</span><select id="checklistCaptionOut" class="select"><option value="fade-scale" selected>Fade + Scale</option><option value="fade">Fade Out</option><option value="slide-down">Slide Down</option><option value="zoom-out">Zoom Out</option><option value="flash">Flash Out</option></select></label>
-              <label class="field"><span>الفاصل بين اللقطات</span><select id="checklistCaptionSeparator" class="select"><option value="none">بدون</option><option value="flash" selected>Flash سريع</option><option value="line">خط سريع</option><option value="swipe">Swipe / Whip</option></select></label>
-            </div>
-          </div>
+
 
           <div class="checklist-work-grid">
             <section class="checklist-studio-main">
@@ -439,7 +422,7 @@
               </div>
             </div>
             <div class="checklist-preview-layout">
-              <div class="checklist-preview-frame"><canvas id="checklistPreviewCanvas" width="540" height="960" tabindex="0" aria-label="معاينة فيديو Checklist"></canvas></div>
+              <div class="checklist-preview-frame"><div class="checklist-preview-stage"><canvas id="checklistPreviewCanvas" width="540" height="960" tabindex="0" aria-label="معاينة فيديو Checklist"></canvas><div id="checklistPreviewCaptionOverlay" class="checklist-preview-caption-overlay" role="button" tabindex="0" title="اضغط واسحب لتغيير مكان الكابشن">كابشن الشاشة</div></div></div>
               <div class="checklist-preview-panel">
                 <div id="checklistSummary" class="checklist-summary-list"></div>
                 <div class="checklist-preview-control-box">
@@ -448,6 +431,26 @@
                   <p class="muted small">اضغط Space للتشغيل/الإيقاف. اسحب الكابشن على المعاينة لتغيير مكانه، ثم عدل الحجم أو اللون أو الخط من قسم ستايل الكابشن.</p>
                 </div>
               </div>
+            </div>
+            <div class="checklist-preview-style-wrap">
+          <div class="card checklist-style-card checklist-style-card-in-preview">
+            <div class="checklist-section-title">
+              <span class="checklist-badge">6</span>
+              <div><h2>ستايل الكابشن والحركات</h2><p>تحكم في مكان الكابشن، الخط، الألوان، حركة الدخول والخروج والفاصل بين اللقطات.</p></div>
+            </div>
+            <div class="checklist-style-grid">
+              <label class="field"><span>Preset الترند</span><select id="checklistCaptionPreset" class="select"><option value="arabic-review">Arabic Review</option><option value="tiktok-pop">TikTok Pop</option><option value="fast-hype">Fast Hype</option><option value="luxury-clean">Luxury Clean</option><option value="badge-specs">Badge Specs</option></select></label>
+              <label class="field"><span>مكان الكابشن</span><select id="checklistCaptionPosition" class="select"><option value="bottom">أسفل</option><option value="center-bottom" selected>وسط تحت</option><option value="center">وسط</option><option value="top">أعلى</option><option value="custom">مخصص بالسحب</option></select></label>
+              <label class="field"><span>نوع الخط</span><select id="checklistCaptionFont" class="select"><option value="Tajawal" selected>Tajawal</option><option value="Arial">Arial</option><option value="Tahoma">Tahoma</option><option value="Cairo">Cairo</option><option value="system">System</option></select></label>
+              <label class="field"><span>حجم الخط</span><input id="checklistCaptionSize" type="range" min="34" max="86" value="56"><small id="checklistCaptionSizeLabel">56px</small></label>
+              <label class="field"><span>لون الكابشن</span><input id="checklistCaptionColor" type="color" value="#ffffff"></label>
+              <label class="field"><span>لون خلفية الكابشن</span><input id="checklistCaptionBg" type="color" value="#080d19"></label>
+              <label class="field"><span>لون التمييز</span><input id="checklistCaptionAccent" type="color" value="#facc15"></label>
+              <label class="field"><span>حركة الدخول</span><select id="checklistCaptionIn" class="select"><option value="pop" selected>Trend Pop</option><option value="zoom">Punch Zoom</option><option value="slide-up">Slide Up</option><option value="fade">Fade In</option><option value="typewriter">Typewriter</option></select></label>
+              <label class="field"><span>حركة الخروج</span><select id="checklistCaptionOut" class="select"><option value="fade-scale" selected>Fade + Scale</option><option value="fade">Fade Out</option><option value="slide-down">Slide Down</option><option value="zoom-out">Zoom Out</option><option value="flash">Flash Out</option></select></label>
+              <label class="field"><span>الفاصل بين اللقطات</span><select id="checklistCaptionSeparator" class="select"><option value="none">بدون</option><option value="flash" selected>Flash سريع</option><option value="line">خط سريع</option><option value="swipe">Swipe / Whip</option></select></label>
+            </div>
+          </div>
             </div>
           </section>
         </div>      </section>
