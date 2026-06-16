@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MZJ Checklist Reel Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="assets/favicon.png">
+  <style>
+    :root{--bg:#f7eee8;--card:#fffaf7;--ink:#2b1b16;--muted:#8b7168;--primary:#6a3f32;--accent:#b77d50;--line:#ead8ce;--green:#247a4b;--red:#b94a3b;--shadow:0 18px 45px rgba(83,48,36,.12)}
+    *{box-sizing:border-box} body{margin:0;font-family:Tajawal,Arial,sans-serif;background:radial-gradient(circle at top right,#fff8f1,#f3e5dc 45%,#efe1d8);color:var(--ink)}
+    .wrap{max-width:1500px;margin:0 auto;padding:22px}.top{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:18px}.brand{display:flex;gap:12px;align-items:center}.brand img{width:58px;height:58px;object-fit:contain;border-radius:16px;background:#fff;padding:8px;box-shadow:var(--shadow)}h1{margin:0;font-size:26px}.sub{margin:4px 0 0;color:var(--muted);font-weight:700}.back{color:var(--primary);text-decoration:none;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 14px;font-weight:900}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;align-items:start}.card{background:rgba(255,250,247,.92);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:16px}.card h2{margin:0 0 10px;font-size:18px}.controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.field{display:grid;gap:6px;font-weight:900;color:var(--primary);font-size:13px}.field input,.field textarea,.field select{width:100%;border:1px solid var(--line);background:#fff;border-radius:13px;padding:10px 11px;font-family:inherit;font-size:13px;outline:none;color:var(--ink)}.field textarea{min-height:105px;resize:vertical}.wide{grid-column:1/-1}.hint{font-size:12px;color:var(--muted);line-height:1.7}.status{background:#1d1411;color:#fff;border-radius:16px;padding:12px;min-height:86px;max-height:160px;overflow:auto;font-family:Consolas,monospace;direction:ltr;text-align:left;white-space:pre-wrap;font-size:12px}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.btn{border:0;border-radius:14px;padding:12px 16px;font-family:inherit;font-weight:900;cursor:pointer}.btn-primary{background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff}.btn-light{background:#fff;color:var(--primary);border:1px solid var(--line)}.btn-danger{background:#fff0ed;color:var(--red);border:1px solid #f3c9c2}.btn:disabled{opacity:.55;cursor:not-allowed}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.pill{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px;font-weight:900;color:var(--primary);text-align:center}.checklist{display:grid;gap:10px;max-height:calc(100vh - 170px);overflow:auto;padding-left:4px}.shot{display:grid;grid-template-columns:54px 1.5fr 120px 110px 1.2fr 88px;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:16px;padding:10px}.shot:hover{border-color:#d0ad99}.num{width:38px;height:38px;border-radius:13px;background:#f4e5d9;color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:900}.shot-title{font-weight:900}.shot small{color:var(--muted);font-weight:800}.shot input[type=file]{font-size:11px;max-width:100%}.shot input[type=number]{width:100%;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fffaf6}.scene-tag{display:inline-block;background:#f6eee8;border:1px solid var(--line);border-radius:999px;padding:5px 8px;font-size:11px;font-weight:900;color:var(--accent)}.thumb{width:78px;height:46px;border-radius:10px;background:#efe3dc;object-fit:cover;border:1px solid var(--line)}.previewBox{display:grid;place-items:center;background:#1b1513;border-radius:20px;padding:12px;overflow:hidden}.canvasWrap{width:min(100%,310px);aspect-ratio:9/16;background:#000;border-radius:16px;overflow:hidden;border:1px solid #3a2b25}canvas{width:100%;height:100%;display:block;background:#000}.download{display:none;margin-top:12px;background:#e9f7ee;border:1px solid #bde1ca;color:var(--green);padding:12px;border-radius:14px;font-weight:900;text-align:center;text-decoration:none}.progress{height:12px;background:#eee0d7;border-radius:999px;overflow:hidden;margin-top:10px}.bar{height:100%;width:0;background:linear-gradient(90deg,var(--primary),var(--accent));transition:.2s}.note{padding:10px 12px;border-radius:14px;background:#fff4e7;border:1px solid #f2d5b6;color:#7a4d2e;font-weight:800;line-height:1.7;margin-top:10px}.section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}.section-head .mini{font-size:12px;color:var(--muted);font-weight:800}.toggles{display:flex;gap:8px;flex-wrap:wrap}.toggle{display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px;font-weight:900;color:var(--primary);font-size:12px}.toggle input{accent-color:var(--primary)}
+    @media(max-width:1100px){.grid{grid-template-columns:1fr}.checklist{max-height:none}.shot{grid-template-columns:42px 1fr 90px 80px}.shot .filecol{grid-column:2/-1}.shot .thumb{grid-column:1/2}.controls{grid-template-columns:1fr}} 
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand"><img src="assets/img/logo.png" alt="MZJ"><div><h1>Checklist Reel Studio</h1><p class="sub">صفحة HTML عادية: اختار مشاهدك من الجهاز، فويس أوفر، سكريبت، وصدّر فيديو رأسي.</p></div></div>
+      <a class="back" href="index.html">الرجوع للنظام</a>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <div class="section-head"><h2>Checklist التصوير والاختيار</h2><span class="mini">اختار ملف فيديو لكل مشهد تريد استخدامه</span></div>
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" id="autoInclude" checked> استخدام المشاهد المختارة تلقائيًا</label>
+          <label class="toggle"><input type="checkbox" id="showSceneTitle" checked> إظهار اسم المشهد على الفيديو</label>
+          <label class="toggle"><input type="checkbox" id="showCarName" checked> إظهار اسم العربية</label>
+        </div>
+        <div class="summary">
+          <div class="pill">المشاهد المختارة: <span id="selectedCount">0</span></div>
+          <div class="pill">مدة النهائي: <span id="totalDuration">0</span> ث</div>
+          <div class="pill">الهدف: 45 - 60 ث</div>
+        </div>
+        <div class="checklist" id="checklist"></div>
+      </section>
+
+      <aside class="card">
+        <h2>تجهيز الفيديو النهائي</h2>
+        <div class="controls">
+          <label class="field"><span>اسم العربية</span><input id="carName" value="MG HS Deluxe 2025"></label>
+          <label class="field"><span>الجودة</span><select id="quality"><option value="720">720x1280 أسرع</option><option value="1080" selected>1080x1920 أفضل</option></select></label>
+          <label class="field"><span>ستايل الكابشن</span><select id="captionStyle"><option value="tiktok">TikTok Bold</option><option value="clean">Clean</option><option value="brand">Brand Promo</option></select></label>
+          <label class="field"><span>الفويس أوفر MP3</span><input id="voiceFile" type="file" accept="audio/*"></label>
+          <label class="field"><span>الموسيقى MP3</span><input id="musicFile" type="file" accept="audio/*"></label>
+          <label class="field"><span>لوجو/براند PNG</span><input id="logoFile" type="file" accept="image/*"></label>
+          <label class="field wide"><span>السكريبت / الكابشن</span><textarea id="scriptText" placeholder="اكتب هنا نص الفويس أوفر أو الجمل التي تظهر على الفيديو..."></textarea></label>
+        </div>
+        <p class="hint">مهم: الصفحة لا تستخدم API ولا سيرفر. التصدير يتم داخل المتصفح باستخدام ملفاتك فقط. بسبب قيود المتصفح، التصدير يكون WebM بجودة عالية، ويمكن تحويله MP4 لاحقًا من أي برنامج مونتاج أو أداة تحويل.</p>
+        <div class="previewBox"><div class="canvasWrap"><canvas id="stage" width="1080" height="1920"></canvas></div></div>
+        <div class="progress"><div class="bar" id="bar"></div></div>
+        <div class="actions">
+          <button class="btn btn-light" id="previewBtn" type="button">معاينة أول 10 ثواني</button>
+          <button class="btn btn-primary" id="renderBtn" type="button">تصدير الفيديو النهائي</button>
+          <button class="btn btn-danger" id="resetBtn" type="button">مسح الاختيارات</button>
+        </div>
+        <a id="downloadLink" class="download" download="mzj-car-reel.webm">تحميل الفيديو النهائي</a>
+        <div class="note" id="status">جاهز. اختر مشاهد من الـ Checklist ثم اضغط تصدير.</div>
+      </aside>
+    </div>
+  </div>
+
+<script>
+const shots = [
+  {n:1,t:'لقطة خارجية للمعرض من بره مع الواجهة واللوجو',shoot:6,part:'Brand',use:2.0},
+  {n:2,t:'لقطة للبراند / اسم المعرض / اليفطة',shoot:5,part:'Brand',use:1.6},
+  {n:3,t:'لقطة داخلية للمعرض تظهر شكل المكان والسيارات',shoot:6,part:'Brand',use:2.0},
+  {n:4,t:'لقطة أمامية قوية للعربية',shoot:5,part:'Hook',use:1.8},
+  {n:5,t:'لقطة كاملة للعربية من الجنب',shoot:5,part:'Exterior',use:1.6},
+  {n:6,t:'لقطة خلفية كاملة',shoot:5,part:'Exterior',use:1.5},
+  {n:7,t:'حركة بسيطة من الأمام للجنب',shoot:7,part:'Exterior',use:2.0},
+  {n:8,t:'حركة بسيطة من الخلف للجنب',shoot:7,part:'Exterior',use:2.0},
+  {n:9,t:'الشبكة الأمامية',shoot:4,part:'Details',use:1.2},
+  {n:10,t:'لوجو العربية',shoot:4,part:'Details',use:1.1},
+  {n:11,t:'الفوانيس الأمامية',shoot:5,part:'Details',use:1.4},
+  {n:12,t:'الفوانيس الخلفية',shoot:5,part:'Details',use:1.4},
+  {n:13,t:'الجنوط',shoot:5,part:'Details',use:1.5},
+  {n:14,t:'المرايات',shoot:4,part:'Details',use:1.1},
+  {n:15,t:'الإشارات / LED',shoot:5,part:'Details',use:1.3},
+  {n:16,t:'فتح الباب من الخارج',shoot:7,part:'Interior',use:1.8},
+  {n:17,t:'الدخول للصالون',shoot:7,part:'Interior',use:2.0},
+  {n:18,t:'لقطة واسعة للصالون الأمامي',shoot:6,part:'Interior',use:1.8},
+  {n:19,t:'الكراسي الأمامية',shoot:5,part:'Interior',use:1.5},
+  {n:20,t:'الكنبة الخلفية',shoot:5,part:'Interior',use:1.5},
+  {n:21,t:'خامات الأبواب / الجلد / التطعيمات',shoot:5,part:'Interior',use:1.4},
+  {n:22,t:'فتحة السقف لو موجودة',shoot:6,part:'Interior',use:1.6},
+  {n:23,t:'التابلوه كامل',shoot:6,part:'Tech',use:1.7},
+  {n:24,t:'شاشة المالتي ميديا',shoot:5,part:'Tech',use:1.5},
+  {n:25,t:'العدادات الديجيتال',shoot:5,part:'Tech',use:1.4},
+  {n:26,t:'عجلة القيادة',shoot:5,part:'Tech',use:1.4},
+  {n:27,t:'الفتيس / الكونسول',shoot:5,part:'Tech',use:1.4},
+  {n:28,t:'أزرار التكييف / التحكم',shoot:5,part:'Tech',use:1.3},
+  {n:29,t:'مساحة الكنبة الخلفية للرجلين',shoot:6,part:'Practical',use:1.7},
+  {n:30,t:'فتح الشنطة',shoot:7,part:'Practical',use:1.8},
+  {n:31,t:'مساحة الشنطة من الداخل',shoot:6,part:'Practical',use:1.7},
+  {n:32,t:'الموتور لو متاح',shoot:5,part:'Performance',use:1.5},
+  {n:33,t:'لقطة حركة للعربية وهي ماشية ببطء',shoot:8,part:'Motion',use:2.3},
+  {n:34,t:'لقطة جانبية أثناء الحركة',shoot:8,part:'Motion',use:2.2},
+  {n:35,t:'لقطة ختامية ثابتة للعربية',shoot:5,part:'CTA',use:1.8},
+  {n:36,t:'لقطة ختامية حركة خفيفة',shoot:7,part:'CTA',use:2.1},
+  {n:37,t:'لقطة ختامية للمعرض أو البراند مع العربية',shoot:6,part:'CTA + Brand',use:2.2}
+];
+const checklist = document.getElementById('checklist');
+const selectedCount = document.getElementById('selectedCount');
+const totalDuration = document.getElementById('totalDuration');
+const statusBox = document.getElementById('status');
+const stage = document.getElementById('stage');
+const ctx = stage.getContext('2d');
+let rows = [];
+function makeRows(){
+  checklist.innerHTML=''; rows=[];
+  shots.forEach(s=>{
+    const el=document.createElement('div'); el.className='shot';
+    el.innerHTML=`<div class="num">${s.n}</div><div><div class="shot-title">${s.t}</div><small>تصوير: ${s.shoot} ثواني</small> <span class="scene-tag">${s.part}</span></div><label class="field"><span>Start</span><input class="start" type="number" min="0" step="0.1" value="0"></label><label class="field"><span>في النهائي</span><input class="dur" type="number" min="0.5" step="0.1" value="${s.use}"></label><div class="filecol"><input class="file" type="file" accept="video/*"></div><video class="thumb" muted></video>`;
+    checklist.appendChild(el);
+    const row={shot:s,el,file:null,url:null,startEl:el.querySelector('.start'),durEl:el.querySelector('.dur'),fileEl:el.querySelector('.file'),thumb:el.querySelector('.thumb')};
+    row.fileEl.addEventListener('change',()=>{ if(row.url) URL.revokeObjectURL(row.url); row.file=row.fileEl.files[0]||null; row.url=row.file?URL.createObjectURL(row.file):null; if(row.url){row.thumb.src=row.url; row.thumb.currentTime=.2; row.thumb.onloadeddata=()=>{try{row.thumb.currentTime=Math.min(.5,row.thumb.duration||.5)}catch(e){}}} updateSummary(); });
+    row.durEl.addEventListener('input', updateSummary); rows.push(row);
+  }); updateSummary(); drawIdle();
+}
+function log(msg){statusBox.textContent=msg;}
+function selectedRows(){return rows.filter(r=>r.file && Number(r.durEl.value)>0)}
+function updateSummary(){const list=selectedRows(); selectedCount.textContent=list.length; const t=list.reduce((a,r)=>a+Number(r.durEl.value||0),0); totalDuration.textContent=t.toFixed(1);}
+function drawIdle(){const W=stage.width,H=stage.height; ctx.fillStyle='#130f0d';ctx.fillRect(0,0,W,H); ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.font='900 64px Tajawal, Arial'; ctx.fillText('MZJ Reel Studio',W/2,H/2-20); ctx.font='700 34px Tajawal, Arial'; ctx.fillStyle='#d2b29f'; ctx.fillText('اختر مشاهدك ثم صدّر الفيديو',W/2,H/2+45);}
+function loadVideo(row){return new Promise((resolve,reject)=>{const v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='auto'; v.src=row.url; v.onloadedmetadata=()=>resolve(v); v.onerror=()=>reject(new Error('فشل تحميل فيديو: '+row.shot.t));});}
+function loadImage(file){return new Promise((resolve)=>{ if(!file) return resolve(null); const img=new Image(); const url=URL.createObjectURL(file); img.onload=()=>{URL.revokeObjectURL(url); resolve(img)}; img.onerror=()=>resolve(null); img.src=url; });}
+function readFileAsArrayBuffer(file){return new Promise((res,rej)=>{const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsArrayBuffer(file);});}
+function splitCaptions(txt){return (txt||'').replace(/\r/g,'').split(/\n|\.|،|!|\؟/).map(s=>s.trim()).filter(Boolean).flatMap(s=>{if(s.length<28)return [s]; const words=s.split(/\s+/); const out=[]; let cur=''; words.forEach(w=>{if((cur+' '+w).trim().length>28){out.push(cur.trim()); cur=w}else cur=(cur+' '+w).trim()}); if(cur)out.push(cur); return out;});}
+function roundedRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawTextBlock(text, y, style){const W=stage.width; ctx.save(); ctx.textAlign='center'; ctx.direction='rtl'; let fontSize=style==='clean'?54:68; ctx.font=`900 ${fontSize}px Tajawal, Arial`; let lines=[]; const words=(text||'').split(/\s+/); let cur=''; words.forEach(w=>{const test=(cur+' '+w).trim(); if(ctx.measureText(test).width>W*0.78){lines.push(cur); cur=w}else cur=test}); if(cur) lines.push(cur); const lh=fontSize*1.18; const blockH=lines.length*lh+32; const boxW=W*.86; const x=(W-boxW)/2; const boxY=y-blockH/2; ctx.globalAlpha=.78; ctx.fillStyle='rgba(30,18,13,.78)'; roundedRect(x,boxY,boxW,blockH,28); ctx.fill(); ctx.globalAlpha=1; lines.forEach((line,i)=>{ctx.lineWidth=10; ctx.strokeStyle='rgba(0,0,0,.9)'; ctx.fillStyle='#fff'; const yy=boxY+42+i*lh; ctx.strokeText(line,W/2,yy); ctx.fillText(line,W/2,yy);}); ctx.restore();}
+function drawScene(video,row,progress,globalTime,totalTime,captions,logo){const W=stage.width,H=stage.height; ctx.fillStyle='#000';ctx.fillRect(0,0,W,H); const vw=video.videoWidth||W, vh=video.videoHeight||H; const zoom=1.02+progress*0.055; const scale=Math.max(W/vw,H/vh)*zoom; const dw=vw*scale, dh=vh*scale; const panX=Math.sin(progress*Math.PI)*24; const x=(W-dw)/2+panX, y=(H-dh)/2; ctx.drawImage(video,x,y,dw,dh); const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'rgba(0,0,0,.25)'); g.addColorStop(.55,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.42)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); if(document.getElementById('showCarName').checked){ctx.save();ctx.textAlign='right';ctx.direction='rtl';ctx.font='900 46px Tajawal, Arial';ctx.fillStyle='#fff';ctx.shadowColor='rgba(0,0,0,.8)';ctx.shadowBlur=10;ctx.fillText(document.getElementById('carName').value||'MZJ',W-58,90);ctx.restore();}
+  if(logo){const lw=130, lh=130*(logo.height/logo.width); ctx.globalAlpha=.92; ctx.drawImage(logo,46,46,lw,lh); ctx.globalAlpha=1;}
+  const capIndex=captions.length?Math.min(captions.length-1, Math.floor((globalTime/Math.max(1,totalTime))*captions.length)):-1; const mainText=capIndex>=0?captions[capIndex]:(document.getElementById('showSceneTitle').checked?row.shot.t:''); if(mainText) drawTextBlock(mainText,H*.74,document.getElementById('captionStyle').value);
+  if(document.getElementById('showSceneTitle').checked){ctx.save(); ctx.textAlign='center'; ctx.font='900 32px Tajawal, Arial'; ctx.fillStyle='#ffd8b8'; ctx.shadowColor='#000'; ctx.shadowBlur=8; ctx.fillText(row.shot.part,W/2,H-82); ctx.restore();}
+}
+async function setupAudio(recStream, totalSeconds){const AudioContext=window.AudioContext||window.webkitAudioContext; const ac=new AudioContext(); const dest=ac.createMediaStreamDestination(); const voice=document.getElementById('voiceFile').files[0]; const music=document.getElementById('musicFile').files[0]; if(voice){const buf=await ac.decodeAudioData(await readFileAsArrayBuffer(voice)); const src=ac.createBufferSource(); src.buffer=buf; const gain=ac.createGain(); gain.gain.value=1.0; src.connect(gain).connect(dest); src.start(ac.currentTime+.1);} if(music){const buf=await ac.decodeAudioData(await readFileAsArrayBuffer(music)); const src=ac.createBufferSource(); src.buffer=buf; src.loop=true; const gain=ac.createGain(); gain.gain.value=voice?.size?0.16:0.55; src.connect(gain).connect(dest); src.start(ac.currentTime+.1); src.stop(ac.currentTime+totalSeconds+.6);} dest.stream.getAudioTracks().forEach(t=>recStream.addTrack(t)); return ac;}
+async function playPlan(record=false, maxSeconds=null){const list=selectedRows(); if(!list.length){alert('اختار فيديو واحد على الأقل من الـ Checklist');return null;} const quality=document.getElementById('quality').value; stage.width=quality==='1080'?1080:720; stage.height=quality==='1080'?1920:1280; const captions=splitCaptions(document.getElementById('scriptText').value); const logo=await loadImage(document.getElementById('logoFile').files[0]); const total=list.reduce((a,r)=>a+Number(r.durEl.value||0),0); const limit=maxSeconds?Math.min(maxSeconds,total):total; const stream=stage.captureStream(30); let recorder=null,chunks=[],audioCtx=null; if(record){audioCtx=await setupAudio(stream,total); const mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')?'video/webm;codecs=vp9,opus':'video/webm'; recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:quality==='1080'?8500000:5000000,audioBitsPerSecond:192000}); recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)}; recorder.start(1000);}
+  let elapsed=0; for(const row of list){if(elapsed>=limit)break; log((record?'تصدير':'معاينة')+` المشهد ${row.shot.n}: ${row.shot.t}`); const video=await loadVideo(row); const start=Math.min(Number(row.startEl.value||0), Math.max(0,(video.duration||0)-.2)); const dur=Math.min(Number(row.durEl.value||1), Math.max(.3,(video.duration||start+1)-start), limit-elapsed); video.currentTime=start; await new Promise(res=>{video.onseeked=res; setTimeout(res,500)}); await video.play().catch(()=>{}); const t0=performance.now(); await new Promise(resolve=>{function frame(now){const p=Math.min(1,(now-t0)/(dur*1000)); drawScene(video,row,p,elapsed+p*dur,total,captions,logo); document.getElementById('bar').style.width=((Math.min(limit,elapsed+p*dur)/limit)*100).toFixed(1)+'%'; if(p<1) requestAnimationFrame(frame); else resolve();} requestAnimationFrame(frame);}); video.pause(); elapsed+=dur;} if(record){await new Promise(r=>setTimeout(r,350)); recorder.stop(); const blob=await new Promise(res=>{recorder.onstop=()=>res(new Blob(chunks,{type:'video/webm'}));}); if(audioCtx) audioCtx.close(); const a=document.getElementById('downloadLink'); if(a.href) URL.revokeObjectURL(a.href); a.href=URL.createObjectURL(blob); a.style.display='block'; log('تم تجهيز الفيديو. اضغط تحميل الفيديو النهائي.'); return blob;} log('انتهت المعاينة.'); return null;}
+document.getElementById('previewBtn').onclick=()=>playPlan(false,10).catch(e=>{console.error(e);log('خطأ: '+e.message)});
+document.getElementById('renderBtn').onclick=async()=>{const b=document.getElementById('renderBtn');b.disabled=true;document.getElementById('downloadLink').style.display='none';try{await playPlan(true)}catch(e){console.error(e);log('خطأ أثناء التصدير: '+e.message)}finally{b.disabled=false;}};
+document.getElementById('resetBtn').onclick=()=>{if(confirm('مسح كل اختيارات الفيديو؟')){rows.forEach(r=>{r.fileEl.value='';r.file=null;if(r.url)URL.revokeObjectURL(r.url);r.url=null;r.thumb.removeAttribute('src')}); updateSummary(); drawIdle(); log('تم المسح.')}};
+makeRows();
+</script>
+</body>
+</html>
