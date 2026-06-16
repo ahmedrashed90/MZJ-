@@ -6426,7 +6426,7 @@ function bindDepartments(){
   document.getElementById('cancelPlatformEdit')?.addEventListener('click', () => { document.getElementById('platformForm')?.reset(); resetForm(['platformEditId']); setPlatformPostTypesRows([]); });
   document.getElementById('cancelOrderStatusEdit')?.addEventListener('click', () => { document.getElementById('orderStatusForm')?.reset(); resetForm(['orderStatusEditId']); });
   document.getElementById('cancelContentSectionEdit')?.addEventListener('click', () => { document.getElementById('contentSectionForm')?.reset(); resetForm(['contentSectionEditId']); });
-  document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignTypes(); renderOrderStatuses(); renderContentSections(); });
+  document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignTypes(); renderOrderStatuses(); renderContentSections(); renderCaptionTrends(); });
   document.getElementById('refreshStockBtn')?.addEventListener('click', renderStock);
   document.getElementById('exportStockExcelBtn')?.addEventListener('click', exportStockRowsToExcel);
   document.getElementById('clearStockFiltersBtn')?.addEventListener('click', clearStockFilters);
@@ -15206,21 +15206,140 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     $('checklistDownloads') && ($('checklistDownloads').innerHTML = '');
     setProgress(0); studioLog('تم مسح الاختيارات.'); updateFileLabels();
   }
+  const MZJ_CAPTION_TRENDS_KEY = 'mzj_caption_trends_v1';
+  function defaultCaptionTrends(){
+    return [
+      {id:'arabic-review',name:'Arabic Review',desc:'مناسب للفويس أوفر العربي الواضح',position:'center-bottom',font:'Tajawal',size:56,color:'#ffffff',bg:'#080d19',accent:'#facc15',inAnim:'pop',outAnim:'fade-scale',separator:'flash',isDefault:true,builtIn:true},
+      {id:'tiktok-pop',name:'TikTok Pop',desc:'Pop سريع وترندي للريلز',position:'center-bottom',font:'Tajawal',size:60,color:'#ffffff',bg:'#080d19',accent:'#facc15',inAnim:'pop',outAnim:'fade-scale',separator:'flash',builtIn:true},
+      {id:'fast-hype',name:'Fast Hype',desc:'Zoom وWhip للمقاطع السريعة',position:'center',font:'Tajawal',size:66,color:'#ffffff',bg:'#050816',accent:'#22c55e',inAnim:'zoom',outAnim:'flash',separator:'swipe',builtIn:true},
+      {id:'luxury-clean',name:'Luxury Clean',desc:'نظيف وفاخر للمعارض والسيارات الفخمة',position:'bottom',font:'Tajawal',size:50,color:'#ffffff',bg:'#111827',accent:'#d4af37',inAnim:'slide-up',outAnim:'fade',separator:'line',builtIn:true},
+      {id:'badge-specs',name:'Badge Specs',desc:'مناسب للمواصفات والأرقام',position:'center-bottom',font:'Tajawal',size:58,color:'#ffffff',bg:'#082f49',accent:'#38bdf8',inAnim:'pop',outAnim:'zoom-out',separator:'flash',builtIn:true}
+    ];
+  }
+  function captionTrendSlug(name){
+    const base = String(name || 'trend').trim().toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g,'-').replace(/^-+|-+$/g,'');
+    return base || ('trend-' + Date.now());
+  }
+  function loadCaptionTrends(){
+    let saved = [];
+    try{ saved = JSON.parse(localStorage.getItem(MZJ_CAPTION_TRENDS_KEY) || '[]') || []; }catch(_){ saved = []; }
+    const defaults = defaultCaptionTrends();
+    const map = new Map(defaults.map(t => [t.id, t]));
+    saved.forEach(t => { if(t && t.id) map.set(t.id, {...(map.get(t.id)||{}), ...t, builtIn: !!map.get(t.id)?.builtIn}); });
+    const all = [...map.values()];
+    if(!all.some(t => t.isDefault) && all[0]) all[0].isDefault = true;
+    return all;
+  }
+  function saveCaptionTrends(list){
+    try{ localStorage.setItem(MZJ_CAPTION_TRENDS_KEY, JSON.stringify(list || [])); }catch(_){ }
+  }
+  function getCaptionTrend(id){
+    const list = loadCaptionTrends();
+    return list.find(t => t.id === id) || list.find(t => t.isDefault) || list[0] || null;
+  }
+  function populateCaptionTrendSelect(){
+    const sel = $('checklistCaptionPreset');
+    if(!sel) return;
+    const old = sel.value;
+    const trends = loadCaptionTrends();
+    sel.innerHTML = trends.map(t => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name || t.id)}${t.isDefault ? ' - افتراضي' : ''}</option>`).join('');
+    const preferred = old && trends.some(t => t.id === old) ? old : (trends.find(t => t.isDefault)?.id || trends[0]?.id || 'arabic-review');
+    sel.value = preferred;
+    applyCaptionPreset(sel);
+  }
+  function renderCaptionTrends(){
+    const list = $('captionTrendsList');
+    if(!list) return;
+    const trends = loadCaptionTrends();
+    if(!trends.length){ list.innerHTML = '<div class="empty-state">لا توجد ترندات حتى الآن.</div>'; return; }
+    list.innerHTML = trends.map(t => `<article class="department-item caption-trend-item">
+      <div class="item-head"><h3>${escapeHtml(t.name || t.id)} ${t.isDefault ? '<small>افتراضي</small>' : ''}</h3><div class="item-actions"><button type="button" class="mini-btn" data-edit-caption-trend="${escapeHtml(t.id)}">تعديل</button>${t.builtIn ? '<span class="chip"><small>أساسي</small></span>' : `<button type="button" class="mini-btn danger" data-delete-caption-trend="${escapeHtml(t.id)}">حذف</button>`}</div></div>
+      <p>${escapeHtml(t.desc || 'ترند كابشن مخصص')}</p>
+      <div class="chip-list"><span class="chip">${escapeHtml(t.position || '')}</span><span class="chip">${escapeHtml(t.inAnim || '')} → ${escapeHtml(t.outAnim || '')}</span><span class="chip">فاصل: ${escapeHtml(t.separator || 'none')}</span><span class="chip">${escapeHtml(String(t.size || 56))}px</span><span class="chip"><i class="caption-trend-swatch" style="background:${escapeHtml(t.accent || '#facc15')}"></i> لون التمييز</span></div>
+    </article>`).join('');
+  }
+  function readCaptionTrendForm(){
+    const name = normalizeText($('captionTrendName')?.value);
+    return {
+      id: $('captionTrendEditId')?.value || captionTrendSlug(name),
+      name,
+      desc: normalizeText($('captionTrendDesc')?.value),
+      position: $('captionTrendPosition')?.value || 'center-bottom',
+      font: $('captionTrendFont')?.value || 'Tajawal',
+      size: Math.max(28, Number($('captionTrendSize')?.value || 56) || 56),
+      color: $('captionTrendColor')?.value || '#ffffff',
+      bg: $('captionTrendBg')?.value || '#080d19',
+      accent: $('captionTrendAccent')?.value || '#facc15',
+      inAnim: $('captionTrendIn')?.value || 'pop',
+      outAnim: $('captionTrendOut')?.value || 'fade-scale',
+      separator: $('captionTrendSeparator')?.value || 'flash',
+      isDefault: !!$('captionTrendDefault')?.checked
+    };
+  }
+  function fillCaptionTrendForm(t){
+    if(!t) return;
+    const set = (id,val) => { const el=$(id); if(el) el.value = val ?? ''; };
+    set('captionTrendEditId', t.id); set('captionTrendName', t.name); set('captionTrendDesc', t.desc || '');
+    set('captionTrendPosition', t.position || 'center-bottom'); set('captionTrendFont', t.font || 'Tajawal'); set('captionTrendSize', t.size || 56);
+    set('captionTrendIn', t.inAnim || 'pop'); set('captionTrendOut', t.outAnim || 'fade-scale'); set('captionTrendSeparator', t.separator || 'flash');
+    set('captionTrendColor', t.color || '#ffffff'); set('captionTrendBg', t.bg || '#080d19'); set('captionTrendAccent', t.accent || '#facc15');
+    const def = $('captionTrendDefault'); if(def) def.checked = !!t.isDefault;
+  }
+  function clearCaptionTrendForm(){
+    $('captionTrendForm')?.reset();
+    if($('captionTrendEditId')) $('captionTrendEditId').value = '';
+    if($('captionTrendSize')) $('captionTrendSize').value = '56';
+    if($('captionTrendColor')) $('captionTrendColor').value = '#ffffff';
+    if($('captionTrendBg')) $('captionTrendBg').value = '#080d19';
+    if($('captionTrendAccent')) $('captionTrendAccent').value = '#facc15';
+  }
+  function setupCaptionTrendManager(){
+    renderCaptionTrends();
+    $('captionTrendForm')?.addEventListener('submit', event => {
+      event.preventDefault();
+      const item = readCaptionTrendForm();
+      if(!item.name){ showMessage('captionTrendMessage', 'اكتب اسم الترند.'); return; }
+      let list = loadCaptionTrends();
+      if(item.isDefault) list = list.map(t => ({...t, isDefault:false}));
+      const idx = list.findIndex(t => t.id === item.id);
+      if(idx >= 0) list[idx] = {...list[idx], ...item}; else list.push(item);
+      saveCaptionTrends(list);
+      clearCaptionTrendForm();
+      renderCaptionTrends(); populateCaptionTrendSelect();
+      showMessage('captionTrendMessage', 'تم حفظ الترند.');
+    });
+    $('cancelCaptionTrendEdit')?.addEventListener('click', clearCaptionTrendForm);
+    document.addEventListener('click', event => {
+      const edit = event.target.closest('[data-edit-caption-trend]');
+      if(edit){
+        const t = getCaptionTrend(edit.dataset.editCaptionTrend);
+        const details = $('captionTrendDetails'); if(details) details.open = true;
+        fillCaptionTrendForm(t); $('captionTrendForm')?.scrollIntoView({behavior:'smooth', block:'start'}); return;
+      }
+      const del = event.target.closest('[data-delete-caption-trend]');
+      if(del){
+        const id = del.dataset.deleteCaptionTrend;
+        let list = loadCaptionTrends().filter(t => t.id !== id);
+        if(!list.some(t => t.isDefault) && list[0]) list[0].isDefault = true;
+        saveCaptionTrends(list); renderCaptionTrends(); populateCaptionTrendSelect(); return;
+      }
+    });
+  }
   function applyCaptionPreset(source){
     if(!source || source.id !== 'checklistCaptionPreset') return;
     const preset = source.value;
-    const set = (id, value) => { const el = $(id); if(el) el.value = value; };
-    const setColor = (id, value) => set(id, value);
-    if(preset === 'tiktok-pop'){
-      set('checklistCaptionPosition','center-bottom'); set('checklistCaptionIn','pop'); set('checklistCaptionOut','fade-scale'); set('checklistCaptionSeparator','flash'); set('checklistCaptionSize','60'); setColor('checklistCaptionAccent','#facc15');
-    }else if(preset === 'fast-hype'){
-      set('checklistCaptionPosition','center'); set('checklistCaptionIn','zoom'); set('checklistCaptionOut','flash'); set('checklistCaptionSeparator','swipe'); set('checklistCaptionSize','66'); setColor('checklistCaptionAccent','#22c55e');
-    }else if(preset === 'luxury-clean'){
-      set('checklistCaptionPosition','bottom'); set('checklistCaptionIn','slide-up'); set('checklistCaptionOut','fade'); set('checklistCaptionSeparator','line'); set('checklistCaptionSize','50'); setColor('checklistCaptionAccent','#d4af37');
-    }else if(preset === 'badge-specs'){
-      set('checklistCaptionPosition','center-bottom'); set('checklistCaptionIn','pop'); set('checklistCaptionOut','zoom-out'); set('checklistCaptionSeparator','flash'); set('checklistCaptionSize','58'); setColor('checklistCaptionAccent','#38bdf8');
-    }else{
-      set('checklistCaptionPosition','center-bottom'); set('checklistCaptionIn','pop'); set('checklistCaptionOut','fade-scale'); set('checklistCaptionSeparator','flash'); set('checklistCaptionSize','56'); setColor('checklistCaptionAccent','#facc15');
+    const trend = getCaptionTrend(preset);
+    const set = (id, value) => { const el = $(id); if(el && value != null) el.value = value; };
+    if(trend){
+      set('checklistCaptionPosition', trend.position || 'center-bottom');
+      set('checklistCaptionFont', trend.font || 'Tajawal');
+      set('checklistCaptionIn', trend.inAnim || 'pop');
+      set('checklistCaptionOut', trend.outAnim || 'fade-scale');
+      set('checklistCaptionSeparator', trend.separator || 'flash');
+      set('checklistCaptionSize', trend.size || 56);
+      set('checklistCaptionColor', trend.color || '#ffffff');
+      set('checklistCaptionBg', trend.bg || '#080d19');
+      set('checklistCaptionAccent', trend.accent || '#facc15');
     }
     const lbl = $('checklistCaptionSizeLabel'); if(lbl) lbl.textContent = ($('checklistCaptionSize')?.value || '56') + 'px';
   }
@@ -15258,7 +15377,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const shots = selectedShotRows();
     const canvas = $('checklistPreviewCanvas');
     if(!canvas){ return; }
-    if(!shots.length){ studioLog('اختار فيديو واحد على الأقل للمعاينة.'); drawPreviewPlaceholder(); return; }
+    if(!shots.length){ studioLog('المعاينة السريعة تعمل بالكابشن والإعدادات الحالية. لا يوجد فيديو مختار لعرض لقطات حقيقية.'); drawPreviewPlaceholder(); return; }
     const ctx = canvas.getContext('2d', { alpha:false });
     const totalDuration = shots.reduce((sum,s)=>sum+s.use,0);
     const logo = await loadImageFile($('checklistLogoFile')?.files?.[0] || null).catch(()=>null);
@@ -15278,12 +15397,13 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     renderPartsStrip();
     renderChecklistRows();
     populatePlatformSelectors();
+    populateCaptionTrendSelect();
     updateFileLabels();
     $('checklistPlatformSelect')?.addEventListener('change', populatePlatformSelectors);
     $('checklistPublishTypeSelect')?.addEventListener('change', updateOutputSpec);
     document.querySelectorAll('#checklist-reel input').forEach(input => input.addEventListener('change', updateFileLabels));
     document.querySelectorAll('#checklist-reel select').forEach(input => input.addEventListener('change', () => { applyCaptionPreset(input); updateChecklistSummary(); drawPreviewPlaceholder(); }));
-    document.querySelectorAll('[data-shot-voiceover],[data-shot-caption],[data-shot-use],[data-shot-start]').forEach(input => input.addEventListener('input', updateChecklistSummary));
+    document.querySelectorAll('[data-shot-voiceover],[data-shot-caption],[data-shot-use],[data-shot-start]').forEach(input => input.addEventListener('input', () => { updateChecklistSummary(); drawPreviewPlaceholder(); }));
     $('checklistScript')?.addEventListener('input', updateChecklistSummary);
     $('checklistImportScriptBtn')?.addEventListener('click', importChecklistScriptSheet);
     $('checklistBuildScriptBtn')?.addEventListener('click', () => { const text = buildSelectedVoiceoverScript(); studioLog(text ? 'تم تجميع سكريبت المشاهد المختارة.' : 'اختار مشاهد أو اكتب فويس أوفر للمشاهد أولاً.'); });
@@ -15526,4 +15646,5 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       checklistRendering = false;
     }
   }
+  setupCaptionTrendManager();
 })();

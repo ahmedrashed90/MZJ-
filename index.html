@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=208" />
+  <link rel="stylesheet" href="assets/css/style.css?v=218" />
   <link rel="icon" type="image/x-icon" href="assets/favicon.png">
 </head>
 <body>
@@ -562,6 +562,27 @@
                 <p class="form-message" id="contentSectionMessage"></p>
               </form>
             </details>
+
+            <details class="accordion-card admin-form-card" id="captionTrendDetails">
+              <summary><span>ترندات الكابشن والمونتاج</span><strong>فتح / إغلاق</strong></summary>
+              <form class="form caption-trend-form" id="captionTrendForm">
+                <input type="hidden" id="captionTrendEditId" />
+                <label class="field"><span>اسم الترند</span><input type="text" id="captionTrendName" required placeholder="مثال: TikTok Pop" /></label>
+                <label class="field"><span>وصف مختصر</span><input type="text" id="captionTrendDesc" placeholder="مثال: حركة سريعة مناسبة للريلز" /></label>
+                <label class="field"><span>مكان الكابشن</span><select id="captionTrendPosition"><option value="bottom">أسفل</option><option value="center-bottom">وسط تحت</option><option value="center">وسط</option><option value="top">أعلى</option></select></label>
+                <label class="field"><span>نوع الخط</span><select id="captionTrendFont"><option value="Tajawal">Tajawal</option><option value="Cairo">Cairo</option><option value="Arial">Arial</option><option value="Tahoma">Tahoma</option><option value="system">System</option></select></label>
+                <label class="field"><span>حجم الخط</span><input type="number" id="captionTrendSize" min="28" max="96" value="56" /></label>
+                <label class="field"><span>حركة الدخول</span><select id="captionTrendIn"><option value="pop">Trend Pop</option><option value="zoom">Punch Zoom</option><option value="slide-up">Slide Up</option><option value="fade">Fade In</option><option value="typewriter">Typewriter</option></select></label>
+                <label class="field"><span>حركة الخروج</span><select id="captionTrendOut"><option value="fade-scale">Fade + Scale</option><option value="fade">Fade Out</option><option value="slide-down">Slide Down</option><option value="zoom-out">Zoom Out</option><option value="flash">Flash Out</option></select></label>
+                <label class="field"><span>الفاصل</span><select id="captionTrendSeparator"><option value="none">بدون</option><option value="flash">Flash سريع</option><option value="line">خط سريع</option><option value="swipe">Swipe / Whip</option></select></label>
+                <label class="field"><span>لون النص</span><input type="color" id="captionTrendColor" value="#ffffff" /></label>
+                <label class="field"><span>لون الخلفية</span><input type="color" id="captionTrendBg" value="#080d19" /></label>
+                <label class="field"><span>لون التمييز</span><input type="color" id="captionTrendAccent" value="#facc15" /></label>
+                <label class="caption-trend-default"><input type="checkbox" id="captionTrendDefault" /> <span>اجعله الترند الافتراضي</span></label>
+                <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ الترند</button><button class="btn btn-light" type="button" id="cancelCaptionTrendEdit">إلغاء</button></div>
+                <p class="form-message" id="captionTrendMessage"></p>
+              </form>
+            </details>
           </div>
         </div>
 
@@ -599,6 +620,10 @@
             <details class="accordion-card">
               <summary><span>أقسام المحتوى وأنواعها</span><strong>فتح / إغلاق</strong></summary>
               <div id="contentSectionsList" class="departments-list"><div class="empty-state">جاري تحميل أقسام المحتوى...</div></div>
+            </details>
+            <details class="accordion-card">
+              <summary><span>ترندات الكابشن والمونتاج</span><strong>فتح / إغلاق</strong></summary>
+              <div id="captionTrendsList" class="departments-list"><div class="empty-state">جاري تحميل الترندات...</div></div>
             </details>
           </div>
         </div>
@@ -880,6 +905,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="assets/js/jszip.min.js?v=160"></script>
-    <script src="assets/js/app.js?v=217"></script>
+    <script src="assets/js/app.js?v=218"></script>
 </body>
 </html>
