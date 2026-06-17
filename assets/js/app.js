@@ -17331,20 +17331,54 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
 })();
 
-// vLocalPublisher: صفحة متابعة أجندات النشر المحلية القادمة من Electron Agent.
+// v33 Local Publisher: platform/content-type times, web controls, and Electron command requests.
 let publishingJobsCache = [];
 let publishingJobsUnsubscribe = null;
+const LOCAL_PUBLISHER_PLATFORMS = ['facebook','instagram','tiktok','youtube','snapchat'];
+const LOCAL_PUBLISHER_CONTENT_TYPES = ['post','reel','story'];
+const LOCAL_PUBLISHER_DEFAULT_TIMES = {
+  facebook: { post:'12:00', reel:'18:00', story:'21:00' },
+  instagram: { post:'13:00', reel:'19:00', story:'22:00' },
+  tiktok: { post:'', reel:'20:00', story:'' },
+  youtube: { post:'', reel:'18:30', story:'' },
+  snapchat: { post:'', reel:'', story:'23:00' }
+};
+function localPublisherContentLabel(type){
+  const key = normalizeText(type).toLowerCase();
+  return ({ post:'البوست', reel:'الريل', story:'الستوري' })[key] || key || 'المحتوى';
+}
+function localPublisherPlatformLabel(platform){
+  const key = normalizeText(platform).toLowerCase();
+  return (typeof socialPlatformLabels === 'object' && socialPlatformLabels[key]) || ({ facebook:'Facebook', instagram:'Instagram', tiktok:'TikTok', youtube:'YouTube', snapchat:'Snapchat' })[key] || platform || 'منصة';
+}
+function cleanLocalTime(value){
+  const v = normalizeText(value);
+  return /^\d{2}:\d{2}$/.test(v) ? v : '';
+}
+function getLocalPublisherPlatformTimes(){
+  const saved = (systemSettings && systemSettings.localPublisherPlatformTimes) || {};
+  const out = {};
+  LOCAL_PUBLISHER_PLATFORMS.forEach(platform => {
+    out[platform] = {};
+    LOCAL_PUBLISHER_CONTENT_TYPES.forEach(type => {
+      out[platform][type] = cleanLocalTime(saved?.[platform]?.[type]) || LOCAL_PUBLISHER_DEFAULT_TIMES?.[platform]?.[type] || '';
+    });
+  });
+  return out;
+}
 function localPublisherStatusClass(status){
   const s = normalizeText(status).toLowerCase();
   if(['published','تم النشر','done','success'].includes(s)) return 'published';
   if(['failed','فشل','error'].includes(s)) return 'failed';
-  if(['publishing','جاري النشر','processing'].includes(s)) return 'processing';
+  if(['publishing','جاري النشر','processing','in_progress'].includes(s)) return 'processing';
+  if(['manual_publish_requested','retry_requested','publish_now_requested'].includes(s)) return 'requested';
+  if(['canceled','cancelled','ملغي'].includes(s)) return 'canceled';
   return 'scheduled';
 }
 function localPublisherStatusLabel(status){
-  const s = normalizeText(status);
-  const map = { queued:'مجدول', scheduled:'مجدول', ready:'جاهز', publishing:'جاري النشر', published:'تم النشر', failed:'فشل', draft:'مسودة' };
-  return map[s] || s || 'مجدول';
+  const s = normalizeText(status).toLowerCase();
+  const map = { queued:'مجدول', scheduled:'مجدول', ready:'جاهز', publishing:'جاري النشر', processing:'جاري النشر', published:'تم النشر', failed:'فشل', draft:'مسودة', manual_publish_requested:'طلب نشر الآن', retry_requested:'طلب إعادة محاولة', publish_now_requested:'طلب نشر الآن', canceled:'ملغي', cancelled:'ملغي' };
+  return map[s] || normalizeText(status) || 'مجدول';
 }
 function localPublisherTypeLabel(type){
   const s = normalizeText(type).toLowerCase();
@@ -17354,14 +17388,15 @@ function localPublisherTypeLabel(type){
   return type || 'منشور';
 }
 function localPublisherCaptionLabel(job){
-  if(job.contentType === 'story' || job.type === 'story') return 'بدون كابشن';
+  const kind = normalizeText(job.contentType || job.type).toLowerCase();
+  if(kind === 'story') return 'بدون كابشن';
   const text = normalizeText(job.captionText || job.caption || '');
   return text ? `موجود · ${text.length} حرف` : 'غير موجود';
 }
 function loadPublishingJobs(){
   if(!mainDb || publishingJobsUnsubscribe) return;
   try{
-    publishingJobsUnsubscribe = safeCollection(window.MZJ_PUBLISHING_JOBS_COLLECTION || 'publishing_jobs').orderBy('scheduledAtIso','asc').limit(250).onSnapshot(snapshot => {
+    publishingJobsUnsubscribe = safeCollection(window.MZJ_PUBLISHING_JOBS_COLLECTION || 'publishing_jobs').orderBy('scheduledAtIso','asc').limit(500).onSnapshot(snapshot => {
       publishingJobsCache = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) }));
       if(getRoute() === 'local-publisher') renderLocalPublisherPage();
     }, error => console.warn('Publishing jobs load error', error));
@@ -17371,9 +17406,30 @@ function localPublisherPlatformRows(){
   let rows = [];
   try{ rows = typeof platformConnectionRows === 'function' ? platformConnectionRows() : []; }catch(_){ rows = []; }
   if(!rows.length) return '<div class="empty-state">افتح صفحة ربط المنصات لفحص الحسابات المتاحة.</div>';
-  return rows.filter(row => ['facebook','instagram','tiktok','youtube','snapchat'].includes(row.key)).map(row => `<article class="local-platform-chip is-${escapeHtml(row.state || 'warning')}"><strong>${escapeHtml(row.name)}</strong><span>${escapeHtml(row.status)}</span><small>${escapeHtml(row.account || '')}</small></article>`).join('');
+  return rows.filter(row => LOCAL_PUBLISHER_PLATFORMS.includes(row.key)).map(row => `<article class="local-platform-chip is-${escapeHtml(row.state || 'warning')}"><strong>${escapeHtml(row.name)}</strong><span>${escapeHtml(row.status)}</span><small>${escapeHtml(row.account || '')}</small></article>`).join('');
+}
+function renderLocalPublisherTimeSettings(){
+  const body = document.getElementById('localPublisherTimesBody');
+  if(!body) return;
+  const times = getLocalPublisherPlatformTimes();
+  body.innerHTML = LOCAL_PUBLISHER_PLATFORMS.map(platform => `
+    <tr data-local-platform-time-row="${escapeHtml(platform)}">
+      <td><span class="local-job-platform">${escapeHtml(localPublisherPlatformLabel(platform))}</span></td>
+      ${LOCAL_PUBLISHER_CONTENT_TYPES.map(type => `<td><input type="time" data-local-platform-time="${escapeHtml(platform)}:${escapeHtml(type)}" value="${escapeHtml(times?.[platform]?.[type] || '')}" ${((platform === 'youtube' && type !== 'reel') || (platform === 'tiktok' && type === 'story')) ? 'title="يمكن تركه فارغًا إذا المنصة لا تدعم هذا النوع"' : ''}></td>`).join('')}
+    </tr>`).join('');
+}
+function readLocalPublisherTimesFromForm(){
+  const times = getLocalPublisherPlatformTimes();
+  document.querySelectorAll('[data-local-platform-time]').forEach(input => {
+    const [platform, type] = String(input.getAttribute('data-local-platform-time') || '').split(':');
+    if(!platform || !type) return;
+    times[platform] = times[platform] || {};
+    times[platform][type] = cleanLocalTime(input.value);
+  });
+  return times;
 }
 function renderLocalPublisherPage(){
+  renderLocalPublisherTimeSettings();
   const platformsEl = document.getElementById('localPublisherPlatforms');
   if(platformsEl) platformsEl.innerHTML = localPublisherPlatformRows();
   const stats = document.getElementById('localPublisherStats');
@@ -17388,29 +17444,103 @@ function renderLocalPublisherPage(){
   }
   const tbody = document.getElementById('localPublisherJobs');
   if(!tbody) return;
-  if(!jobs.length){ tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">لا توجد مهام نشر محلية حتى الآن. افتح Electron Agent واعتمد فولدر الأجندة.</div></td></tr>'; return; }
-  tbody.innerHTML = jobs.slice(0, 200).map(job => {
-    const platforms = Array.isArray(job.platforms) ? job.platforms : (job.platform ? [job.platform] : []);
+  if(!jobs.length){ tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">لا توجد مهام نشر محلية حتى الآن. افتح Electron Agent واعتمد فولدر الأجندة.</div></td></tr>'; return; }
+  tbody.innerHTML = jobs.slice(0, 300).map(job => {
+    const platform = normalizeText(job.platform || (Array.isArray(job.platforms) ? job.platforms[0] : '') || '');
     const files = Array.isArray(job.files) ? job.files : (Array.isArray(job.filesLocalPaths) ? job.filesLocalPaths : []);
     const statusClass = localPublisherStatusClass(job.status);
     const scheduled = normalizeText(job.scheduledAtIso || job.publishDate || job.date || '');
     const updated = normalizeText(job.updatedAtIso || job.publishedAtIso || job.createdAtIso || '');
-    return `<tr>
-      <td><strong>${escapeHtml(scheduled || 'بدون تاريخ')}</strong></td>
+    const datePart = normalizeText(job.publishDate || job.date || (scheduled ? scheduled.slice(0,10) : ''));
+    const timePart = normalizeText(job.publishTime || (scheduled && scheduled.includes('T') ? scheduled.slice(11,16) : ''));
+    return `<tr data-local-job-id="${escapeHtml(job.id)}">
+      <td><span class="local-schedule-primary">${escapeHtml(datePart || 'بدون تاريخ')}</span><span class="local-schedule-sub">${escapeHtml(timePart || 'بدون وقت')}</span></td>
       <td>${escapeHtml(localPublisherTypeLabel(job.contentType || job.type))}</td>
-      <td><div class="local-platforms-mini">${platforms.length ? platforms.map(p => `<span>${escapeHtml(socialPlatformLabels[p] || p)}</span>`).join('') : '<span>كل المتاح</span>'}</div></td>
+      <td><span class="local-job-platform">${escapeHtml(localPublisherPlatformLabel(platform || 'كل المتاح'))}</span></td>
       <td>${files.length || Number(job.filesCount || 0) || 0}</td>
       <td>${escapeHtml(localPublisherCaptionLabel(job))}</td>
       <td><span class="local-job-status is-${statusClass}">${escapeHtml(localPublisherStatusLabel(job.status))}</span>${job.error ? `<small class="local-job-error">${escapeHtml(job.error)}</small>` : ''}</td>
       <td>${escapeHtml(updated ? formatDateShort(updated) : '—')}</td>
+      <td><div class="local-job-actions">
+        <button class="btn btn-light" type="button" data-local-job-action="edit-time" data-job-id="${escapeHtml(job.id)}">تعديل الموعد</button>
+        <button class="btn btn-primary" type="button" data-local-job-action="publish-now" data-job-id="${escapeHtml(job.id)}">نشر الآن</button>
+        <button class="btn btn-light" type="button" data-local-job-action="retry" data-job-id="${escapeHtml(job.id)}">إعادة محاولة</button>
+      </div></td>
     </tr>`;
   }).join('');
 }
-document.addEventListener('click', event => {
+async function updateLocalPublisherJob(jobId, payload){
+  if(!mainDb || !jobId) throw new Error('Firebase غير متصل أو رقم المهمة غير موجود.');
+  await safeCollection(window.MZJ_PUBLISHING_JOBS_COLLECTION || 'publishing_jobs').doc(jobId).set({ ...payload, updatedAt: serverTime(), updatedAtIso:new Date().toISOString() }, { merge:true });
+}
+async function editLocalPublisherJobTime(jobId){
+  const job = (publishingJobsCache || []).find(item => item.id === jobId);
+  if(!job) return showToast('المهمة غير موجودة حالياً.');
+  const currentDate = normalizeText(job.publishDate || job.date || (job.scheduledAtIso ? job.scheduledAtIso.slice(0,10) : ''));
+  const currentTime = normalizeText(job.publishTime || (job.scheduledAtIso ? job.scheduledAtIso.slice(11,16) : ''));
+  const value = prompt('اكتب الموعد الجديد بالشكل YYYY-MM-DD HH:MM', `${currentDate || new Date().toISOString().slice(0,10)} ${currentTime || '12:00'}`);
+  if(value === null) return;
+  const match = String(value || '').trim().match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})$/);
+  if(!match) return showToast('صيغة الموعد غير صحيحة. استخدم YYYY-MM-DD HH:MM');
+  const [, publishDate, publishTime] = match;
+  await updateLocalPublisherJob(jobId, { publishDate, publishTime, date:publishDate, scheduledAtIso:`${publishDate}T${publishTime}:00`, status:'scheduled', requestedAction:'', error:'' });
+  showToast('تم تعديل موعد النشر.');
+}
+async function requestLocalPublisherAction(jobId, action){
+  const isRetry = action === 'retry';
+  await updateLocalPublisherJob(jobId, {
+    status: isRetry ? 'retry_requested' : 'manual_publish_requested',
+    requestedAction: isRetry ? 'retry' : 'publish_now',
+    requestedAtIso: new Date().toISOString(),
+    requestedBy: ((typeof currentUser !== 'undefined' && currentUser) ? (currentUser.name || currentUser.email) : '') || 'web',
+    error:''
+  });
+  showToast(isRetry ? 'تم إرسال طلب إعادة المحاولة إلى Electron.' : 'تم إرسال طلب النشر الآن إلى Electron.');
+}
+document.addEventListener('click', async event => {
   if(event.target.closest('#localPublisherRefreshBtn')){
     loadMetaConnection?.(); loadTikTokConnection?.(); loadYouTubeConnection?.();
     renderLocalPublisherPage();
     showToast('تم تحديث صفحة جدولة النشر المحلي.');
+    return;
+  }
+  if(event.target.closest('#saveLocalPublisherTimesBtn')){
+    const btn = event.target.closest('#saveLocalPublisherTimesBtn');
+    btn.disabled = true;
+    const old = btn.textContent;
+    btn.textContent = 'جاري الحفظ...';
+    try{
+      const localPublisherPlatformTimes = readLocalPublisherTimesFromForm();
+      await safeCollection(window.MZJ_SYSTEM_SETTINGS_COLLECTION).doc(window.MZJ_SYSTEM_SETTINGS_DOC).set({ localPublisherPlatformTimes, updatedAt: serverTime() }, { merge:true });
+      systemSettings = { ...(systemSettings || {}), localPublisherPlatformTimes };
+      renderLocalPublisherTimeSettings();
+      const msg = document.getElementById('localPublisherTimesMessage');
+      if(msg) msg.textContent = 'تم حفظ أوقات النشر في Firebase. افتح Electron وافحص الأجندة ليستخدم الأوقات الجديدة.';
+      showToast('تم حفظ أوقات النشر حسب المنصة.');
+    }catch(error){
+      console.error(error);
+      showToast('تعذر حفظ أوقات النشر. تأكد من نشر firestore.rules الجديدة.');
+    }finally{
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+    return;
+  }
+  const actionBtn = event.target.closest('[data-local-job-action]');
+  if(actionBtn){
+    const jobId = actionBtn.getAttribute('data-job-id');
+    const action = actionBtn.getAttribute('data-local-job-action');
+    try{
+      actionBtn.disabled = true;
+      if(action === 'edit-time') await editLocalPublisherJobTime(jobId);
+      if(action === 'publish-now') await requestLocalPublisherAction(jobId, 'publish-now');
+      if(action === 'retry') await requestLocalPublisherAction(jobId, 'retry');
+    }catch(error){
+      console.error(error);
+      showToast(error.message || 'تعذر تنفيذ الإجراء.');
+    }finally{
+      actionBtn.disabled = false;
+    }
   }
 });
 

@@ -813,6 +813,22 @@
 <div class="local-platform-status" id="localPublisherPlatforms"><div class="empty-state">جاري فحص حالة المنصات...</div></div>
 </article>
 </div>
+<div class="card local-publisher-card local-publisher-times-card">
+<div class="section-toolbar small-toolbar">
+<div>
+<h2>أوقات النشر حسب المنصة</h2>
+<p>حدد وقت البوست والريل والستوري لكل منصة. Electron يقرأ هذه الإعدادات من Firebase عند فحص الأجندة وينشئ Job منفصل لكل منصة بالوقت الخاص بها.</p>
+</div>
+<button class="btn btn-primary" id="saveLocalPublisherTimesBtn" type="button">حفظ أوقات النشر</button>
+</div>
+<div class="local-publisher-table-wrap local-times-wrap">
+<table class="local-publisher-table local-times-table">
+<thead><tr><th>المنصة</th><th>وقت البوست</th><th>وقت الريل</th><th>وقت الستوري</th></tr></thead>
+<tbody id="localPublisherTimesBody"><tr><td colspan="4"><div class="empty-state">جاري تحميل أوقات النشر...</div></td></tr></tbody>
+</table>
+</div>
+<p class="muted small" id="localPublisherTimesMessage"></p>
+</div>
 <div class="local-publisher-stats" id="localPublisherStats">
 <article><span>إجمالي المهام</span><strong>0</strong></article>
 <article><span>جاهز / مجدول</span><strong>0</strong></article>
@@ -832,8 +848,8 @@
 </div>
 <div class="local-publisher-table-wrap">
 <table class="local-publisher-table">
-<thead><tr><th>التاريخ</th><th>النوع</th><th>المنصات</th><th>الملفات</th><th>الكابشن</th><th>الحالة</th><th>آخر تحديث</th></tr></thead>
-<tbody id="localPublisherJobs"><tr><td colspan="7"><div class="empty-state">لا توجد مهام نشر محلية حتى الآن.</div></td></tr></tbody>
+<thead><tr><th>التاريخ</th><th>النوع</th><th>المنصة</th><th>الملفات</th><th>الكابشن</th><th>الحالة</th><th>آخر تحديث</th><th>إجراءات</th></tr></thead>
+<tbody id="localPublisherJobs"><tr><td colspan="8"><div class="empty-state">لا توجد مهام نشر محلية حتى الآن.</div></td></tr></tbody>
 </table>
 </div>
 </div>

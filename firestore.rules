@@ -333,7 +333,7 @@ service cloud.firestore {
 
     function systemSettingsKeysValid() {
       return request.resource.data.keys().hasOnly([
-        "systemName", "fontFamily", "direction", "colors", "ownerColors", "themeImageName", "themeImageData", "backgroundImageData", "backgroundImageUrl", "stockCarStatusMap", "stockCarMeta", "autoPublishEnabled", "autoPublishHour", "autoPublishPlatformHours", "autoPublishTimezone", "youtubePrivacyStatus", "mersal", "whatsappMersal", "mersalApiEndpoint", "mersalToken", "mersalImageTemplate", "mersalVideoTemplate", "mersalTemplateLanguage", "createdAt", "createdBy", "updatedAt", "updatedBy"
+        "systemName", "fontFamily", "direction", "colors", "ownerColors", "themeImageName", "themeImageData", "backgroundImageData", "backgroundImageUrl", "stockCarStatusMap", "stockCarMeta", "autoPublishEnabled", "autoPublishHour", "autoPublishPlatformHours", "localPublisherPlatformTimes", "autoPublishTimezone", "youtubePrivacyStatus", "mersal", "whatsappMersal", "mersalApiEndpoint", "mersalToken", "mersalImageTemplate", "mersalVideoTemplate", "mersalTemplateLanguage", "createdAt", "createdBy", "updatedAt", "updatedBy"
       ]);
     }
 
@@ -571,12 +571,12 @@ service cloud.firestore {
 
     match /publishing_jobs/{docId} {
       // Jobs are created by the Electron publisher agent and displayed in the web system.
-      allow read, write: if signedIn();
+      allow read, write: if true;
     }
 
     match /publish_agent_devices/{docId} {
       // Optional heartbeat/status documents for local Electron agents.
-      allow read, write: if signedIn();
+      allow read, write: if true;
     }
 
   }

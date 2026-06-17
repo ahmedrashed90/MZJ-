@@ -63,26 +63,74 @@ async function readCaption(dayFolder){
     return { text:'', filePath, error:error.message || String(error) };
   }
 }
-function makeJob({ agendaRoot, dayFolder, dateIso, time, contentType, title, files, caption, captionPath, platforms, index }){
-  const scheduledAtIso = `${dateIso}T${time || '09:00'}:00`;
-  const basis = [agendaRoot, dayFolder, contentType, title, index || 0, files.map(f => f.path).join('|')].join('|');
+const LOCAL_PUBLISHER_PLATFORMS = ['facebook','instagram','tiktok','youtube','snapchat'];
+const LOCAL_PUBLISHER_DEFAULT_TIMES = {
+  facebook: { post:'12:00', reel:'18:00', story:'21:00' },
+  instagram: { post:'13:00', reel:'19:00', story:'22:00' },
+  tiktok: { post:'', reel:'20:00', story:'' },
+  youtube: { post:'', reel:'18:30', story:'' },
+  snapchat: { post:'', reel:'', story:'23:00' }
+};
+const STORY_PLATFORMS = ['facebook','instagram','snapchat'];
+function cleanTime(value){
+  const v = String(value || '').trim();
+  return /^\d{2}:\d{2}$/.test(v) ? v : '';
+}
+function addMinutesToTime(time, minutes){
+  const safe = cleanTime(time) || '09:00';
+  const [h,m] = safe.split(':').map(Number);
+  const total = (h * 60 + m + Number(minutes || 0)) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2,'0')}:${String(total % 60).padStart(2,'0')}`;
+}
+function normalizePlatformTimes(input){
+  const out = JSON.parse(JSON.stringify(LOCAL_PUBLISHER_DEFAULT_TIMES));
+  const saved = input || {};
+  LOCAL_PUBLISHER_PLATFORMS.forEach(platform => {
+    out[platform] = out[platform] || {};
+    ['post','reel','story'].forEach(type => {
+      const value = cleanTime(saved?.[platform]?.[type]);
+      if(value) out[platform][type] = value;
+    });
+  });
+  return out;
+}
+async function loadLocalPublisherPlatformTimes(){
+  try{
+    const { config, db, fsMod } = await getFirebase();
+    const ref = fsMod.doc(db, config.systemSettingsCollection || 'system_settings', config.systemSettingsDoc || 'main');
+    const snap = await fsMod.getDoc(ref);
+    return normalizePlatformTimes(snap.exists() ? snap.data()?.localPublisherPlatformTimes : null);
+  }catch(error){
+    console.warn('Unable to load local publisher platform times; using defaults.', error.message || error);
+    return normalizePlatformTimes(null);
+  }
+}
+function timeForPlatform(platformTimes, platform, contentType, fallback){
+  return cleanTime(platformTimes?.[platform]?.[contentType]) || cleanTime(fallback?.[platform]?.[contentType]) || cleanTime(fallback?.[contentType]) || cleanTime(LOCAL_PUBLISHER_DEFAULT_TIMES?.[platform]?.[contentType]) || '';
+}
+function makeJob({ agendaRoot, dayFolder, dateIso, time, contentType, title, files, caption, captionPath, platform, index }){
+  const publishTime = cleanTime(time) || '09:00';
+  const scheduledAtIso = `${dateIso}T${publishTime}:00`;
+  const basis = [agendaRoot, dayFolder, platform || '', contentType, title, index || 0, files.map(f => f.path).join('|')].join('|');
   return {
-    id: safeId(`local_${dateIso}_${contentType}_${index || 1}_${hash(basis)}`),
+    id: safeId(`local_${dateIso}_${platform || 'all'}_${contentType}_${index || 1}_${hash(basis)}`),
     source: 'electron-local-agent',
     agendaRoot,
     dayFolder,
     date: dateIso,
     publishDate: dateIso,
-    publishTime: time || '09:00',
+    publishTime,
     scheduledAtIso,
     contentType,
     title,
-    platforms,
+    platform: platform || '',
+    platforms: platform ? [platform] : [],
     files: files.map(f => ({ name:f.name, localPath:f.path, type:isVideo(f.name) ? 'video' : 'image' })),
     filesLocalPaths: files.map(f => f.path),
     filesCount: files.length,
     captionText: caption || '',
     captionFilePath: captionPath || '',
+    requestedAction: '',
     status: 'scheduled',
     createdAtIso: new Date().toISOString(),
     updatedAtIso: new Date().toISOString()
@@ -91,8 +139,9 @@ function makeJob({ agendaRoot, dayFolder, dateIso, time, contentType, title, fil
 async function scanAgendaFolder(payload){
   const agendaRoot = payload.folderPath;
   const year = Number(payload.year || new Date().getFullYear());
-  const platforms = Array.isArray(payload.platforms) && payload.platforms.length ? payload.platforms : ['facebook','instagram'];
-  const times = payload.times || {};
+  const selectedPlatforms = Array.isArray(payload.platforms) && payload.platforms.length ? payload.platforms.filter(p => LOCAL_PUBLISHER_PLATFORMS.includes(p)) : ['facebook','instagram'];
+  const platformTimes = normalizePlatformTimes(payload.platformTimes || await loadLocalPublisherPlatformTimes());
+  const fallbackTimes = payload.times || {};
   const rootItems = await readDirSafe(agendaRoot);
   const dayFolders = naturalSort(rootItems.filter(d => d.isDirectory() && /^(\d{1,2})-(\d{1,2})$/.test(d.name)));
   const jobs = [];
@@ -110,19 +159,54 @@ async function scanAgendaFolder(payload){
     const postFolder = await findChildDir(dayPath, 'بوست');
     const postFiles = await listMediaFiles(postFolder, isImage);
     if(postFiles.length){
-      jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time:times.post || '09:00', contentType:'post', title:`بوست ${day.name}`, files:postFiles, caption, captionPath:captionInfo.filePath, platforms, index:1 }));
+      selectedPlatforms.forEach(platform => {
+        const time = timeForPlatform(platformTimes, platform, 'post', fallbackTimes);
+        if(!time) return;
+        jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time, contentType:'post', title:`بوست ${day.name} - ${platform}`, files:postFiles, caption, captionPath:captionInfo.filePath, platform, index:1 }));
+      });
     }
 
     const reelFolder = await findChildDir(dayPath, 'ريل');
     const reelFiles = await listMediaFiles(reelFolder, isVideo);
-    reelFiles.forEach((file, i) => jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time:times.reel || '12:00', contentType:'reel', title:`ريل ${day.name} - ${i+1}`, files:[file], caption, captionPath:captionInfo.filePath, platforms, index:i+1 })));
+    reelFiles.forEach((file, i) => selectedPlatforms.forEach(platform => {
+      const time = timeForPlatform(platformTimes, platform, 'reel', fallbackTimes);
+      if(!time) return;
+      jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time, contentType:'reel', title:`ريل ${day.name} - ${i+1} - ${platform}`, files:[file], caption, captionPath:captionInfo.filePath, platform, index:i+1 }));
+    }));
 
     const storyFolder = await findChildDir(dayPath, 'ستوري');
     const storyFiles = await listMediaFiles(storyFolder, isMedia);
-    storyFiles.forEach((file, i) => jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time:times.story || '18:00', contentType:'story', title:`ستوري ${day.name} - ${i+1}`, files:[file], caption:'', captionPath:'', platforms:platforms.filter(p => ['instagram','facebook','snapchat'].includes(p)), index:i+1 })));
+    storyFiles.forEach((file, i) => selectedPlatforms.filter(p => STORY_PLATFORMS.includes(p)).forEach(platform => {
+      const baseTime = timeForPlatform(platformTimes, platform, 'story', fallbackTimes);
+      if(!baseTime) return;
+      const time = addMinutesToTime(baseTime, i);
+      jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time, contentType:'story', title:`ستوري ${day.name} - ${i+1} - ${platform}`, files:[file], caption:'', captionPath:'', platform, index:i+1 }));
+    }));
   }
-  return { ok:true, folderPath:agendaRoot, jobs, warnings, days:dayFolders.length };
+  return { ok:true, folderPath:agendaRoot, jobs, warnings, days:dayFolders.length, platformTimes };
 }
+async function markRequestedJobsSeen(){
+  const { config, db, fsMod } = await getFirebase();
+  const collectionName = config.jobsCollection || 'publishing_jobs';
+  const jobsRef = fsMod.collection(db, collectionName);
+  const statuses = ['manual_publish_requested','retry_requested'];
+  let handled = 0;
+  for(const status of statuses){
+    const q = fsMod.query(jobsRef, fsMod.where('status', '==', status), fsMod.limit(20));
+    const snap = await fsMod.getDocs(q);
+    for(const docSnap of snap.docs){
+      await fsMod.setDoc(docSnap.ref, {
+        agentLastSeenAtIso: new Date().toISOString(),
+        agentNote: 'تم استلام الطلب من Electron. تنفيذ النشر الفعلي يحتاج تفعيل وحدة النشر الخاصة بالمنصة.',
+        updatedAtIso: new Date().toISOString(),
+        updatedAt: fsMod.serverTimestamp()
+      }, { merge:true });
+      handled += 1;
+    }
+  }
+  return { ok:true, handled };
+}
+
 async function loadConfig(){
   const raw = await fs.readFile(CONFIG_PATH, 'utf8');
   return JSON.parse(raw);
@@ -157,3 +241,4 @@ ipcMain.handle('choose-agenda-folder', async () => {
 });
 ipcMain.handle('scan-agenda-folder', async (_event, payload) => scanAgendaFolder(payload || {}));
 ipcMain.handle('save-publishing-jobs', async (_event, payload) => saveJobsToFirebase(payload || {}));
+ipcMain.handle('check-publishing-commands', async () => markRequestedJobsSeen());

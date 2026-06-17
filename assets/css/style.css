@@ -9049,3 +9049,17 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 .local-job-error{display:block;color:#9d2f20;margin-top:5px;max-width:260px;white-space:normal;line-height:1.5}
 @media(max-width:900px){.local-publisher-grid,.local-publisher-stats{grid-template-columns:1fr}.local-folder-map{grid-template-columns:1fr}}
 
+
+/* v33 local publisher controls */
+.local-publisher-times-card{margin:0 0 18px}
+.local-times-wrap{margin-top:10px}
+.local-times-table{min-width:720px}
+.local-times-table input[type="time"]{width:100%;min-width:112px;border:1px solid var(--line);border-radius:12px;padding:9px 10px;font:inherit;font-weight:900;color:var(--text);background:#fff}
+.local-job-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.local-job-actions .btn{padding:7px 10px;border-radius:10px;font-size:12px;line-height:1.2}
+.local-job-platform{display:inline-flex;align-items:center;justify-content:center;border:1px solid #e3c8ba;background:#fff7f2;color:#6b3f33;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:900;white-space:nowrap}
+.local-job-status.is-requested{background:#fff8e8;border-color:#e2c468;color:#8a5b00}
+.local-job-status.is-canceled{background:#f4f4f4;border-color:#d7d7d7;color:#666}
+.local-schedule-primary{display:block;font-weight:900;color:var(--text);direction:ltr;text-align:right}
+.local-schedule-sub{display:block;color:var(--muted);font-size:12px;margin-top:3px;direction:ltr;text-align:right}
+@media(max-width:900px){.local-job-actions{min-width:220px}}
