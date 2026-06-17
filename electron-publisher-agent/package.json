@@ -5,7 +5,9 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.js"
+    "check": "node --check main.js",
+    "dist": "electron-builder --win --x64",
+    "pack": "electron-builder --dir"
   },
   "dependencies": {
     "@electron/remote": "^2.1.2",
@@ -13,5 +15,31 @@
     "firebase": "^10.12.5",
     "mammoth": "^1.8.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.mzj.publisheragent",
+    "productName": "MZJ Publisher Agent",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "publisher-config.json",
+      "renderer/**/*",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
 }

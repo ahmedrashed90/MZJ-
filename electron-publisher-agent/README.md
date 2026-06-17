@@ -32,3 +32,18 @@ npm start
 بعد حفظ المهام، افتح السيستم على صفحة **جدولة النشر المحلي** لعرض المهام.
 
 > تنفيذ النشر الفعلي على المنصات سيستخدم الحسابات المربوطة من صفحة **ربط المنصات** في السيستم.
+
+## Build Windows installer
+
+From this folder:
+
+```powershell
+npm install
+npm run dist
+```
+
+The installer will be created inside:
+
+```text
+dist/
+```
