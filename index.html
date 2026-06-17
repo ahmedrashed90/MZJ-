@@ -394,12 +394,15 @@
 <video class="checklist-preview-video" id="checklistPreviewVideo" muted="" playsinline="" preload="metadata"></video>
 <canvas aria-label="معاينة فيديو Checklist" height="960" id="checklistPreviewCanvas" tabindex="0" width="540"></canvas>
 <div class="checklist-preview-placeholder" id="checklistPreviewPlaceholder">اختر فيديو من جدول المشاهد ثم اضغط معاينة الفيديو</div>
+<img alt="لوجو المعاينة" class="checklist-preview-logo-overlay" id="checklistPreviewLogoOverlay" src="" style="display:none"/>
 <div class="checklist-preview-caption-overlay" id="checklistPreviewCaptionOverlay" role="button" tabindex="0" title="اضغط واسحب لتغيير مكان الكابشن">كابشن الشاشة</div>
+<audio id="checklistPreviewVoiceAudio" preload="metadata"></audio>
+<audio id="checklistPreviewMusicAudio" preload="metadata" loop></audio>
 </div>
 </div>
 <div class="checklist-preview-panel checklist-editor-panel">
 
-<div class="checklist-preview-control-box">
+<div class="checklist-preview-control-box" id="checklistPreviewControlBox">
 <label class="field"><span>تحريك المعاينة</span><input id="checklistPreviewScrub" max="0" min="0" step="0.01" type="range" value="0"/></label>
 <div class="checklist-preview-time"><span id="checklistPreviewTime">0.0s</span><strong id="checklistPreviewStatus">متوقف</strong></div>
 <label class="field checklist-speed-field"><span>سرعة المعاينة</span><select class="select" id="checklistPreviewSpeed"><option value="0.25">0.25x فحص بطيء</option><option value="0.5">0.5x بطيء</option><option selected="" value="0.75">0.75x للمراجعة</option><option value="1">1x طبيعي</option><option value="1.25">1.25x</option></select></label>

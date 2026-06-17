@@ -8850,3 +8850,21 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
   object-position:center center!important;
   will-change:transform,width,height,left,top!important;
 }
+
+/* v15 preview/audio/logo/timeline layout fixes */
+#checklist-reel .checklist-preview-logo-overlay{
+  position:absolute; right:7%; top:4.5%; z-index:6; max-width:17%; max-height:10%; object-fit:contain;
+  filter:drop-shadow(0 8px 18px rgba(0,0,0,.28)); pointer-events:none;
+}
+#checklist-reel .checklist-preview-panel{display:flex!important;flex-direction:column!important;gap:14px!important;min-width:0!important;}
+#checklist-reel .checklist-timeline-live-panel{order:1!important;margin:0!important;width:100%!important;max-width:none!important;}
+#checklist-reel .checklist-scrub-after-timeline{order:2!important;position:static!important;top:auto!important;}
+#checklist-reel .checklist-style-card-in-preview{order:3!important;}
+#checklist-reel .timeline-caption-summary{order:4!important;margin-top:0!important;}
+#checklist-reel .checklist-timeline-live-panel .checklist-timeline-shell{min-height:212px!important;}
+#checklist-reel .checklist-timeline-live-panel .checklist-timeline-scroll{min-height:202px!important;}
+#checklist-reel .checklist-preview-control-box{position:static!important;}
+#checklist-reel .checklist-preview-video{image-rendering:auto!important;}
+@media (min-width:1300px){
+  #checklist-reel .checklist-preview-layout{grid-template-columns:minmax(430px,560px) minmax(520px,1fr)!important;}
+}

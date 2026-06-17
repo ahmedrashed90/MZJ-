@@ -14988,7 +14988,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   ].map(([id,title,shoot,part,use]) => ({ id,title,shoot,part,use }));
   let checklistStudioReady = false;
   let checklistRendering = false;
-  const checklistPreviewState = { playing:false, paused:false, raf:0, time:0, total:0, startPerf:0, shots:[], currentIndex:-1, video:null, videoUrl:'', logo:null, draggingCaption:false, customX:.5, customY:.72, timelinePx:90, activeTimelineIndex:-1, previewSpeed:.75, activeCaptionId:null, activeShotId:null };
+  const checklistPreviewState = { playing:false, paused:false, raf:0, time:0, total:0, startPerf:0, shots:[], currentIndex:-1, video:null, videoUrl:'', logo:null, draggingCaption:false, customX:.5, customY:.72, timelinePx:90, activeTimelineIndex:-1, previewSpeed:.75, activeCaptionId:null, activeShotId:null, voiceAudio:null, musicAudio:null, voiceAudioUrl:'', musicAudioUrl:'' };
   let checklistGlobalCaptionStyle = null;
   const checklistShotExtras = {};
   let checklistApplyingCaptionStyle = false;
@@ -15542,6 +15542,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     if(st.outAnim === 'slide-down' && progress > .82) ty += (1 - outP) * 24;
     el.style.opacity = alpha.toFixed(3);
     el.style.transform = `translate(-50%, calc(-50% + ${ty}px)) scale(${scale})`;
+    updatePreviewLogoDom();
   }
   function drawPreviewEmptyBase(ctx,w,h,title='معاينة بدون فيديو',sub='اختار فيديو من الجدول أو فعّل المشاهد لمعاينة الكابشنات'){
     const grad = ctx.createLinearGradient(0,0,w,h);
@@ -15580,6 +15581,97 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     if(ph) ph.style.display = 'none';
   }
   function directPreviewVideo(){ return $('checklistPreviewVideo'); }
+
+  function directPreviewVoiceAudio(){ return $('checklistPreviewVoiceAudio'); }
+  function directPreviewMusicAudio(){ return $('checklistPreviewMusicAudio'); }
+  function previewAudioUrlFromSource(src, prevUrl){
+    if(!src) return '';
+    const url = sourceUrl(src);
+    if(url) return url;
+    if(src instanceof File){
+      if(prevUrl && prevUrl.startsWith('blob:')) return prevUrl;
+      try{ return URL.createObjectURL(src); }catch(_){ return ''; }
+    }
+    return '';
+  }
+  function previewAudioSource(kind){
+    if(kind === 'voice') return checklistElectronFiles.voice || $('checklistVoiceFile')?.files?.[0] || null;
+    if(kind === 'music') return checklistElectronFiles.music || $('checklistMusicFile')?.files?.[0] || null;
+    return null;
+  }
+  function ensurePreviewAudioSources(){
+    const voice = directPreviewVoiceAudio();
+    const music = directPreviewMusicAudio();
+    const voiceSrc = previewAudioSource('voice');
+    const musicSrc = previewAudioSource('music');
+    const voiceUrl = previewAudioUrlFromSource(voiceSrc, checklistPreviewState.voiceAudioUrl);
+    const musicUrl = previewAudioUrlFromSource(musicSrc, checklistPreviewState.musicAudioUrl);
+    if(voice){
+      if(voiceUrl && voice.src !== voiceUrl){ voice.src = voiceUrl; try{ voice.load(); }catch(_){} }
+      if(!voiceUrl){ try{ voice.pause(); }catch(_){} voice.removeAttribute('src'); }
+      voice.volume = 1;
+      checklistPreviewState.voiceAudio = voice;
+      checklistPreviewState.voiceAudioUrl = voiceUrl || '';
+    }
+    if(music){
+      if(musicUrl && music.src !== musicUrl){ music.src = musicUrl; try{ music.load(); }catch(_){} }
+      if(!musicUrl){ try{ music.pause(); }catch(_){} music.removeAttribute('src'); }
+      music.volume = voiceUrl ? 0.16 : 0.35;
+      music.loop = true;
+      checklistPreviewState.musicAudio = music;
+      checklistPreviewState.musicAudioUrl = musicUrl || '';
+    }
+  }
+  function setPreviewAudioTime(time){
+    ensurePreviewAudioSources();
+    const t = Math.max(0, Number(time) || 0);
+    const speed = Math.max(.25, Math.min(1.25, Number($('checklistPreviewSpeed')?.value || checklistPreviewState.previewSpeed || 1)));
+    const voice = checklistPreviewState.voiceAudio;
+    const music = checklistPreviewState.musicAudio;
+    try{
+      if(voice && checklistPreviewState.voiceAudioUrl && Number.isFinite(voice.duration)){
+        const vt = Math.min(Math.max(0, voice.duration - .05), t);
+        if(Math.abs((voice.currentTime || 0) - vt) > .18) voice.currentTime = vt;
+        voice.playbackRate = speed;
+      }
+    }catch(_){ }
+    try{
+      if(music && checklistPreviewState.musicAudioUrl){
+        const mt = Number.isFinite(music.duration) && music.duration > .2 ? (t % music.duration) : 0;
+        if(Math.abs((music.currentTime || 0) - mt) > .25) music.currentTime = mt;
+        music.playbackRate = speed;
+      }
+    }catch(_){ }
+  }
+  function playPreviewAudio(){
+    ensurePreviewAudioSources();
+    setPreviewAudioTime(checklistPreviewState.time || 0);
+    const voice = checklistPreviewState.voiceAudio;
+    const music = checklistPreviewState.musicAudio;
+    try{ if(voice && checklistPreviewState.voiceAudioUrl && (voice.currentTime || 0) < (voice.duration || Infinity)) voice.play().catch(()=>{}); }catch(_){ }
+    try{ if(music && checklistPreviewState.musicAudioUrl) music.play().catch(()=>{}); }catch(_){ }
+  }
+  function pausePreviewAudio(){
+    try{ checklistPreviewState.voiceAudio?.pause?.(); }catch(_){ }
+    try{ checklistPreviewState.musicAudio?.pause?.(); }catch(_){ }
+  }
+  function updatePreviewLogoDom(){
+    const logo = $('checklistPreviewLogoOverlay');
+    if(!logo) return;
+    const show = !!$('checklistShowLogo')?.checked;
+    const srcObj = checklistElectronFiles.logo || $('checklistLogoFile')?.files?.[0] || null;
+    const src = checklistPreviewState.logo?.url || sourceUrl(srcObj) || (srcObj instanceof File ? (logo.dataset.blobUrl || '') : '');
+    if(srcObj instanceof File && !logo.dataset.blobUrl){
+      try{ logo.dataset.blobUrl = URL.createObjectURL(srcObj); }catch(_){ }
+    }
+    const finalSrc = checklistPreviewState.logo?.url || sourceUrl(srcObj) || logo.dataset.blobUrl || '';
+    if(show && finalSrc){
+      if(logo.src !== finalSrc) logo.src = finalSrc;
+      logo.style.display = 'block';
+    }else{
+      logo.style.display = 'none';
+    }
+  }
 
   function resetPreviewVideoTransform(video){
     if(!video) return;
@@ -15729,6 +15821,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     checklistPreviewState.raf = 0;
     try{ directPreviewVideo()?.pause(); }catch(_){ }
     try{ checklistPreviewState.video?.pause(); }catch(_){ }
+    pausePreviewAudio();
     updatePreviewControls();
   }
   function cleanupPreviewVideo(){
@@ -15822,6 +15915,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
 
     checklistPreviewState.playing = true;
     checklistPreviewState.paused = false;
+    playPreviewAudio();
     let lastTick = performance.now();
     studioLog(resetFromStart ? 'بدأت المعاينة من أول الفيديو.' : 'استكمال المعاينة من نفس المكان.');
     async function tick(now){
@@ -15848,6 +15942,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     checklistPreviewState.total = checklistPreviewState.shots.reduce((a,b)=>a+(Number(b.use)||1),0) || 1;
     checklistPreviewState.time = 0;
     checklistPreviewState.currentIndex = -1;
+    ensurePreviewAudioSources();
+    setPreviewAudioTime(0);
     const scrub = $('checklistPreviewScrub');
     if(scrub) scrub.value = '0';
     const video = directPreviewVideo();
@@ -16479,6 +16575,9 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     if(!checklistPreviewState.logo){
       checklistPreviewState.logo = await loadImageFile(checklistElectronFiles.logo || $('checklistLogoFile')?.files?.[0] || null).catch(()=>null);
     }
+    ensurePreviewAudioSources();
+    setPreviewAudioTime(checklistPreviewState.time || 0);
+    updatePreviewLogoDom();
     updatePreviewControls();
     renderChecklistTimeline();
   }
@@ -16486,6 +16585,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   function v11StopMediaOnly(){
     try{ directPreviewVideo()?.pause(); }catch(_){ }
     try{ checklistPreviewState.video?.pause(); }catch(_){ }
+    pausePreviewAudio();
   }
 
   async function v11DisplayAt(time){
@@ -16512,6 +16612,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       showDirectPreviewPlaceholder('لا يوجد فيديو لهذا المشهد', item.shot.title || 'اختار فيديو من جدول المشاهد');
     }
     updatePreviewCaptionDom({shot:item.shot, caption}, p);
+    setPreviewAudioTime(checklistPreviewState.time || 0);
+    updatePreviewLogoDom();
     updatePreviewControls();
     renderChecklistTimeline();
   }
@@ -16527,6 +16629,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
         if(!checklistPreviewState.playing) return resolve(false);
         const speed = Math.max(.25, Math.min(1.25, Number($('checklistPreviewSpeed')?.value || checklistPreviewState.previewSpeed || 1)));
         checklistPreviewState.previewSpeed = speed;
+        try{ if(checklistPreviewState.voiceAudio) checklistPreviewState.voiceAudio.playbackRate = speed; if(checklistPreviewState.musicAudio) checklistPreviewState.musicAudio.playbackRate = speed; }catch(_){}
         const elapsed = (performance.now() - begin) / 1000 * speed;
         const local = Math.min(duration, localStart + elapsed);
         checklistPreviewState.time = Math.min(checklistPreviewState.total || 0, item.start + local);
@@ -16553,6 +16656,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       await waitVideoReady(video, sourceStart);
       try{ video.muted = true; video.playbackRate = Math.max(.25, Math.min(1.25, Number($('checklistPreviewSpeed')?.value || 1))); }catch(_){ }
       await video.play().catch(()=>{});
+      playPreviewAudio();
     }catch(_){
       return v11PlayPlaceholder(item);
     }
@@ -16561,7 +16665,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
         if(!checklistPreviewState.playing){ try{ video.pause(); }catch(_){} return resolve(false); }
         const speed = Math.max(.25, Math.min(1.25, Number($('checklistPreviewSpeed')?.value || checklistPreviewState.previewSpeed || 1)));
         checklistPreviewState.previewSpeed = speed;
-        try{ video.playbackRate = speed; }catch(_){ }
+        try{ video.playbackRate = speed; if(checklistPreviewState.voiceAudio) checklistPreviewState.voiceAudio.playbackRate = speed; if(checklistPreviewState.musicAudio) checklistPreviewState.musicAudio.playbackRate = speed; }catch(_){ }
         const local = Math.max(0, Math.min(duration, (video.currentTime || sourceStart) - (Number(item.shot.start)||0)));
         checklistPreviewState.time = Math.min(checklistPreviewState.total || 0, item.start + local);
         updatePreviewCaptionDom({shot:item.shot, caption:item.shot.caption || item.shot.title || 'كابشن الشاشة'}, local / duration);
@@ -16578,6 +16682,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     await v11PreparePreview(resetFromStart);
     checklistPreviewState.playing = true;
     checklistPreviewState.paused = false;
+    playPreviewAudio();
     studioLog(resetFromStart ? 'بدأت المعاينة من أول التايم لاين.' : 'استكمال المعاينة من نفس المكان.');
     while(checklistPreviewState.playing && (checklistPreviewState.time || 0) < (checklistPreviewState.total || 0)){
       const item = shotAtTime(checklistPreviewState.time || 0);
@@ -16609,6 +16714,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     checklistPreviewState.total = checklistPreviewState.shots.reduce((a,b)=>a+(Number(b.use)||1),0) || 1;
     checklistPreviewState.time = 0;
     checklistPreviewState.currentIndex = -1;
+    ensurePreviewAudioSources();
+    setPreviewAudioTime(0);
     const scrub = $('checklistPreviewScrub'); if(scrub){ scrub.max = String(checklistPreviewState.total); scrub.value = '0'; }
     await v11DisplayAt(0);
     await v11StartPreviewPlayback(true);
@@ -16625,5 +16732,31 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   toggleChecklistPreview = v11ToggleChecklistPreview;
   drawPreviewAt = async function(time, allowPlay=false){ await v11DisplayAt(time); };
 
+
+  function mountV15PreviewLayout(){
+    try{
+      const panel = document.querySelector('#checklist-reel .checklist-preview-panel');
+      const timeline = $('checklistTimelineEditor');
+      const control = $('checklistPreviewControlBox') || document.querySelector('#checklist-reel .checklist-preview-control-box');
+      const styleCard = document.querySelector('#checklist-reel .checklist-style-card-in-preview');
+      const summary = document.querySelector('#checklist-reel .checklist-summary-wide-card');
+      if(panel && timeline){
+        timeline.classList.add('checklist-timeline-live-panel');
+        panel.insertBefore(timeline, control || styleCard || null);
+      }
+      if(panel && control && timeline){
+        control.classList.add('checklist-scrub-after-timeline');
+        panel.insertBefore(control, timeline.nextSibling);
+      }
+      if(panel && styleCard && summary){
+        panel.insertBefore(styleCard, summary);
+      }
+      if(panel && summary && styleCard){
+        summary.classList.add('timeline-caption-summary');
+        panel.insertBefore(summary, styleCard.nextSibling);
+      }
+    }catch(error){ console.warn('preview layout v15 failed', error); }
+  }
+  mountV15PreviewLayout();
   setupCaptionTrendManager();
 })();
