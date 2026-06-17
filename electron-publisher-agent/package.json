@@ -1,7 +1,7 @@
 {
   "name": "mzj-publisher-agent",
-  "version": "1.1.1",
-  "description": "MZJ local publishing agent with per-platform schedule times, Firebase commands, and portable Windows build.",
+  "version": "1.2.0",
+  "description": "MZJ local publishing agent with Firebase central platform connections.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

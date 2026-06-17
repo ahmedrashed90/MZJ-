@@ -36,6 +36,15 @@ function readPlatformTimes(){
   });
   return times;
 }
+function renderCentralConnections(connections){
+  const el = $('centralConnections');
+  if(!el) return;
+  const keys = PLATFORMS;
+  el.innerHTML = keys.map(key => { const c = connections && connections[key]; const ok = !!(c && c.connected && c.hasToken); return `<p class="${ok ? 'ok' : 'warn'}"><strong>${PLATFORM_LABELS[key] || key}</strong>: ${ok ? 'متصل مركزيًا' : 'غير متصل مركزيًا'} ${c?.accountName ? `· ${c.accountName}` : ''}</p>`; }).join('');
+}
+async function refreshCentralConnections(){
+  try{ const result = await window.mzjPublisherAgent.loadPlatformConnections?.(); renderCentralConnections(result?.connections || {}); }catch(error){ const el=$('centralConnections'); if(el) el.innerHTML='<p class="warn">تعذر فحص الحسابات المركزية.</p>'; }
+}
 function render(){
   $('folderPath').textContent = selectedFolder || 'لم يتم اختيار فولدر بعد';
   $('stats').innerHTML = `<div><span>الأيام</span><strong>${scannedDays}</strong></div><div><span>المهام</span><strong>${scannedJobs.length}</strong></div><div><span>تحذيرات</span><strong>${warnings.length}</strong></div><div><span>جاهز للحفظ</span><strong>${scannedJobs.length ? 'نعم' : 'لا'}</strong></div>`;
@@ -62,4 +71,5 @@ $('checkCommandsBtn')?.addEventListener('click', async () => {
   setStatus(`تم فحص الأوامر. عدد الطلبات المستلمة: ${result.handled || 0}.`, 'ok');
 });
 renderPlatformTimes();
+refreshCentralConnections();
 render();

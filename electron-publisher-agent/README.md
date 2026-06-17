@@ -69,3 +69,13 @@ If you specifically need an installer later, use:
 ```powershell
 npm run dist:installer
 ```
+
+## v35 - Central platform connections
+
+- Platform links are now expected to be stored in Firebase collection `platform_connections`.
+- Link platforms from the web dashboard page "ربط المنصات" on the developer/account device.
+- The web API saves Meta / TikTok / YouTube connection status and tokens into Firebase after OAuth callback/status checks.
+- Electron on the files device reads `platform_connections` and shows whether each platform is centrally connected.
+- Local files still remain on the Electron device; the web dashboard can send commands through `publishing_jobs`.
+
+Important: deploy `firestore.rules` after uploading this version.

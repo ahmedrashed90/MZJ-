@@ -3,5 +3,6 @@ contextBridge.exposeInMainWorld('mzjPublisherAgent', {
   chooseAgendaFolder: () => ipcRenderer.invoke('choose-agenda-folder'),
   scanAgendaFolder: (payload) => ipcRenderer.invoke('scan-agenda-folder', payload),
   savePublishingJobs: (payload) => ipcRenderer.invoke('save-publishing-jobs', payload),
-  checkPublishingCommands: () => ipcRenderer.invoke('check-publishing-commands')
+  checkPublishingCommands: () => ipcRenderer.invoke('check-publishing-commands'),
+  loadPlatformConnections: () => ipcRenderer.invoke('load-platform-connections')
 });

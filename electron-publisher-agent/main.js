@@ -105,6 +105,41 @@ async function loadLocalPublisherPlatformTimes(){
     return normalizePlatformTimes(null);
   }
 }
+
+async function loadPlatformConnections(){
+  try{
+    const { config, db, fsMod } = await getFirebase();
+    const collectionName = config.platformConnectionsCollection || 'platform_connections';
+    const snap = await fsMod.getDocs(fsMod.collection(db, collectionName));
+    const connections = {};
+    snap.docs.forEach(docSnap => {
+      const data = docSnap.data() || {};
+      const key = String(data.platform || docSnap.id || '').toLowerCase();
+      if(key) connections[key] = { id:docSnap.id, ...data };
+    });
+    return connections;
+  }catch(error){
+    console.warn('Unable to load platform connections.', error.message || error);
+    return {};
+  }
+}
+function redactConnectionForUi(conn){
+  if(!conn) return null;
+  return {
+    platform: conn.platform || '',
+    connected: !!(conn.connected || conn.status === 'connected'),
+    status: conn.status || (conn.connected ? 'connected' : 'disconnected'),
+    state: conn.state || '',
+    accountName: conn.accountName || conn.pageName || conn.channelTitle || conn.username || conn.accountId || conn.pageId || '',
+    hasToken: !!(conn.hasToken || conn.tokenStored || conn.accessToken || conn.refreshToken || conn.pageAccessToken),
+    updatedAtIso: conn.updatedAtIso || conn.connectedAtIso || '',
+    source: conn.source || ''
+  };
+}
+function platformReady(connections, platform){
+  const conn = connections && connections[platform];
+  return !!(conn && (conn.connected || conn.status === 'connected') && (conn.hasToken || conn.tokenStored || conn.accessToken || conn.refreshToken || conn.pageAccessToken || platform === 'whatsapp'));
+}
 function timeForPlatform(platformTimes, platform, contentType, fallback){
   return cleanTime(platformTimes?.[platform]?.[contentType]) || cleanTime(fallback?.[platform]?.[contentType]) || cleanTime(fallback?.[contentType]) || cleanTime(LOCAL_PUBLISHER_DEFAULT_TIMES?.[platform]?.[contentType]) || '';
 }
@@ -141,11 +176,14 @@ async function scanAgendaFolder(payload){
   const year = Number(payload.year || new Date().getFullYear());
   const selectedPlatforms = Array.isArray(payload.platforms) && payload.platforms.length ? payload.platforms.filter(p => LOCAL_PUBLISHER_PLATFORMS.includes(p)) : ['facebook','instagram'];
   const platformTimes = normalizePlatformTimes(payload.platformTimes || await loadLocalPublisherPlatformTimes());
+  const platformConnections = await loadPlatformConnections();
   const fallbackTimes = payload.times || {};
+  const missingPlatforms = selectedPlatforms.filter(platform => !platformReady(platformConnections, platform));
   const rootItems = await readDirSafe(agendaRoot);
   const dayFolders = naturalSort(rootItems.filter(d => d.isDirectory() && /^(\d{1,2})-(\d{1,2})$/.test(d.name)));
   const jobs = [];
   const warnings = [];
+  missingPlatforms.forEach(platform => warnings.push(`المنصة ${platform} غير مربوطة مركزيًا في Firebase أو لا يوجد توكن محفوظ. سيتم إنشاء المهام لكن النشر الفعلي يحتاج ربط المنصة.`));
   for(const day of dayFolders){
     const m = day.name.match(/^(\d{1,2})-(\d{1,2})$/);
     const dd = String(Number(m[1])).padStart(2, '0');
@@ -195,9 +233,14 @@ async function markRequestedJobsSeen(){
     const q = fsMod.query(jobsRef, fsMod.where('status', '==', status), fsMod.limit(20));
     const snap = await fsMod.getDocs(q);
     for(const docSnap of snap.docs){
+      const job = docSnap.data() || {};
+      const connections = await loadPlatformConnections();
+      const platform = String(job.platform || (Array.isArray(job.platforms) ? job.platforms[0] : '') || '').toLowerCase();
+      const ready = platform ? platformReady(connections, platform) : false;
       await fsMod.setDoc(docSnap.ref, {
         agentLastSeenAtIso: new Date().toISOString(),
-        agentNote: 'تم استلام الطلب من Electron. تنفيذ النشر الفعلي يحتاج تفعيل وحدة النشر الخاصة بالمنصة.',
+        agentCentralConnectionReady: ready,
+        agentNote: ready ? 'تم استلام الطلب من Electron والحساب المركزي موجود في Firebase. خطوة النشر الفعلية التالية تحتاج وحدة API الخاصة بالمنصة والملف المحلي.' : `تم استلام الطلب من Electron لكن ${platform || 'المنصة'} غير مربوطة مركزيًا في Firebase أو لا يوجد توكن محفوظ.`,
         updatedAtIso: new Date().toISOString(),
         updatedAt: fsMod.serverTimestamp()
       }, { merge:true });
@@ -228,7 +271,7 @@ async function saveJobsToFirebase(payload){
   let saved = 0;
   for(const job of jobs){
     const ref = fsMod.doc(db, collectionName, safeId(job.id || `job_${Date.now()}_${saved}`));
-    await fsMod.setDoc(ref, { ...job, updatedAtIso:new Date().toISOString(), updatedAt:fsMod.serverTimestamp() }, { merge:true });
+    await fsMod.setDoc(ref, { ...job, agentRequiresCentralConnection:true, updatedAtIso:new Date().toISOString(), updatedAt:fsMod.serverTimestamp() }, { merge:true });
     saved += 1;
   }
   return { ok:true, saved };
@@ -242,3 +285,4 @@ ipcMain.handle('choose-agenda-folder', async () => {
 ipcMain.handle('scan-agenda-folder', async (_event, payload) => scanAgendaFolder(payload || {}));
 ipcMain.handle('save-publishing-jobs', async (_event, payload) => saveJobsToFirebase(payload || {}));
 ipcMain.handle('check-publishing-commands', async () => markRequestedJobsSeen());
+ipcMain.handle('load-platform-connections', async () => { const connections = await loadPlatformConnections(); return { ok:true, connections:Object.fromEntries(Object.entries(connections).map(([key, value]) => [key, redactConnectionForUi(value)])) }; });

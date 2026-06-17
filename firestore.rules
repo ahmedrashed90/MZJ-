@@ -579,5 +579,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /platform_connections/{docId} {
+      // Central platform connection records used by the web dashboard and Electron publisher agent.
+      // Tokens are stored for the current MZJ internal workflow; restrict this further when Firebase Auth roles are enforced end-to-end.
+      allow read, write: if true;
+    }
+
   }
 }

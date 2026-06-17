@@ -1,5 +1,6 @@
 window.MZJ_PUBLISHING_JOBS_COLLECTION = "publishing_jobs";
 window.MZJ_PUBLISH_AGENT_DEVICES_COLLECTION = "publish_agent_devices";
+window.MZJ_PLATFORM_CONNECTIONS_COLLECTION = "platform_connections";
 
 function scrubSensitiveLoginUrl(){
   try{
@@ -138,7 +139,10 @@ let publishPrepFirestoreReady = false;
 let publishPrepUnsubscribe = null;
 let publishLogsCache = [];
 let publishLogsUnsubscribe = null;
+let platformConnectionsCache = {};
+let platformConnectionsUnsubscribe = null;
 let publishPrepSearchQuery = '';
+
 
 function isLoggedIn(){ return localStorage.getItem('mzj_logged_in') === '1'; }
 function getRoute(){ return (location.hash || '#dashboard').replace('#',''); }
@@ -7529,6 +7533,95 @@ async function savePublishLogToFirestore(item){
     return false;
   }
 }
+
+function platformConnectionDoc(platform){
+  const key = normalizeText(platform).toLowerCase();
+  return platformConnectionsCache && platformConnectionsCache[key] ? platformConnectionsCache[key] : null;
+}
+function isPlatformConnectionReady(platform){
+  const conn = platformConnectionDoc(platform);
+  return !!(conn && (conn.connected === true || conn.status === 'connected' || conn.state === 'ready'));
+}
+function connectionAccountLabel(conn){
+  if(!conn) return '';
+  return normalizeText(conn.accountName || conn.pageName || conn.channelTitle || conn.displayName || conn.username || conn.accountId || conn.pageId || conn.channelId || conn.id || '');
+}
+function connectionTokenLabel(conn){
+  if(!conn) return 'غير محفوظ في Firebase';
+  if(conn.hasToken || conn.tokenStored || conn.accessToken || conn.pageAccessToken || conn.refreshToken) return 'محفوظ مركزيًا في Firebase';
+  if(conn.status === 'connected' || conn.connected) return 'حالة الربط محفوظة في Firebase';
+  return 'غير متصل';
+}
+function loadPlatformConnections(){
+  if(!mainDb || platformConnectionsUnsubscribe) return;
+  try{
+    platformConnectionsUnsubscribe = safeCollection(window.MZJ_PLATFORM_CONNECTIONS_COLLECTION || 'platform_connections').onSnapshot(snapshot => {
+      const next = {};
+      snapshot.docs.forEach(doc => { const data = doc.data() || {}; const key = normalizeText(data.platform || doc.id).toLowerCase(); next[key] = { id:doc.id, platform:key, ...data }; });
+      platformConnectionsCache = next;
+      if(getRoute() === 'social-publisher') { renderSocialPublishLog?.(); }
+      if(getRoute() === 'platform-settings') renderPlatformSettingsPage?.();
+      if(getRoute() === 'local-publisher') renderLocalPublisherPage?.();
+    }, error => console.warn('Platform connections load error', error));
+  }catch(error){ console.warn('Platform connections init error', error); }
+}
+async function upsertPlatformConnection(platform, payload){
+  if(!mainDb || !platform) return false;
+  try{
+    const id = safeFirestoreDocId ? safeFirestoreDocId(platform) : String(platform).replace(/[^a-z0-9_-]/gi, '_');
+    await safeCollection(window.MZJ_PLATFORM_CONNECTIONS_COLLECTION || 'platform_connections').doc(id).set({
+      platform,
+      source:'web-dashboard',
+      updatedAt: serverTime(),
+      updatedAtIso: new Date().toISOString(),
+      ...payload
+    }, { merge:true });
+    return true;
+  }catch(error){ console.warn('Unable to save platform connection', platform, error); return false; }
+}
+async function refreshCentralPlatformConnections(){
+  const tasks = [];
+  if(socialMetaConnected){
+    const selectedPage = getSelectedSocialPage();
+    tasks.push(upsertPlatformConnection('facebook', {
+      connected:true,
+      status:'connected',
+      state:'ready',
+      source:'meta-api-cookie-sync',
+      pageId:selectedPage?.id || '',
+      pageName:selectedPage?.name || '',
+      accountId:selectedPage?.id || '',
+      accountName:selectedPage?.name || '',
+      pages:(socialMetaPages || []).map(page => ({ id:page.id || '', name:page.name || '', category:page.category || '', instagram:page.instagram || null, hasPageToken:!!page.hasPageToken })),
+      hasToken:true,
+      tokenStored:true,
+      note:'تم حفظ حالة Meta مركزيًا. التوكنات الفعلية تحفظ من API الربط على Vercel.'
+    }));
+    const ig = selectedPage?.instagram || (socialMetaPages || []).map(p => p.instagram).find(Boolean) || null;
+    tasks.push(upsertPlatformConnection('instagram', {
+      connected:!!ig,
+      status:ig ? 'connected' : 'missing_instagram_business',
+      state:ig ? 'ready' : 'warning',
+      source:'meta-api-cookie-sync',
+      accountId:ig?.id || '',
+      accountName:ig?.username || ig?.name || '',
+      username:ig?.username || '',
+      pageId:selectedPage?.id || '',
+      pageName:selectedPage?.name || '',
+      hasToken:!!ig,
+      tokenStored:!!ig,
+      note:ig ? 'Instagram Business مربوط بصفحة Meta ومحفوظ مركزيًا.' : 'Meta متصل لكن لا يوجد Instagram Business واضح.'
+    }));
+  }
+  if(socialTikTokConnected){
+    tasks.push(upsertPlatformConnection('tiktok', { connected:true, status:'connected', state:'ready', source:'tiktok-api-cookie-sync', accountId:socialTikTokUser?.open_id || '', accountName:socialTikTokUser?.display_name || socialTikTokUser?.username || '', username:socialTikTokUser?.username || '', hasToken:true, tokenStored:true }));
+  }
+  if(socialYouTubeConnected){
+    tasks.push(upsertPlatformConnection('youtube', { connected:true, status:'connected', state:'ready', source:'youtube-api-cookie-sync', accountId:socialYouTubeChannel?.id || '', channelId:socialYouTubeChannel?.id || '', accountName:socialYouTubeChannel?.title || '', channelTitle:socialYouTubeChannel?.title || '', hasToken:true, tokenStored:true }));
+  }
+  await Promise.all(tasks);
+}
+
 function loadPublishLogs(){
   if(!mainDb || publishLogsUnsubscribe) return;
   try{
@@ -7570,6 +7663,7 @@ async function loadTikTokConnection(){
     if(socialTikTokConnected){
       const name = socialTikTokUser?.display_name || socialTikTokUser?.username || 'TikTok';
       setTikTokStatus(`متصل Sandbox: ${name} · Draft Upload جاهز`, true);
+      refreshCentralPlatformConnections?.();
     } else {
       setTikTokStatus(data.hasTikTokClientKey ? 'جاهز للربط - Sandbox' : 'إعدادات ناقصة', false);
     }
@@ -7595,6 +7689,7 @@ async function loadYouTubeConnection(){
     if(socialYouTubeConnected){
       const name = socialYouTubeChannel?.title || socialYouTubeChannel?.id || 'YouTube';
       setYouTubeStatus(`متصل: ${name}`, true);
+      refreshCentralPlatformConnections?.();
     } else {
       setYouTubeStatus(data.hasClientId ? 'جاهز للربط' : 'إعدادات ناقصة', false);
     }
@@ -7649,6 +7744,7 @@ async function loadMetaConnection(){
     socialMetaConnected = !!data.connected;
     socialMetaPages = Array.isArray(data.pages) ? data.pages : [];
     renderSocialPagesSelect(data.note || data.warning || '');
+    refreshCentralPlatformConnections?.();
   }catch(error){
     socialMetaConnected = false;
     socialMetaPages = [];
@@ -8812,7 +8908,7 @@ function bindSocialPublisher(){
   document.getElementById('socialTikTokDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/tiktok/logout', { credentials:'include' }); }catch(_){} socialTikTokConnected=false; socialTikTokUser=null; setTikTokStatus('تم الفصل - Sandbox', false); showToast('تم فصل TikTok.'); });
   document.getElementById('socialYouTubeConnectBtn')?.addEventListener('click', () => { window.location.href = '/api/youtube/login'; });
   document.getElementById('socialYouTubeDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/youtube/logout', { credentials:'include' }); }catch(_){} socialYouTubeConnected=false; socialYouTubeChannel=null; setYouTubeStatus('تم فصل YouTube', false); showToast('تم فصل YouTube.'); });
-  document.getElementById('socialDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/meta/logout', { credentials:'include' }); }catch(_){} socialMetaConnected=false; socialMetaPages=[]; renderSocialPagesSelect(); setSocialStatus('تم فصل ربط Meta من هذا المتصفح.', false); showToast('تم فصل الربط.'); });
+  document.getElementById('socialDisconnectBtn')?.addEventListener('click', async () => { try{ await fetch('/api/meta/logout', { credentials:'include' }); }catch(_){} socialMetaConnected=false; socialMetaPages=[]; await upsertPlatformConnection?.('facebook', { connected:false, status:'disconnected', state:'error', hasToken:false, tokenStored:false, disconnectedAtIso:new Date().toISOString() }); await upsertPlatformConnection?.('instagram', { connected:false, status:'disconnected', state:'error', hasToken:false, tokenStored:false, disconnectedAtIso:new Date().toISOString() }); renderSocialPagesSelect(); setSocialStatus('تم فصل ربط Meta من هذا المتصفح.', false); showToast('تم فصل الربط.'); });
   document.getElementById('clearSocialLogBtn')?.addEventListener('click', () => { localStorage.removeItem(SOCIAL_PUBLISH_LOG_KEY); setSocialPublishLog([]); renderSocialPublishLog(); const remoteCount = (publishLogsCache || []).length; showToast(remoteCount ? `تم مسح السجل المحلي. متبقي ${remoteCount} عملية محفوظة في Firebase.` : 'تم مسح سجل النشر المحلي.'); });
   document.getElementById('socialPublishLog')?.addEventListener('click', event => {
     const btn = event.target.closest('[data-delete-social-log]');
@@ -9104,60 +9200,53 @@ function populateAutoPublishHourSelects(){
   });
 }
 function platformConnectionRows(){
+  const fbConn = platformConnectionDoc('facebook');
+  const igConn = platformConnectionDoc('instagram');
+  const tiktokConn = platformConnectionDoc('tiktok');
+  const youtubeConn = platformConnectionDoc('youtube');
   const selectedPage = getSelectedSocialPage();
-  const hasInstagram = !!(selectedPage && selectedPage.instagram && selectedPage.instagram.id);
+  const hasInstagramLocal = !!(selectedPage && selectedPage.instagram && selectedPage.instagram.id);
   const mersal = (systemSettings && (systemSettings.mersal || systemSettings.whatsappMersal)) || {};
   const mersalConnected = !!(mersal.status === 'connected' || mersal.connected || mersal.token || systemSettings?.mersalToken);
+  const rowState = (conn, fallbackReady=false) => (conn && (conn.connected || conn.status === 'connected')) || fallbackReady ? 'ready' : 'warning';
   return [
     {
       key:'facebook', name:'Facebook', icon:'f', className:'facebook',
-      status: socialMetaConnected ? 'متصل' : 'غير متصل',
-      state: socialMetaConnected ? 'ready' : 'error',
-      account: selectedPage ? (selectedPage.name || selectedPage.id) : 'لم يتم اختيار صفحة',
-      token: socialMetaConnected ? 'صالح من جلسة الربط الحالية' : 'يحتاج ربط / إعادة ربط',
-      action:'ربط / إعادة ربط Meta', href:'/api/meta/login', note:'يستخدم نفس ربط Meta الموجود في صفحة ربط المنصات.'
+      status: isPlatformConnectionReady('facebook') ? 'متصل من Firebase' : (socialMetaConnected ? 'متصل محليًا - جاري الحفظ' : 'غير متصل'),
+      state: isPlatformConnectionReady('facebook') || socialMetaConnected ? 'ready' : 'error',
+      account: connectionAccountLabel(fbConn) || (selectedPage ? (selectedPage.name || selectedPage.id) : 'لم يتم اختيار صفحة'),
+      token: connectionTokenLabel(fbConn) || (socialMetaConnected ? 'صالح من جلسة الربط الحالية' : 'يحتاج ربط / إعادة ربط'),
+      action:'ربط / إعادة ربط Meta', href:'/api/meta/login', note:'الربط المركزي محفوظ في Firebase ليستخدمه Electron على جهاز الملفات.'
     },
     {
       key:'instagram', name:'Instagram', icon:'◎', className:'instagram',
-      status: hasInstagram ? 'متصل' : (socialMetaConnected ? 'ناقص ربط Instagram Business' : 'غير متصل'),
-      state: hasInstagram ? 'ready' : 'warning',
-      account: hasInstagram ? (selectedPage.instagram.username || selectedPage.instagram.name || selectedPage.instagram.id) : 'لا يوجد Instagram Business على الصفحة المختارة',
-      token: hasInstagram ? 'يعتمد على ربط Meta' : 'راجع ربط Instagram بالصفحة',
-      action:'فتح ربط Meta', href:'/api/meta/login', note:'لازم يكون Instagram Business مربوط بصفحة Facebook المختارة.'
+      status: isPlatformConnectionReady('instagram') ? 'متصل من Firebase' : (hasInstagramLocal ? 'متصل محليًا - جاري الحفظ' : (socialMetaConnected ? 'ناقص ربط Instagram Business' : 'غير متصل')),
+      state: isPlatformConnectionReady('instagram') || hasInstagramLocal ? 'ready' : 'warning',
+      account: connectionAccountLabel(igConn) || (hasInstagramLocal ? (selectedPage.instagram.username || selectedPage.instagram.name || selectedPage.instagram.id) : 'لا يوجد Instagram Business على الصفحة المختارة'),
+      token: connectionTokenLabel(igConn) || (hasInstagramLocal ? 'يعتمد على ربط Meta' : 'راجع ربط Instagram بالصفحة'),
+      action:'فتح ربط Meta', href:'/api/meta/login', note:'يتم حفظ Instagram Business المركزي من ربط Meta.'
     },
     {
       key:'tiktok', name:'TikTok', icon:'♪', className:'tiktok',
-      status: socialTikTokConnected ? 'متصل Sandbox' : 'غير متصل',
-      state: socialTikTokConnected ? 'ready' : 'warning',
-      account: socialTikTokUser ? (socialTikTokUser.display_name || socialTikTokUser.username || 'TikTok') : 'لا يوجد حساب مرتبط',
-      token: socialTikTokConnected ? 'جاهز لاختبارات Draft Upload' : 'يحتاج ربط TikTok',
-      action:'ربط TikTok', href:'/api/tiktok/login', note:'الحالة الحالية مخصصة لاختبارات Sandbox / Draft Upload.'
+      status: isPlatformConnectionReady('tiktok') ? 'متصل من Firebase' : (socialTikTokConnected ? 'متصل Sandbox محليًا' : 'غير متصل'),
+      state: isPlatformConnectionReady('tiktok') || socialTikTokConnected ? 'ready' : 'warning',
+      account: connectionAccountLabel(tiktokConn) || (socialTikTokUser ? (socialTikTokUser.display_name || socialTikTokUser.username || 'TikTok') : 'لا يوجد حساب مرتبط'),
+      token: connectionTokenLabel(tiktokConn) || (socialTikTokConnected ? 'جاهز لاختبارات Draft Upload' : 'يحتاج ربط TikTok'),
+      action:'ربط TikTok', href:'/api/tiktok/login', note:'حالة TikTok المركزية تظهر هنا بعد الربط.'
     },
     {
       key:'youtube', name:'YouTube', icon:'▶', className:'youtube',
-      status: socialYouTubeConnected ? 'متصل' : 'غير متصل',
-      state: socialYouTubeConnected ? 'ready' : 'warning',
-      account: socialYouTubeChannel ? (socialYouTubeChannel.title || socialYouTubeChannel.id || 'YouTube') : 'لا توجد قناة مرتبطة',
-      token: socialYouTubeConnected ? 'صالح من جلسة الربط الحالية' : 'يحتاج ربط YouTube',
-      action:'ربط YouTube', href:'/api/youtube/login', note:'خصوصية الرفع الافتراضية يتم ضبطها من إعدادات مواعيد النشر.'
+      status: isPlatformConnectionReady('youtube') ? 'متصل من Firebase' : (socialYouTubeConnected ? 'متصل محليًا' : 'غير متصل'),
+      state: isPlatformConnectionReady('youtube') || socialYouTubeConnected ? 'ready' : 'warning',
+      account: connectionAccountLabel(youtubeConn) || (socialYouTubeChannel ? (socialYouTubeChannel.title || socialYouTubeChannel.id || 'YouTube') : 'لا توجد قناة مرتبطة'),
+      token: connectionTokenLabel(youtubeConn) || (socialYouTubeConnected ? 'صالح من جلسة الربط الحالية' : 'يحتاج ربط YouTube'),
+      action:'ربط YouTube', href:'/api/youtube/login', note:'التوكن المركزي يجعل Electron لا يحتاج فتح حساب المطور على جهاز الملفات.'
     },
-    {
-      key:'snapchat', name:'Snapchat', icon:'👻', className:'snapchat',
-      status:'بانتظار موافقة Snapchat', state:'pending',
-      account:'Public Profile API allowlist قيد الانتظار',
-      token:'لا يوجد توكن قبل موافقة Snap',
-      action:'بانتظار التفعيل', href:'', note:'تم إرسال طلب allowlist، وبعد الموافقة سيتم تفعيل OAuth والـ callback.'
-    },
-    {
-      key:'whatsapp', name:'WhatsApp / مرسال', icon:'☎', className:'whatsapp',
-      status: mersalConnected ? 'متصل' : 'جاهز بعد حفظ إعدادات مرسال',
-      state: mersalConnected ? 'ready' : 'warning',
-      account: mersal.apiEndpoint || systemSettings?.mersalApiEndpoint || 'https://w-mersal.com',
-      token: mersalConnected ? 'تم حفظ إعدادات مرسال' : 'يحتاج Token مرسال',
-      action:'فتح إعدادات مرسال', href:'#settings', note:'إعدادات مرسال محفوظة داخل صفحة الإعدادات.'
-    }
+    { key:'snapchat', name:'Snapchat', icon:'👻', className:'snapchat', status:'بانتظار موافقة Snapchat', state:'pending', account:'Public Profile API allowlist قيد الانتظار', token:'لا يوجد توكن قبل موافقة Snap', action:'بانتظار التفعيل', href:'', note:'بعد الموافقة سيتم تفعيل OAuth المركزي.' },
+    { key:'whatsapp', name:'WhatsApp / مرسال', icon:'☎', className:'whatsapp', status: mersalConnected ? 'متصل' : 'جاهز بعد حفظ إعدادات مرسال', state: mersalConnected ? 'ready' : 'warning', account: mersal.apiEndpoint || systemSettings?.mersalApiEndpoint || 'https://w-mersal.com', token: mersalConnected ? 'تم حفظ إعدادات مرسال' : 'يحتاج Token مرسال', action:'فتح إعدادات مرسال', href:'#settings', note:'إعدادات مرسال محفوظة داخل صفحة الإعدادات.' }
   ];
 }
+
 function renderPlatformSettingsPage(){
   const grid = document.getElementById('platformSettingsGrid');
   const summary = document.getElementById('platformTokensSummary');
@@ -9543,6 +9632,7 @@ function bootstrapData(){
   }
   loadPublishPrepSubmissions();
   loadPublishLogs();
+  loadPlatformConnections();
   loadCampaigns();
   // loadCampaignTasks(); // تم إلغاء الاعتماد على campaign_tasks
   loadStock();

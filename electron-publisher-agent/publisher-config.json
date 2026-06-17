@@ -9,5 +9,6 @@
     "measurementId": "G-NGV75EXFRM"
   },
   "jobsCollection": "publishing_jobs",
-  "agentDevicesCollection": "publish_agent_devices"
+  "agentDevicesCollection": "publish_agent_devices",
+  "platformConnectionsCollection": "platform_connections"
 }
