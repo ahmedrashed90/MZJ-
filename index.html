@@ -1,10 +1,11 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MZJ-Marketing</title>
-  <script>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>MZJ-Marketing</title>
+<script>
     (function(){
       try {
         var params = new URLSearchParams(window.location.search);
@@ -14,932 +15,871 @@
       } catch (e) {}
     })();
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=230" />
-  <link rel="icon" type="image/x-icon" href="assets/favicon.png">
-</head>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="assets/css/style.css?v=230" rel="stylesheet">
+<link href="assets/favicon.png" rel="icon" type="image/x-icon"/>
+</link></head>
 <body>
-  <div class="mobile-overlay" data-close-menu></div>
+<div class="mobile-overlay" data-close-menu=""></div>
+<section aria-label="تسجيل الدخول" class="login-page" id="loginView">
+<div class="login-card">
+<div class="login-art">
+<div class="login-art-content">
+<h1>مجموعة محمد ذعار العجمي</h1>
+<p>إدارة الحملات، الأقسام، التقويم، المهام والاستوك من مكان واحد.</p>
+</div>
+</div>
+<form action="javascript:void(0)" autocomplete="on" class="login-form" id="loginForm" method="post" novalidate="">
+<div class="login-logo-wrap no-bg"><img alt="مجموعة محمد ذعار العجمي" src="assets/img/logo.png"/></div>
+<span class="eyebrow">مجموعة محمد ذعار العجمي</span>
+<h2>تسجيل الدخول</h2>
+<p>ادخل بيانات حسابك للمتابعة.</p>
+<label class="field">
+<span>البريد الإلكتروني</span>
+<input autocomplete="email" id="loginEmail" name="email" required="" type="email"/>
+</label>
+<label class="field">
+<span>كلمة المرور</span>
+<input autocomplete="current-password" id="loginPassword" name="password" required="" type="password"/>
+</label>
+<button class="btn btn-primary full" type="submit">تسجيل الدخول</button>
+<p class="form-message" id="loginMessage" role="status"></p>
+</form>
+</div>
+</section>
+<div class="app is-hidden" id="appShell">
+<aside class="sidebar" id="sidebar">
+<div class="brand"><img alt="مجموعة محمد ذعار العجمي" src="assets/img/logo.png"/></div>
+<nav aria-label="القائمة الرئيسية" class="nav" id="mainNav">
+<a data-route="dashboard" href="#dashboard"><span class="icon">🏠</span><span>لوحة التحكم</span></a>
+<a data-route="reports" href="#reports"><span class="icon">🗄️</span><span>قاعدة البيانات</span></a>
+<a data-route="create-campaign" href="#create-campaign"><span class="icon">➕</span><span>إنشاء حملة</span></a>
+<a data-route="campaigns" href="#campaigns"><span class="icon">📣</span><span>إدارة الحملات</span></a>
+<a data-route="social-publisher" href="#social-publisher"><span class="icon">🔗</span><span>ربط المنصات</span></a>
+<a data-route="platform-settings" href="#platform-settings"><span class="icon">🧩</span><span>إعدادات المنصات</span></a>
+<a data-route="publish-prep" href="#publish-prep"><span class="icon">📤</span><span>تجهيز النشر</span></a>
+<a data-route="checklist-reel" href="#checklist-reel"><span class="icon">🎬</span><span>Checklist ريل السيارات</span></a>
+<a data-route="tasks" href="#tasks"><span class="icon">📈</span><span>المتابعة</span></a>
+<a data-route="calendar" href="#calendar"><span class="icon">📅</span><span>التقويم</span></a>
+<a data-route="stock" href="#stock"><span class="icon">🚗</span><span>الاستوك</span></a>
+<a data-route="departments" href="#departments"><span class="icon">👥</span><span>الأقسام</span></a>
+<a data-route="settings" href="#settings"><span class="icon">⚙</span><span>الإعدادات</span></a>
+</nav>
+</aside>
+<main class="main">
+<header class="topbar">
+<button class="menu-btn" data-menu="" type="button">☰</button>
+<div class="search"><span>⌕</span><input placeholder="بحث داخل النظام" type="search"/></div>
+<div class="topbar-actions">
+<div class="notification-wrap">
+<button class="icon-btn notify-btn" id="notificationToggle" title="الإشعارات" type="button">🔔<span class="notify-count is-hidden" id="notificationCount">0</span></button>
+<div class="notification-panel is-hidden" id="notificationPanel"></div>
+</div>
+<span class="topbar-user" id="topbarUserName">مستخدم</span>
+<button class="btn btn-light" id="logoutBtn" type="button">خروج</button>
+</div>
+</header>
+<section class="view" data-title="لوحة التحكم" id="dashboard">
+<div class="page-head">
+<div class="page-title"><h1>لوحة التحكم</h1><p>متابعة الحملات والتاسكات حسب صلاحيات الأدمن.</p></div>
+<a class="btn btn-primary" href="#create-campaign">＋ حملة جديدة</a>
+</div>
+<div class="grid stats admin-stats">
+<div class="card stat"><div><p>إجمالي الحملات</p><div class="num" id="dashboardCampaignsCount">—</div></div><div class="stat-icon">📣</div></div>
+<div class="card stat"><div><p>إجمالي التاسكات</p><div class="num" id="dashboardTasksCount">—</div></div><div class="stat-icon">☑</div></div>
+<div class="card stat"><div><p>الأقسام</p><div class="num" id="dashboardDepartmentsCount">—</div></div><div class="stat-icon">▤</div></div>
+<div class="card stat"><div><p>السيارات في الاستوك</p><div class="num" id="dashboardCarsCount">—</div></div><div class="stat-icon">▧</div></div>
+</div>
+<div class="admin-dashboard-board" id="adminDashboardBoard">
+<div class="empty-state">جاري تحميل الحملات والتاسكات.</div>
+</div>
+<div class="card dashboard-detail" id="dashboardCampaignDetail"></div>
+</section>
+<section class="view" data-title="الحملات" id="campaigns">
+<div class="page-head"><div class="page-title"><h1>إدارة الحملات</h1><p>إنشاء ومتابعة الحملات التسويقية.</p></div><a class="btn btn-primary" href="#create-campaign">＋ إنشاء حملة</a></div>
+<div class="card"><div class="filters"><input class="control" placeholder="ابحث عن حملة" type="search"/><select class="select"><option>كل الحالات</option></select></div><div class="campaign-list" id="campaignsList"><div class="empty-state">لا توجد حملات حتى الآن.</div></div></div>
+</section>
+<section class="view" data-title="إنشاء حملة" id="create-campaign">
+<div class="page-head campaign-builder-head">
+<div class="page-title">
+<h1>إنشاء حملة</h1>
+<p>أنشئ الحملة بنظام خطوات: طلب الهيكل واختيار كتاب المحتوى، تحديد الكريتيف المطلوب للهيكل وربط الأقسام، ثم جدول النشر والميزانية.</p>
+</div>
+<div class="actions">
+<button class="btn btn-light" id="resetCampaignBuilder" type="button">مسح النموذج</button>
+<button class="btn btn-primary" id="saveCampaignDraft" type="button">حفظ الحملة</button>
+</div>
+</div>
+<div aria-label="خطوات إنشاء الحملة" class="campaign-wizard-nav" id="campaignWizardNav">
+<button class="campaign-wizard-step active" data-campaign-wizard-target="1" type="button"><span>1</span><strong>بيانات طلب كاتب المحتوى</strong></button>
+<button class="campaign-wizard-step" data-campaign-wizard-target="2" type="button"><span>2</span><strong>تحديد الكريتيف المطلوب للهيكل</strong></button>
+<button class="campaign-wizard-step" data-campaign-wizard-target="3" type="button"><span>3</span><strong>جدول النشر والميزانية</strong></button>
+</div>
+<div class="campaign-builder stacked" id="campaignWizard">
+<section class="request-panel card request-top campaign-wizard-panel active" data-campaign-wizard-step="1">
+<div class="panel-title">بيانات طلب كاتب المحتوى</div>
+<form class="form request-grid" id="campaignRequestForm">
+<label class="field"><span>تاريخ الحملة</span><input name="campaign_date" type="date"/></label>
+<label class="field"><span>بداية النشر</span><input id="publishStartDate" name="publish_start_date" type="date"/></label>
+<label class="field"><span>نهاية النشر</span><input id="publishEndDate" name="publish_end_date" type="date"/></label>
+<label class="field"><span>نوع الحملة</span><select class="js-campaign-type-select" id="campaignTypeSelect" name="campaign_type_id"><option value="">اختر نوع الحملة</option></select></label>
+<label class="field"><span>كود الحملة</span><input id="campaignCodeInput" name="campaign_code" placeholder="يظهر تلقائياً بعد اختيار نوع الحملة" readonly="" type="text"/></label>
+<label class="field"><span>اسم الحملة</span><input name="campaign_name" type="text"/></label>
+<label class="field field-wide"><span>هدف الحملة</span><textarea name="campaign_goal" placeholder="اكتب هدف الحملة الذي سيظهر داخل تفاصيل التاسكات لكل اليوزرات"></textarea></label>
+<label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief" placeholder="اكتب المطلوب الذي سيظهر لكاتب المحتوى في داش بورد رفع الهيكل"></textarea></label>
+<label class="field field-wide structure-content-writers-field"><span>يوزرات كتابة المحتوى لطلب الهيكل</span><div aria-label="يوزرات كتابة المحتوى" class="multi-dropdown js-role-picker js-request-content-writers" data-role="content"><button class="multi-toggle" type="button">اختيار يوزرات كتابة المحتوى</button><div class="multi-menu"></div></div><small class="field-hint">اليوزرات المختارة هنا سيظهر لهم تاسك طلب هيكل واحد للحملة، حتى لو اخترت أكثر من كريتيف في الخطوة الثانية.</small></label>
+<label class="field"><span>موعد تسليم الهيكل</span><input name="structure_deadline" type="date"/></label>
+</form>
+<div class="campaign-wizard-actions"><button class="btn btn-primary" data-campaign-wizard-next="" type="button">التالي: تحديد الكريتيف المطلوب للهيكل</button></div>
+</section>
+<div class="builder-workspace">
+<div class="card campaign-section-card campaign-wizard-panel" data-campaign-wizard-step="2">
+<div class="section-toolbar">
+<div>
+<h2>تحديد الكريتيف المطلوب للهيكل</h2>
+<p>اختار الكريتيف المطلوب في الهيكل، وحدد الأقسام التنفيذية التي ستنتظر اعتماد الهيكل ثم ترتبط تلقائيًا بالأكواد.</p>
+</div>
+</div>
+<div aria-label="كريتيفات ومهام الحملة" class="creative-rows-stack" id="creativeRows">
+<div class="empty-state">اضغط على خطوة الكريتيفات والمهام لفتح نافذة ربط الكريتيفات باليوزرات تلقائيًا.</div>
+</div>
+<div class="campaign-wizard-actions"><button class="btn btn-light" data-campaign-wizard-prev="" type="button">السابق</button><button class="btn btn-primary" data-campaign-wizard-next="" type="button">التالي: جدول النشر والميزانية</button></div>
+</div>
+<div class="builder-bottom-stacked campaign-wizard-panel" data-campaign-wizard-step="3">
+<div class="card campaign-section-card">
+<div class="section-toolbar small-toolbar">
+<div><h2>جدول النشر</h2><p>يتولد كأجندة حسب تاريخ بداية ونهاية النشر، والاختيارات تعتمد على مخرجات التصميم والمونتاج.</p></div>
+<button class="btn btn-light" id="refreshPublishAgendaBtn" type="button">تحديث الجدول</button>
+</div>
+<div class="publish-agenda" id="publishAgenda"><div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div></div>
+</div>
+<div class="card campaign-section-card">
+<div class="section-toolbar small-toolbar">
+<div><h2>الميزانية</h2><p>كل بند ميزانية: Funnel، المنتج، المنصة، والقيمة. المنصات تظهر من صفحة الأقسام.</p></div>
+<button class="btn btn-light" id="addBudgetRowBtn" type="button">＋ إضافة بند ميزانية</button>
+</div>
+<div class="budget-items" id="budgetRows"><div class="empty-state">لا توجد بنود ميزانية.</div></div>
+<div class="budget-grand-total"><span>إجمالي الميزانية</span><strong id="budgetGrandTotalValue">0</strong></div>
+</div>
+<div class="campaign-wizard-actions"><button class="btn btn-light" data-campaign-wizard-prev="" type="button">السابق</button><button class="btn btn-primary" id="campaignWizardSaveShortcut" type="button">حفظ الحملة</button></div>
+</div>
+</div>
+</div>
+</section>
+<section class="view" data-title="ربط المنصات" id="social-publisher">
+<div class="page-head social-publisher-head">
+<div class="page-title">
+<h1>ربط المنصات</h1>
+<p>متابعة حالة الربط وسجل النشر للمنصات.</p>
+<div class="social-meta-status" id="socialMetaConnectionStatus">جاري فحص ربط Meta...</div>
+</div>
+<div class="social-publisher-actions">
+<button class="btn btn-light" id="socialDisconnectBtn" type="button">فصل الربط</button>
+<button class="btn btn-light" id="socialReconnectBtn" type="button">ربط / إعادة ربط Meta</button>
+<button class="btn btn-light" id="socialTikTokConnectBtn" type="button">ربط TikTok</button>
+<button class="btn btn-light" id="socialTikTokDisconnectBtn" type="button">فصل TikTok</button>
+<button class="btn btn-light" id="socialYouTubeConnectBtn" type="button">ربط YouTube</button>
+<button class="btn btn-light" id="socialYouTubeDisconnectBtn" type="button">فصل YouTube</button>
+</div>
+</div>
+<div class="social-channel-grid">
+<article class="card social-channel-card is-ready" data-channel-card="facebook">
+<div class="social-channel-icon facebook">f</div>
+<div>
+<h3>Facebook</h3>
+<p>حالة الربط والنشر الفعلي على صفحة Facebook.</p>
+<span class="channel-status ready" id="facebookChannelStatus">غير متصل</span>
+</div>
+</article>
+<article class="card social-channel-card is-ready" data-channel-card="instagram">
+<div aria-label="Instagram" class="social-channel-icon instagram"><svg aria-hidden="true" viewbox="0 0 24 24"><rect fill="none" height="15.6" rx="4.6" stroke="currentColor" stroke-width="2.2" width="15.6" x="4.2" y="4.2"></rect><circle cx="12" cy="12" fill="none" r="3.6" stroke="currentColor" stroke-width="2.2"></circle><circle cx="16.7" cy="7.3" fill="currentColor" r="1.25"></circle></svg></div>
+<div>
+<h3>Instagram</h3>
+<p>حالة ربط Instagram Business بالصفحة المرتبطة.</p>
+<span class="channel-status ready" id="instagramChannelStatus">غير متصل</span>
+</div>
+</article>
+<article class="card social-channel-card is-ready" data-channel-card="tiktok">
+<div aria-label="TikTok" class="social-channel-icon tiktok"><svg aria-hidden="true" viewbox="0 0 24 24"><path class="tk-cyan" d="M14.1 3h3.1c.25 2.15 1.6 3.8 3.8 4.4v3.25c-1.55-.02-2.95-.48-4.1-1.25v6.15c0 3.2-2.25 5.45-5.5 5.45-3 0-5.25-2.05-5.25-4.9 0-3.25 2.6-5.35 6.15-4.85v3.25c-1.45-.45-2.75.2-2.75 1.55 0 .98.78 1.7 1.9 1.7 1.18 0 2.02-.72 2.02-2.2V3z"></path><path class="tk-red" d="M13.25 3h3.1c.25 2.15 1.6 3.8 3.8 4.4v3.25c-1.55-.02-2.95-.48-4.1-1.25v6.15c0 3.2-2.25 5.45-5.5 5.45-3 0-5.25-2.05-5.25-4.9 0-3.25 2.6-5.35 6.15-4.85v3.25c-1.45-.45-2.75.2-2.75 1.55 0 .98.78 1.7 1.9 1.7 1.18 0 2.02-.72 2.02-2.2V3z"></path><path class="tk-main" d="M14 3h3.1c.25 2.15 1.6 3.8 3.8 4.4v3.25c-1.55-.02-2.95-.48-4.1-1.25v6.15c0 3.2-2.25 5.45-5.5 5.45-3 0-5.25-2.05-5.25-4.9 0-3.25 2.6-5.35 6.15-4.85v3.25c-1.45-.45-2.75.2-2.75 1.55 0 .98.78 1.7 1.9 1.7 1.18 0 2.02-.72 2.02-2.2V3z"></path></svg></div>
+<div>
+<h3>TikTok</h3>
+<p>حالة ربط TikTok Sandbox / Draft Upload.</p>
+<span class="channel-status" id="tiktokChannelStatus">غير متصل - Sandbox</span>
+</div>
+</article>
+<article class="card social-channel-card is-ready" data-channel-card="youtube">
+<div class="social-channel-icon youtube">▶</div>
+<div>
+<h3>YouTube</h3>
+<p>حالة ربط قناة YouTube لرفع الفيديوهات لاحقًا.</p>
+<span class="channel-status" id="youtubeChannelStatus">غير متصل</span>
+</div>
+</article>
+<article class="card social-channel-card" data-channel-card="snapchat">
+<div class="social-channel-icon snapchat">👻</div>
+<div>
+<h3>Snapchat</h3>
+<p>تم إنشاء OAuth App وطلب الموافقة مرسل. النشر الرسمي بانتظار Allowlist.</p>
+<span class="channel-status" id="snapchatChannelStatus">بانتظار موافقة Snapchat</span>
+</div>
+</article>
+<article class="card social-channel-card is-ready" data-channel-card="whatsapp">
+<div aria-label="WhatsApp" class="social-channel-icon whatsapp"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12.02 3.25a8.72 8.72 0 0 0-7.48 13.2L3.75 20.7l4.36-1.14a8.73 8.73 0 1 0 3.91-16.31z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2"></path><path d="M8.85 8.25c.18-.42.38-.45.64-.45h.48c.18 0 .42.06.62.48.24.5.78 1.9.84 2.05.06.15.1.33-.02.53-.12.2-.18.32-.36.5-.18.2-.38.43-.16.82.22.39.98 1.6 2.1 2.58 1.44 1.27 2.1 1.38 2.48 1.18.38-.2.62-.72.84-.98.22-.26.46-.22.76-.13.3.1 1.9.9 2.22 1.07.32.16.54.24.62.38.08.14.08.82-.2 1.6-.28.78-1.6 1.5-2.22 1.56-.6.06-1.38.08-2.24-.14-.52-.13-1.18-.38-2.04-.75-3.6-1.55-5.95-5.15-6.13-5.4-.18-.24-1.46-1.95-1.46-3.72 0-1.77.92-2.64 1.25-3z" fill="currentColor"></path></svg></div>
+<div>
+<h3>WhatsApp / مرسال</h3>
+<p>إرسال رسائل وصور واتساب عبر مرسال. الفيديو وقوالب الميديا قيد التحقق.</p>
+<span class="channel-status ready" id="whatsappChannelStatus">جاهز بعد حفظ إعدادات مرسال</span>
+</div>
+</article>
+</div>
+<div class="card social-linking-status-card">
+<div class="section-toolbar small-toolbar">
+<div>
+<h2>الحالة</h2>
+<p>ملخص سريع للربط. النشر التلقائي لاحقًا سيقرأ من تجهيز النشر ثم Firebase.</p>
+</div>
+<span class="social-mode-badge" id="socialModeBadge">Linking Mode</span>
+</div>
+<div class="form-grid two">
+<label class="field"><span>صفحة Facebook المرتبطة</span><select id="socialMetaPageSelect"><option value="">سيتم تحميل الصفحات بعد الربط</option></select></label>
+<label class="field"><span>حالة Instagram</span><input id="socialInstagramStatus" readonly="" type="text" value="غير مفحوص"/></label>
+</div>
+</div>
+<div class="card social-log-card">
+<div class="section-toolbar small-toolbar">
+<div><h2>سجل النشر والحالة</h2><p>يعرض ما تم نشره، وما فشل، وأسباب المشاكل عند توفرها.</p></div>
+<button class="btn btn-light" id="clearSocialLogBtn" type="button">مسح السجل المحلي</button>
+</div>
+<div class="social-log-list" id="socialPublishLog"><div class="empty-state">لا توجد عمليات نشر مسجلة حتى الآن.</div></div>
+</div>
+</section>
+<section class="view" data-title="إعدادات المنصات" id="platform-settings">
+<div class="page-head platform-settings-head">
+<div class="page-title">
+<h1>إعدادات المنصات</h1>
+<p>إدارة حسابات المنصات، حالة التوكنات، والتنبيهات الخاصة بالربط في صفحة واحدة.</p>
+</div>
+<div class="social-publisher-actions">
+<a class="btn btn-light" href="#social-publisher">سجل النشر والحالة</a>
+<button class="btn btn-light" id="platformSettingsRefreshBtn" type="button">تحديث الحالة</button>
+</div>
+</div>
+<div class="platform-settings-grid" id="platformSettingsGrid">
+<div class="empty-state">جاري تحميل حالة المنصات...</div>
+</div>
+<div class="card platform-token-card">
+<div class="section-toolbar small-toolbar">
+<div>
+<h2>ملخص التوكنات والمشاكل</h2>
+<p>أي منصة يظهر عليها انتهاء توكن أو صلاحية ناقصة لن يتم النشر عليها تلقائيًا حتى يتم إعادة الربط.</p>
+</div>
+</div>
+<div class="platform-tokens-summary" id="platformTokensSummary">
+<div class="empty-state">لا توجد بيانات توكنات بعد.</div>
+</div>
+</div>
+</section>
+<section class="view" data-title="Checklist ريل السيارات" id="checklist-reel">
+<div class="page-head checklist-reel-head">
+<div class="page-title">
+<h1>Checklist ريل السيارات</h1>
+<p>اختار مشاهد الـ Checklist من جهازك، حدد المنصة والأبعاد، أضف الفويس أوفر والسكريبت، وصدّر فيديو رأسي جاهز للريل أو الستوري بدون API.</p>
+</div>
+<div class="actions">
+<button class="btn btn-light" id="checklistResetBtn" type="button">مسح الاختيارات</button>
+<button class="btn btn-primary" id="checklistGenerateBtn" type="button">تجهيز الملف النهائي</button>
+</div>
+</div>
+<div class="checklist-control-stack">
+<div class="checklist-top-grid">
+<div class="card checklist-studio-card">
+<div class="checklist-section-title">
+<span class="checklist-badge">1</span>
+<div><h2>بيانات الريل</h2><p>اختار المنصة والأبعاد، وحدد البيانات اللي تظهر فوق الفيديو.</p></div>
+</div>
+<div class="checklist-form-grid compact">
+<label class="field"><span>اسم العربية</span><input id="checklistCarName" placeholder="مثال: Hyundai Staria 2026" type="text"/></label>
+<label class="field"><span>اسم البراند / المعرض</span><input id="checklistBrandName" placeholder="مثال: معرض محمد العجمي" type="text"/></label>
+<label class="field"><span>المنصة</span><select class="select" id="checklistPlatformSelect"></select></label>
+<label class="field"><span>نوع النشر والأبعاد</span><select class="select" id="checklistPublishTypeSelect"></select></label>
+</div>
+<div class="checklist-output-spec" id="checklistOutputSpec">الأبعاد: —</div>
+<div class="checklist-switches">
+<label><input checked="" id="checklistShowCarName" type="checkbox"/><span>إظهار اسم السيارة</span></label>
+<label><input checked="" id="checklistShowBrandName" type="checkbox"/><span>إظهار اسم المعرض</span></label>
+<label><input id="checklistShowSceneNumber" type="checkbox"/><span>إظهار رقم المشهد</span></label>
+<label><input id="checklistShowPartLabel" type="checkbox"/><span>إظهار قسم اللقطة</span></label>
+<label><input checked="" id="checklistShowCaptionBox" type="checkbox"/><span>خلفية للكابشن</span></label>
+<label><input checked="" id="checklistShowLogo" type="checkbox"/><span>إظهار اللوجو</span></label>
+</div>
+</div>
+<div class="card checklist-studio-card">
+<div class="checklist-section-title">
+<span class="checklist-badge">2</span>
+<div><h2>الصوت والهوية</h2><p>اختار الفويس أوفر، الموسيقى واللوجو من جهازك.</p></div>
+</div>
+<div class="checklist-file-grid">
+<label class="checklist-file-drop"><span>🎙️ فويس أوفر</span><strong id="checklistVoiceName">اختار voiceover.mp3</strong><input accept="audio/*" id="checklistVoiceFile" type="file"/></label>
+<label class="checklist-file-drop"><span>🎵 موسيقى خلفية</span><strong id="checklistMusicName">اختار music.mp3 اختياري</strong><input accept="audio/*" id="checklistMusicFile" type="file"/></label>
+<label class="checklist-file-drop"><span>🖼️ لوجو</span><strong id="checklistLogoName">اختار logo.png اختياري</strong><input accept="image/*" id="checklistLogoFile" type="file"/></label>
+</div>
+</div>
+<div class="card checklist-studio-card">
+<div class="checklist-section-title">
+<span class="checklist-badge">3</span>
+<div><h2>استيراد سكريبت المشاهد</h2><p>استورد CSV / Excel من فريق التسويق، ثم جمّع سكريبت الفويس أوفر.</p></div>
+</div>
+<label class="checklist-file-drop"><span>📄 ملف CSV / Excel</span><strong id="checklistScriptSheetName">اختار CSV / Excel</strong><input accept=".csv,.xlsx,.xls" id="checklistScriptSheetFile" type="file"/></label>
+<div class="checklist-import-actions">
+<button class="btn btn-primary" id="checklistImportScriptBtn" type="button">استيراد السكريبت والكابشن</button>
+<button class="btn btn-light" id="checklistDownloadTemplateBtn" type="button">تحميل نموذج Excel</button>
+<button class="btn btn-light" id="checklistBuildScriptBtn" type="button">تجميع سكريبت الفويس أوفر</button>
+</div>
+<textarea class="checklist-script small" id="checklistScript" placeholder="هيظهر هنا سكريبت الفويس أوفر الكامل للمشاهد المختارة."></textarea>
+<p class="muted small">الأعمدة: رقم المشهد، فويس أوفر، كابشن، بداية الاستخدام، مدة الاستخدام. وأعمدة اختيارية: caption_trend / highlight_word.</p>
+</div>
+</div>
+<div class="checklist-work-grid">
+<section class="checklist-studio-main">
+<div class="card checklist-timeline-card">
+<div class="checklist-section-title wide">
+<span class="checklist-badge">5</span>
+<div><h2>اختيار المشاهد من الجهاز</h2><p>فعّل المشهد، اختار الفيديو، وعدل الفويس أوفر والكابشن لكل لقطة.</p></div>
+</div>
+<div class="checklist-parts-strip" id="checklistPartsStrip"></div>
+<div class="checklist-table-wrap">
+<table class="checklist-editor-table">
+<thead>
+<tr>
+<th>استخدام</th>
+<th>رقم</th>
+<th>المشهد</th>
+<th>قسم الريل</th>
+<th>مدة التصوير</th>
+<th>الفيديو من الجهاز</th>
+<th>من الثانية</th>
+<th>استخدام في النهائي</th>
+<th>فويس أوفر المشهد</th>
+<th>كابشن الشاشة</th>
+<th>حالة</th>
+</tr>
+</thead>
+<tbody id="checklistRows"></tbody>
+</table>
+</div>
+</div>
+<div class="card checklist-render-card">
+<div class="checklist-render-head">
+<div><h2>تصدير الفيديو النهائي</h2><p>التصدير من المتصفح مباشرة بنفس إعدادات الكابشن والحركات.</p></div>
+</div>
+<div class="checklist-progress"><div id="checklistProgressBar"></div></div>
+<div class="checklist-log" id="checklistLog">جاهز لاختيار الملفات.</div>
+<div class="checklist-downloads" id="checklistDownloads"></div>
+</div>
+</section>
+</div>
+<section class="card checklist-preview-card checklist-preview-full">
+<div class="checklist-preview-head checklist-editor-head">
+<div>
+<h2>معاينة وتايم لاين المونتاج</h2>
+<p>اعمل Preview من التايم لاين، حرّك المؤشر، اختار أي كابشن وعدّل ستايله منفصلًا عن باقي الكابشنات.</p>
+</div>
+<div class="checklist-preview-hint">Player + Timeline + Caption Editor</div>
+</div>
+<div class="checklist-preview-layout checklist-editor-layout">
+<div class="checklist-preview-frame">
+<div class="checklist-preview-stage">
+<video class="checklist-preview-video" id="checklistPreviewVideo" muted="" playsinline="" preload="metadata"></video>
+<canvas aria-label="معاينة فيديو Checklist" height="960" id="checklistPreviewCanvas" tabindex="0" width="540"></canvas>
+<div class="checklist-preview-placeholder" id="checklistPreviewPlaceholder">اختر فيديو من جدول المشاهد ثم اضغط معاينة الفيديو</div>
+<div class="checklist-preview-caption-overlay" id="checklistPreviewCaptionOverlay" role="button" tabindex="0" title="اضغط واسحب لتغيير مكان الكابشن">كابشن الشاشة</div>
+</div>
+</div>
+<div class="checklist-preview-panel checklist-editor-panel">
 
-  <section id="loginView" class="login-page" aria-label="تسجيل الدخول">
-    <div class="login-card">
-      <div class="login-art">
-        <div class="login-art-content">
-          <h1>مجموعة محمد ذعار العجمي</h1>
-          <p>إدارة الحملات، الأقسام، التقويم، المهام والاستوك من مكان واحد.</p>
-        </div>
-      </div>
-      <form class="login-form" id="loginForm" autocomplete="on" method="post" action="javascript:void(0)" novalidate>
-        <div class="login-logo-wrap no-bg"><img src="assets/img/logo.png" alt="مجموعة محمد ذعار العجمي" /></div>
-        <span class="eyebrow">مجموعة محمد ذعار العجمي</span>
-        <h2>تسجيل الدخول</h2>
-        <p>ادخل بيانات حسابك للمتابعة.</p>
-        <label class="field">
-          <span>البريد الإلكتروني</span>
-          <input id="loginEmail" name="email" type="email" required autocomplete="email" />
-        </label>
-        <label class="field">
-          <span>كلمة المرور</span>
-          <input id="loginPassword" name="password" type="password" required autocomplete="current-password" />
-        </label>
-        <button class="btn btn-primary full" type="submit">تسجيل الدخول</button>
-        <p class="form-message" id="loginMessage" role="status"></p>
-      </form>
-    </div>
-  </section>
+<div class="checklist-preview-control-box">
+<label class="field"><span>تحريك المعاينة</span><input id="checklistPreviewScrub" max="0" min="0" step="0.01" type="range" value="0"/></label>
+<div class="checklist-preview-time"><span id="checklistPreviewTime">0.0s</span><strong id="checklistPreviewStatus">متوقف</strong></div>
+<label class="field checklist-speed-field"><span>سرعة المعاينة</span><select class="select" id="checklistPreviewSpeed"><option value="0.25">0.25x فحص بطيء</option><option value="0.5">0.5x بطيء</option><option selected="" value="0.75">0.75x للمراجعة</option><option value="1">1x طبيعي</option><option value="1.25">1.25x</option></select></label>
+<p class="muted small">اسحب الكابشن على الفيديو لتغيير مكانه. اختار كابشن من التايم لاين لتعديل ستايله وحده.</p>
+</div>
 
-  <div id="appShell" class="app is-hidden">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand"><img src="assets/img/logo.png" alt="مجموعة محمد ذعار العجمي" /></div>
-      <nav class="nav" id="mainNav" aria-label="القائمة الرئيسية">
-        <a href="#dashboard" data-route="dashboard"><span class="icon">🏠</span><span>لوحة التحكم</span></a>
-        <a href="#reports" data-route="reports"><span class="icon">🗄️</span><span>قاعدة البيانات</span></a>
-        <a href="#create-campaign" data-route="create-campaign"><span class="icon">➕</span><span>إنشاء حملة</span></a>
-        <a href="#campaigns" data-route="campaigns"><span class="icon">📣</span><span>إدارة الحملات</span></a>
-        <a href="#social-publisher" data-route="social-publisher"><span class="icon">🔗</span><span>ربط المنصات</span></a>
-        <a href="#platform-settings" data-route="platform-settings"><span class="icon">🧩</span><span>إعدادات المنصات</span></a>
-        <a href="#publish-prep" data-route="publish-prep"><span class="icon">📤</span><span>تجهيز النشر</span></a>
-        <a href="#checklist-reel" data-route="checklist-reel"><span class="icon">🎬</span><span>Checklist ريل السيارات</span></a>
-        <a href="#tasks" data-route="tasks"><span class="icon">📈</span><span>المتابعة</span></a>
-        <a href="#calendar" data-route="calendar"><span class="icon">📅</span><span>التقويم</span></a>
-        <a href="#stock" data-route="stock"><span class="icon">🚗</span><span>الاستوك</span></a>
-        <a href="#departments" data-route="departments"><span class="icon">👥</span><span>الأقسام</span></a>
-        <a href="#settings" data-route="settings"><span class="icon">⚙</span><span>الإعدادات</span></a>
-      </nav>
-    </aside>
-
-    <main class="main">
-      <header class="topbar">
-        <button class="menu-btn" data-menu type="button">☰</button>
-        <div class="search"><span>⌕</span><input type="search" placeholder="بحث داخل النظام" /></div>
-        <div class="topbar-actions">
-          <div class="notification-wrap">
-            <button class="icon-btn notify-btn" type="button" id="notificationToggle" title="الإشعارات">🔔<span id="notificationCount" class="notify-count is-hidden">0</span></button>
-            <div class="notification-panel is-hidden" id="notificationPanel"></div>
-          </div>
-          <span class="topbar-user" id="topbarUserName">مستخدم</span>
-          <button class="btn btn-light" type="button" id="logoutBtn">خروج</button>
-        </div>
-      </header>
-
-      <section class="view" id="dashboard" data-title="لوحة التحكم">
-        <div class="page-head">
-          <div class="page-title"><h1>لوحة التحكم</h1><p>متابعة الحملات والتاسكات حسب صلاحيات الأدمن.</p></div>
-          <a class="btn btn-primary" href="#create-campaign">＋ حملة جديدة</a>
-        </div>
-        <div class="grid stats admin-stats">
-          <div class="card stat"><div><p>إجمالي الحملات</p><div class="num" id="dashboardCampaignsCount">—</div></div><div class="stat-icon">📣</div></div>
-          <div class="card stat"><div><p>إجمالي التاسكات</p><div class="num" id="dashboardTasksCount">—</div></div><div class="stat-icon">☑</div></div>
-          <div class="card stat"><div><p>الأقسام</p><div class="num" id="dashboardDepartmentsCount">—</div></div><div class="stat-icon">▤</div></div>
-          <div class="card stat"><div><p>السيارات في الاستوك</p><div class="num" id="dashboardCarsCount">—</div></div><div class="stat-icon">▧</div></div>
-        </div>
-        <div class="admin-dashboard-board" id="adminDashboardBoard">
-          <div class="empty-state">جاري تحميل الحملات والتاسكات.</div>
-        </div>
-        <div class="card dashboard-detail" id="dashboardCampaignDetail"></div>
-      </section>
-
-      <section class="view" id="campaigns" data-title="الحملات">
-        <div class="page-head"><div class="page-title"><h1>إدارة الحملات</h1><p>إنشاء ومتابعة الحملات التسويقية.</p></div><a class="btn btn-primary" href="#create-campaign">＋ إنشاء حملة</a></div>
-        <div class="card"><div class="filters"><input class="control" type="search" placeholder="ابحث عن حملة" /><select class="select"><option>كل الحالات</option></select></div><div id="campaignsList" class="campaign-list"><div class="empty-state">لا توجد حملات حتى الآن.</div></div></div>
-      </section>
-
-      <section class="view" id="create-campaign" data-title="إنشاء حملة">
-        <div class="page-head campaign-builder-head">
-          <div class="page-title">
-            <h1>إنشاء حملة</h1>
-            <p>أنشئ الحملة بنظام خطوات: طلب الهيكل واختيار كتاب المحتوى، تحديد الكريتيف المطلوب للهيكل وربط الأقسام، ثم جدول النشر والميزانية.</p>
-          </div>
-          <div class="actions">
-            <button class="btn btn-light" type="button" id="resetCampaignBuilder">مسح النموذج</button>
-            <button class="btn btn-primary" type="button" id="saveCampaignDraft">حفظ الحملة</button>
-          </div>
-        </div>
-
-        <div class="campaign-wizard-nav" id="campaignWizardNav" aria-label="خطوات إنشاء الحملة">
-          <button class="campaign-wizard-step active" type="button" data-campaign-wizard-target="1"><span>1</span><strong>بيانات طلب كاتب المحتوى</strong></button>
-          <button class="campaign-wizard-step" type="button" data-campaign-wizard-target="2"><span>2</span><strong>تحديد الكريتيف المطلوب للهيكل</strong></button>
-          <button class="campaign-wizard-step" type="button" data-campaign-wizard-target="3"><span>3</span><strong>جدول النشر والميزانية</strong></button>
-        </div>
-
-        <div class="campaign-builder stacked" id="campaignWizard">
-          <section class="request-panel card request-top campaign-wizard-panel active" data-campaign-wizard-step="1">
-            <div class="panel-title">بيانات طلب كاتب المحتوى</div>
-            <form class="form request-grid" id="campaignRequestForm">
-              <label class="field"><span>تاريخ الحملة</span><input type="date" name="campaign_date" /></label>
-              <label class="field"><span>بداية النشر</span><input type="date" name="publish_start_date" id="publishStartDate" /></label>
-              <label class="field"><span>نهاية النشر</span><input type="date" name="publish_end_date" id="publishEndDate" /></label>
-              <label class="field"><span>نوع الحملة</span><select id="campaignTypeSelect" name="campaign_type_id" class="js-campaign-type-select"><option value="">اختر نوع الحملة</option></select></label>
-              <label class="field"><span>كود الحملة</span><input id="campaignCodeInput" type="text" name="campaign_code" readonly placeholder="يظهر تلقائياً بعد اختيار نوع الحملة" /></label>
-              <label class="field"><span>اسم الحملة</span><input type="text" name="campaign_name" /></label>
-              <label class="field field-wide"><span>هدف الحملة</span><textarea name="campaign_goal" placeholder="اكتب هدف الحملة الذي سيظهر داخل تفاصيل التاسكات لكل اليوزرات"></textarea></label>
-              <label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief" placeholder="اكتب المطلوب الذي سيظهر لكاتب المحتوى في داش بورد رفع الهيكل"></textarea></label>
-              <label class="field field-wide structure-content-writers-field"><span>يوزرات كتابة المحتوى لطلب الهيكل</span><div class="multi-dropdown js-role-picker js-request-content-writers" data-role="content" aria-label="يوزرات كتابة المحتوى"><button class="multi-toggle" type="button">اختيار يوزرات كتابة المحتوى</button><div class="multi-menu"></div></div><small class="field-hint">اليوزرات المختارة هنا سيظهر لهم تاسك طلب هيكل واحد للحملة، حتى لو اخترت أكثر من كريتيف في الخطوة الثانية.</small></label>
-              <label class="field"><span>موعد تسليم الهيكل</span><input type="date" name="structure_deadline" /></label>
-            </form>
-            <div class="campaign-wizard-actions"><button class="btn btn-primary" type="button" data-campaign-wizard-next>التالي: تحديد الكريتيف المطلوب للهيكل</button></div>
-          </section>
-
-          <div class="builder-workspace">
-            <div class="card campaign-section-card campaign-wizard-panel" data-campaign-wizard-step="2">
-              <div class="section-toolbar">
-                <div>
-                  <h2>تحديد الكريتيف المطلوب للهيكل</h2>
-                  <p>اختار الكريتيف المطلوب في الهيكل، وحدد الأقسام التنفيذية التي ستنتظر اعتماد الهيكل ثم ترتبط تلقائيًا بالأكواد.</p>
-                </div>
-              </div>
-
-              <div id="creativeRows" class="creative-rows-stack" aria-label="كريتيفات ومهام الحملة">
-                <div class="empty-state">اضغط على خطوة الكريتيفات والمهام لفتح نافذة ربط الكريتيفات باليوزرات تلقائيًا.</div>
-              </div>
-              <div class="campaign-wizard-actions"><button class="btn btn-light" type="button" data-campaign-wizard-prev>السابق</button><button class="btn btn-primary" type="button" data-campaign-wizard-next>التالي: جدول النشر والميزانية</button></div>
-            </div>
-
-            <div class="builder-bottom-stacked campaign-wizard-panel" data-campaign-wizard-step="3">
-              <div class="card campaign-section-card">
-                <div class="section-toolbar small-toolbar">
-                  <div><h2>جدول النشر</h2><p>يتولد كأجندة حسب تاريخ بداية ونهاية النشر، والاختيارات تعتمد على مخرجات التصميم والمونتاج.</p></div>
-                  <button class="btn btn-light" type="button" id="refreshPublishAgendaBtn">تحديث الجدول</button>
-                </div>
-                <div id="publishAgenda" class="publish-agenda"><div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div></div>
-              </div>
-
-              <div class="card campaign-section-card">
-                <div class="section-toolbar small-toolbar">
-                  <div><h2>الميزانية</h2><p>كل بند ميزانية: Funnel، المنتج، المنصة، والقيمة. المنصات تظهر من صفحة الأقسام.</p></div>
-                  <button class="btn btn-light" type="button" id="addBudgetRowBtn">＋ إضافة بند ميزانية</button>
-                </div>
-                <div id="budgetRows" class="budget-items"><div class="empty-state">لا توجد بنود ميزانية.</div></div>
-                <div class="budget-grand-total"><span>إجمالي الميزانية</span><strong id="budgetGrandTotalValue">0</strong></div>
-              </div>
-              <div class="campaign-wizard-actions"><button class="btn btn-light" type="button" data-campaign-wizard-prev>السابق</button><button class="btn btn-primary" type="button" id="campaignWizardSaveShortcut">حفظ الحملة</button></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="view" id="social-publisher" data-title="ربط المنصات">
-        <div class="page-head social-publisher-head">
-          <div class="page-title">
-            <h1>ربط المنصات</h1>
-            <p>متابعة حالة الربط وسجل النشر للمنصات.</p>
-            <div id="socialMetaConnectionStatus" class="social-meta-status">جاري فحص ربط Meta...</div>
-          </div>
-          <div class="social-publisher-actions">
-            <button class="btn btn-light" type="button" id="socialDisconnectBtn">فصل الربط</button>
-            <button class="btn btn-light" type="button" id="socialReconnectBtn">ربط / إعادة ربط Meta</button>
-            <button class="btn btn-light" type="button" id="socialTikTokConnectBtn">ربط TikTok</button>
-            <button class="btn btn-light" type="button" id="socialTikTokDisconnectBtn">فصل TikTok</button>
-            <button class="btn btn-light" type="button" id="socialYouTubeConnectBtn">ربط YouTube</button>
-            <button class="btn btn-light" type="button" id="socialYouTubeDisconnectBtn">فصل YouTube</button>
-          </div>
-        </div>
-
-        <div class="social-channel-grid">
-          <article class="card social-channel-card is-ready" data-channel-card="facebook">
-            <div class="social-channel-icon facebook">f</div>
-            <div>
-              <h3>Facebook</h3>
-              <p>حالة الربط والنشر الفعلي على صفحة Facebook.</p>
-              <span class="channel-status ready" id="facebookChannelStatus">غير متصل</span>
-            </div>
-          </article>
-          <article class="card social-channel-card is-ready" data-channel-card="instagram">
-            <div class="social-channel-icon instagram" aria-label="Instagram"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.2" y="4.2" width="15.6" height="15.6" rx="4.6" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="12" r="3.6" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="16.7" cy="7.3" r="1.25" fill="currentColor"/></svg></div>
-            <div>
-              <h3>Instagram</h3>
-              <p>حالة ربط Instagram Business بالصفحة المرتبطة.</p>
-              <span class="channel-status ready" id="instagramChannelStatus">غير متصل</span>
-            </div>
-          </article>
-          <article class="card social-channel-card is-ready" data-channel-card="tiktok">
-            <div class="social-channel-icon tiktok" aria-label="TikTok"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="tk-cyan" d="M14.1 3h3.1c.25 2.15 1.6 3.8 3.8 4.4v3.25c-1.55-.02-2.95-.48-4.1-1.25v6.15c0 3.2-2.25 5.45-5.5 5.45-3 0-5.25-2.05-5.25-4.9 0-3.25 2.6-5.35 6.15-4.85v3.25c-1.45-.45-2.75.2-2.75 1.55 0 .98.78 1.7 1.9 1.7 1.18 0 2.02-.72 2.02-2.2V3z"/><path class="tk-red" d="M13.25 3h3.1c.25 2.15 1.6 3.8 3.8 4.4v3.25c-1.55-.02-2.95-.48-4.1-1.25v6.15c0 3.2-2.25 5.45-5.5 5.45-3 0-5.25-2.05-5.25-4.9 0-3.25 2.6-5.35 6.15-4.85v3.25c-1.45-.45-2.75.2-2.75 1.55 0 .98.78 1.7 1.9 1.7 1.18 0 2.02-.72 2.02-2.2V3z"/><path class="tk-main" d="M14 3h3.1c.25 2.15 1.6 3.8 3.8 4.4v3.25c-1.55-.02-2.95-.48-4.1-1.25v6.15c0 3.2-2.25 5.45-5.5 5.45-3 0-5.25-2.05-5.25-4.9 0-3.25 2.6-5.35 6.15-4.85v3.25c-1.45-.45-2.75.2-2.75 1.55 0 .98.78 1.7 1.9 1.7 1.18 0 2.02-.72 2.02-2.2V3z"/></svg></div>
-            <div>
-              <h3>TikTok</h3>
-              <p>حالة ربط TikTok Sandbox / Draft Upload.</p>
-              <span class="channel-status" id="tiktokChannelStatus">غير متصل - Sandbox</span>
-            </div>
-          </article>
-          <article class="card social-channel-card is-ready" data-channel-card="youtube">
-            <div class="social-channel-icon youtube">▶</div>
-            <div>
-              <h3>YouTube</h3>
-              <p>حالة ربط قناة YouTube لرفع الفيديوهات لاحقًا.</p>
-              <span class="channel-status" id="youtubeChannelStatus">غير متصل</span>
-            </div>
-          </article>
-          <article class="card social-channel-card" data-channel-card="snapchat">
-            <div class="social-channel-icon snapchat">👻</div>
-            <div>
-              <h3>Snapchat</h3>
-              <p>تم إنشاء OAuth App وطلب الموافقة مرسل. النشر الرسمي بانتظار Allowlist.</p>
-              <span class="channel-status" id="snapchatChannelStatus">بانتظار موافقة Snapchat</span>
-            </div>
-          </article>
-          <article class="card social-channel-card is-ready" data-channel-card="whatsapp">
-            <div class="social-channel-icon whatsapp" aria-label="WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.02 3.25a8.72 8.72 0 0 0-7.48 13.2L3.75 20.7l4.36-1.14a8.73 8.73 0 1 0 3.91-16.31z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8.85 8.25c.18-.42.38-.45.64-.45h.48c.18 0 .42.06.62.48.24.5.78 1.9.84 2.05.06.15.1.33-.02.53-.12.2-.18.32-.36.5-.18.2-.38.43-.16.82.22.39.98 1.6 2.1 2.58 1.44 1.27 2.1 1.38 2.48 1.18.38-.2.62-.72.84-.98.22-.26.46-.22.76-.13.3.1 1.9.9 2.22 1.07.32.16.54.24.62.38.08.14.08.82-.2 1.6-.28.78-1.6 1.5-2.22 1.56-.6.06-1.38.08-2.24-.14-.52-.13-1.18-.38-2.04-.75-3.6-1.55-5.95-5.15-6.13-5.4-.18-.24-1.46-1.95-1.46-3.72 0-1.77.92-2.64 1.25-3z" fill="currentColor"/></svg></div>
-            <div>
-              <h3>WhatsApp / مرسال</h3>
-              <p>إرسال رسائل وصور واتساب عبر مرسال. الفيديو وقوالب الميديا قيد التحقق.</p>
-              <span class="channel-status ready" id="whatsappChannelStatus">جاهز بعد حفظ إعدادات مرسال</span>
-            </div>
-          </article>
-        </div>
-
-        <div class="card social-linking-status-card">
-          <div class="section-toolbar small-toolbar">
-            <div>
-              <h2>الحالة</h2>
-              <p>ملخص سريع للربط. النشر التلقائي لاحقًا سيقرأ من تجهيز النشر ثم Firebase.</p>
-            </div>
-            <span class="social-mode-badge" id="socialModeBadge">Linking Mode</span>
-          </div>
-          <div class="form-grid two">
-            <label class="field"><span>صفحة Facebook المرتبطة</span><select id="socialMetaPageSelect"><option value="">سيتم تحميل الصفحات بعد الربط</option></select></label>
-            <label class="field"><span>حالة Instagram</span><input type="text" id="socialInstagramStatus" value="غير مفحوص" readonly></label>
-          </div>
-        </div>
-
-        <div class="card social-log-card">
-          <div class="section-toolbar small-toolbar">
-            <div><h2>سجل النشر والحالة</h2><p>يعرض ما تم نشره، وما فشل، وأسباب المشاكل عند توفرها.</p></div>
-            <button class="btn btn-light" type="button" id="clearSocialLogBtn">مسح السجل المحلي</button>
-          </div>
-          <div id="socialPublishLog" class="social-log-list"><div class="empty-state">لا توجد عمليات نشر مسجلة حتى الآن.</div></div>
-        </div>
-      </section>
-
-
-      <section class="view" id="platform-settings" data-title="إعدادات المنصات">
-        <div class="page-head platform-settings-head">
-          <div class="page-title">
-            <h1>إعدادات المنصات</h1>
-            <p>إدارة حسابات المنصات، حالة التوكنات، والتنبيهات الخاصة بالربط في صفحة واحدة.</p>
-          </div>
-          <div class="social-publisher-actions">
-            <a class="btn btn-light" href="#social-publisher">سجل النشر والحالة</a>
-            <button class="btn btn-light" type="button" id="platformSettingsRefreshBtn">تحديث الحالة</button>
-          </div>
-        </div>
-
-        <div class="platform-settings-grid" id="platformSettingsGrid">
-          <div class="empty-state">جاري تحميل حالة المنصات...</div>
-        </div>
-
-        <div class="card platform-token-card">
-          <div class="section-toolbar small-toolbar">
-            <div>
-              <h2>ملخص التوكنات والمشاكل</h2>
-              <p>أي منصة يظهر عليها انتهاء توكن أو صلاحية ناقصة لن يتم النشر عليها تلقائيًا حتى يتم إعادة الربط.</p>
-            </div>
-          </div>
-          <div id="platformTokensSummary" class="platform-tokens-summary">
-            <div class="empty-state">لا توجد بيانات توكنات بعد.</div>
-          </div>
-        </div>
-      </section>
-
-
-
-      <section class="view" id="checklist-reel" data-title="Checklist ريل السيارات">
-        <div class="page-head checklist-reel-head">
-          <div class="page-title">
-            <h1>Checklist ريل السيارات</h1>
-            <p>اختار مشاهد الـ Checklist من جهازك، حدد المنصة والأبعاد، أضف الفويس أوفر والسكريبت، وصدّر فيديو رأسي جاهز للريل أو الستوري بدون API.</p>
-          </div>
-          <div class="actions">
-            <button class="btn btn-light" type="button" id="checklistResetBtn">مسح الاختيارات</button>
-            <button class="btn btn-primary" type="button" id="checklistGenerateBtn">تجهيز الملف النهائي</button>
-          </div>
-        </div>
-
-        <div class="checklist-control-stack">
-          <div class="checklist-top-grid">
-            <div class="card checklist-studio-card">
-              <div class="checklist-section-title">
-                <span class="checklist-badge">1</span>
-                <div><h2>بيانات الريل</h2><p>اختار المنصة والأبعاد، وحدد البيانات اللي تظهر فوق الفيديو.</p></div>
-              </div>
-              <div class="checklist-form-grid compact">
-                <label class="field"><span>اسم العربية</span><input id="checklistCarName" type="text" placeholder="مثال: Hyundai Staria 2026"></label>
-                <label class="field"><span>اسم البراند / المعرض</span><input id="checklistBrandName" type="text" placeholder="مثال: معرض محمد العجمي"></label>
-                <label class="field"><span>المنصة</span><select id="checklistPlatformSelect" class="select"></select></label>
-                <label class="field"><span>نوع النشر والأبعاد</span><select id="checklistPublishTypeSelect" class="select"></select></label>
-              </div>
-              <div class="checklist-output-spec" id="checklistOutputSpec">الأبعاد: —</div>
-              <div class="checklist-switches">
-                <label><input type="checkbox" id="checklistShowCarName" checked><span>إظهار اسم السيارة</span></label>
-                <label><input type="checkbox" id="checklistShowBrandName" checked><span>إظهار اسم المعرض</span></label>
-                <label><input type="checkbox" id="checklistShowSceneNumber"><span>إظهار رقم المشهد</span></label>
-                <label><input type="checkbox" id="checklistShowPartLabel"><span>إظهار قسم اللقطة</span></label>
-                <label><input type="checkbox" id="checklistShowCaptionBox" checked><span>خلفية للكابشن</span></label>
-                <label><input type="checkbox" id="checklistShowLogo" checked><span>إظهار اللوجو</span></label>
-              </div>
-            </div>
-
-            <div class="card checklist-studio-card">
-              <div class="checklist-section-title">
-                <span class="checklist-badge">2</span>
-                <div><h2>الصوت والهوية</h2><p>اختار الفويس أوفر، الموسيقى واللوجو من جهازك.</p></div>
-              </div>
-              <div class="checklist-file-grid">
-                <label class="checklist-file-drop"><span>🎙️ فويس أوفر</span><strong id="checklistVoiceName">اختار voiceover.mp3</strong><input id="checklistVoiceFile" type="file" accept="audio/*"></label>
-                <label class="checklist-file-drop"><span>🎵 موسيقى خلفية</span><strong id="checklistMusicName">اختار music.mp3 اختياري</strong><input id="checklistMusicFile" type="file" accept="audio/*"></label>
-                <label class="checklist-file-drop"><span>🖼️ لوجو</span><strong id="checklistLogoName">اختار logo.png اختياري</strong><input id="checklistLogoFile" type="file" accept="image/*"></label>
-              </div>
-            </div>
-
-            <div class="card checklist-studio-card">
-              <div class="checklist-section-title">
-                <span class="checklist-badge">3</span>
-                <div><h2>استيراد سكريبت المشاهد</h2><p>استورد CSV / Excel من فريق التسويق، ثم جمّع سكريبت الفويس أوفر.</p></div>
-              </div>
-              <label class="checklist-file-drop"><span>📄 ملف CSV / Excel</span><strong id="checklistScriptSheetName">اختار CSV / Excel</strong><input id="checklistScriptSheetFile" type="file" accept=".csv,.xlsx,.xls"></label>
-              <div class="checklist-import-actions">
-                <button class="btn btn-primary" type="button" id="checklistImportScriptBtn">استيراد السكريبت والكابشن</button>
-                <button class="btn btn-light" type="button" id="checklistDownloadTemplateBtn">تحميل نموذج Excel</button>
-                <button class="btn btn-light" type="button" id="checklistBuildScriptBtn">تجميع سكريبت الفويس أوفر</button>
-              </div>
-              <textarea id="checklistScript" class="checklist-script small" placeholder="هيظهر هنا سكريبت الفويس أوفر الكامل للمشاهد المختارة."></textarea>
-              <p class="muted small">الأعمدة: رقم المشهد، فويس أوفر، كابشن، بداية الاستخدام، مدة الاستخدام. وأعمدة اختيارية: caption_trend / highlight_word.</p>
-            </div>
-          </div>
-
-
-
-          <div class="checklist-work-grid">
-            <section class="checklist-studio-main">
-              <div class="card checklist-timeline-card">
-                <div class="checklist-section-title wide">
-                  <span class="checklist-badge">5</span>
-                  <div><h2>اختيار المشاهد من الجهاز</h2><p>فعّل المشهد، اختار الفيديو، وعدل الفويس أوفر والكابشن لكل لقطة.</p></div>
-                </div>
-                <div class="checklist-parts-strip" id="checklistPartsStrip"></div>
-                <div class="checklist-table-wrap">
-                  <table class="checklist-editor-table">
-                    <thead>
-                      <tr>
-                        <th>استخدام</th>
-                        <th>رقم</th>
-                        <th>المشهد</th>
-                        <th>قسم الريل</th>
-                        <th>مدة التصوير</th>
-                        <th>الفيديو من الجهاز</th>
-                        <th>من الثانية</th>
-                        <th>استخدام في النهائي</th>
-                        <th>فويس أوفر المشهد</th>
-                        <th>كابشن الشاشة</th>
-                        <th>حالة</th>
-                      </tr>
-                    </thead>
-                    <tbody id="checklistRows"></tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div class="card checklist-render-card">
-                <div class="checklist-render-head">
-                  <div><h2>تصدير الفيديو النهائي</h2><p>التصدير من المتصفح مباشرة بنفس إعدادات الكابشن والحركات.</p></div>
-                </div>
-                <div class="checklist-progress"><div id="checklistProgressBar"></div></div>
-                <div class="checklist-log" id="checklistLog">جاهز لاختيار الملفات.</div>
-                <div class="checklist-downloads" id="checklistDownloads"></div>
-              </div>
-            </section>
-          </div>
-
-          <section class="card checklist-preview-card checklist-preview-full">
-            <div class="checklist-preview-head checklist-editor-head">
-              <div>
-                <h2>معاينة وتايم لاين المونتاج</h2>
-                <p>اعمل Preview من التايم لاين، حرّك المؤشر، اختار أي كابشن وعدّل ستايله منفصلًا عن باقي الكابشنات.</p>
-              </div>
-              <div class="checklist-preview-hint">Player + Timeline + Caption Editor</div>
-            </div>
-            <div class="checklist-preview-layout checklist-editor-layout">
-              <div class="checklist-preview-frame">
-                <div class="checklist-preview-stage">
-                  <video id="checklistPreviewVideo" class="checklist-preview-video" playsinline muted preload="metadata"></video>
-                  <canvas id="checklistPreviewCanvas" width="540" height="960" tabindex="0" aria-label="معاينة فيديو Checklist"></canvas>
-                  <div id="checklistPreviewPlaceholder" class="checklist-preview-placeholder">اختر فيديو من جدول المشاهد ثم اضغط معاينة الفيديو</div>
-                  <div id="checklistPreviewCaptionOverlay" class="checklist-preview-caption-overlay" role="button" tabindex="0" title="اضغط واسحب لتغيير مكان الكابشن">كابشن الشاشة</div>
-                </div>
-              </div>
-              <div class="checklist-preview-panel checklist-editor-panel">
-                <div id="checklistSummary" class="checklist-summary-list"></div>
-                <div class="checklist-preview-control-box">
-                  <label class="field"><span>تحريك المعاينة</span><input id="checklistPreviewScrub" type="range" min="0" max="0" step="0.01" value="0"></label>
-                  <div class="checklist-preview-time"><span id="checklistPreviewTime">0.0s</span><strong id="checklistPreviewStatus">متوقف</strong></div>
-                  <label class="field checklist-speed-field"><span>سرعة المعاينة</span><select id="checklistPreviewSpeed" class="select"><option value="0.25">0.25x فحص بطيء</option><option value="0.5">0.5x بطيء</option><option value="0.75" selected>0.75x للمراجعة</option><option value="1">1x طبيعي</option><option value="1.25">1.25x</option></select></label>
-                  <p class="muted small">اسحب الكابشن على الفيديو لتغيير مكانه. اختار كابشن من التايم لاين لتعديل ستايله وحده.</p>
-                </div>
-
-                <div class="checklist-timeline-editor checklist-timeline-in-panel" id="checklistTimelineEditor" dir="rtl">
-                  <div class="checklist-timeline-head">
-                    <div>
-                      <h3>تايم لاين المونتاج</h3>
-                      <p>اضغط على أي كابشن أو مشهد للانتقال له. اسحب داخل المسطرة لتحريك المؤشر.</p>
-                    </div>
-                    <div class="checklist-timeline-actions">
-                      <button class="btn btn-primary" type="button" id="checklistPreviewBtn">معاينة الفيديو</button>
-                      <button class="btn btn-light" type="button" id="checklistPreviewPlayPauseBtn">تشغيل / إيقاف</button>
-                      <button class="btn btn-light" type="button" id="checklistTimelinePrevBtn">السابق</button>
-                      <button class="btn btn-light" type="button" id="checklistTimelineNextBtn">التالي</button>
-                      <button class="btn btn-light" type="button" id="checklistRotateVideoBtn">تدوير الفيديو ↻</button>
-                      <button class="btn btn-light" type="button" id="checklistTimelineZoomOutBtn">-</button>
-                      <button class="btn btn-light" type="button" id="checklistTimelineZoomInBtn">+</button>
-                    </div>
-                  </div>
-                  <div class="checklist-timeline-shell">
-                    <div class="checklist-timeline-labels">
-                      <div>الوقت</div>
-                      <div>الفيديو</div>
-                      <div>الكابشن</div>
-                      <div>الفويس</div>
-                    </div>
-                    <div class="checklist-timeline-scroll" id="checklistTimelineScroll">
-                      <div class="checklist-timeline-canvas" id="checklistTimelineCanvas">
-                        <div class="checklist-timeline-ruler" id="checklistTimelineRuler"></div>
-                        <div class="checklist-timeline-track video-track" id="checklistTimelineVideoTrack"></div>
-                        <div class="checklist-timeline-track caption-track" id="checklistTimelineCaptionTrack"></div>
-                        <div class="checklist-timeline-track audio-track" id="checklistTimelineAudioTrack"></div>
-                        <div class="checklist-timeline-playhead" id="checklistTimelinePlayhead"><span></span></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="card checklist-style-card checklist-style-card-in-preview">
-                  <div class="checklist-section-title checklist-caption-style-title">
-                    <span class="checklist-badge">6</span>
-                    <div><h2>ستايل الكابشن المحدد</h2><p id="checklistCaptionStyleTarget">اختار كابشن من التايم لاين لتعديله وحده، أو عدّل الافتراضي لكل الكابشنات.</p></div>
-                  </div>
-                  <div class="checklist-caption-style-toolbar">
-                    <button class="btn btn-light" type="button" id="checklistEditDefaultCaptionBtn">تعديل الافتراضي</button>
-                    <button class="btn btn-light" type="button" id="checklistApplyStyleAllBtn">تطبيق على كل الكابشنات</button>
-                  </div>
-                  <div class="checklist-style-grid checklist-style-grid-compact">
-                    <label class="field"><span>Preset الترند</span><select id="checklistCaptionPreset" class="select"><option value="arabic-review">Arabic Review</option><option value="tiktok-pop">TikTok Pop</option><option value="fast-hype">Fast Hype</option><option value="luxury-clean">Luxury Clean</option><option value="badge-specs">Badge Specs</option></select></label>
-                    <label class="field"><span>مكان الكابشن</span><select id="checklistCaptionPosition" class="select"><option value="bottom">أسفل</option><option value="center-bottom" selected>وسط تحت</option><option value="center">وسط</option><option value="top">أعلى</option><option value="custom">مخصص بالسحب</option></select></label>
-                    <label class="field"><span>نوع الخط</span><select id="checklistCaptionFont" class="select"><option value="Tajawal" selected>Tajawal</option><option value="Arial">Arial</option><option value="Tahoma">Tahoma</option><option value="Cairo">Cairo</option><option value="system">System</option></select></label>
-                    <label class="field"><span>حجم الخط</span><input id="checklistCaptionSize" type="range" min="34" max="86" value="56"><small id="checklistCaptionSizeLabel">56px</small></label>
-                    <label class="field"><span>لون الكابشن</span><input id="checklistCaptionColor" type="color" value="#ffffff"></label>
-                    <label class="field"><span>لون خلفية الكابشن</span><input id="checklistCaptionBg" type="color" value="#080d19"></label>
-                    <label class="field"><span>لون التمييز</span><input id="checklistCaptionAccent" type="color" value="#facc15"></label>
-                    <label class="field"><span>حركة الدخول</span><select id="checklistCaptionIn" class="select"><option value="pop" selected>Trend Pop</option><option value="zoom">Punch Zoom</option><option value="slide-up">Slide Up</option><option value="fade">Fade In</option><option value="typewriter">Typewriter</option></select></label>
-                    <label class="field"><span>حركة الخروج</span><select id="checklistCaptionOut" class="select"><option value="fade-scale" selected>Fade + Scale</option><option value="fade">Fade Out</option><option value="slide-down">Slide Down</option><option value="zoom-out">Zoom Out</option><option value="flash">Flash Out</option></select></label>
-                    <label class="field"><span>الفاصل بين اللقطات</span><select id="checklistCaptionSeparator" class="select"><option value="none">بدون</option><option value="flash" selected>Flash سريع</option><option value="line">خط سريع</option><option value="swipe">Swipe / Whip</option></select></label>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>      </section>
-
-      <section class="view" id="publish-prep" data-title="تجهيز النشر">
-        <div class="page-head publish-prep-head">
-          <div class="page-title">
-            <h1>تجهيز النشر</h1>
-            <p>متابعة تاسكات النشر ورفع الملفات النهائية وتجهيزها للنشر.</p>
-          </div>
-          <div class="social-publisher-actions">
-            <button class="btn btn-light" type="button" id="refreshPublishPrepBtn">تحديث التاسكات</button>
-            <a class="btn btn-light" href="#calendar">عرض التقويم</a>
-          </div>
-        </div>
-
-
-        <div class="publish-prep-stats" id="publishPrepStats">
-          <article class="publish-center-stat"><span>تاسكاتي</span><strong>0</strong></article>
-          <article class="publish-center-stat"><span>قيد التجهيز</span><strong>0</strong></article>
-          <article class="publish-center-stat"><span>تم التسليم</span><strong>0</strong></article>
-          <article class="publish-center-stat"><span>يحتاج تعديل</span><strong>0</strong></article>
-        </div>
-
-        <div class="card publish-prep-card">
-          <div class="section-toolbar small-toolbar">
-            <div>
-              <h2>تاسكاتي المطلوبة</h2>
-              <p>تابع حالة كل تاسك، النواقص، والملف النهائي.</p>
-            </div>
-            <div class="publish-center-filters">
-              <span>حملات</span>
-              <span>أجندات</span>
-              <span>ملفات نهائية</span>
-            </div>
-          </div>
-          <div id="publishPrepList" class="publish-prep-list">
-            <div class="empty-state">جاري تحميل تاسكات تجهيز النشر...</div>
-          </div>
-        </div>
-      </section>
-
-      <section class="view" id="departments" data-title="الأقسام">
-        <div class="page-head">
-          <div class="page-title"><h1>الأقسام</h1><p>إدارة الأقسام، اليوزرات داخل كل قسم، الكريتيفات، أنواع الحملات وأكوادها، المنصات، حالات الطلب، وأقسام المحتوى.</p></div>
-        </div>
-
-        <div class="departments-control-panel">
-          <div class="departments-control-head">
-            <div>
-              <h2>إدارة الإعدادات</h2>
-              <p>افتح الكارت المطلوب فقط للإضافة أو التعديل، واقفل الباقي عشان الصفحة تفضل مرتبة.</p>
-            </div>
-          </div>
-
-          <div class="accordion-grid settings-forms-grid">
-            <details class="accordion-card admin-form-card">
-              <summary><span>إضافة قسم جديد</span><strong>فتح / إغلاق</strong></summary>
-              <form class="form" id="departmentForm">
-                <input type="hidden" id="departmentEditId" />
-                <label class="field"><span>اسم القسم</span><input type="text" id="departmentName" required /></label>
-                <label class="field"><span>اليوزرات داخل القسم</span><select id="departmentUsers" multiple size="5"></select></label>
-                <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ القسم</button><button class="btn btn-light" type="button" id="cancelDepartmentEdit">إلغاء</button></div>
-                <p class="form-message" id="departmentMessage"></p>
-              </form>
-            </details>
-
-            <details class="accordion-card admin-form-card">
-              <summary><span>إضافة كريتيف</span><strong>فتح / إغلاق</strong></summary>
-              <form class="form" id="creativeForm">
-                <input type="hidden" id="creativeEditId" />
-                <label class="field"><span>اسم الكريتيف</span><input type="text" id="creativeName" required /></label>
-                <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ الكريتيف</button><button class="btn btn-light" type="button" id="cancelCreativeEdit">إلغاء</button></div>
-                <p class="form-message" id="creativeMessage"></p>
-              </form>
-            </details>
-
-            <details class="accordion-card admin-form-card">
-              <summary><span>إضافة نوع حملة وكود</span><strong>فتح / إغلاق</strong></summary>
-              <form class="form" id="campaignTypeForm">
-                <input type="hidden" id="campaignTypeEditId" />
-                <label class="field"><span>نوع الحملة</span><input type="text" id="campaignTypeName" required placeholder="مثال: Awareness" /></label>
-                <label class="field"><span>الكود المختصر للنوع</span><input type="text" id="campaignTypeCode" required placeholder="مثال: AW" /></label>
-                <label class="field"><span>بادئة الكود</span><input type="text" id="campaignTypePrefix" value="MZJ" /></label>
-                <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ نوع الحملة والكود</button><button class="btn btn-light" type="button" id="cancelCampaignTypeEdit">إلغاء</button></div>
-                <p class="form-message" id="campaignTypeMessage"></p>
-              </form>
-            </details>
-
-            <details class="accordion-card admin-form-card">
-              <summary><span>إضافة منصة</span><strong>فتح / إغلاق</strong></summary>
-              <form class="form" id="platformForm">
-                <input type="hidden" id="platformEditId" />
-                <label class="field"><span>اسم المنصة</span><input type="text" id="platformName" required /></label>
-                <div class="platform-types-builder">
-                  <div class="builder-head">
-                    <div><strong>أنواع النشر والأبعاد</strong><small>كل نوع في صف مستقل</small></div>
-                    <button class="mini-btn" type="button" id="addPlatformPostType" data-add-platform-post-type onclick="window.MZJAddPlatformPostTypeRow && window.MZJAddPlatformPostTypeRow()">+ إضافة نوع</button>
-                  </div>
-                  <div class="platform-types-labels"><span>نوع النشر</span><span>العرض</span><span>الارتفاع</span><span></span></div>
-                  <div id="platformPostTypesRows" class="platform-types-rows"></div>
-                  <textarea id="platformPostTypes" hidden></textarea>
-                </div>
-                <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ المنصة</button><button class="btn btn-light" type="button" id="cancelPlatformEdit">إلغاء</button></div>
-                <p class="form-message" id="platformMessage"></p>
-              </form>
-            </details>
-
-            <details class="accordion-card admin-form-card">
-              <summary><span>حالة الطلب</span><strong>فتح / إغلاق</strong></summary>
-              <form class="form" id="orderStatusForm">
-                <input type="hidden" id="orderStatusEditId" />
-                <label class="field"><span>حالة الطلب</span><input type="text" id="orderStatusName" required /></label>
-                <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ حالة الطلب</button><button class="btn btn-light" type="button" id="cancelOrderStatusEdit">إلغاء</button></div>
-                <p class="form-message" id="orderStatusMessage"></p>
-              </form>
-            </details>
-
-            <details class="accordion-card admin-form-card">
-              <summary><span>إضافة قسم محتوى</span><strong>فتح / إغلاق</strong></summary>
-              <form class="form" id="contentSectionForm">
-                <input type="hidden" id="contentSectionEditId" />
-                <label class="field"><span>اسم قسم المحتوى</span><input type="text" id="contentSectionName" required /></label>
-                <label class="field"><span>أنواع المحتوى داخل القسم</span><textarea id="contentSectionTypes" placeholder="اكتب كل نوع في سطر منفصل"></textarea></label>
-                <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ قسم المحتوى</button><button class="btn btn-light" type="button" id="cancelContentSectionEdit">إلغاء</button></div>
-                <p class="form-message" id="contentSectionMessage"></p>
-              </form>
-            </details>
-          </div>
-        </div>
-
-        <div class="departments-control-panel mt">
-          <div class="departments-control-head">
-            <div>
-              <h2>القوائم الحالية</h2>
-              <p>افتح القائمة اللي محتاج تراجعها أو تعدل عناصرها فقط.</p>
-            </div>
-            <button class="btn btn-light" type="button" id="refreshDepartmentsBtn">تحديث الأقسام</button>
-          </div>
-
-          <div class="accordion-grid settings-lists-grid">
-            <details class="accordion-card">
-              <summary><span>قائمة الأقسام</span><strong>فتح / إغلاق</strong></summary>
-              <div id="departmentsList" class="departments-list"><div class="empty-state">جاري تحميل الأقسام...</div></div>
-            </details>
-            <details class="accordion-card">
-              <summary><span>قائمة الكريتيفات</span><strong>فتح / إغلاق</strong></summary>
-              <div id="creativesList" class="departments-list"><div class="empty-state">جاري تحميل الكريتيفات...</div></div>
-            </details>
-            <details class="accordion-card">
-              <summary><span>أنواع الحملات وأكوادها</span><strong>فتح / إغلاق</strong></summary>
-              <div id="campaignTypesList" class="departments-list"><div class="empty-state">جاري تحميل أنواع الحملات...</div></div>
-            </details>
-            <details class="accordion-card">
-              <summary><span>المنصات</span><strong>فتح / إغلاق</strong></summary>
-              <div id="platformsList" class="departments-list"><div class="empty-state">جاري تحميل المنصات...</div></div>
-            </details>
-
-            <details class="accordion-card">
-              <summary><span>حالات الطلب</span><strong>فتح / إغلاق</strong></summary>
-              <div id="orderStatusesList" class="departments-list"><div class="empty-state">جاري تحميل حالات الطلب...</div></div>
-            </details>
-            <details class="accordion-card">
-              <summary><span>أقسام المحتوى وأنواعها</span><strong>فتح / إغلاق</strong></summary>
-              <div id="contentSectionsList" class="departments-list"><div class="empty-state">جاري تحميل أقسام المحتوى...</div></div>
-            </details>
-          </div>
-        </div>
-      </section>
-
-      <section class="view" id="calendar" data-title="التقويم">
-        <div class="page-head"><div class="page-title"><h1>التقويم</h1><p>تقويم النشر حسب جدول النشر داخل الحملات.</p></div></div>
-        <div class="card calendar-card">
-          <div class="calendar-toolbar">
-            <strong id="calendarMonthTitle">—</strong>
-            <div class="actions">
-              <button class="btn btn-light" type="button" id="calendarPrevMonth">السابق</button>
-              <button class="btn btn-light" type="button" id="calendarToday">اليوم</button>
-              <button class="btn btn-light" type="button" id="calendarNextMonth">التالي</button>
-            </div>
-          </div>
-          <div id="calendarBoard" class="publish-calendar-page"><div class="empty-state">جاري تحميل جدول النشر...</div></div>
-        </div>
-      </section>
-
-      <section class="view" id="tasks" data-title="المتابعة">
-        <div class="page-head"><div class="page-title"><h1>المتابعة</h1><p>مؤشرات الحملات والتاسكات والتأخير وأداء الأقسام والموظفين.</p></div></div>
-        <div id="tasksBoard" class="tasks-page-board"><div class="empty-state">جاري تحميل المتابعة...</div></div>
-      </section>
-
-      <section class="view" id="stock" data-title="الاستوك">
-        <div class="page-head">
-          <div class="page-title"><h1>الاستوك</h1><p>قراءة فقط من قاعدة الاستوك، وحفظ حالة التصوير داخل MZJ-Marketing.</p></div>
-          <button class="btn btn-light" type="button" id="refreshStockBtn">تحديث</button>
-        </div>
-        <div class="grid stats stock-stats stock-stats-clean stock-stats-summary">
-          <div class="card stat stock-summary-filter-card" data-stock-filter-card="all"><div><p>المعروض في الاستوك</p><div class="num" id="stockAvailableAfterExclude">—</div><small>بعد استبعاد المؤرشف والمباع</small></div><div class="stat-icon">◇</div></div>
-          <div class="card stat stock-summary-filter-card" data-stock-filter-card="not-photographed"><div><p>لم يتم التصوير</p><div class="num" id="stockNotPhotographedCount">—</div><small>السيارات التي لم يتم تصويرها</small></div><div class="stat-icon">📷</div></div>
-          <div class="card stat stock-summary-filter-card" data-stock-filter-card="unused"><div><p>غير مستخدمة في أي نوع محتوى</p><div class="num" id="stockUnusedContentCount">—</div><small>غير مرتبطة بتاسكات أو كريتيفات</small></div><div class="stat-icon">☰</div></div>
-          <div class="card stat is-hidden"><div><p>متاح للبيع</p><div class="num" id="stockAvailableForSale">—</div></div></div>
-          <div class="card stat is-hidden"><div><p>حجز</p><div class="num" id="stockReserved">—</div></div></div>
-          <div class="card stat is-hidden"><div><p>مباع تحت التسليم</p><div class="num" id="stockUnderDelivery">—</div></div></div>
-        </div>
-
-        <div class="card stock-table-card mt">
-          <div class="card-title stock-title-row">
-            <div>
-              <h2>حصر السيارات المتاحة</h2>
-              <p>يعرض السيارات المجمعة حسب المواصفة والألوان، مع حالة التصوير والاستخدام.</p>
-            </div>
-            <div class="stock-filter-area">
-              <select id="stockFilterMode" class="stock-filter-hidden" aria-label="فلتر الاستوك">
-                <option value="all">الكل</option>
-                <option value="not-photographed">لم يتم التصوير</option>
-                <option value="unused">غير مستخدمة في أي نوع محتوى</option>
-                <option value="not-photographed-unused">مش متصورة وغير مستخدمة</option>
-              </select>
-              <div id="stockFilterCards" class="stock-filter-cards" aria-label="فلاتر الاستوك"></div>
-            </div>
-          </div>
-          <div class="stock-advanced-filters" id="stockAdvancedFilters">
-            <input id="stockSearchInput" class="control" type="search" placeholder="بحث عام (مفتاح/سيارة/بيان/حملة/نوع محتوى)" />
-            <select id="stockCarFilter" class="select"><option value="">السيارة (الكل)</option></select>
-            <select id="stockStatementFilter" class="select"><option value="">البيان (الكل)</option></select>
-            <select id="stockCampaignFilter" class="select"><option value="">الحملة (الكل)</option></select>
-            <select id="stockContentTypeFilter" class="select"><option value="">نوع المحتوى (الكل)</option></select>
-            <select id="stockShotFilter" class="select"><option value="">تصوير (الكل)</option><option value="yes">نعم</option><option value="no">لا</option></select>
-            <select id="stockAgendaInsideFilter" class="select"><option value="">داخل الأجندة (الكل)</option><option value="yes">نعم</option><option value="no">لا</option></select>
-            <select id="stockAgendaMonthFilter" class="select"><option value="">شهر الأجندة (الكل)</option><option value="1">يناير</option><option value="2">فبراير</option><option value="3">مارس</option><option value="4">أبريل</option><option value="5">مايو</option><option value="6">يونيو</option><option value="7">يوليو</option><option value="8">أغسطس</option><option value="9">سبتمبر</option><option value="10">أكتوبر</option><option value="11">نوفمبر</option><option value="12">ديسمبر</option></select>
-            <div class="stock-filter-actions">
-              <button class="btn btn-primary" type="button" id="exportStockExcelBtn">تصدير Excel</button>
-              <button class="btn btn-light" type="button" id="clearStockFiltersBtn">تصفير الفلاتر</button>
-            </div>
-          </div>
-          <div class="stock-table-wrap">
-            <table class="stock-table" aria-label="حصر الاستوك">
-              <thead>
-                <tr>
-                  <th>م</th>
-                  <th>Unique Spec Key</th>
-                  <th>اللون الخارجي</th>
-                  <th>اللون الداخلي</th>
-                  <th>العدد</th>
-                  <th>تم التصوير</th>
-                  <th>الاستخدام</th>
-                  <th>إجراء</th>
-                </tr>
-              </thead>
-              <tbody id="stockSummaryRows">
-                <tr class="empty-row"><td colspan="8">جاري تحميل بيانات الاستوك...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section class="view" id="reports" data-title="قاعدة البيانات">
-        <div class="page-head"><div class="page-title"><h1>قاعدة البيانات</h1><p>جدول بيانات الحملات وملفات النتائج وروابط المنصات والأرشفة.</p></div></div>
-        <div class="card database-card">
-          <div class="database-table-wrap">
-            <table class="database-table" aria-label="جدول بيانات الحملة">
-              <thead>
-                <tr>
-                  <th>م</th><th>التاريخ</th><th>كود الحملة</th><th>اسم الحملة</th><th>نوع الحملة</th><th>الهدف من الحملة</th><th>تاريخ بداية الحملة</th><th>تاريخ نهاية الحملة</th><th>قسم التصوير</th><th>قسم المحتوى</th><th>قسم التصميم</th><th>قسم المونتاج</th><th>قسم النشر</th><th>عرض البيانات</th><th>إجراءات</th>
-                </tr>
-              </thead>
-              <tbody id="databaseCampaignRows"><tr><td colspan="15">جاري تحميل بيانات الحملات...</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section class="view" id="settings" data-title="الإعدادات">
-        <div class="page-head"><div class="page-title"><h1>الإعدادات</h1><p>إدارة ألوان النظام، بيانات النظام، اليوزرات والصلاحيات.</p></div></div>
-        <div class="settings-grid">
-          <div class="card settings-card">
-            <h2>بيانات النظام</h2>
-            <form class="form" id="systemSettingsForm">
-              <label class="field"><span>اسم النظام</span><input type="text" id="settingSystemName" placeholder="نظام التسويق" /></label>
-              <label class="field"><span>الخط الأساسي</span><select id="settingFontFamily"><option value="Tajawal">Tajawal</option><option value="Cairo">Cairo</option><option value="Almarai">Almarai</option><option value="system-ui">System UI</option></select></label>
-              <label class="field"><span>اتجاه الواجهة</span><select id="settingDirection"><option value="rtl">RTL - عربي</option><option value="ltr">LTR - English</option></select></label>
-              <button class="btn btn-light full" type="button" id="resetDefaultSettingsBtn">استرجاع الإعدادات الافتراضية</button>
-              <button class="btn btn-primary full" type="submit">حفظ الإعدادات</button>
-              <p class="form-message" id="systemSettingsMessage"></p>
-            </form>
-          </div>
-          <div class="card settings-card">
-            <h2>إعدادات مواعيد النشر التلقائي</h2>
-            <form class="form" id="autoPublishSettingsForm">
-              <label class="field">
-                <span>تشغيل النشر التلقائي</span>
-                <select id="autoPublishEnabled">
-                  <option value="true">تشغيل</option>
-                  <option value="false">إيقاف</option>
-                </select>
-              </label>
-              <div class="settings-grid-mini">
-                <label class="field">
-                  <span>ساعة Facebook</span>
-                  <select id="autoPublishFacebookHour"><option value="">اختر الساعة</option></select>
-                </label>
-                <label class="field">
-                  <span>ساعة Instagram</span>
-                  <select id="autoPublishInstagramHour"><option value="">اختر الساعة</option></select>
-                </label>
-                <label class="field">
-                  <span>ساعة TikTok</span>
-                  <select id="autoPublishTiktokHour"><option value="">اختر الساعة</option></select>
-                </label>
-                <label class="field">
-                  <span>ساعة YouTube</span>
-                  <select id="autoPublishYoutubeHour"><option value="">اختر الساعة</option></select>
-                </label>
-                <label class="field">
-                  <span>ساعة Snapchat</span>
-                  <select id="autoPublishSnapchatHour"><option value="">اختر الساعة</option></select>
-                </label>
-                <label class="field">
-                  <span>ساعة WhatsApp / مرسال</span>
-                  <select id="autoPublishWhatsappHour"><option value="">اختر الساعة</option></select>
-                </label>
-                <label class="field">
-                  <span>ساعة افتراضية لأي منصة أخرى</span>
-                  <select id="autoPublishDefaultHour"><option value="">اختر الساعة</option></select>
-                </label>
-                <label class="field">
-                  <span>خصوصية YouTube الافتراضية</span>
-                  <select id="youtubePrivacyStatus">
-                    <option value="unlisted">Unlisted - برابط فقط</option>
-                    <option value="public">Public - عام</option>
-                    <option value="private">Private - خاص</option>
-                  </select>
-                </label>
-              </div>
-              <label class="field">
-                <span>المنطقة الزمنية</span>
-                <input type="text" id="autoPublishTimezone" value="Asia/Riyadh" readonly />
-              </label>
-              <button class="btn btn-primary full" type="submit">حفظ إعدادات مواعيد النشر التلقائي</button>
-              <p class="form-message" id="autoPublishSettingsMessage"></p>
-            </form>
-          </div>
-
-          <div class="card settings-card">
-            <h2>إعدادات مرسال واتساب</h2>
-            <form class="form" id="mersalSettingsForm">
-              <label class="field"><span>API Endpoint</span><input type="url" id="mersalApiEndpoint" placeholder="https://w-mersal.com" /></label>
-              <label class="field"><span>Token</span><input type="password" id="mersalToken" placeholder="اكتب التوكن أو اتركه كما هو" autocomplete="new-password" /></label>
-              <div class="settings-inline-status"><span>حالة مرسال</span><strong id="mersalConnectionStatus">غير متصل</strong></div>
-              <label class="field"><span>قالب الصور</span><input type="text" id="mersalImageTemplate" value="mzj_image_campaign" /></label>
-              <label class="field"><span>قالب الفيديو</span><input type="text" id="mersalVideoTemplate" value="mzj_video_campaign" /></label>
-              <label class="field"><span>لغة القوالب</span><input type="text" id="mersalTemplateLanguage" value="ar" /></label>
-              <button class="btn btn-primary full" type="submit">حفظ إعدادات مرسال</button>
-              <p class="form-message" id="mersalSettingsMessage"></p>
-            </form>
-            <div class="settings-divider"></div>
-            <div class="form" id="whatsappContactsImportBox">
-              <h3>أرقام عملاء واتساب</h3>
-              <p class="muted small">استيراد أرقام الجوال من Excel. كل استيراد جديد يضيف على الموجود، والأرقام لا تظهر في صفحة الإعدادات.</p>
-              <label class="field"><span>استيراد شيت أرقام الجوال</span><input type="file" id="whatsappContactsExcelInput" accept=".xlsx,.xls,.csv" /></label>
-              <button class="btn btn-light full" type="button" id="importWhatsappContactsBtn">استيراد الأرقام</button>
-              <p class="form-message" id="whatsappContactsImportMessage"></p>
-              <div class="settings-inline-status"><span>إجمالي الأرقام المحفوظة</span><strong id="whatsappContactsCount">0</strong></div>
-            </div>
-          </div>
-
-          <div class="card settings-card wide">
-            <h2>ألوان الثيم</h2>
-            <div class="theme-color-grid" id="themeColorGrid">
-              <label><input type="color" id="colorPrimary" value="#5A3329"><span>Primary</span></label>
-              <label><input type="color" id="colorSecondary" value="#B85E4F"><span>Secondary</span></label>
-              <label><input type="color" id="colorAccent" value="#C89F84"><span>Accent</span></label>
-              <label><input type="color" id="colorSurface" value="#FAF6F1"><span>Surface</span></label>
-              <label><input type="color" id="colorBg" value="#F3E5D6"><span>Background</span></label>
-              <label><input type="color" id="colorLine" value="#E5CBBE"><span>Line</span></label>
-              <label><input type="color" id="colorText" value="#2D1713"><span>Text</span></label>
-              <label><input type="color" id="colorMuted" value="#8E7166"><span>Muted</span></label>
-            </div>
-            <div class="theme-image-box">
-              <label class="field"><span>صورة مرجع الثيم</span><input type="file" id="themeImageInput" accept="image/*" /></label>
-              <div id="themeImagePreview" class="theme-image-preview">لا توجد صورة ثيم محفوظة.</div>
-            </div>
-            <div class="actions">
-              <button class="btn btn-light" type="button" id="resetDefaultThemeBtn">ألوان افتراضية</button>
-              <button class="btn btn-primary" type="button" id="saveThemeColorsBtn">حفظ الألوان</button>
-            </div>
-            <p class="form-message" id="themeSettingsMessage"></p>
-          </div>
-
-          <div class="card settings-card wide owner-color-settings-card-v220">
-            <div class="card-title"><h2>تعيين لون لكل مسؤول</h2><button class="btn btn-primary" type="button" id="saveOwnerColorsBtn">حفظ ألوان المسؤولين</button></div>
-            <p class="muted small">اختار لون لكل مسؤول. نفس اللون هيظهر في الداش بورد على اسم المسؤول مع بوردر واضح.</p>
-            <div id="ownerColorSettingsList" class="owner-color-settings-list-v220"><div class="empty-state">جاري تحميل اليوزرات...</div></div>
-            <p class="form-message" id="ownerColorSettingsMessage"></p>
-          </div>
-        </div>
-        <div class="card mt users-permissions-card">
-          <div class="card-title"><h2>اليوزرات والصلاحيات</h2><button class="btn btn-light" type="button" id="refreshUsersPermissionsBtn">تحديث</button></div>
-          <form id="addUserPermissionsForm" class="add-user-permissions-form">
-            <div class="add-user-head">
-              <div><strong>إضافة يوزر جديد</strong><small>اكتب الميل والباسورد وحدد الصلاحيات، وبعد الحفظ يقدر يدخل مباشرة.</small></div>
-            </div>
-            <div class="add-user-grid">
-              <label class="mini-field"><span>اسم اليوزر</span><input type="text" id="newUserName" placeholder="مثال: Ahmed" autocomplete="off" /></label>
-              <label class="mini-field"><span>البريد الإلكتروني</span><input type="email" id="newUserEmail" placeholder="user@example.com" autocomplete="off" required /></label>
-              <label class="mini-field permission-password-field"><span>كلمة المرور</span><div class="permission-password-control"><input type="password" id="newUserPassword" placeholder="اكتب كلمة المرور" autocomplete="new-password" required /><button type="button" class="btn btn-light btn-mini" id="toggleNewUserPassword">عرض</button></div></label>
-              <label class="mini-field"><span>نوع الحساب</span><select id="newUserRole"><option value="user">يوزر عادي</option><option value="admin">أدمن</option></select></label>
-            </div>
-            <div class="permission-pages add-user-pages" id="newUserPagesAccess"></div>
-            <div class="actions"><button class="btn btn-primary" type="submit">إضافة اليوزر وحفظ الباسورد</button></div>
-            <p class="form-message" id="addUserPermissionsMessage"></p>
-          </form>
-          <div id="usersPermissionsList" class="users-permissions-list"><div class="empty-state">جاري تحميل اليوزرات...</div></div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-
-
-  <div id="taskModal" class="task-modal" aria-hidden="true">
-    <div class="task-modal-backdrop" data-close-task-modal></div>
-    <section class="task-modal-dialog" role="dialog" aria-modal="true" aria-label="تفاصيل التاسك">
-      <button class="task-modal-close" type="button" data-close-task-modal>×</button>
-      <div id="taskModalContent"></div>
-    </section>
-  </div>
-
-  <div id="campaignModal" class="task-modal" aria-hidden="true">
-    <div class="task-modal-backdrop" data-close-campaign-modal></div>
-    <section class="task-modal-dialog campaign-modal-dialog" role="dialog" aria-modal="true" aria-label="تفاصيل الحملة">
-      <button class="task-modal-close" type="button" data-close-campaign-modal>×</button>
-      <div id="campaignModalContent"></div>
-    </section>
-  </div>
-  <input type="file" id="campaignResultFileInput" hidden />
-  <input type="file" id="taskAttachmentInput" hidden />
-  <input type="file" id="structureFileInput" accept=".xlsx,.xls" hidden />
-  <input type="file" id="publishScheduleImportInput" accept=".xlsx,.xls,.csv" hidden />
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-  <script src="assets/js/jszip.min.js?v=160"></script>
-    <script src="assets/js/app.js?v=230"></script>
-</body>
+<div class="card checklist-style-card checklist-style-card-in-preview">
+<div class="checklist-section-title checklist-caption-style-title">
+<span class="checklist-badge">6</span>
+<div><h2>ستايل الكابشن المحدد</h2><p id="checklistCaptionStyleTarget">اختار كابشن من التايم لاين لتعديله وحده، أو عدّل الافتراضي لكل الكابشنات.</p></div>
+</div>
+<div class="checklist-caption-style-toolbar">
+<button class="btn btn-light" id="checklistEditDefaultCaptionBtn" type="button">تعديل الافتراضي</button>
+<button class="btn btn-light" id="checklistApplyStyleAllBtn" type="button">تطبيق على كل الكابشنات</button>
+</div>
+<div class="checklist-style-grid checklist-style-grid-compact">
+<label class="field"><span>Preset الترند</span><select class="select" id="checklistCaptionPreset"><option value="arabic-review">Arabic Review</option><option value="tiktok-pop">TikTok Pop</option><option value="fast-hype">Fast Hype</option><option value="luxury-clean">Luxury Clean</option><option value="badge-specs">Badge Specs</option></select></label>
+<label class="field"><span>مكان الكابشن</span><select class="select" id="checklistCaptionPosition"><option value="bottom">أسفل</option><option selected="" value="center-bottom">وسط تحت</option><option value="center">وسط</option><option value="top">أعلى</option><option value="custom">مخصص بالسحب</option></select></label>
+<label class="field"><span>نوع الخط</span><select class="select" id="checklistCaptionFont"><option selected="" value="Tajawal">Tajawal</option><option value="Arial">Arial</option><option value="Tahoma">Tahoma</option><option value="Cairo">Cairo</option><option value="system">System</option></select></label>
+<label class="field"><span>حجم الخط</span><input id="checklistCaptionSize" max="86" min="34" type="range" value="56"/><small id="checklistCaptionSizeLabel">56px</small></label>
+<label class="field"><span>لون الكابشن</span><input id="checklistCaptionColor" type="color" value="#ffffff"/></label>
+<label class="field"><span>لون خلفية الكابشن</span><input id="checklistCaptionBg" type="color" value="#080d19"/></label>
+<label class="field"><span>لون التمييز</span><input id="checklistCaptionAccent" type="color" value="#facc15"/></label>
+<label class="field"><span>حركة الدخول</span><select class="select" id="checklistCaptionIn"><option selected="" value="pop">Trend Pop</option><option value="zoom">Punch Zoom</option><option value="slide-up">Slide Up</option><option value="fade">Fade In</option><option value="typewriter">Typewriter</option></select></label>
+<label class="field"><span>حركة الخروج</span><select class="select" id="checklistCaptionOut"><option selected="" value="fade-scale">Fade + Scale</option><option value="fade">Fade Out</option><option value="slide-down">Slide Down</option><option value="zoom-out">Zoom Out</option><option value="flash">Flash Out</option></select></label>
+<label class="field"><span>الفاصل بين اللقطات</span><select class="select" id="checklistCaptionSeparator"><option value="none">بدون</option><option selected="" value="flash">Flash سريع</option><option value="line">خط سريع</option><option value="swipe">Swipe / Whip</option></select></label>
+</div>
+</div>
+</div>
+</div><div class="checklist-below-editor-stack"><div class="card checklist-summary-wide-card"><div class="checklist-section-title checklist-summary-wide-title"><h3>ملخص المشاهد والمدة</h3><p class="muted small">المشاهد المفعلة، مدة الريل، وتوزيع اللقطات على أقسام التايم لاين.</p></div><div class="checklist-summary-list" id="checklistSummary"></div></div><div class="checklist-timeline-editor checklist-timeline-in-panel" dir="rtl" id="checklistTimelineEditor">
+<div class="checklist-timeline-head">
+<div>
+<h3>تايم لاين المونتاج</h3>
+<p>اضغط على أي كابشن أو مشهد للانتقال له. اسحب داخل المسطرة لتحريك المؤشر.</p>
+</div>
+<div class="checklist-timeline-actions">
+<button class="btn btn-primary" id="checklistPreviewBtn" type="button">معاينة الفيديو</button>
+<button class="btn btn-light" id="checklistPreviewPlayPauseBtn" type="button">تشغيل / إيقاف</button>
+<button class="btn btn-light" id="checklistTimelinePrevBtn" type="button">السابق</button>
+<button class="btn btn-light" id="checklistTimelineNextBtn" type="button">التالي</button>
+<button class="btn btn-light" id="checklistRotateVideoBtn" type="button">تدوير اللقطة ↻</button><button class="btn btn-light" id="checklistRotateAllVideosBtn" type="button">تدوير كل اللقطات ↻</button>
+<button class="btn btn-light" id="checklistTimelineZoomOutBtn" type="button">-</button>
+<button class="btn btn-light" id="checklistTimelineZoomInBtn" type="button">+</button>
+</div>
+</div>
+<div class="checklist-timeline-shell">
+<div class="checklist-timeline-labels">
+<div>الوقت</div>
+<div>الفيديو</div>
+<div>الكابشن</div>
+<div>الفويس</div>
+</div>
+<div class="checklist-timeline-scroll" id="checklistTimelineScroll">
+<div class="checklist-timeline-canvas" id="checklistTimelineCanvas">
+<div class="checklist-timeline-ruler" id="checklistTimelineRuler"></div>
+<div class="checklist-timeline-track video-track" id="checklistTimelineVideoTrack"></div>
+<div class="checklist-timeline-track caption-track" id="checklistTimelineCaptionTrack"></div>
+<div class="checklist-timeline-track audio-track" id="checklistTimelineAudioTrack"></div>
+<div class="checklist-timeline-playhead" id="checklistTimelinePlayhead"><span></span></div>
+</div>
+</div>
+</div>
+</div></div>
+</section>
+</div> </section>
+<section class="view" data-title="تجهيز النشر" id="publish-prep">
+<div class="page-head publish-prep-head">
+<div class="page-title">
+<h1>تجهيز النشر</h1>
+<p>متابعة تاسكات النشر ورفع الملفات النهائية وتجهيزها للنشر.</p>
+</div>
+<div class="social-publisher-actions">
+<button class="btn btn-light" id="refreshPublishPrepBtn" type="button">تحديث التاسكات</button>
+<a class="btn btn-light" href="#calendar">عرض التقويم</a>
+</div>
+</div>
+<div class="publish-prep-stats" id="publishPrepStats">
+<article class="publish-center-stat"><span>تاسكاتي</span><strong>0</strong></article>
+<article class="publish-center-stat"><span>قيد التجهيز</span><strong>0</strong></article>
+<article class="publish-center-stat"><span>تم التسليم</span><strong>0</strong></article>
+<article class="publish-center-stat"><span>يحتاج تعديل</span><strong>0</strong></article>
+</div>
+<div class="card publish-prep-card">
+<div class="section-toolbar small-toolbar">
+<div>
+<h2>تاسكاتي المطلوبة</h2>
+<p>تابع حالة كل تاسك، النواقص، والملف النهائي.</p>
+</div>
+<div class="publish-center-filters">
+<span>حملات</span>
+<span>أجندات</span>
+<span>ملفات نهائية</span>
+</div>
+</div>
+<div class="publish-prep-list" id="publishPrepList">
+<div class="empty-state">جاري تحميل تاسكات تجهيز النشر...</div>
+</div>
+</div>
+</section>
+<section class="view" data-title="الأقسام" id="departments">
+<div class="page-head">
+<div class="page-title"><h1>الأقسام</h1><p>إدارة الأقسام، اليوزرات داخل كل قسم، الكريتيفات، أنواع الحملات وأكوادها، المنصات، حالات الطلب، وأقسام المحتوى.</p></div>
+</div>
+<div class="departments-control-panel">
+<div class="departments-control-head">
+<div>
+<h2>إدارة الإعدادات</h2>
+<p>افتح الكارت المطلوب فقط للإضافة أو التعديل، واقفل الباقي عشان الصفحة تفضل مرتبة.</p>
+</div>
+</div>
+<div class="accordion-grid settings-forms-grid">
+<details class="accordion-card admin-form-card">
+<summary><span>إضافة قسم جديد</span><strong>فتح / إغلاق</strong></summary>
+<form class="form" id="departmentForm">
+<input id="departmentEditId" type="hidden">
+<label class="field"><span>اسم القسم</span><input id="departmentName" required="" type="text"/></label>
+<label class="field"><span>اليوزرات داخل القسم</span><select id="departmentUsers" multiple="" size="5"></select></label>
+<div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ القسم</button><button class="btn btn-light" id="cancelDepartmentEdit" type="button">إلغاء</button></div>
+<p class="form-message" id="departmentMessage"></p>
+</input></form>
+</details>
+<details class="accordion-card admin-form-card">
+<summary><span>إضافة كريتيف</span><strong>فتح / إغلاق</strong></summary>
+<form class="form" id="creativeForm">
+<input id="creativeEditId" type="hidden">
+<label class="field"><span>اسم الكريتيف</span><input id="creativeName" required="" type="text"/></label>
+<div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ الكريتيف</button><button class="btn btn-light" id="cancelCreativeEdit" type="button">إلغاء</button></div>
+<p class="form-message" id="creativeMessage"></p>
+</input></form>
+</details>
+<details class="accordion-card admin-form-card">
+<summary><span>إضافة نوع حملة وكود</span><strong>فتح / إغلاق</strong></summary>
+<form class="form" id="campaignTypeForm">
+<input id="campaignTypeEditId" type="hidden">
+<label class="field"><span>نوع الحملة</span><input id="campaignTypeName" placeholder="مثال: Awareness" required="" type="text"/></label>
+<label class="field"><span>الكود المختصر للنوع</span><input id="campaignTypeCode" placeholder="مثال: AW" required="" type="text"/></label>
+<label class="field"><span>بادئة الكود</span><input id="campaignTypePrefix" type="text" value="MZJ"/></label>
+<div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ نوع الحملة والكود</button><button class="btn btn-light" id="cancelCampaignTypeEdit" type="button">إلغاء</button></div>
+<p class="form-message" id="campaignTypeMessage"></p>
+</input></form>
+</details>
+<details class="accordion-card admin-form-card">
+<summary><span>إضافة منصة</span><strong>فتح / إغلاق</strong></summary>
+<form class="form" id="platformForm">
+<input id="platformEditId" type="hidden">
+<label class="field"><span>اسم المنصة</span><input id="platformName" required="" type="text"/></label>
+<div class="platform-types-builder">
+<div class="builder-head">
+<div><strong>أنواع النشر والأبعاد</strong><small>كل نوع في صف مستقل</small></div>
+<button class="mini-btn" data-add-platform-post-type="" id="addPlatformPostType" onclick="window.MZJAddPlatformPostTypeRow &amp;&amp; window.MZJAddPlatformPostTypeRow()" type="button">+ إضافة نوع</button>
+</div>
+<div class="platform-types-labels"><span>نوع النشر</span><span>العرض</span><span>الارتفاع</span><span></span></div>
+<div class="platform-types-rows" id="platformPostTypesRows"></div>
+<textarea hidden="" id="platformPostTypes"></textarea>
+</div>
+<div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ المنصة</button><button class="btn btn-light" id="cancelPlatformEdit" type="button">إلغاء</button></div>
+<p class="form-message" id="platformMessage"></p>
+</input></form>
+</details>
+<details class="accordion-card admin-form-card">
+<summary><span>حالة الطلب</span><strong>فتح / إغلاق</strong></summary>
+<form class="form" id="orderStatusForm">
+<input id="orderStatusEditId" type="hidden">
+<label class="field"><span>حالة الطلب</span><input id="orderStatusName" required="" type="text"/></label>
+<div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ حالة الطلب</button><button class="btn btn-light" id="cancelOrderStatusEdit" type="button">إلغاء</button></div>
+<p class="form-message" id="orderStatusMessage"></p>
+</input></form>
+</details>
+<details class="accordion-card admin-form-card">
+<summary><span>إضافة قسم محتوى</span><strong>فتح / إغلاق</strong></summary>
+<form class="form" id="contentSectionForm">
+<input id="contentSectionEditId" type="hidden">
+<label class="field"><span>اسم قسم المحتوى</span><input id="contentSectionName" required="" type="text"/></label>
+<label class="field"><span>أنواع المحتوى داخل القسم</span><textarea id="contentSectionTypes" placeholder="اكتب كل نوع في سطر منفصل"></textarea></label>
+<div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ قسم المحتوى</button><button class="btn btn-light" id="cancelContentSectionEdit" type="button">إلغاء</button></div>
+<p class="form-message" id="contentSectionMessage"></p>
+</input></form>
+</details>
+</div>
+</div>
+<div class="departments-control-panel mt">
+<div class="departments-control-head">
+<div>
+<h2>القوائم الحالية</h2>
+<p>افتح القائمة اللي محتاج تراجعها أو تعدل عناصرها فقط.</p>
+</div>
+<button class="btn btn-light" id="refreshDepartmentsBtn" type="button">تحديث الأقسام</button>
+</div>
+<div class="accordion-grid settings-lists-grid">
+<details class="accordion-card">
+<summary><span>قائمة الأقسام</span><strong>فتح / إغلاق</strong></summary>
+<div class="departments-list" id="departmentsList"><div class="empty-state">جاري تحميل الأقسام...</div></div>
+</details>
+<details class="accordion-card">
+<summary><span>قائمة الكريتيفات</span><strong>فتح / إغلاق</strong></summary>
+<div class="departments-list" id="creativesList"><div class="empty-state">جاري تحميل الكريتيفات...</div></div>
+</details>
+<details class="accordion-card">
+<summary><span>أنواع الحملات وأكوادها</span><strong>فتح / إغلاق</strong></summary>
+<div class="departments-list" id="campaignTypesList"><div class="empty-state">جاري تحميل أنواع الحملات...</div></div>
+</details>
+<details class="accordion-card">
+<summary><span>المنصات</span><strong>فتح / إغلاق</strong></summary>
+<div class="departments-list" id="platformsList"><div class="empty-state">جاري تحميل المنصات...</div></div>
+</details>
+<details class="accordion-card">
+<summary><span>حالات الطلب</span><strong>فتح / إغلاق</strong></summary>
+<div class="departments-list" id="orderStatusesList"><div class="empty-state">جاري تحميل حالات الطلب...</div></div>
+</details>
+<details class="accordion-card">
+<summary><span>أقسام المحتوى وأنواعها</span><strong>فتح / إغلاق</strong></summary>
+<div class="departments-list" id="contentSectionsList"><div class="empty-state">جاري تحميل أقسام المحتوى...</div></div>
+</details>
+</div>
+</div>
+</section>
+<section class="view" data-title="التقويم" id="calendar">
+<div class="page-head"><div class="page-title"><h1>التقويم</h1><p>تقويم النشر حسب جدول النشر داخل الحملات.</p></div></div>
+<div class="card calendar-card">
+<div class="calendar-toolbar">
+<strong id="calendarMonthTitle">—</strong>
+<div class="actions">
+<button class="btn btn-light" id="calendarPrevMonth" type="button">السابق</button>
+<button class="btn btn-light" id="calendarToday" type="button">اليوم</button>
+<button class="btn btn-light" id="calendarNextMonth" type="button">التالي</button>
+</div>
+</div>
+<div class="publish-calendar-page" id="calendarBoard"><div class="empty-state">جاري تحميل جدول النشر...</div></div>
+</div>
+</section>
+<section class="view" data-title="المتابعة" id="tasks">
+<div class="page-head"><div class="page-title"><h1>المتابعة</h1><p>مؤشرات الحملات والتاسكات والتأخير وأداء الأقسام والموظفين.</p></div></div>
+<div class="tasks-page-board" id="tasksBoard"><div class="empty-state">جاري تحميل المتابعة...</div></div>
+</section>
+<section class="view" data-title="الاستوك" id="stock">
+<div class="page-head">
+<div class="page-title"><h1>الاستوك</h1><p>قراءة فقط من قاعدة الاستوك، وحفظ حالة التصوير داخل MZJ-Marketing.</p></div>
+<button class="btn btn-light" id="refreshStockBtn" type="button">تحديث</button>
+</div>
+<div class="grid stats stock-stats stock-stats-clean stock-stats-summary">
+<div class="card stat stock-summary-filter-card" data-stock-filter-card="all"><div><p>المعروض في الاستوك</p><div class="num" id="stockAvailableAfterExclude">—</div><small>بعد استبعاد المؤرشف والمباع</small></div><div class="stat-icon">◇</div></div>
+<div class="card stat stock-summary-filter-card" data-stock-filter-card="not-photographed"><div><p>لم يتم التصوير</p><div class="num" id="stockNotPhotographedCount">—</div><small>السيارات التي لم يتم تصويرها</small></div><div class="stat-icon">📷</div></div>
+<div class="card stat stock-summary-filter-card" data-stock-filter-card="unused"><div><p>غير مستخدمة في أي نوع محتوى</p><div class="num" id="stockUnusedContentCount">—</div><small>غير مرتبطة بتاسكات أو كريتيفات</small></div><div class="stat-icon">☰</div></div>
+<div class="card stat is-hidden"><div><p>متاح للبيع</p><div class="num" id="stockAvailableForSale">—</div></div></div>
+<div class="card stat is-hidden"><div><p>حجز</p><div class="num" id="stockReserved">—</div></div></div>
+<div class="card stat is-hidden"><div><p>مباع تحت التسليم</p><div class="num" id="stockUnderDelivery">—</div></div></div>
+</div>
+<div class="card stock-table-card mt">
+<div class="card-title stock-title-row">
+<div>
+<h2>حصر السيارات المتاحة</h2>
+<p>يعرض السيارات المجمعة حسب المواصفة والألوان، مع حالة التصوير والاستخدام.</p>
+</div>
+<div class="stock-filter-area">
+<select aria-label="فلتر الاستوك" class="stock-filter-hidden" id="stockFilterMode">
+<option value="all">الكل</option>
+<option value="not-photographed">لم يتم التصوير</option>
+<option value="unused">غير مستخدمة في أي نوع محتوى</option>
+<option value="not-photographed-unused">مش متصورة وغير مستخدمة</option>
+</select>
+<div aria-label="فلاتر الاستوك" class="stock-filter-cards" id="stockFilterCards"></div>
+</div>
+</div>
+<div class="stock-advanced-filters" id="stockAdvancedFilters">
+<input class="control" id="stockSearchInput" placeholder="بحث عام (مفتاح/سيارة/بيان/حملة/نوع محتوى)" type="search">
+<select class="select" id="stockCarFilter"><option value="">السيارة (الكل)</option></select>
+<select class="select" id="stockStatementFilter"><option value="">البيان (الكل)</option></select>
+<select class="select" id="stockCampaignFilter"><option value="">الحملة (الكل)</option></select>
+<select class="select" id="stockContentTypeFilter"><option value="">نوع المحتوى (الكل)</option></select>
+<select class="select" id="stockShotFilter"><option value="">تصوير (الكل)</option><option value="yes">نعم</option><option value="no">لا</option></select>
+<select class="select" id="stockAgendaInsideFilter"><option value="">داخل الأجندة (الكل)</option><option value="yes">نعم</option><option value="no">لا</option></select>
+<select class="select" id="stockAgendaMonthFilter"><option value="">شهر الأجندة (الكل)</option><option value="1">يناير</option><option value="2">فبراير</option><option value="3">مارس</option><option value="4">أبريل</option><option value="5">مايو</option><option value="6">يونيو</option><option value="7">يوليو</option><option value="8">أغسطس</option><option value="9">سبتمبر</option><option value="10">أكتوبر</option><option value="11">نوفمبر</option><option value="12">ديسمبر</option></select>
+<div class="stock-filter-actions">
+<button class="btn btn-primary" id="exportStockExcelBtn" type="button">تصدير Excel</button>
+<button class="btn btn-light" id="clearStockFiltersBtn" type="button">تصفير الفلاتر</button>
+</div>
+</input></div>
+<div class="stock-table-wrap">
+<table aria-label="حصر الاستوك" class="stock-table">
+<thead>
+<tr>
+<th>م</th>
+<th>Unique Spec Key</th>
+<th>اللون الخارجي</th>
+<th>اللون الداخلي</th>
+<th>العدد</th>
+<th>تم التصوير</th>
+<th>الاستخدام</th>
+<th>إجراء</th>
+</tr>
+</thead>
+<tbody id="stockSummaryRows">
+<tr class="empty-row"><td colspan="8">جاري تحميل بيانات الاستوك...</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<section class="view" data-title="قاعدة البيانات" id="reports">
+<div class="page-head"><div class="page-title"><h1>قاعدة البيانات</h1><p>جدول بيانات الحملات وملفات النتائج وروابط المنصات والأرشفة.</p></div></div>
+<div class="card database-card">
+<div class="database-table-wrap">
+<table aria-label="جدول بيانات الحملة" class="database-table">
+<thead>
+<tr>
+<th>م</th><th>التاريخ</th><th>كود الحملة</th><th>اسم الحملة</th><th>نوع الحملة</th><th>الهدف من الحملة</th><th>تاريخ بداية الحملة</th><th>تاريخ نهاية الحملة</th><th>قسم التصوير</th><th>قسم المحتوى</th><th>قسم التصميم</th><th>قسم المونتاج</th><th>قسم النشر</th><th>عرض البيانات</th><th>إجراءات</th>
+</tr>
+</thead>
+<tbody id="databaseCampaignRows"><tr><td colspan="15">جاري تحميل بيانات الحملات...</td></tr></tbody>
+</table>
+</div>
+</div>
+</section>
+<section class="view" data-title="الإعدادات" id="settings">
+<div class="page-head"><div class="page-title"><h1>الإعدادات</h1><p>إدارة ألوان النظام، بيانات النظام، اليوزرات والصلاحيات.</p></div></div>
+<div class="settings-grid">
+<div class="card settings-card">
+<h2>بيانات النظام</h2>
+<form class="form" id="systemSettingsForm">
+<label class="field"><span>اسم النظام</span><input id="settingSystemName" placeholder="نظام التسويق" type="text"/></label>
+<label class="field"><span>الخط الأساسي</span><select id="settingFontFamily"><option value="Tajawal">Tajawal</option><option value="Cairo">Cairo</option><option value="Almarai">Almarai</option><option value="system-ui">System UI</option></select></label>
+<label class="field"><span>اتجاه الواجهة</span><select id="settingDirection"><option value="rtl">RTL - عربي</option><option value="ltr">LTR - English</option></select></label>
+<button class="btn btn-light full" id="resetDefaultSettingsBtn" type="button">استرجاع الإعدادات الافتراضية</button>
+<button class="btn btn-primary full" type="submit">حفظ الإعدادات</button>
+<p class="form-message" id="systemSettingsMessage"></p>
+</form>
+</div>
+<div class="card settings-card">
+<h2>إعدادات مواعيد النشر التلقائي</h2>
+<form class="form" id="autoPublishSettingsForm">
+<label class="field">
+<span>تشغيل النشر التلقائي</span>
+<select id="autoPublishEnabled">
+<option value="true">تشغيل</option>
+<option value="false">إيقاف</option>
+</select>
+</label>
+<div class="settings-grid-mini">
+<label class="field">
+<span>ساعة Facebook</span>
+<select id="autoPublishFacebookHour"><option value="">اختر الساعة</option></select>
+</label>
+<label class="field">
+<span>ساعة Instagram</span>
+<select id="autoPublishInstagramHour"><option value="">اختر الساعة</option></select>
+</label>
+<label class="field">
+<span>ساعة TikTok</span>
+<select id="autoPublishTiktokHour"><option value="">اختر الساعة</option></select>
+</label>
+<label class="field">
+<span>ساعة YouTube</span>
+<select id="autoPublishYoutubeHour"><option value="">اختر الساعة</option></select>
+</label>
+<label class="field">
+<span>ساعة Snapchat</span>
+<select id="autoPublishSnapchatHour"><option value="">اختر الساعة</option></select>
+</label>
+<label class="field">
+<span>ساعة WhatsApp / مرسال</span>
+<select id="autoPublishWhatsappHour"><option value="">اختر الساعة</option></select>
+</label>
+<label class="field">
+<span>ساعة افتراضية لأي منصة أخرى</span>
+<select id="autoPublishDefaultHour"><option value="">اختر الساعة</option></select>
+</label>
+<label class="field">
+<span>خصوصية YouTube الافتراضية</span>
+<select id="youtubePrivacyStatus">
+<option value="unlisted">Unlisted - برابط فقط</option>
+<option value="public">Public - عام</option>
+<option value="private">Private - خاص</option>
+</select>
+</label>
+</div>
+<label class="field">
+<span>المنطقة الزمنية</span>
+<input id="autoPublishTimezone" readonly="" type="text" value="Asia/Riyadh">
+</input></label>
+<button class="btn btn-primary full" type="submit">حفظ إعدادات مواعيد النشر التلقائي</button>
+<p class="form-message" id="autoPublishSettingsMessage"></p>
+</form>
+</div>
+<div class="card settings-card">
+<h2>إعدادات مرسال واتساب</h2>
+<form class="form" id="mersalSettingsForm">
+<label class="field"><span>API Endpoint</span><input id="mersalApiEndpoint" placeholder="https://w-mersal.com" type="url"/></label>
+<label class="field"><span>Token</span><input autocomplete="new-password" id="mersalToken" placeholder="اكتب التوكن أو اتركه كما هو" type="password"/></label>
+<div class="settings-inline-status"><span>حالة مرسال</span><strong id="mersalConnectionStatus">غير متصل</strong></div>
+<label class="field"><span>قالب الصور</span><input id="mersalImageTemplate" type="text" value="mzj_image_campaign"/></label>
+<label class="field"><span>قالب الفيديو</span><input id="mersalVideoTemplate" type="text" value="mzj_video_campaign"/></label>
+<label class="field"><span>لغة القوالب</span><input id="mersalTemplateLanguage" type="text" value="ar"/></label>
+<button class="btn btn-primary full" type="submit">حفظ إعدادات مرسال</button>
+<p class="form-message" id="mersalSettingsMessage"></p>
+</form>
+<div class="settings-divider"></div>
+<div class="form" id="whatsappContactsImportBox">
+<h3>أرقام عملاء واتساب</h3>
+<p class="muted small">استيراد أرقام الجوال من Excel. كل استيراد جديد يضيف على الموجود، والأرقام لا تظهر في صفحة الإعدادات.</p>
+<label class="field"><span>استيراد شيت أرقام الجوال</span><input accept=".xlsx,.xls,.csv" id="whatsappContactsExcelInput" type="file"/></label>
+<button class="btn btn-light full" id="importWhatsappContactsBtn" type="button">استيراد الأرقام</button>
+<p class="form-message" id="whatsappContactsImportMessage"></p>
+<div class="settings-inline-status"><span>إجمالي الأرقام المحفوظة</span><strong id="whatsappContactsCount">0</strong></div>
+</div>
+</div>
+<div class="card settings-card wide">
+<h2>ألوان الثيم</h2>
+<div class="theme-color-grid" id="themeColorGrid">
+<label><input id="colorPrimary" type="color" value="#5A3329"/><span>Primary</span></label>
+<label><input id="colorSecondary" type="color" value="#B85E4F"/><span>Secondary</span></label>
+<label><input id="colorAccent" type="color" value="#C89F84"/><span>Accent</span></label>
+<label><input id="colorSurface" type="color" value="#FAF6F1"/><span>Surface</span></label>
+<label><input id="colorBg" type="color" value="#F3E5D6"/><span>Background</span></label>
+<label><input id="colorLine" type="color" value="#E5CBBE"/><span>Line</span></label>
+<label><input id="colorText" type="color" value="#2D1713"/><span>Text</span></label>
+<label><input id="colorMuted" type="color" value="#8E7166"/><span>Muted</span></label>
+</div>
+<div class="theme-image-box">
+<label class="field"><span>صورة مرجع الثيم</span><input accept="image/*" id="themeImageInput" type="file"/></label>
+<div class="theme-image-preview" id="themeImagePreview">لا توجد صورة ثيم محفوظة.</div>
+</div>
+<div class="actions">
+<button class="btn btn-light" id="resetDefaultThemeBtn" type="button">ألوان افتراضية</button>
+<button class="btn btn-primary" id="saveThemeColorsBtn" type="button">حفظ الألوان</button>
+</div>
+<p class="form-message" id="themeSettingsMessage"></p>
+</div>
+<div class="card settings-card wide owner-color-settings-card-v220">
+<div class="card-title"><h2>تعيين لون لكل مسؤول</h2><button class="btn btn-primary" id="saveOwnerColorsBtn" type="button">حفظ ألوان المسؤولين</button></div>
+<p class="muted small">اختار لون لكل مسؤول. نفس اللون هيظهر في الداش بورد على اسم المسؤول مع بوردر واضح.</p>
+<div class="owner-color-settings-list-v220" id="ownerColorSettingsList"><div class="empty-state">جاري تحميل اليوزرات...</div></div>
+<p class="form-message" id="ownerColorSettingsMessage"></p>
+</div>
+</div>
+<div class="card mt users-permissions-card">
+<div class="card-title"><h2>اليوزرات والصلاحيات</h2><button class="btn btn-light" id="refreshUsersPermissionsBtn" type="button">تحديث</button></div>
+<form class="add-user-permissions-form" id="addUserPermissionsForm">
+<div class="add-user-head">
+<div><strong>إضافة يوزر جديد</strong><small>اكتب الميل والباسورد وحدد الصلاحيات، وبعد الحفظ يقدر يدخل مباشرة.</small></div>
+</div>
+<div class="add-user-grid">
+<label class="mini-field"><span>اسم اليوزر</span><input autocomplete="off" id="newUserName" placeholder="مثال: Ahmed" type="text"/></label>
+<label class="mini-field"><span>البريد الإلكتروني</span><input autocomplete="off" id="newUserEmail" placeholder="user@example.com" required="" type="email"/></label>
+<label class="mini-field permission-password-field"><span>كلمة المرور</span><div class="permission-password-control"><input autocomplete="new-password" id="newUserPassword" placeholder="اكتب كلمة المرور" required="" type="password"><button class="btn btn-light btn-mini" id="toggleNewUserPassword" type="button">عرض</button></input></div></label>
+<label class="mini-field"><span>نوع الحساب</span><select id="newUserRole"><option value="user">يوزر عادي</option><option value="admin">أدمن</option></select></label>
+</div>
+<div class="permission-pages add-user-pages" id="newUserPagesAccess"></div>
+<div class="actions"><button class="btn btn-primary" type="submit">إضافة اليوزر وحفظ الباسورد</button></div>
+<p class="form-message" id="addUserPermissionsMessage"></p>
+</form>
+<div class="users-permissions-list" id="usersPermissionsList"><div class="empty-state">جاري تحميل اليوزرات...</div></div>
+</div>
+</section>
+</main>
+</div>
+<div aria-hidden="true" class="task-modal" id="taskModal">
+<div class="task-modal-backdrop" data-close-task-modal=""></div>
+<section aria-label="تفاصيل التاسك" aria-modal="true" class="task-modal-dialog" role="dialog">
+<button class="task-modal-close" data-close-task-modal="" type="button">×</button>
+<div id="taskModalContent"></div>
+</section>
+</div>
+<div aria-hidden="true" class="task-modal" id="campaignModal">
+<div class="task-modal-backdrop" data-close-campaign-modal=""></div>
+<section aria-label="تفاصيل الحملة" aria-modal="true" class="task-modal-dialog campaign-modal-dialog" role="dialog">
+<button class="task-modal-close" data-close-campaign-modal="" type="button">×</button>
+<div id="campaignModalContent"></div>
+</section>
+</div>
+<input hidden="" id="campaignResultFileInput" type="file">
+<input hidden="" id="taskAttachmentInput" type="file">
+<input accept=".xlsx,.xls" hidden="" id="structureFileInput" type="file">
+<input accept=".xlsx,.xls,.csv" hidden="" id="publishScheduleImportInput" type="file">
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="assets/js/jszip.min.js?v=160"></script>
+<script src="assets/js/app.js?v=230"></script>
+</input></input></input></input></body>
 </html>

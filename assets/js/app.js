@@ -14988,7 +14988,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   ].map(([id,title,shoot,part,use]) => ({ id,title,shoot,part,use }));
   let checklistStudioReady = false;
   let checklistRendering = false;
-  const checklistPreviewState = { playing:false, paused:false, raf:0, time:0, total:0, startPerf:0, shots:[], currentIndex:-1, video:null, videoUrl:'', logo:null, draggingCaption:false, customX:.5, customY:.72, timelinePx:90, activeTimelineIndex:-1, previewSpeed:.75, activeCaptionId:null };
+  const checklistPreviewState = { playing:false, paused:false, raf:0, time:0, total:0, startPerf:0, shots:[], currentIndex:-1, video:null, videoUrl:'', logo:null, draggingCaption:false, customX:.5, customY:.72, timelinePx:90, activeTimelineIndex:-1, previewSpeed:.75, activeCaptionId:null, activeShotId:null };
   let checklistGlobalCaptionStyle = null;
   const checklistShotExtras = {};
   let checklistApplyingCaptionStyle = false;
@@ -15451,6 +15451,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   }
   function selectCaptionForStyle(shotId, seekTime=null){
     checklistPreviewState.activeCaptionId = shotId ? String(shotId) : null;
+    if(shotId) checklistPreviewState.activeShotId = String(shotId);
     const shot = activeCaptionShot();
     const st = shot ? captionSettings(shot) : baseCaptionStyle();
     setCaptionControls(st);
@@ -15472,13 +15473,29 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     drawPreviewAt(checklistPreviewState.time || 0, false);
     studioLog('تم تطبيق ستايل الكابشن الحالي على كل المشاهد المفعلة.');
   }
+  function findShotByIdFromTimeline(shotId){
+    if(!shotId) return null;
+    return previewTimelineShots().find(s => String(s.id) === String(shotId)) || activeShotRows().find(s => String(s.id) === String(shotId)) || CHECKLIST_SHOTS.find(s => String(s.id) === String(shotId)) || null;
+  }
   function rotateCurrentPreviewShot(){
-    const item = currentPreviewItem();
-    const shot = item?.shot;
-    if(!shot?.id){ studioLog('اختار مشهد من التايم لاين أولًا لتدوير الفيديو.'); return; }
+    const id = checklistPreviewState.activeShotId || currentPreviewItem()?.shot?.id;
+    const shot = findShotByIdFromTimeline(id);
+    if(!shot?.id){ studioLog('اختار لقطة من التايم لاين أولًا، ثم اضغط تدوير.'); return; }
     const extra = ensureShotExtra(shot.id);
     extra.rotation = ((Number(extra.rotation)||0) + 90) % 360;
+    checklistPreviewState.activeShotId = String(shot.id);
     studioLog(`تم تدوير فيديو المشهد ${shot.id} إلى ${extra.rotation} درجة.`);
+    renderChecklistTimeline();
+    drawPreviewAt(checklistPreviewState.time || 0, false);
+  }
+  function rotateAllPreviewShots(){
+    const shots = activeShotRows();
+    if(!shots.length){ studioLog('لا توجد لقطات مفعلة لتدويرها.'); return; }
+    shots.forEach(s => {
+      const extra = ensureShotExtra(s.id);
+      extra.rotation = ((Number(extra.rotation)||0) + 90) % 360;
+    });
+    studioLog(`تم تدوير كل اللقطات المفعلة (${shots.length}) 90 درجة.`);
     renderChecklistTimeline();
     drawPreviewAt(checklistPreviewState.time || 0, false);
   }
@@ -15541,7 +15558,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const canvas = $('checklistPreviewCanvas');
     const ph = $('checklistPreviewPlaceholder');
     if(video){
-      try{ video.pause(); video.style.transform = 'none'; }catch(_){ }
+      try{ video.pause(); video.style.transform = 'none'; video.style.setProperty('--mzj-video-rotation','0deg'); }catch(_){ }
       video.removeAttribute('src');
       try{ video.load(); }catch(_){ }
       video.style.display = 'none';
@@ -15699,7 +15716,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
         if(video){
           hideDirectPreviewPlaceholder();
           const rot = Number(item.shot.rotation || getShotExtra(item.shot.id).rotation || 0) || 0;
-          video.style.transform = rot ? `rotate(${rot}deg)` : 'none';
+          video.style.setProperty('--mzj-video-rotation', `${rot}deg`);
           video.style.transformOrigin = '50% 50%';
           const target = Math.max(0, (Number(item.shot.start) || 0) + item.local);
           const drift = Math.abs((video.currentTime || 0) - target);
@@ -15913,8 +15930,9 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       const w = Math.max(42, Math.round(it.duration * pps));
       const color = partColors[it.shot.part] || '#2563eb';
       const active = (checklistPreviewState.time || 0) >= it.start && (checklistPreviewState.time || 0) < it.end ? ' is-active' : '';
+      const selected = String(checklistPreviewState.activeShotId || '') === String(it.shot.id) ? ' is-selected' : '';
       const rot = Number(it.shot.rotation || getShotExtra(it.shot.id).rotation || 0) || 0;
-      return `<button class="timeline-clip${active}" type="button" data-timeline-kind="video" data-shot-id="${it.shot.id}" data-timeline-time="${it.start}" data-timeline-index="${it.index}" style="left:${left}px;width:${w}px;background:linear-gradient(135deg,${color},#0f172a)"><span class="clip-title">${escapeHtml(it.shot.title || ('مشهد '+(it.index+1)))}${rot ? ' ↻'+rot : ''}</span><span class="clip-meta">${it.duration.toFixed(1)}s / ${escapeHtml(partTitle(it.shot.part))}</span></button>`;
+      return `<button class="timeline-clip${active}${selected}" type="button" data-timeline-kind="video" data-shot-id="${it.shot.id}" data-timeline-time="${it.start}" data-timeline-index="${it.index}" style="left:${left}px;width:${w}px;background:linear-gradient(135deg,${color},#0f172a)"><span class="clip-title">${escapeHtml(it.shot.title || ('مشهد '+(it.index+1)))}${rot ? ' ↻'+rot : ''}</span><span class="clip-meta">${it.duration.toFixed(1)}s / ${escapeHtml(partTitle(it.shot.part))}</span></button>`;
     }).join('');
     captionTrack.innerHTML = items.map(it => {
       const left = Math.round(it.start * pps);
@@ -15940,6 +15958,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const active = items.find(it => time >= it.start && time < it.end) || items[items.length - 1];
     document.querySelectorAll('#checklistTimelineVideoTrack .timeline-clip,#checklistTimelineCaptionTrack .timeline-caption').forEach(el => {
       el.classList.toggle('is-active', Number(el.dataset.timelineIndex) === (active?.index ?? -1));
+      if(el.classList.contains('timeline-clip')) el.classList.toggle('is-selected', String(el.dataset.shotId || '') === String(checklistPreviewState.activeShotId || ''));
     });
     if(scroll && checklistPreviewState.playing){
       const target = Math.max(0, x - scroll.clientWidth * .55);
@@ -15953,6 +15972,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     checklistPreviewState.time = Math.max(0, Math.min(Number(time)||0, checklistPreviewState.total));
     const scrub = $('checklistPreviewScrub'); if(scrub) scrub.value = String(checklistPreviewState.time);
     await drawPreviewAt(checklistPreviewState.time, false);
+    const activeItem = shotAtTime(checklistPreviewState.time);
+    if(activeItem?.shot?.id){ checklistPreviewState.activeShotId = String(activeItem.shot.id); checklistPreviewState.activeTimelineIndex = activeItem.index; }
     updateChecklistTimelinePlayhead();
   }
   function timelineTimeFromPointer(event){
@@ -15972,6 +15993,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       e.preventDefault();
       const shotId = clip.dataset.shotId;
       const time = Number(clip.dataset.timelineTime) || 0;
+      checklistPreviewState.activeShotId = shotId ? String(shotId) : null;
+      checklistPreviewState.activeTimelineIndex = Number(clip.dataset.timelineIndex) || 0;
       if(clip.dataset.timelineKind === 'caption') selectCaptionForStyle(shotId, time);
       else await jumpChecklistTimelineTo(time, true);
     });
@@ -16003,6 +16026,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       await jumpChecklistTimelineTo(next, true);
     });
     $('checklistRotateVideoBtn')?.addEventListener('click', rotateCurrentPreviewShot);
+    $('checklistRotateAllVideosBtn')?.addEventListener('click', rotateAllPreviewShots);
     $('checklistTimelineZoomInBtn')?.addEventListener('click', () => { checklistPreviewState.timelinePx = timelinePxPerSecond() + 20; renderChecklistTimeline(); });
     $('checklistTimelineZoomOutBtn')?.addEventListener('click', () => { checklistPreviewState.timelinePx = timelinePxPerSecond() - 20; renderChecklistTimeline(); });
     $('checklistPreviewSpeed')?.addEventListener('change', e => { checklistPreviewState.previewSpeed = Math.max(.25, Math.min(2, Number(e.target.value)||1)); });
@@ -16332,7 +16356,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
         duration:totalDuration,
         captionSettings: captionSettings(),
         voiceoverScript: shots.map(s => s.voiceover).filter(Boolean).join('\n'),
-        shots:shots.map(s => ({id:s.id,title:s.title,part:s.part,file:s.file ? (sourceName(s.file) || '') : '', filePath: sourcePath(s.file), start:s.start,duration:s.use,voiceover:s.voiceover,caption:s.caption}))
+        shots:shots.map(s => ({id:s.id,title:s.title,part:s.part,file:s.file ? (sourceName(s.file) || '') : '', filePath: sourcePath(s.file), start:s.start,duration:s.use,voiceover:s.voiceover,caption:s.caption, rotation:s.rotation || 0, captionStyle:s.captionStyle || null}))
       };
       const planUrl = URL.createObjectURL(new Blob([JSON.stringify(plan,null,2)], {type:'application/json'}));
       const out = $('checklistDownloads');
@@ -16414,6 +16438,9 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
         if(video){
           hideDirectPreviewPlaceholder();
           const target = Math.max(0, (Number(item.shot.start)||0) + item.local);
+          const rot = Number(item.shot.rotation || getShotExtra(item.shot.id).rotation || 0) || 0;
+          video.style.setProperty('--mzj-video-rotation', `${rot}deg`);
+          video.style.transformOrigin = '50% 50%';
           await waitVideoReady(video, target);
           try{ video.pause(); }catch(_){ }
         }
@@ -16460,6 +16487,9 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       video = await ensurePreviewVideo(item);
       if(!video) return v11PlayPlaceholder(item);
       hideDirectPreviewPlaceholder();
+      const rot = Number(item.shot.rotation || getShotExtra(item.shot.id).rotation || 0) || 0;
+      video.style.setProperty('--mzj-video-rotation', `${rot}deg`);
+      video.style.transformOrigin = '50% 50%';
       await waitVideoReady(video, sourceStart);
       try{ video.muted = true; video.playbackRate = Math.max(.25, Math.min(1.25, Number($('checklistPreviewSpeed')?.value || 1))); }catch(_){ }
       await video.play().catch(()=>{});
