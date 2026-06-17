@@ -21,6 +21,7 @@ body{margin:0;font-family:Tajawal,Arial,sans-serif;background:#f6eee8;color:#2d1
       <button class="btn btn-light" id="pickFolderBtn">اختيار فولدر الأجندة</button>
       <button class="btn btn-primary" id="scanBtn">فحص الأجندة</button>
       <button class="btn btn-primary" id="saveBtn">اعتماد الجدولة وحفظها في Firebase</button>
+      <button class="btn btn-light" id="checkCommandsBtn">فحص أوامر النشر الآن / إعادة المحاولة</button>
     </div>
     <p class="status" id="statusText">جاهز.</p>
   </section>
@@ -28,9 +29,8 @@ body{margin:0;font-family:Tajawal,Arial,sans-serif;background:#f6eee8;color:#2d1
     <article class="card">
       <h2>إعدادات التاريخ والوقت</h2>
       <label class="field"><span>سنة النشر</span><input id="yearInput" type="number" min="2024" max="2100"></label><br>
-      <label class="field"><span>وقت البوست</span><input id="postTime" type="time" value="09:00"></label><br>
-      <label class="field"><span>وقت الريل</span><input id="reelTime" type="time" value="12:00"></label><br>
-      <label class="field"><span>وقت الستوري</span><input id="storyTime" type="time" value="18:00"></label>
+      <p>الأوقات هنا احتياطية وقت الفحص. الأفضل حفظ الأوقات من صفحة جدولة النشر المحلي في السيستم، وElectron سيقرأها من Firebase عند الفحص.</p>
+      <table><thead><tr><th>المنصة</th><th>وقت البوست</th><th>وقت الريل</th><th>وقت الستوري</th></tr></thead><tbody id="platformTimesBody"></tbody></table>
     </article>
     <article class="card">
       <h2>المنصات المستخدمة</h2>
@@ -45,7 +45,7 @@ body{margin:0;font-family:Tajawal,Arial,sans-serif;background:#f6eee8;color:#2d1
     </article>
   </div>
   <div class="stats" id="stats"><div><span>الأيام</span><strong>0</strong></div><div><span>المهام</span><strong>0</strong></div><div><span>تحذيرات</span><strong>0</strong></div><div><span>جاهز للحفظ</span><strong>لا</strong></div></div>
-  <article class="card"><h2>المعاينة</h2><div id="warnings"></div><table><thead><tr><th>التاريخ</th><th>النوع</th><th>العنوان</th><th>الملفات</th><th>الكابشن</th></tr></thead><tbody id="jobsBody"><tr><td colspan="5" class="muted">اختار فولدر واضغط فحص الأجندة.</td></tr></tbody></table></article>
+  <article class="card"><h2>المعاينة</h2><div id="warnings"></div><table><thead><tr><th>التاريخ</th><th>المنصة</th><th>النوع</th><th>العنوان</th><th>الملفات</th><th>الكابشن</th></tr></thead><tbody id="jobsBody"><tr><td colspan="6" class="muted">اختار فولدر واضغط فحص الأجندة.</td></tr></tbody></table></article>
 </div>
 <script src="renderer.js"></script>
 </body>
