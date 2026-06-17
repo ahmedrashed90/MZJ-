@@ -14988,15 +14988,12 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   ].map(([id,title,shoot,part,use]) => ({ id,title,shoot,part,use }));
   let checklistStudioReady = false;
   let checklistRendering = false;
-  const checklistPreviewState = { playing:false, paused:false, raf:0, time:0, total:0, startPerf:0, shots:[], currentIndex:-1, video:null, videoUrl:'', logo:null, draggingCaption:false, customX:.5, customY:.72, timelinePx:90, activeTimelineIndex:-1, previewSpeed:.75, activeCaptionId:null };
-  let checklistGlobalCaptionStyle = null;
-  const checklistShotExtras = {};
-  let checklistApplyingCaptionStyle = false;
+  const checklistPreviewState = { playing:false, paused:false, raf:0, time:0, total:0, startPerf:0, shots:[], currentIndex:-1, video:null, videoUrl:'', logo:null, draggingCaption:false, customX:.5, customY:.72, timelinePx:90, activeTimelineIndex:-1, previewSpeed:1 };
   const checklistElectronFiles = { shots:{}, voice:null, music:null, logo:null, sheet:null };
   function isElectronStudio(){ return !!window.mzjElectron?.selectFiles; }
   function sourceName(src){ return src?.name || src?.file?.name || ''; }
   function sourcePath(src){ return src?.path || ''; }
-  function sourceUrl(src){ return src?.url || src?.proxyUrl || ''; }
+  function sourceUrl(src){ return src?.proxyUrl || src?.url || ''; }
 
   function $(id){ return document.getElementById(id); }
   function studioLog(text){ const el = $('checklistLog'); if(el) el.textContent = text; }
@@ -15073,12 +15070,6 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       if(enabled && (voiceover || caption)) enabled.checked = true;
       if(start !== ''){ const el = document.querySelector(`[data-shot-start="${id}"]`); if(el) el.value = Number(start) || 0; }
       if(duration !== ''){ const el = document.querySelector(`[data-shot-use="${id}"]`); if(el) el.value = Math.max(.4, Number(duration) || Number(el.value) || 1.2); }
-      const trend = String(rowValue(row, ['caption_trend','caption style','caption_style','ترند الكابشن','ستايل الكابشن']) || '').trim();
-      if(trend){
-        const list = loadCaptionTrends();
-        const found = list.find(t => t.id === trend || t.name === trend || normalizeHeaderKey(t.name) === normalizeHeaderKey(trend) || normalizeHeaderKey(t.id) === normalizeHeaderKey(trend));
-        if(found) ensureShotExtra(id).captionStyle = {...styleFromTrendId(found.id)};
-      }
       imported++;
     });
     buildSelectedVoiceoverScript();
@@ -15198,9 +15189,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       start: Number(document.querySelector(`[data-shot-start="${s.id}"]`)?.value || 0) || 0,
       use: Math.max(0.4, Number(document.querySelector(`[data-shot-use="${s.id}"]`)?.value || s.use) || s.use),
       voiceover: String(document.querySelector(`[data-shot-voiceover="${s.id}"]`)?.value || '').trim(),
-      caption: String(document.querySelector(`[data-shot-caption="${s.id}"]`)?.value || '').trim(),
-      rotation: Number(getShotExtra(s.id).rotation || 0) || 0,
-      captionStyle: getShotExtra(s.id).captionStyle || null
+      caption: String(document.querySelector(`[data-shot-caption="${s.id}"]`)?.value || '').trim()
     };
   }
   function activeShotRows(){
@@ -15349,7 +15338,25 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       }
     });
   }
-  function readCaptionControls(){
+  function applyCaptionPreset(source){
+    if(!source || source.id !== 'checklistCaptionPreset') return;
+    const preset = source.value;
+    const trend = getCaptionTrend(preset);
+    const set = (id, value) => { const el = $(id); if(el && value != null) el.value = value; };
+    if(trend){
+      set('checklistCaptionPosition', trend.position || 'center-bottom');
+      set('checklistCaptionFont', trend.font || 'Tajawal');
+      set('checklistCaptionIn', trend.inAnim || 'pop');
+      set('checklistCaptionOut', trend.outAnim || 'fade-scale');
+      set('checklistCaptionSeparator', trend.separator || 'flash');
+      set('checklistCaptionSize', trend.size || 56);
+      set('checklistCaptionColor', trend.color || '#ffffff');
+      set('checklistCaptionBg', trend.bg || '#080d19');
+      set('checklistCaptionAccent', trend.accent || '#facc15');
+    }
+    const lbl = $('checklistCaptionSizeLabel'); if(lbl) lbl.textContent = ($('checklistCaptionSize')?.value || '56') + 'px';
+  }
+  function captionSettings(){
     return {
       preset: $('checklistCaptionPreset')?.value || 'arabic-review',
       position: $('checklistCaptionPosition')?.value || 'center-bottom',
@@ -15360,127 +15367,16 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       accent: $('checklistCaptionAccent')?.value || '#facc15',
       inAnim: $('checklistCaptionIn')?.value || 'pop',
       outAnim: $('checklistCaptionOut')?.value || 'fade-scale',
-      separator: $('checklistCaptionSeparator')?.value || 'flash'
-    };
-  }
-  function styleFromTrendId(id){
-    const trend = getCaptionTrend(id);
-    if(!trend) return {};
-    return {
-      preset: trend.id || id || 'arabic-review',
-      position: trend.position || 'center-bottom',
-      font: trend.font || 'Tajawal',
-      size: Math.max(28, Number(trend.size || 56) || 56),
-      color: trend.color || '#ffffff',
-      bg: trend.bg || '#080d19',
-      accent: trend.accent || '#facc15',
-      inAnim: trend.inAnim || 'pop',
-      outAnim: trend.outAnim || 'fade-scale',
-      separator: trend.separator || 'flash'
-    };
-  }
-  function ensureShotExtra(id){
-    const key = String(id || '');
-    if(!checklistShotExtras[key]) checklistShotExtras[key] = { rotation:0, captionStyle:null };
-    return checklistShotExtras[key];
-  }
-  function getShotExtra(id){ return checklistShotExtras[String(id || '')] || {}; }
-  function setCaptionControls(style){
-    checklistApplyingCaptionStyle = true;
-    const set = (id, value) => { const el = $(id); if(el && value != null) el.value = value; };
-    set('checklistCaptionPreset', style.preset || 'arabic-review');
-    set('checklistCaptionPosition', style.position || 'center-bottom');
-    set('checklistCaptionFont', style.font || 'Tajawal');
-    set('checklistCaptionSize', style.size || 56);
-    set('checklistCaptionColor', style.color || '#ffffff');
-    set('checklistCaptionBg', style.bg || '#080d19');
-    set('checklistCaptionAccent', style.accent || '#facc15');
-    set('checklistCaptionIn', style.inAnim || 'pop');
-    set('checklistCaptionOut', style.outAnim || 'fade-scale');
-    set('checklistCaptionSeparator', style.separator || 'flash');
-    const lbl = $('checklistCaptionSizeLabel'); if(lbl) lbl.textContent = ($('checklistCaptionSize')?.value || '56') + 'px';
-    checklistApplyingCaptionStyle = false;
-  }
-  function applyCaptionPreset(source){
-    if(!source || source.id !== 'checklistCaptionPreset') return;
-    const trendStyle = styleFromTrendId(source.value);
-    setCaptionControls({...readCaptionControls(), ...trendStyle});
-    handleCaptionControlChanged();
-  }
-  function activeCaptionShot(){
-    const id = checklistPreviewState.activeCaptionId;
-    if(!id) return null;
-    return CHECKLIST_SHOTS.find(s => String(s.id) === String(id)) || null;
-  }
-  function updateCaptionStyleTargetLabel(){
-    const el = $('checklistCaptionStyleTarget');
-    if(!el) return;
-    const shot = activeCaptionShot();
-    if(shot) el.textContent = `تعديل كابشن المشهد ${shot.id}: ${shot.title}`;
-    else el.textContent = 'تعديل الافتراضي لكل الكابشنات. اختار كابشن من التايم لاين لتعديله وحده.';
-  }
-  function baseCaptionStyle(){
-    if(!checklistGlobalCaptionStyle) checklistGlobalCaptionStyle = readCaptionControls();
-    return {...checklistGlobalCaptionStyle};
-  }
-  function captionSettings(shot){
-    const shotId = shot?.id;
-    const extra = shotId ? getShotExtra(shotId) : {};
-    return {
-      ...baseCaptionStyle(),
-      ...(extra.captionStyle || {}),
+      separator: $('checklistCaptionSeparator')?.value || 'flash',
       showCarName: $('checklistShowCarName')?.checked !== false,
       showBrandName: $('checklistShowBrandName')?.checked !== false,
       showSceneNumber: !!$('checklistShowSceneNumber')?.checked,
       showPartLabel: !!$('checklistShowPartLabel')?.checked,
       showCaptionBox: $('checklistShowCaptionBox')?.checked !== false,
       showLogo: $('checklistShowLogo')?.checked !== false,
-      customX: (extra.captionStyle?.customX ?? checklistPreviewState.customX ?? .5),
-      customY: (extra.captionStyle?.customY ?? checklistPreviewState.customY ?? .72)
+      customX: checklistPreviewState.customX || .5,
+      customY: checklistPreviewState.customY || .72
     };
-  }
-  function handleCaptionControlChanged(){
-    if(checklistApplyingCaptionStyle) return;
-    const style = readCaptionControls();
-    const id = checklistPreviewState.activeCaptionId;
-    if(id){ ensureShotExtra(id).captionStyle = {...(ensureShotExtra(id).captionStyle || {}), ...style}; }
-    else { checklistGlobalCaptionStyle = {...style}; }
-    const lbl = $('checklistCaptionSizeLabel'); if(lbl) lbl.textContent = ($('checklistCaptionSize')?.value || '56') + 'px';
-    renderChecklistTimeline();
-    drawPreviewAt(checklistPreviewState.time || 0, false);
-  }
-  function selectCaptionForStyle(shotId, seekTime=null){
-    checklistPreviewState.activeCaptionId = shotId ? String(shotId) : null;
-    const shot = activeCaptionShot();
-    const st = shot ? captionSettings(shot) : baseCaptionStyle();
-    setCaptionControls(st);
-    if(shot){
-      const extra = getShotExtra(shot.id);
-      if(extra.captionStyle?.customX != null) checklistPreviewState.customX = Number(extra.captionStyle.customX) || .5;
-      if(extra.captionStyle?.customY != null) checklistPreviewState.customY = Number(extra.captionStyle.customY) || .72;
-    }
-    updateCaptionStyleTargetLabel();
-    if(seekTime != null) jumpChecklistTimelineTo(Number(seekTime)||0, true);
-    else { renderChecklistTimeline(); drawPreviewAt(checklistPreviewState.time || 0, false); }
-  }
-  function applyCurrentCaptionStyleToAll(){
-    const style = readCaptionControls();
-    activeShotRows().forEach(s => { ensureShotExtra(s.id).captionStyle = {...style}; });
-    checklistGlobalCaptionStyle = {...style};
-    updateCaptionStyleTargetLabel();
-    renderChecklistTimeline();
-    drawPreviewAt(checklistPreviewState.time || 0, false);
-    studioLog('تم تطبيق ستايل الكابشن الحالي على كل المشاهد المفعلة.');
-  }
-  function rotateCurrentPreviewShot(){
-    const item = currentPreviewItem();
-    const shot = item?.shot;
-    if(!shot?.id){ studioLog('اختار مشهد من التايم لاين أولًا لتدوير الفيديو.'); return; }
-    const extra = ensureShotExtra(shot.id);
-    extra.rotation = ((Number(extra.rotation)||0) + 90) % 360;
-    studioLog(`تم تدوير فيديو المشهد ${shot.id} إلى ${extra.rotation} درجة.`);
-    renderChecklistTimeline();
-    drawPreviewAt(checklistPreviewState.time || 0, false);
   }
   function currentPreviewItem(){
     return shotAtTime(checklistPreviewState.time || 0);
@@ -15489,7 +15385,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     return st.font === 'system' ? 'Tajawal, Arial, sans-serif' : `${st.font || 'Tajawal'}, Tajawal, Arial, sans-serif`;
   }
   function overlayPositionPercent(st){
-    if(st.position === 'custom') return [st.customX || checklistPreviewState.customX || .5, st.customY || checklistPreviewState.customY || .72];
+    if(st.position === 'custom') return [checklistPreviewState.customX || .5, checklistPreviewState.customY || .72];
     if(st.position === 'top') return [.5, .18];
     if(st.position === 'center') return [.5, .5];
     if(st.position === 'bottom') return [.5, .84];
@@ -15499,7 +15395,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const el = $('checklistPreviewCaptionOverlay');
     if(!el) return;
     const shot = item?.shot || activeShotRows()[0] || CHECKLIST_SHOTS[0];
-    const st = captionSettings(shot);
+    const st = captionSettings();
     const text = item?.caption || shot?.caption || shot?.title || 'كابشن الشاشة';
     el.textContent = text;
     const [x,y] = overlayPositionPercent(st);
@@ -15541,7 +15437,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const canvas = $('checklistPreviewCanvas');
     const ph = $('checklistPreviewPlaceholder');
     if(video){
-      try{ video.pause(); video.style.transform = 'none'; }catch(_){ }
+      try{ video.pause(); }catch(_){ }
       video.removeAttribute('src');
       try{ video.load(); }catch(_){ }
       video.style.display = 'none';
@@ -15698,9 +15594,6 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
         const video = await ensurePreviewVideo(item);
         if(video){
           hideDirectPreviewPlaceholder();
-          const rot = Number(item.shot.rotation || getShotExtra(item.shot.id).rotation || 0) || 0;
-          video.style.transform = rot ? `rotate(${rot}deg)` : 'none';
-          video.style.transformOrigin = '50% 50%';
           const target = Math.max(0, (Number(item.shot.start) || 0) + item.local);
           const drift = Math.abs((video.currentTime || 0) - target);
           const isDifferentShot = checklistPreviewState.currentIndex !== item.index;
@@ -15801,14 +15694,6 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       checklistPreviewState.customX = Math.max(.08, Math.min(.92, (e.clientX - rect.left) / rect.width));
       checklistPreviewState.customY = Math.max(.08, Math.min(.92, (e.clientY - rect.top) / rect.height));
       const pos = $('checklistCaptionPosition'); if(pos) pos.value = 'custom';
-      const item = currentPreviewItem();
-      const id = checklistPreviewState.activeCaptionId || item?.shot?.id;
-      if(id){
-        const extra = ensureShotExtra(id);
-        extra.captionStyle = {...(extra.captionStyle || {}), ...readCaptionControls(), position:'custom', customX:checklistPreviewState.customX, customY:checklistPreviewState.customY};
-        checklistPreviewState.activeCaptionId = String(id);
-        updateCaptionStyleTargetLabel();
-      }
       drawPreviewAt(checklistPreviewState.time || 0, false);
     };
     const moveCaptionDrag = e => {
@@ -15817,14 +15702,6 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       const rect = stage.getBoundingClientRect();
       checklistPreviewState.customX = Math.max(.08, Math.min(.92, (e.clientX - rect.left) / rect.width));
       checklistPreviewState.customY = Math.max(.08, Math.min(.92, (e.clientY - rect.top) / rect.height));
-      const item = currentPreviewItem();
-      const id = checklistPreviewState.activeCaptionId || item?.shot?.id;
-      if(id){
-        const extra = ensureShotExtra(id);
-        extra.captionStyle = {...(extra.captionStyle || {}), ...readCaptionControls(), position:'custom', customX:checklistPreviewState.customX, customY:checklistPreviewState.customY};
-        checklistPreviewState.activeCaptionId = String(id);
-        updateCaptionStyleTargetLabel();
-      }
       drawPreviewAt(checklistPreviewState.time || 0, false);
     };
     overlay?.addEventListener('pointerdown', beginCaptionDrag);
@@ -15897,7 +15774,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const tickStep = total > 80 ? 10 : total > 35 ? 5 : 2;
     let rulerHtml = '';
     for(let t=0; t<=Math.ceil(total); t+=tickStep){
-      rulerHtml += `<div class="checklist-timeline-tick" data-time="${t}" style="left:${Math.round(t*pps)}px"><strong>${t}s</strong></div>`;
+      rulerHtml += `<div class="checklist-timeline-tick" data-time="${t}" style="right:${Math.round(t*pps)}px"><strong>${t}s</strong></div>`;
     }
     ruler.innerHTML = rulerHtml;
     if(!items.length){
@@ -15913,19 +15790,16 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       const w = Math.max(42, Math.round(it.duration * pps));
       const color = partColors[it.shot.part] || '#2563eb';
       const active = (checklistPreviewState.time || 0) >= it.start && (checklistPreviewState.time || 0) < it.end ? ' is-active' : '';
-      const rot = Number(it.shot.rotation || getShotExtra(it.shot.id).rotation || 0) || 0;
-      return `<button class="timeline-clip${active}" type="button" data-timeline-kind="video" data-shot-id="${it.shot.id}" data-timeline-time="${it.start}" data-timeline-index="${it.index}" style="left:${left}px;width:${w}px;background:linear-gradient(135deg,${color},#0f172a)"><span class="clip-title">${escapeHtml(it.shot.title || ('مشهد '+(it.index+1)))}${rot ? ' ↻'+rot : ''}</span><span class="clip-meta">${it.duration.toFixed(1)}s / ${escapeHtml(partTitle(it.shot.part))}</span></button>`;
+      return `<button class="timeline-clip${active}" type="button" data-timeline-time="${it.start}" data-timeline-index="${it.index}" style="right:${left}px;width:${w}px;background:linear-gradient(135deg,${color},#0f172a)"><span class="clip-title">${escapeHtml(it.shot.title || ('مشهد '+(it.index+1)))}</span><span class="clip-meta">${it.duration.toFixed(1)}s / ${escapeHtml(partTitle(it.shot.part))}</span></button>`;
     }).join('');
     captionTrack.innerHTML = items.map(it => {
       const left = Math.round(it.start * pps);
       const w = Math.max(42, Math.round(it.duration * pps));
-      const currentActive = (checklistPreviewState.time || 0) >= it.start && (checklistPreviewState.time || 0) < it.end ? ' is-active' : '';
-      const selected = String(checklistPreviewState.activeCaptionId || '') === String(it.shot.id) ? ' is-selected' : '';
+      const active = (checklistPreviewState.time || 0) >= it.start && (checklistPreviewState.time || 0) < it.end ? ' is-active' : '';
       const cap = it.shot.caption || it.shot.voiceover || it.shot.title || 'كابشن';
-      const st = captionSettings(it.shot);
-      return `<button class="timeline-caption${currentActive}${selected}" type="button" data-timeline-kind="caption" data-shot-id="${it.shot.id}" data-timeline-time="${it.start}" data-timeline-index="${it.index}" style="left:${left}px;width:${w}px;background:${escapeHtml(st.accent || '#facc15')};color:#111827">${escapeHtml(cap)}</button>`;
+      return `<button class="timeline-caption${active}" type="button" data-timeline-time="${it.start}" data-timeline-index="${it.index}" style="right:${left}px;width:${w}px">${escapeHtml(cap)}</button>`;
     }).join('');
-    audioTrack.innerHTML = `<div class="timeline-audio" style="left:0;width:${Math.max(120,Math.round(total*pps))}px">Voiceover / Music • ${total.toFixed(1)}s</div>`;
+    audioTrack.innerHTML = `<div class="timeline-audio" style="right:0;width:${Math.max(120,Math.round(total*pps))}px">Voiceover / Music • ${total.toFixed(1)}s</div>`;
     updateChecklistTimelinePlayhead();
   }
   function updateChecklistTimelinePlayhead(){
@@ -15935,7 +15809,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const pps = timelinePxPerSecond();
     const time = Math.max(0, Math.min(checklistPreviewState.time || 0, checklistPreviewState.total || 0));
     const x = Math.round(time * pps);
-    playhead.style.left = x + 'px';
+    playhead.style.right = x + 'px';
     const items = timelinePreparedShots();
     const active = items.find(it => time >= it.start && time < it.end) || items[items.length - 1];
     document.querySelectorAll('#checklistTimelineVideoTrack .timeline-clip,#checklistTimelineCaptionTrack .timeline-caption').forEach(el => {
@@ -15955,13 +15829,6 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     await drawPreviewAt(checklistPreviewState.time, false);
     updateChecklistTimelinePlayhead();
   }
-  function timelineTimeFromPointer(event){
-    const canvas = $('checklistTimelineCanvas');
-    if(!canvas) return 0;
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
-    return x / timelinePxPerSecond();
-  }
   function setupChecklistTimelineInteractions(){
     const container = $('checklistTimelineEditor');
     if(container?.dataset.ready === '1') return;
@@ -15970,25 +15837,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       const clip = e.target.closest?.('[data-timeline-time]');
       if(!clip) return;
       e.preventDefault();
-      const shotId = clip.dataset.shotId;
-      const time = Number(clip.dataset.timelineTime) || 0;
-      if(clip.dataset.timelineKind === 'caption') selectCaptionForStyle(shotId, time);
-      else await jumpChecklistTimelineTo(time, true);
+      await jumpChecklistTimelineTo(Number(clip.dataset.timelineTime) || 0, true);
     });
-    const scroll = $('checklistTimelineScroll');
-    let dragging = false;
-    const scrubFromPointer = async e => {
-      const t = timelineTimeFromPointer(e);
-      await jumpChecklistTimelineTo(t, true);
-    };
-    scroll?.addEventListener('pointerdown', async e => {
-      if(e.target.closest?.('[data-timeline-time]')) return;
-      dragging = true;
-      scroll.setPointerCapture?.(e.pointerId);
-      await scrubFromPointer(e);
-    });
-    scroll?.addEventListener('pointermove', async e => { if(dragging) await scrubFromPointer(e); });
-    ['pointerup','pointercancel','mouseleave'].forEach(type => scroll?.addEventListener(type, e => { dragging = false; try{ scroll.releasePointerCapture?.(e.pointerId); }catch(_){} }));
     $('checklistTimelinePrevBtn')?.addEventListener('click', async () => {
       const items = timelinePreparedShots();
       const time = checklistPreviewState.time || 0;
@@ -16002,12 +15852,9 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       const next = items.find(it => it.start > time + .05)?.start ?? (items[items.length-1]?.start || 0);
       await jumpChecklistTimelineTo(next, true);
     });
-    $('checklistRotateVideoBtn')?.addEventListener('click', rotateCurrentPreviewShot);
     $('checklistTimelineZoomInBtn')?.addEventListener('click', () => { checklistPreviewState.timelinePx = timelinePxPerSecond() + 20; renderChecklistTimeline(); });
     $('checklistTimelineZoomOutBtn')?.addEventListener('click', () => { checklistPreviewState.timelinePx = timelinePxPerSecond() - 20; renderChecklistTimeline(); });
     $('checklistPreviewSpeed')?.addEventListener('change', e => { checklistPreviewState.previewSpeed = Math.max(.25, Math.min(2, Number(e.target.value)||1)); });
-    $('checklistEditDefaultCaptionBtn')?.addEventListener('click', () => { checklistPreviewState.activeCaptionId = null; setCaptionControls(baseCaptionStyle()); updateCaptionStyleTargetLabel(); renderChecklistTimeline(); drawPreviewAt(checklistPreviewState.time || 0, false); });
-    $('checklistApplyStyleAllBtn')?.addEventListener('click', applyCurrentCaptionStyleToAll);
   }
 
   function setupChecklistStudio(){
@@ -16023,16 +15870,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     $('checklistPlatformSelect')?.addEventListener('change', populatePlatformSelectors);
     $('checklistPublishTypeSelect')?.addEventListener('change', updateOutputSpec);
     document.querySelectorAll('#checklist-reel input').forEach(input => input.addEventListener('change', updateFileLabels));
-    const captionControlIds = ['checklistCaptionPreset','checklistCaptionPosition','checklistCaptionFont','checklistCaptionIn','checklistCaptionOut','checklistCaptionSeparator'];
-    document.querySelectorAll('#checklist-reel select').forEach(input => input.addEventListener('change', () => {
-      if(captionControlIds.includes(input.id)){
-        if(input.id === 'checklistCaptionPreset') applyCaptionPreset(input);
-        else handleCaptionControlChanged();
-        return;
-      }
-      updateChecklistSummary();
-      drawPreviewAt(checklistPreviewState.time || 0, false);
-    }));
+    document.querySelectorAll('#checklist-reel select').forEach(input => input.addEventListener('change', () => { applyCaptionPreset(input); updateChecklistSummary(); drawPreviewPlaceholder(); }));
     document.querySelectorAll('[data-shot-voiceover],[data-shot-caption],[data-shot-use],[data-shot-start]').forEach(input => input.addEventListener('input', () => { updateChecklistSummary(); renderChecklistTimeline(); drawPreviewAt(checklistPreviewState.time || 0, false); }));
     $('checklistScript')?.addEventListener('input', updateChecklistSummary);
     $('checklistImportScriptBtn')?.addEventListener('click', importChecklistScriptSheet);
@@ -16048,9 +15886,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     });
     setupPreviewInteractions();
     $('checklistResetBtn')?.addEventListener('click', resetChecklist);
-    $('checklistCaptionSize')?.addEventListener('input', handleCaptionControlChanged);
-    ['checklistCaptionColor','checklistCaptionBg','checklistCaptionAccent'].forEach(id => $(id)?.addEventListener('change', handleCaptionControlChanged));
-    ['checklistShowCarName','checklistShowBrandName','checklistShowSceneNumber','checklistShowPartLabel','checklistShowCaptionBox','checklistShowLogo'].forEach(id => $(id)?.addEventListener('change', () => drawPreviewAt(checklistPreviewState.time || 0, false)));
+    $('checklistCaptionSize')?.addEventListener('input', () => { const lbl = $('checklistCaptionSizeLabel'); if(lbl) lbl.textContent = $('checklistCaptionSize').value + 'px'; drawPreviewAt(checklistPreviewState.time || 0, false); });
+    ['checklistCaptionColor','checklistCaptionBg','checklistCaptionAccent','checklistCaptionPosition','checklistCaptionFont','checklistCaptionIn','checklistCaptionOut','checklistCaptionSeparator','checklistShowCarName','checklistShowBrandName','checklistShowSceneNumber','checklistShowPartLabel','checklistShowCaptionBox','checklistShowLogo'].forEach(id => $(id)?.addEventListener('change', () => drawPreviewAt(checklistPreviewState.time || 0, false)));
     drawPreviewPlaceholder();
     $('checklistPartsStrip')?.addEventListener('click', e => {
       const btn = e.target.closest('[data-focus-part]');
@@ -16145,7 +15982,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   }
   function drawOverlay(ctx, w, h, meta){
     const { shot, carName, brandName, caption, logo, progress } = meta;
-    const st = captionSettings(shot);
+    const st = captionSettings();
     const inP = Math.max(0, Math.min(1, progress / .22));
     const outP = Math.max(0, Math.min(1, (1 - progress) / .18));
     const alpha = Math.max(.05, Math.min(1, inP, outP));
@@ -16259,7 +16096,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
           musicPath: sourcePath(checklistElectronFiles.music),
           logoPath: sourcePath(checklistElectronFiles.logo),
           voiceoverScript: shots.map(s => s.voiceover).filter(Boolean).join('\n'),
-          shots:shots.map(s => ({id:s.id,title:s.title,part:s.part,file:s.file ? (sourceName(s.file) || '') : '', filePath: sourcePath(s.file), start:s.start,duration:s.use,voiceover:s.voiceover,caption:s.caption, rotation:s.rotation || 0, captionStyle:s.captionStyle || null}))
+          shots:shots.map(s => ({id:s.id,title:s.title,part:s.part,file:s.file ? (sourceName(s.file) || '') : '', filePath: sourcePath(s.file), start:s.start,duration:s.use,voiceover:s.voiceover,caption:s.caption}))
         };
         studioLog(`بدأ التصدير الحقيقي بـ FFmpeg: ${shots.length} مشهد / ${totalDuration.toFixed(1)} ثانية / ${dims.width}×${dims.height}`);
         const out = $('checklistDownloads');
@@ -16377,163 +16214,5 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       checklistRendering = false;
     }
   }
-
-
-  // v11 player/timeline fix: real video playback preview instead of frame-by-frame seeking.
-  // This keeps preview quality close to the original selected file and prevents the timeline from racing.
-  async function v11PreparePreview(resetFromStart=false){
-    if(checklistPreviewState.raf) cancelAnimationFrame(checklistPreviewState.raf);
-    checklistPreviewState.raf = 0;
-    checklistPreviewState.shots = previewTimelineShots();
-    checklistPreviewState.total = checklistPreviewState.shots.reduce((a,b)=>a+(Number(b.use)||1),0) || 1;
-    if(resetFromStart || checklistPreviewState.time >= checklistPreviewState.total) checklistPreviewState.time = 0;
-    checklistPreviewState.time = Math.max(0, Math.min(checklistPreviewState.time || 0, checklistPreviewState.total));
-    const scrub = $('checklistPreviewScrub');
-    if(scrub){ scrub.max = String(checklistPreviewState.total); scrub.value = String(checklistPreviewState.time); }
-    if(!checklistPreviewState.logo){
-      checklistPreviewState.logo = await loadImageFile(checklistElectronFiles.logo || $('checklistLogoFile')?.files?.[0] || null).catch(()=>null);
-    }
-    updatePreviewControls();
-    renderChecklistTimeline();
-  }
-
-  function v11StopMediaOnly(){
-    try{ directPreviewVideo()?.pause(); }catch(_){ }
-    try{ checklistPreviewState.video?.pause(); }catch(_){ }
-  }
-
-  async function v11DisplayAt(time){
-    checklistPreviewState.time = Math.max(0, Math.min(Number(time)||0, checklistPreviewState.total || 0));
-    const item = shotAtTime(checklistPreviewState.time);
-    const shotDur = Math.max(.1, Number(item.shot.use) || 1);
-    const p = Math.max(0, Math.min(1, item.local / shotDur));
-    const caption = item.shot.caption || item.shot.title || 'كابشن الشاشة';
-    if(item.shot.file){
-      try{
-        const video = await ensurePreviewVideo(item);
-        if(video){
-          hideDirectPreviewPlaceholder();
-          const target = Math.max(0, (Number(item.shot.start)||0) + item.local);
-          await waitVideoReady(video, target);
-          try{ video.pause(); }catch(_){ }
-        }
-      }catch(_){
-        showDirectPreviewPlaceholder('تعذر عرض الفيديو', item.shot.title || 'جرّب فيديو MP4 H.264 أو استخدم ملف آخر.');
-      }
-    }else{
-      showDirectPreviewPlaceholder('لا يوجد فيديو لهذا المشهد', item.shot.title || 'اختار فيديو من جدول المشاهد');
-    }
-    updatePreviewCaptionDom({shot:item.shot, caption}, p);
-    updatePreviewControls();
-    renderChecklistTimeline();
-  }
-
-  async function v11PlayPlaceholder(item){
-    showDirectPreviewPlaceholder('لا يوجد فيديو لهذا المشهد', item.shot.title || 'اختار فيديو من جدول المشاهد');
-    const begin = performance.now();
-    const startTime = checklistPreviewState.time;
-    const localStart = Math.max(0, startTime - item.start);
-    const duration = Math.max(.1, Number(item.shot.use)||1);
-    return new Promise(resolve => {
-      const step = () => {
-        if(!checklistPreviewState.playing) return resolve(false);
-        const speed = Math.max(.25, Math.min(1.25, Number($('checklistPreviewSpeed')?.value || checklistPreviewState.previewSpeed || 1)));
-        checklistPreviewState.previewSpeed = speed;
-        const elapsed = (performance.now() - begin) / 1000 * speed;
-        const local = Math.min(duration, localStart + elapsed);
-        checklistPreviewState.time = Math.min(checklistPreviewState.total || 0, item.start + local);
-        updatePreviewCaptionDom({shot:item.shot, caption:item.shot.caption || item.shot.title || 'كابشن الشاشة'}, local / duration);
-        updatePreviewControls();
-        if(local >= duration - .005) return resolve(true);
-        checklistPreviewState.raf = requestAnimationFrame(step);
-      };
-      checklistPreviewState.raf = requestAnimationFrame(step);
-    });
-  }
-
-  async function v11PlayVideoItem(item){
-    const duration = Math.max(.1, Number(item.shot.use)||1);
-    const localStart = Math.max(0, Math.min(duration, (checklistPreviewState.time || 0) - item.start));
-    const sourceStart = Math.max(0, (Number(item.shot.start)||0) + localStart);
-    let video = null;
-    try{
-      video = await ensurePreviewVideo(item);
-      if(!video) return v11PlayPlaceholder(item);
-      hideDirectPreviewPlaceholder();
-      await waitVideoReady(video, sourceStart);
-      try{ video.muted = true; video.playbackRate = Math.max(.25, Math.min(1.25, Number($('checklistPreviewSpeed')?.value || 1))); }catch(_){ }
-      await video.play().catch(()=>{});
-    }catch(_){
-      return v11PlayPlaceholder(item);
-    }
-    return new Promise(resolve => {
-      const monitor = () => {
-        if(!checklistPreviewState.playing){ try{ video.pause(); }catch(_){} return resolve(false); }
-        const speed = Math.max(.25, Math.min(1.25, Number($('checklistPreviewSpeed')?.value || checklistPreviewState.previewSpeed || 1)));
-        checklistPreviewState.previewSpeed = speed;
-        try{ video.playbackRate = speed; }catch(_){ }
-        const local = Math.max(0, Math.min(duration, (video.currentTime || sourceStart) - (Number(item.shot.start)||0)));
-        checklistPreviewState.time = Math.min(checklistPreviewState.total || 0, item.start + local);
-        updatePreviewCaptionDom({shot:item.shot, caption:item.shot.caption || item.shot.title || 'كابشن الشاشة'}, local / duration);
-        updatePreviewControls();
-        if(local >= duration - .02 || video.ended){ try{ video.pause(); }catch(_){} return resolve(true); }
-        checklistPreviewState.raf = requestAnimationFrame(monitor);
-      };
-      checklistPreviewState.raf = requestAnimationFrame(monitor);
-    });
-  }
-
-  async function v11StartPreviewPlayback(resetFromStart=false){
-    if(checklistPreviewState.playing) return;
-    await v11PreparePreview(resetFromStart);
-    checklistPreviewState.playing = true;
-    checklistPreviewState.paused = false;
-    studioLog(resetFromStart ? 'بدأت المعاينة من أول التايم لاين.' : 'استكمال المعاينة من نفس المكان.');
-    while(checklistPreviewState.playing && (checklistPreviewState.time || 0) < (checklistPreviewState.total || 0)){
-      const item = shotAtTime(checklistPreviewState.time || 0);
-      if(!item || !item.shot){ break; }
-      const completed = item.shot.file ? await v11PlayVideoItem(item) : await v11PlayPlaceholder(item);
-      if(!checklistPreviewState.playing) break;
-      const dur = Math.max(.1, Number(item.shot.use)||1);
-      // Move exactly to the next scene boundary, then continue.
-      checklistPreviewState.time = Math.min(checklistPreviewState.total || 0, item.start + dur + .0001);
-      if(!completed && checklistPreviewState.time >= (checklistPreviewState.total || 0)) break;
-    }
-    if(checklistPreviewState.playing){
-      checklistPreviewState.time = checklistPreviewState.total || checklistPreviewState.time || 0;
-      checklistPreviewState.playing = false;
-      checklistPreviewState.paused = true;
-      v11StopMediaOnly();
-      updatePreviewControls();
-      renderChecklistTimeline();
-      studioLog('انتهت المعاينة.');
-    }
-  }
-
-  async function v11PreviewChecklistVideo(){
-    stopPreviewPlayback();
-    cleanupPreviewVideo();
-    if(checklistPreviewState.logo?.url && checklistPreviewState.logo.revoke !== false){ try{ URL.revokeObjectURL(checklistPreviewState.logo.url); }catch(_){ } }
-    checklistPreviewState.logo = await loadImageFile(checklistElectronFiles.logo || $('checklistLogoFile')?.files?.[0] || null).catch(()=>null);
-    checklistPreviewState.shots = previewTimelineShots();
-    checklistPreviewState.total = checklistPreviewState.shots.reduce((a,b)=>a+(Number(b.use)||1),0) || 1;
-    checklistPreviewState.time = 0;
-    checklistPreviewState.currentIndex = -1;
-    const scrub = $('checklistPreviewScrub'); if(scrub){ scrub.max = String(checklistPreviewState.total); scrub.value = '0'; }
-    await v11DisplayAt(0);
-    await v11StartPreviewPlayback(true);
-  }
-
-  async function v11ToggleChecklistPreview(){
-    if(checklistPreviewState.playing){ stopPreviewPlayback(); return; }
-    await v11StartPreviewPlayback(false);
-  }
-
-  // Rebind function names used by event listeners during setup.
-  startPreviewPlayback = v11StartPreviewPlayback;
-  previewChecklistVideo = v11PreviewChecklistVideo;
-  toggleChecklistPreview = v11ToggleChecklistPreview;
-  drawPreviewAt = async function(time, allowPlay=false){ await v11DisplayAt(time); };
-
   setupCaptionTrendManager();
 })();

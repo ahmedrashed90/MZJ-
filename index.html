@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=209" />
+  <link rel="stylesheet" href="assets/css/style.css?v=230" />
   <link rel="icon" type="image/x-icon" href="assets/favicon.png">
 </head>
 <body>
@@ -411,42 +411,87 @@
           </div>
 
           <section class="card checklist-preview-card checklist-preview-full">
-            <div class="checklist-preview-head">
+            <div class="checklist-preview-head checklist-editor-head">
               <div>
-                <h2>معاينة الفيديو</h2>
-                <p>شغل المعاينة من هنا، وقفها بالزر أو Space، اسحب شريط الوقت، واسحب الكابشن داخل الفيديو لتغيير مكانه.</p>
+                <h2>معاينة وتايم لاين المونتاج</h2>
+                <p>اعمل Preview من التايم لاين، حرّك المؤشر، اختار أي كابشن وعدّل ستايله منفصلًا عن باقي الكابشنات.</p>
               </div>
-              <div class="actions checklist-preview-actions">
-                <button class="btn btn-primary" type="button" id="checklistPreviewBtn">معاينة الفيديو</button>
-                <button class="btn btn-light" type="button" id="checklistPreviewPlayPauseBtn">تشغيل / إيقاف</button>
-              </div>
+              <div class="checklist-preview-hint">Player + Timeline + Caption Editor</div>
             </div>
-            <div class="checklist-preview-layout">
-              <div class="checklist-preview-frame"><div class="checklist-preview-stage"><canvas id="checklistPreviewCanvas" width="540" height="960" tabindex="0" aria-label="معاينة فيديو Checklist"></canvas><div id="checklistPreviewCaptionOverlay" class="checklist-preview-caption-overlay" role="button" tabindex="0" title="اضغط واسحب لتغيير مكان الكابشن">كابشن الشاشة</div></div></div>
-              <div class="checklist-preview-panel">
+            <div class="checklist-preview-layout checklist-editor-layout">
+              <div class="checklist-preview-frame">
+                <div class="checklist-preview-stage">
+                  <video id="checklistPreviewVideo" class="checklist-preview-video" playsinline muted preload="metadata"></video>
+                  <canvas id="checklistPreviewCanvas" width="540" height="960" tabindex="0" aria-label="معاينة فيديو Checklist"></canvas>
+                  <div id="checklistPreviewPlaceholder" class="checklist-preview-placeholder">اختر فيديو من جدول المشاهد ثم اضغط معاينة الفيديو</div>
+                  <div id="checklistPreviewCaptionOverlay" class="checklist-preview-caption-overlay" role="button" tabindex="0" title="اضغط واسحب لتغيير مكان الكابشن">كابشن الشاشة</div>
+                </div>
+              </div>
+              <div class="checklist-preview-panel checklist-editor-panel">
                 <div id="checklistSummary" class="checklist-summary-list"></div>
                 <div class="checklist-preview-control-box">
                   <label class="field"><span>تحريك المعاينة</span><input id="checklistPreviewScrub" type="range" min="0" max="0" step="0.01" value="0"></label>
                   <div class="checklist-preview-time"><span id="checklistPreviewTime">0.0s</span><strong id="checklistPreviewStatus">متوقف</strong></div>
-                  <p class="muted small">اضغط Space للتشغيل/الإيقاف. اسحب الكابشن على المعاينة لتغيير مكانه، ثم عدل الحجم أو اللون أو الخط من لوحة ستايل الكابشن أسفل تحريك المعاينة.</p>
+                  <label class="field checklist-speed-field"><span>سرعة المعاينة</span><select id="checklistPreviewSpeed" class="select"><option value="0.25">0.25x فحص بطيء</option><option value="0.5">0.5x بطيء</option><option value="0.75" selected>0.75x للمراجعة</option><option value="1">1x طبيعي</option><option value="1.25">1.25x</option></select></label>
+                  <p class="muted small">اسحب الكابشن على الفيديو لتغيير مكانه. اختار كابشن من التايم لاين لتعديل ستايله وحده.</p>
                 </div>
+
+                <div class="checklist-timeline-editor checklist-timeline-in-panel" id="checklistTimelineEditor" dir="rtl">
+                  <div class="checklist-timeline-head">
+                    <div>
+                      <h3>تايم لاين المونتاج</h3>
+                      <p>اضغط على أي كابشن أو مشهد للانتقال له. اسحب داخل المسطرة لتحريك المؤشر.</p>
+                    </div>
+                    <div class="checklist-timeline-actions">
+                      <button class="btn btn-primary" type="button" id="checklistPreviewBtn">معاينة الفيديو</button>
+                      <button class="btn btn-light" type="button" id="checklistPreviewPlayPauseBtn">تشغيل / إيقاف</button>
+                      <button class="btn btn-light" type="button" id="checklistTimelinePrevBtn">السابق</button>
+                      <button class="btn btn-light" type="button" id="checklistTimelineNextBtn">التالي</button>
+                      <button class="btn btn-light" type="button" id="checklistRotateVideoBtn">تدوير الفيديو ↻</button>
+                      <button class="btn btn-light" type="button" id="checklistTimelineZoomOutBtn">-</button>
+                      <button class="btn btn-light" type="button" id="checklistTimelineZoomInBtn">+</button>
+                    </div>
+                  </div>
+                  <div class="checklist-timeline-shell">
+                    <div class="checklist-timeline-labels">
+                      <div>الوقت</div>
+                      <div>الفيديو</div>
+                      <div>الكابشن</div>
+                      <div>الفويس</div>
+                    </div>
+                    <div class="checklist-timeline-scroll" id="checklistTimelineScroll">
+                      <div class="checklist-timeline-canvas" id="checklistTimelineCanvas">
+                        <div class="checklist-timeline-ruler" id="checklistTimelineRuler"></div>
+                        <div class="checklist-timeline-track video-track" id="checklistTimelineVideoTrack"></div>
+                        <div class="checklist-timeline-track caption-track" id="checklistTimelineCaptionTrack"></div>
+                        <div class="checklist-timeline-track audio-track" id="checklistTimelineAudioTrack"></div>
+                        <div class="checklist-timeline-playhead" id="checklistTimelinePlayhead"><span></span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="card checklist-style-card checklist-style-card-in-preview">
-            <div class="checklist-section-title">
-              <span class="checklist-badge">6</span>
-              <div><h2>ستايل الكابشن والحركات</h2><p>تحكم في مكان الكابشن، الخط، الألوان، حركة الدخول والخروج والفاصل بين اللقطات.</p></div>
-            </div>
-            <div class="checklist-style-grid">
-              <label class="field"><span>Preset الترند</span><select id="checklistCaptionPreset" class="select"><option value="arabic-review">Arabic Review</option><option value="tiktok-pop">TikTok Pop</option><option value="fast-hype">Fast Hype</option><option value="luxury-clean">Luxury Clean</option><option value="badge-specs">Badge Specs</option></select></label>
-              <label class="field"><span>مكان الكابشن</span><select id="checklistCaptionPosition" class="select"><option value="bottom">أسفل</option><option value="center-bottom" selected>وسط تحت</option><option value="center">وسط</option><option value="top">أعلى</option><option value="custom">مخصص بالسحب</option></select></label>
-              <label class="field"><span>نوع الخط</span><select id="checklistCaptionFont" class="select"><option value="Tajawal" selected>Tajawal</option><option value="Arial">Arial</option><option value="Tahoma">Tahoma</option><option value="Cairo">Cairo</option><option value="system">System</option></select></label>
-              <label class="field"><span>حجم الخط</span><input id="checklistCaptionSize" type="range" min="34" max="86" value="56"><small id="checklistCaptionSizeLabel">56px</small></label>
-              <label class="field"><span>لون الكابشن</span><input id="checklistCaptionColor" type="color" value="#ffffff"></label>
-              <label class="field"><span>لون خلفية الكابشن</span><input id="checklistCaptionBg" type="color" value="#080d19"></label>
-              <label class="field"><span>لون التمييز</span><input id="checklistCaptionAccent" type="color" value="#facc15"></label>
-              <label class="field"><span>حركة الدخول</span><select id="checklistCaptionIn" class="select"><option value="pop" selected>Trend Pop</option><option value="zoom">Punch Zoom</option><option value="slide-up">Slide Up</option><option value="fade">Fade In</option><option value="typewriter">Typewriter</option></select></label>
-              <label class="field"><span>حركة الخروج</span><select id="checklistCaptionOut" class="select"><option value="fade-scale" selected>Fade + Scale</option><option value="fade">Fade Out</option><option value="slide-down">Slide Down</option><option value="zoom-out">Zoom Out</option><option value="flash">Flash Out</option></select></label>
-              <label class="field"><span>الفاصل بين اللقطات</span><select id="checklistCaptionSeparator" class="select"><option value="none">بدون</option><option value="flash" selected>Flash سريع</option><option value="line">خط سريع</option><option value="swipe">Swipe / Whip</option></select></label>
-            </div>
+                  <div class="checklist-section-title checklist-caption-style-title">
+                    <span class="checklist-badge">6</span>
+                    <div><h2>ستايل الكابشن المحدد</h2><p id="checklistCaptionStyleTarget">اختار كابشن من التايم لاين لتعديله وحده، أو عدّل الافتراضي لكل الكابشنات.</p></div>
+                  </div>
+                  <div class="checklist-caption-style-toolbar">
+                    <button class="btn btn-light" type="button" id="checklistEditDefaultCaptionBtn">تعديل الافتراضي</button>
+                    <button class="btn btn-light" type="button" id="checklistApplyStyleAllBtn">تطبيق على كل الكابشنات</button>
+                  </div>
+                  <div class="checklist-style-grid checklist-style-grid-compact">
+                    <label class="field"><span>Preset الترند</span><select id="checklistCaptionPreset" class="select"><option value="arabic-review">Arabic Review</option><option value="tiktok-pop">TikTok Pop</option><option value="fast-hype">Fast Hype</option><option value="luxury-clean">Luxury Clean</option><option value="badge-specs">Badge Specs</option></select></label>
+                    <label class="field"><span>مكان الكابشن</span><select id="checklistCaptionPosition" class="select"><option value="bottom">أسفل</option><option value="center-bottom" selected>وسط تحت</option><option value="center">وسط</option><option value="top">أعلى</option><option value="custom">مخصص بالسحب</option></select></label>
+                    <label class="field"><span>نوع الخط</span><select id="checklistCaptionFont" class="select"><option value="Tajawal" selected>Tajawal</option><option value="Arial">Arial</option><option value="Tahoma">Tahoma</option><option value="Cairo">Cairo</option><option value="system">System</option></select></label>
+                    <label class="field"><span>حجم الخط</span><input id="checklistCaptionSize" type="range" min="34" max="86" value="56"><small id="checklistCaptionSizeLabel">56px</small></label>
+                    <label class="field"><span>لون الكابشن</span><input id="checklistCaptionColor" type="color" value="#ffffff"></label>
+                    <label class="field"><span>لون خلفية الكابشن</span><input id="checklistCaptionBg" type="color" value="#080d19"></label>
+                    <label class="field"><span>لون التمييز</span><input id="checklistCaptionAccent" type="color" value="#facc15"></label>
+                    <label class="field"><span>حركة الدخول</span><select id="checklistCaptionIn" class="select"><option value="pop" selected>Trend Pop</option><option value="zoom">Punch Zoom</option><option value="slide-up">Slide Up</option><option value="fade">Fade In</option><option value="typewriter">Typewriter</option></select></label>
+                    <label class="field"><span>حركة الخروج</span><select id="checklistCaptionOut" class="select"><option value="fade-scale" selected>Fade + Scale</option><option value="fade">Fade Out</option><option value="slide-down">Slide Down</option><option value="zoom-out">Zoom Out</option><option value="flash">Flash Out</option></select></label>
+                    <label class="field"><span>الفاصل بين اللقطات</span><select id="checklistCaptionSeparator" class="select"><option value="none">بدون</option><option value="flash" selected>Flash سريع</option><option value="line">خط سريع</option><option value="swipe">Swipe / Whip</option></select></label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -895,6 +940,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="assets/js/jszip.min.js?v=160"></script>
-    <script src="assets/js/app.js?v=218"></script>
+    <script src="assets/js/app.js?v=230"></script>
 </body>
 </html>
