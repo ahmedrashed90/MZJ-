@@ -15484,6 +15484,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const extra = ensureShotExtra(shot.id);
     extra.rotation = ((Number(extra.rotation)||0) + 90) % 360;
     checklistPreviewState.activeShotId = String(shot.id);
+    const timelineItem = timelinePreparedShots().find(it => String(it.shot?.id) === String(shot.id));
+    if(timelineItem){ checklistPreviewState.time = timelineItem.start; }
     studioLog(`تم تدوير فيديو المشهد ${shot.id} إلى ${extra.rotation} درجة.`);
     renderChecklistTimeline();
     drawPreviewAt(checklistPreviewState.time || 0, false);
@@ -15558,7 +15560,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const canvas = $('checklistPreviewCanvas');
     const ph = $('checklistPreviewPlaceholder');
     if(video){
-      try{ video.pause(); video.style.transform = 'none'; video.style.setProperty('--mzj-video-rotation','0deg'); }catch(_){ }
+      try{ video.pause(); resetPreviewVideoTransform(video); }catch(_){ }
       video.removeAttribute('src');
       try{ video.load(); }catch(_){ }
       video.style.display = 'none';
@@ -15578,6 +15580,67 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     if(ph) ph.style.display = 'none';
   }
   function directPreviewVideo(){ return $('checklistPreviewVideo'); }
+
+  function resetPreviewVideoTransform(video){
+    if(!video) return;
+    try{
+      video.style.setProperty('--mzj-video-rotation', '0deg');
+      video.style.removeProperty('--mzj-video-scale');
+      video.style.setProperty('transform', 'translateZ(0)', 'important');
+      video.style.setProperty('transform-origin', '50% 50%', 'important');
+      video.style.setProperty('inset', '0', 'important');
+      video.style.removeProperty('left');
+      video.style.removeProperty('top');
+      video.style.setProperty('width', '100%', 'important');
+      video.style.setProperty('height', '100%', 'important');
+      video.style.setProperty('max-width', 'none', 'important');
+      video.style.setProperty('max-height', 'none', 'important');
+      video.style.setProperty('object-fit', 'contain', 'important');
+    }catch(_){ }
+  }
+  function normalizedPreviewRotation(rot){
+    const n = ((Number(rot) || 0) % 360 + 360) % 360;
+    return n === 90 || n === 180 || n === 270 ? n : 0;
+  }
+  function applyPreviewVideoRotation(video, rot){
+    if(!video) return;
+    const r = normalizedPreviewRotation(rot);
+    const stage = document.querySelector('#checklist-reel .checklist-preview-stage');
+    try{
+      video.style.setProperty('--mzj-video-rotation', `${r}deg`);
+      video.style.setProperty('transform-origin', '50% 50%', 'important');
+      video.style.setProperty('max-width', 'none', 'important');
+      video.style.setProperty('max-height', 'none', 'important');
+      video.style.setProperty('object-fit', 'contain', 'important');
+      video.style.setProperty('display', 'block', 'important');
+      if(r === 90 || r === 270){
+        const rect = stage?.getBoundingClientRect?.();
+        if(rect && rect.width > 0 && rect.height > 0){
+          video.style.removeProperty('right');
+          video.style.removeProperty('bottom');
+          video.style.setProperty('inset', 'auto', 'important');
+          video.style.setProperty('left', '50%', 'important');
+          video.style.setProperty('top', '50%', 'important');
+          video.style.setProperty('width', `${Math.round(rect.height)}px`, 'important');
+          video.style.setProperty('height', `${Math.round(rect.width)}px`, 'important');
+          video.style.setProperty('transform', `translate(-50%, -50%) rotate(${r}deg) translateZ(0)`, 'important');
+        }else{
+          video.style.setProperty('inset', '0', 'important');
+          video.style.setProperty('width', '100%', 'important');
+          video.style.setProperty('height', '100%', 'important');
+          video.style.setProperty('transform', `rotate(${r}deg) scale(.5625) translateZ(0)`, 'important');
+        }
+      }else{
+        video.style.setProperty('inset', '0', 'important');
+        video.style.removeProperty('left');
+        video.style.removeProperty('top');
+        video.style.setProperty('width', '100%', 'important');
+        video.style.setProperty('height', '100%', 'important');
+        video.style.setProperty('transform', `rotate(${r}deg) translateZ(0)`, 'important');
+      }
+    }catch(_){ }
+  }
+
   async function waitVideoMetadata(video){
     if(!video) return;
     if(video.readyState >= 1 && Number.isFinite(video.duration)) return;
@@ -15716,8 +15779,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
         if(video){
           hideDirectPreviewPlaceholder();
           const rot = Number(item.shot.rotation || getShotExtra(item.shot.id).rotation || 0) || 0;
-          video.style.setProperty('--mzj-video-rotation', `${rot}deg`);
-          video.style.transformOrigin = '50% 50%';
+          applyPreviewVideoRotation(video, rot);
           const target = Math.max(0, (Number(item.shot.start) || 0) + item.local);
           const drift = Math.abs((video.currentTime || 0) - target);
           const isDifferentShot = checklistPreviewState.currentIndex !== item.index;
@@ -16439,8 +16501,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
           hideDirectPreviewPlaceholder();
           const target = Math.max(0, (Number(item.shot.start)||0) + item.local);
           const rot = Number(item.shot.rotation || getShotExtra(item.shot.id).rotation || 0) || 0;
-          video.style.setProperty('--mzj-video-rotation', `${rot}deg`);
-          video.style.transformOrigin = '50% 50%';
+          applyPreviewVideoRotation(video, rot);
           await waitVideoReady(video, target);
           try{ video.pause(); }catch(_){ }
         }
@@ -16488,8 +16549,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       if(!video) return v11PlayPlaceholder(item);
       hideDirectPreviewPlaceholder();
       const rot = Number(item.shot.rotation || getShotExtra(item.shot.id).rotation || 0) || 0;
-      video.style.setProperty('--mzj-video-rotation', `${rot}deg`);
-      video.style.transformOrigin = '50% 50%';
+      applyPreviewVideoRotation(video, rot);
       await waitVideoReady(video, sourceStart);
       try{ video.muted = true; video.playbackRate = Math.max(.25, Math.min(1.25, Number($('checklistPreviewSpeed')?.value || 1))); }catch(_){ }
       await video.play().catch(()=>{});

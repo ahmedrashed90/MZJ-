@@ -8836,3 +8836,17 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 #checklist-reel .checklist-timeline-actions #checklistRotateVideoBtn{
   white-space:nowrap!important;
 }
+
+
+/* v14 rotate preview containment fix */
+#checklist-reel .checklist-preview-stage{
+  overflow:hidden!important;
+}
+#checklist-reel .checklist-preview-stage .checklist-preview-video{
+  transform-origin:50% 50%!important;
+  max-width:none!important;
+  max-height:none!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+  will-change:transform,width,height,left,top!important;
+}
