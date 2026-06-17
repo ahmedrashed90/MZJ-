@@ -568,5 +568,16 @@ service cloud.firestore {
     match /{document=**} {
       allow read, create, update, delete: if false;
     }
+
+    match /publishing_jobs/{docId} {
+      // Jobs are created by the Electron publisher agent and displayed in the web system.
+      allow read, write: if signedIn();
+    }
+
+    match /publish_agent_devices/{docId} {
+      // Optional heartbeat/status documents for local Electron agents.
+      allow read, write: if signedIn();
+    }
+
   }
 }

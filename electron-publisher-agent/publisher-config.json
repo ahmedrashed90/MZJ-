@@ -1,0 +1,13 @@
+{
+  "firebaseConfig": {
+    "apiKey": "AIzaSyCQYrkIcCkaNr5jJ6i0Mm_jZueMG5xxYfo",
+    "authDomain": "mzj-marketing.firebaseapp.com",
+    "projectId": "mzj-marketing",
+    "storageBucket": "mzj-marketing.firebasestorage.app",
+    "messagingSenderId": "248608341168",
+    "appId": "1:248608341168:web:1671790c1bc4b609328f75",
+    "measurementId": "G-NGV75EXFRM"
+  },
+  "jobsCollection": "publishing_jobs",
+  "agentDevicesCollection": "publish_agent_devices"
+}

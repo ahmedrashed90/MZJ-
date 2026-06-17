@@ -1,0 +1,17 @@
+{
+  "name": "mzj-publisher-agent",
+  "version": "1.0.0",
+  "description": "MZJ local publishing agent for reading agenda folders and saving publishing jobs to Firebase.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check main.js"
+  },
+  "dependencies": {
+    "@electron/remote": "^2.1.2",
+    "electron": "^31.7.7",
+    "firebase": "^10.12.5",
+    "mammoth": "^1.8.0"
+  },
+  "devDependencies": {}
+}

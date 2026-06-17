@@ -1,3 +1,5 @@
+window.MZJ_PUBLISHING_JOBS_COLLECTION = "publishing_jobs";
+window.MZJ_PUBLISH_AGENT_DEVICES_COLLECTION = "publish_agent_devices";
 
 function scrubSensitiveLoginUrl(){
   try{
@@ -51,7 +53,7 @@ window.MZJ_WHATSAPP_CONTACTS_COLLECTION = "whatsapp_contacts";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
-const routes = ['dashboard','reports','create-campaign','campaigns','social-publisher','platform-settings','publish-prep','checklist-reel','tasks','calendar','stock','departments','settings'];
+const routes = ['dashboard','reports','create-campaign','campaigns','social-publisher','platform-settings','publish-prep','checklist-reel','tasks','calendar','stock','departments','local-publisher','settings'];
 const pageAliases = {
   database: 'reports',
   report: 'reports',
@@ -74,6 +76,11 @@ const pageAliases = {
   publishing_prep: 'publish-prep',
   prep: 'publish-prep',
   'تجهيز-النشر': 'publish-prep',
+  'local-publisher': 'local-publisher',
+  local_publisher: 'local-publisher',
+  publishing_jobs: 'local-publisher',
+  electron_publisher: 'local-publisher',
+  'جدولة-النشر-المحلي': 'local-publisher',
   'checklist-reel': 'checklist-reel',
   checklist_reel: 'checklist-reel',
   car_reel_checklist: 'checklist-reel',
@@ -172,6 +179,7 @@ function renderRoute(){
   if(route === 'platform-settings') renderPlatformSettingsPage();
   if(route === 'publish-prep') renderPublishPrepPage();
   if(route === 'checklist-reel') renderChecklistReelStudio();
+  if(route === 'local-publisher'){ loadPublishingJobs?.(); renderLocalPublisherPage?.(); }
 }
 function showMessage(id, text){ const el = document.getElementById(id); if(el) el.textContent = text || ''; }
 function escapeHtml(value){ return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
@@ -15071,7 +15079,8 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       setShotText(id, voiceover, caption);
       const enabled = document.querySelector(`[data-shot-enabled="${id}"]`);
       if(enabled && (voiceover || caption)) enabled.checked = true;
-      if(start !== ''){ const el = document.querySelector(`[data-shot-start="${id}"]`); if(el) el.value = Number(start) || 0; }
+      // v17: بداية الاستخدام تكون 0 افتراضيًا دائمًا عند الاستيراد، حتى لو ملف CSV فيه قيمة مختلفة.
+      { const el = document.querySelector(`[data-shot-start="${id}"]`); if(el){ el.value = '0'; el.dispatchEvent(new Event('input',{bubbles:true})); } }
       if(duration !== ''){ const el = document.querySelector(`[data-shot-use="${id}"]`); if(el) el.value = Math.max(.4, Number(duration) || Number(el.value) || 1.2); }
       const trend = String(rowValue(row, ['caption_trend','caption style','caption_style','ترند الكابشن','ستايل الكابشن']) || '').trim();
       if(trend){
@@ -15083,6 +15092,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     });
     buildSelectedVoiceoverScript();
     studioLog(`تم استيراد سكريبت ${imported} مشهد من الملف.`);
+    try{ if(typeof window.mzjReferenceRefreshSlots === 'function') window.mzjReferenceRefreshSlots(); }catch(_){}
   }
 
   function filteredPlatformTypes(platformName){
@@ -16030,7 +16040,11 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     const result = await window.mzjElectron.selectFiles({type:typeMap[kind] || 'file', title:titleMap[kind] || 'اختيار ملف من الجهاز'});
     if(!result?.ok || !result.files?.length) return;
     const file = result.files[0];
-    if(kind === 'video' && shotId){ checklistElectronFiles.shots[shotId] = file; const enabled = document.querySelector(`[data-shot-enabled="${shotId}"]`); if(enabled) enabled.checked = true; }
+    if(kind === 'video' && shotId){
+      checklistElectronFiles.shots[shotId] = file;
+      const enabled = document.querySelector(`[data-shot-enabled="${shotId}"]`); if(enabled) enabled.checked = true;
+      const startEl = document.querySelector(`[data-shot-start="${shotId}"]`); if(startEl){ startEl.value = '0'; startEl.dispatchEvent(new Event('input',{bubbles:true})); }
+    }
     else if(kind === 'voice') checklistElectronFiles.voice = file;
     else if(kind === 'music') checklistElectronFiles.music = file;
     else if(kind === 'logo') { checklistElectronFiles.logo = file; checklistPreviewState.logo = null; }
@@ -16038,8 +16052,10 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     updateFileLabels();
     renderChecklistTimeline();
     drawPreviewAt(checklistPreviewState.time || 0, false);
+    if(typeof window.mzjReferenceRefreshSlots === 'function') window.mzjReferenceRefreshSlots();
     studioLog(file.path ? (file.previewReady ? `تم اختيار ملف محلي وتجهيز نسخة معاينة: ${file.name}` : `تم اختيار ملف محلي: ${file.name}${file.previewError ? ' - تنبيه: تعذر تجهيز نسخة معاينة' : ''}`) : `تم اختيار الملف: ${file.name}`);
   }
+  window.mzjChecklistPickVideoForShot = pickChecklistNativeFile;
 
 
   function timelinePreparedShots(){
@@ -16204,7 +16220,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
     renderChecklistTimeline();
     $('checklistPlatformSelect')?.addEventListener('change', populatePlatformSelectors);
     $('checklistPublishTypeSelect')?.addEventListener('change', updateOutputSpec);
-    document.querySelectorAll('#checklist-reel input').forEach(input => input.addEventListener('change', updateFileLabels));
+    document.querySelectorAll('#checklist-reel input').forEach(input => input.addEventListener('change', () => { updateFileLabels(); if(typeof window.mzjReferenceRefreshSlots === 'function') window.mzjReferenceRefreshSlots(); }));
     const captionControlIds = ['checklistCaptionPreset','checklistCaptionPosition','checklistCaptionFont','checklistCaptionIn','checklistCaptionOut','checklistCaptionSeparator'];
     document.querySelectorAll('#checklist-reel select').forEach(input => input.addEventListener('change', () => {
       if(captionControlIds.includes(input.id)){
@@ -16216,6 +16232,7 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
       drawPreviewAt(checklistPreviewState.time || 0, false);
     }));
     document.querySelectorAll('[data-shot-voiceover],[data-shot-caption],[data-shot-use],[data-shot-start]').forEach(input => input.addEventListener('input', () => { updateChecklistSummary(); renderChecklistTimeline(); drawPreviewAt(checklistPreviewState.time || 0, false); }));
+    document.querySelectorAll('[data-shot-enabled]').forEach(input => input.addEventListener('change', () => { const id = input.dataset.shotEnabled; const startEl = document.querySelector(`[data-shot-start="${id}"]`); if(startEl){ startEl.value = '0'; startEl.dispatchEvent(new Event('input',{bubbles:true})); } }));
     $('checklistScript')?.addEventListener('input', updateChecklistSummary);
     $('checklistImportScriptBtn')?.addEventListener('click', importChecklistScriptSheet);
     $('checklistBuildScriptBtn')?.addEventListener('click', () => { const text = buildSelectedVoiceoverScript(); studioLog(text ? 'تم تجميع سكريبت المشاهد المختارة.' : 'اختار مشاهد أو اكتب فويس أوفر للمشاهد أولاً.'); });
@@ -16760,3 +16777,640 @@ try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
   mountV15PreviewLayout();
   setupCaptionTrendManager();
 })();
+
+
+
+
+  // v19: expose checklist data for Reference Slots and CapCut draft export.
+  window.mzjChecklistGetActiveShots = function(){ try{ return activeShotRows(); }catch(_){ return []; } };
+  window.mzjChecklistGetAllShots = function(){ try{ return CHECKLIST_SHOTS.map(shotRowData); }catch(_){ return []; } };
+  window.mzjChecklistGetFileForShot = function(id){ try{ return checklistElectronFiles.shots[id] || document.querySelector(`[data-shot-file="${id}"]`)?.files?.[0] || null; }catch(_){ return null; } };
+  window.mzjChecklistSetNativeFileForShot = function(id, file){
+    try{
+      if(!id || !file) return null;
+      checklistElectronFiles.shots[String(id)] = file;
+      const enabled = document.querySelector(`[data-shot-enabled="${id}"]`); if(enabled) enabled.checked = true;
+      const startEl = document.querySelector(`[data-shot-start="${id}"]`); if(startEl){ startEl.value = '0'; startEl.dispatchEvent(new Event('input',{bubbles:true})); }
+      updateFileLabels(); renderChecklistTimeline(); drawPreviewAt(checklistPreviewState.time || 0, false);
+      return file;
+    }catch(_){ return file || null; }
+  };
+  window.mzjChecklistGetMediaFiles = function(){ try{ return { voice: checklistElectronFiles.voice || $('checklistVoiceFile')?.files?.[0] || null, music: checklistElectronFiles.music || $('checklistMusicFile')?.files?.[0] || null, logo: checklistElectronFiles.logo || $('checklistLogoFile')?.files?.[0] || null }; }catch(_){ return {}; } };
+
+/* v19 Reference-Based Editing: Slots are the selection UI + CapCut Draft export beta */
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const q = (sel, root=document) => root.querySelector(sel);
+  const qa = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+  const esc = (s) => String(s ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\\':'\\\\','"':'&quot;'}[ch] || ch));
+  const state = { refFile:null, refUrl:'', duration:0, slots:[], selectedSlotIndex:1 };
+  let mzjSlotSyncing = false;
+  const partLabel = {hook:'Hook',exterior:'Exterior',details:'Details',interior:'Interior',tech:'Tech',practical:'Practical',cta:'CTA'};
+  const transitionOptions = ['Cut','Fade','Flash','Swipe','Zoom','Blur Flash','Whip'];
+  const captionStyles = ['Arabic Review','TikTok Pop','Fast Hype','Luxury Clean','Badge Specs','Offer Style'];
+  function norm(v){ return String(v||'').trim().toLowerCase(); }
+  function setStatus(msg){ const log=$('checklistLog'); if(log) log.textContent = msg; }
+  function fmt(n){ return (Number(n)||0).toFixed(1)+'s'; }
+  function fileName(src){ return src?.name || src?.file?.name || ''; }
+  function filePath(src){ return src?.path || ''; }
+  function inferStyleFromPrompt(){
+    const p = norm($('mzjReferencePrompt')?.value || '');
+    if(/فخم|luxury|هادئ|clean/.test(p)) return {preset:'luxury-clean',transition:'Fade',caption:'Luxury Clean'};
+    if(/سريع|ترند|تيك|tiktok|fast|hype/.test(p)) return {preset:'fast-hype',transition:'Flash',caption:'Fast Hype'};
+    if(/عرض|offer|سعر|تمويل/.test(p)) return {preset:'badge-specs',transition:'Swipe',caption:'Badge Specs'};
+    return {preset:'arabic-review',transition:'Cut',caption:'Arabic Review'};
+  }
+  function checklistShots(){ return (window.mzjChecklistGetAllShots?.() || []).map(x => ({...x, id:String(x.id)})); }
+  function activeChecklistShots(){ return (window.mzjChecklistGetActiveShots?.() || []).map(x => ({...x, id:String(x.id)})); }
+  function allShotRows(){
+    return qa('[data-shot-enabled]').map(ch => {
+      const id = String(ch.dataset.shotEnabled || '');
+      const row = ch.closest('tr');
+      const shotData = checklistShots().find(s => String(s.id) === id) || {};
+      const part = shotData.part || (row?.querySelector('.checklist-part-tag')?.className||'').match(/is-([a-z]+)/)?.[1] || row?.dataset.part || 'hook';
+      const src = window.mzjChecklistGetFileForShot?.(id) || null;
+      const fileNameText = q(`[data-shot-file-name="${id}"]`)?.textContent?.trim() || fileName(src) || '';
+      const enabled = !!ch.checked;
+      return {
+        id, row, enabled, src, filePath:filePath(src), fileName:fileNameText,
+        hasFile: !!src || (!!fileNameText && !/اختيار فيديو|غير مختار/i.test(fileNameText)),
+        title: shotData.title || row?.querySelector('.checklist-shot-title')?.textContent?.trim() || `مشهد ${id}`,
+        part,
+        useEl:q(`[data-shot-use="${id}"]`),
+        startEl:q(`[data-shot-start="${id}"]`),
+        captionEl:q(`[data-shot-caption="${id}"]`),
+        voiceEl:q(`[data-shot-voiceover="${id}"]`),
+        enabledEl:ch
+      };
+    });
+  }
+  function activeRows(){ return allShotRows().filter(r => r.enabled || r.hasFile); }
+  function rowsForSlotAssignment(){ const selected = activeRows(); return selected.length ? selected : allShotRows(); }
+  function rowById(id){ return allShotRows().find(r => String(r.id) === String(id)); }
+  function ensureShotEnabled(row){
+    if(!row) return;
+    if(row.enabledEl && !row.enabledEl.checked){ row.enabledEl.checked = true; }
+    if(row.startEl){ row.startEl.value = '0'; }
+  }
+  function applySlotToRow(slot, row){
+    if(!slot || !row) return;
+    const oldSync = mzjSlotSyncing; mzjSlotSyncing = true;
+    try{
+      ensureShotEnabled(row);
+      if(row.useEl){ row.useEl.value = String(Math.max(.4, Number(slot.duration)||1.2)); }
+      if(row.startEl){ row.startEl.value = '0'; }
+      slot.shotId = String(row.id);
+      if(!slot.caption && row.captionEl?.value) slot.caption = row.captionEl.value;
+      if(!slot.voiceover && row.voiceEl?.value) slot.voiceover = row.voiceEl.value;
+    } finally { mzjSlotSyncing = oldSync; }
+  }
+  function linkSlotsToRows(force=false){
+    const rows = rowsForSlotAssignment();
+    if(!rows.length || !state.slots.length) return;
+    const used = new Set(force ? [] : state.slots.map(s => String(s.shotId||'')).filter(Boolean));
+    state.slots.forEach(slot => {
+      if(!force && slot.shotId && rowById(slot.shotId)) return;
+      const preferred = rows.find(r => !used.has(String(r.id)) && r.part === slot.part);
+      const any = rows.find(r => !used.has(String(r.id))) || rows[(slot.index-1) % rows.length];
+      const row = preferred || any;
+      if(row){ slot.shotId = String(row.id); used.add(String(row.id)); applySlotToRow(slot,row); }
+    });
+  }
+  function makeSlots(duration, keepExisting=false){
+    const previous = keepExisting ? state.slots.map(s => ({...s})) : [];
+    const rows = activeRows();
+    const count = Math.max(4, Math.min(24, rows.length || Math.round((duration || 45)/3)));
+    const style = inferStyleFromPrompt();
+    const baseParts = ['hook','hook','exterior','exterior','details','details','interior','interior','tech','practical','practical','cta'];
+    const target = duration && duration > 8 ? Math.min(duration, 120) : (rows.reduce((a,r)=>a+(Number(r.useEl?.value)||1.4),0) || 45);
+    const slots=[];
+    for(let i=0;i<count;i++){
+      const prev = previous[i] || {};
+      const part = prev.part || baseParts[i % baseParts.length];
+      let dur = part==='hook' ? 1.4 : part==='cta' ? 2.0 : part==='interior' ? 1.7 : part==='practical' ? 1.8 : 1.25;
+      slots.push({
+        index:i+1,
+        part,
+        duration:Number(prev.duration)||dur,
+        transition:prev.transition||style.transition,
+        captionStyle:prev.captionStyle||style.caption,
+        shotId:prev.shotId||'',
+        caption:prev.caption||'',
+        voiceover:prev.voiceover||''
+      });
+    }
+    if(!keepExisting){
+      const sum = slots.reduce((a,b)=>a+b.duration,0) || 1;
+      const scale = target / sum;
+      slots.forEach(s => s.duration = Math.max(.7, Math.min(4.0, +(s.duration*scale).toFixed(1))));
+    }
+    state.slots = slots;
+    linkSlotsToRows(true);
+    return state.slots;
+  }
+  function slotOptions(selectedId){
+    const rows = allShotRows();
+    const active = rows.filter(r => r.enabled || r.hasFile);
+    const rest = rows.filter(r => !active.some(a=>String(a.id)===String(r.id)));
+    const ordered = active.concat(rest);
+    return ['<option value="">بدون ربط</option>'].concat(ordered.map(r => {
+      const tag = r.hasFile ? ' · فيديو' : (r.enabled ? ' · مفعل' : '');
+      return `<option value="${esc(r.id)}" ${String(selectedId||'')===String(r.id)?'selected':''}>${esc(r.id)} - ${esc(r.title)}${tag}</option>`;
+    })).join('');
+  }
+  function updateRowTextFromSlot(slot){
+    if(!slot) return;
+    const row = rowById(slot.shotId);
+    const card = q(`[data-slot-index="${slot.index}"]`);
+    const cap = card?.querySelector(`[data-slot-caption-text="${slot.index}"]`)?.value;
+    const voice = card?.querySelector(`[data-slot-voice-text="${slot.index}"]`)?.value;
+    if(cap != null) slot.caption = cap;
+    if(voice != null) slot.voiceover = voice;
+    if(!row) return;
+    if(cap != null && row.captionEl){ row.captionEl.value = cap; }
+    if(voice != null && row.voiceEl){ row.voiceEl.value = voice; }
+  }
+  function slotTimelineRows(){
+    return state.slots.map(s => ({ slot:s, row:rowById(s.shotId) })).filter(x => x.row);
+  }
+  function renderSlots(){
+    const box=$('mzjReferenceSlots'); if(!box) return;
+    if(!state.slots.length){ box.innerHTML='<div class="empty-state">اختار فيديو مرجعي لعرض Shot Slots وربطها بالمشاهد.</div>'; return; }
+    linkSlotsToRows(false);
+    const header = `<div class="mzj-slots-toolbar"><p class="muted">Shot Slots تحت الفيديو المرجعي. اربط كل Slot بمشهد، واختار الفيديو والكابشن والفويس من نفس الكارت.</p><button class="btn btn-primary" type="button" id="mzjExportCapCutDraftBtnInline">تصدير مشروع CapCut</button></div><div class="mzj-capcut-draft-note" id="mzjCapcutDraftNote"></div>`;
+    const html = state.slots.map(s => {
+      const row = rowById(s.shotId);
+      const fileState = row?.hasFile ? (row.fileName || s.fileName || 'فيديو محلي جاهز') : (s.fileName || 'لم يتم اختيار فيديو للمشهد');
+      const caption = row?.captionEl?.value?.trim() || s.caption || '';
+      const voice = row?.voiceEl?.value?.trim() || s.voiceover || '';
+      const shotTitle = row ? `${row.id} - ${row.title}` : 'غير مربوط بمشهد';
+      const transOpts = transitionOptions.map(x => `<option value="${esc(x)}" ${x===s.transition?'selected':''}>${esc(x)}</option>`).join('');
+      const styleOpts = captionStyles.map(x => `<option value="${esc(x)}" ${x===s.captionStyle?'selected':''}>${esc(x)}</option>`).join('');
+      const checked = row?.enabled || row?.hasFile || s.shotId ? 'checked' : '';
+      const cls = row?.hasFile ? 'is-ready' : (s.shotId ? 'is-linked' : '');
+      return `<article class="mzj-slot-card mzj-slot-card-detailed ${cls} ${state.selectedSlotIndex===s.index?'is-selected':''}" data-slot-index="${s.index}">
+        <div class="mzj-slot-topline"><strong>Slot ${s.index}</strong><span>${esc(partLabel[s.part]||s.part)}</span><em>${fmt(s.duration)}</em></div>
+        <div class="mzj-slot-link-line"><input class="mzj-slot-check" type="checkbox" data-slot-enable="${s.index}" ${checked}><label>ربط بالمشهد<select class="select mzj-slot-shot-select" data-slot-shot="${s.index}">${slotOptions(s.shotId)}</select></label></div>
+        <div class="mzj-slot-linked-shot"><b>${esc(shotTitle)}</b><span>${esc(fileState)}</span></div>
+        <div class="mzj-slot-controls-grid">
+          <label>مدة Slot<input class="control" type="number" min="0.4" step="0.1" value="${Number(s.duration)||1.2}" data-slot-duration="${s.index}"></label>
+          <label>بداية الاستخدام<input class="control" type="number" value="0" disabled></label>
+          <label>الفاصل<select class="select" data-slot-transition="${s.index}">${transOpts}</select></label>
+          <label>ستايل الكابشن<select class="select" data-slot-caption-style="${s.index}">${styleOpts}</select></label>
+        </div>
+        <div class="mzj-slot-edit-grid">
+          <label>كابشن المشهد<textarea data-slot-caption-text="${s.index}" placeholder="اكتب كابشن المشهد">${esc(caption)}</textarea></label>
+          <label>فويس أوفر المشهد<textarea data-slot-voice-text="${s.index}" placeholder="اكتب فويس أوفر المشهد">${esc(voice)}</textarea></label>
+        </div>
+        <div class="mzj-slot-actions"><button class="btn btn-primary" type="button" data-slot-pick-video="${s.index}">اختيار فيديو</button><button class="btn btn-light" type="button" data-slot-focus-row="${esc(s.shotId||'')}">فتح المشهد</button></div>
+      </article>`;
+    }).join('');
+    box.innerHTML = header + html;
+  }
+  function updateRefStats(){
+    const stats=$('mzjReferenceStats'); if(!stats) return;
+    const style=inferStyleFromPrompt();
+    const linked = state.slots.filter(s=>s.shotId).length;
+    stats.innerHTML = `<div><span>مدة المرجع</span><strong>${state.duration?fmt(state.duration):'—'}</strong></div><div><span>Slots</span><strong>${state.slots.length || '—'}</strong></div><div><span>مربوط بمشاهد</span><strong>${linked}/${state.slots.length || 0}</strong></div><div><span>الستايل</span><strong>${esc(style.caption)}</strong></div>`;
+  }
+  function fallbackReferenceDuration(){
+    const rows = activeRows();
+    const total = rows.reduce((a,r)=>a+(Number(r.useEl?.value)||0),0);
+    return total > 5 ? total : 57;
+  }
+  function forceBuildReferenceSlots(duration){
+    state.duration = Number(duration) > 0 ? Number(duration) : fallbackReferenceDuration();
+    state.slots = makeSlots(state.duration);
+    linkSlotsToRows(true);
+    renderSlots(); updateRefStats(); renderMiniTimeline();
+    const linked = state.slots.filter(s=>s.shotId).length;
+    setStatus(`تم إنشاء ${state.slots.length} Slot من الفيديو المرجعي وربط ${linked} Slot بالمشاهد.`);
+  }
+  function renderReferenceNow(message){
+    if(!state.slots.length) state.slots = makeSlots(state.duration || 57);
+    try{
+      linkSlotsToRows(false);
+      renderSlots(); updateRefStats(); renderMiniTimeline();
+    }catch(error){
+      console.error('render reference slots failed', error);
+      const box=$('mzjReferenceSlots');
+      if(box) box.innerHTML = '<div class="empty-state">حدث خطأ أثناء عرض Shot Slots. أعد اختيار الفيديو المرجعي أو حدّث الصفحة.</div>';
+    }
+    if(message) setStatus(message);
+  }
+  async function pickReference(){
+    if(window.mzjElectron?.selectFiles){
+      try{
+        const r = await window.mzjElectron.selectFiles({type:'video', title:'اختيار فيديو مونتاج مرجعي'});
+        if(r?.ok && r.files?.[0]){
+          state.refFile = r.files[0];
+          state.refUrl = r.files[0].url || r.files[0].proxyUrl || '';
+          if($('mzjRefVideoName')) $('mzjRefVideoName').value = state.refFile.name || state.refFile.path || 'Reference video';
+          state.duration = state.duration || 57;
+          state.slots = makeSlots(state.duration);
+          renderReferenceNow('تم اختيار الفيديو المرجعي. تم إنشاء Shot Slots فورًا، وجاري تحليل المدة.');
+          await analyzeReference();
+          return;
+        }
+      }catch(error){ console.warn('reference picker failed', error); }
+    }
+    $('mzjRefVideoInput')?.click();
+  }
+  async function analyzeReference(){
+    try{
+      const inputFile = $('mzjRefVideoInput')?.files?.[0];
+      if(inputFile){ state.refFile=inputFile; state.refUrl=URL.createObjectURL(inputFile); }
+      if(!state.refFile){ setStatus('اختار فيديو مرجعي الأول.'); return; }
+      if($('mzjRefVideoName')) $('mzjRefVideoName').value = state.refFile.name || state.refFile.path || 'Reference video';
+      if(!state.slots.length){ state.duration = state.duration || 57; state.slots = makeSlots(state.duration); renderReferenceNow('تم إنشاء Shot Slots مبدئيًا.'); }
+      const url = state.refUrl || (state.refFile instanceof File ? URL.createObjectURL(state.refFile) : (state.refFile.url || state.refFile.proxyUrl || ''));
+      state.refUrl = url;
+      let duration = 0;
+      if(url){
+        const v=document.createElement('video'); v.preload='metadata'; v.src=url; v.muted=true; v.playsInline=true;
+        duration = await new Promise(resolve=>{
+          let doneCalled=false;
+          const done=()=>{ if(doneCalled) return; doneCalled=true; resolve(Number(v.duration)||0); };
+          v.onloadedmetadata=done;
+          v.oncanplay=done;
+          v.onerror=()=>resolve(0);
+          setTimeout(()=>resolve(Number(v.duration)||0),3500);
+        });
+      }
+      const old = state.slots.map(s=>({shotId:s.shotId,caption:s.caption,voiceover:s.voiceover,transition:s.transition,captionStyle:s.captionStyle,duration:s.duration,part:s.part}));
+      state.duration = duration || state.duration || 57;
+      state.slots = makeSlots(state.duration);
+      state.slots.forEach((slot,i)=>{
+        const prev=old[i]||{};
+        if(prev.shotId) slot.shotId=prev.shotId;
+        if(prev.caption) slot.caption=prev.caption;
+        if(prev.voiceover) slot.voiceover=prev.voiceover;
+        if(prev.transition) slot.transition=prev.transition;
+        if(prev.captionStyle) slot.captionStyle=prev.captionStyle;
+      });
+      linkSlotsToRows(false);
+      renderSlots(); updateRefStats(); renderMiniTimeline();
+      setStatus(`تم تحليل الفيديو المرجعي وظهرت ${state.slots.length} Shot Slot.`);
+    }catch(error){
+      console.error('reference analysis failed', error);
+      state.duration = state.duration || 57;
+      if(!state.slots.length) state.slots = makeSlots(state.duration);
+      renderReferenceNow('تم إنشاء Shot Slots، لكن تحليل المدة لم يكتمل. تقدر تكمل الربط يدويًا.');
+    }
+  }
+  function applyReferenceToShots(){
+    if(!state.slots.length) state.slots = makeSlots(state.duration || 45);
+    linkSlotsToRows(false);
+    state.slots.forEach(slot => { const row = rowById(slot.shotId); if(row) applySlotToRow(slot,row); });
+    updateRefStats(); renderSlots(); renderMiniTimeline();
+    setStatus('تم تطبيق تفاصيل الـ Slots على التايم لاين والمشاهد المرتبطة.');
+  }
+  const toolData = {
+    media:[['مشاهد Checklist','المواد المختارة من الجدول'],['Reference Slots','إيقاع الفيديو المرجعي'],['Replace Clip','استبدال اللقطة المحددة'],['Fit / Cover','تحكم عرض الفيديو']],
+    audio:[['Voice Over','الفويس أوفر الكامل'],['Music Bed','موسيقى خلفية'],['Fade In/Out','تنعيم الصوت'],['Volume Mix','توازن الصوت']],
+    text:[['Caption Block','كابشن مستقل'],['Badge Specs','مواصفات داخل بادج'],['Highlight Word','تمييز كلمة'],['CTA Text','دعوة تواصل']],
+    transitions:[['Cut','قص مباشر'],['Flash','فلاش سريع'],['Swipe','سحب جانبي'],['Zoom','زوم ترندي']],
+    effects:[['Luxury Glow','إضاءة فخمة'],['Motion Blur','تمويه حركة'],['Vignette','تركيز على العربية'],['Camera Shake','هزة بسيطة']],
+    captions:[['Arabic Review','ستايل فويس أوفر'],['TikTok Pop','كابشن سريع'],['Fast Hype','ريل سريع'],['Luxury Clean','نظيف وفخم']],
+    templates:[['Car Review 60s','قالب ريل مواصفات'],['Showroom Hook','افتتاح معرض'],['Offer Reel','تمويل وعروض'],['Reference Template','من فيديو جاهز']]
+  };
+  function renderTool(tool='media'){
+    const box=$('mzjToolContent'); if(!box) return;
+    box.innerHTML=(toolData[tool]||toolData.media).map(item=>`<div class="mzj-tool-item" data-tool-item="${esc(item[0])}"><strong>${esc(item[0])}</strong><span>${esc(item[1])}</span></div>`).join('');
+  }
+  function renderMiniTimeline(){
+    const box=$('mzjEditorMiniTimeline'); if(!box) return;
+    const linked = slotTimelineRows();
+    const rows = linked.length ? linked.map(x=>x.row) : activeRows();
+    if(!rows.length){ box.innerHTML='<div class="empty-state">اختار فيديو مرجعي واربط الـ Slots بالمشاهد، ثم اضغط إرسال إلى Timeline.</div>'; return; }
+    const durations = rows.map((r,i)=> Number(linked[i]?.slot?.duration || r.useEl?.value)||1.4);
+    const total = durations.reduce((a,b)=>a+b,0)||1;
+    const width=940; let acc=0;
+    const videoBlocks = rows.map((r,i)=>{ const left=acc/total*width; const w=Math.max(36,durations[i]/total*width); acc+=durations[i]; return `<div class="mzj-editor-block video" data-editor-item="Clip ${r.id}" style="left:${left}px;width:${w}px">${esc(r.id)} · ${esc(r.title)}</div>`; }).join('');
+    acc=0;
+    const capBlocks = rows.map((r,i)=>{ const left=acc/total*width; const w=Math.max(36,durations[i]/total*width); acc+=durations[i]; return `<div class="mzj-editor-block caption" data-editor-item="Caption ${r.id}" style="left:${left}px;width:${w}px">${esc(r.captionEl?.value||r.title)}</div>`; }).join('');
+    const fxBlocks = rows.map((r,i)=>{ const tr=linked[i]?.slot?.transition||'Cut'; const left=durations.slice(0,i+1).reduce((a,b)=>a+b,0)/total*width-12; return `<div class="mzj-editor-block fx" data-editor-item="Transition ${i+1}" style="left:${Math.max(0,left)}px;width:30px">${esc(tr.slice(0,2))}</div>`; }).join('');
+    box.innerHTML = `<div class="mzj-editor-row"><div class="mzj-editor-row-label">Video</div><div class="mzj-editor-row-track" style="width:${width}px">${videoBlocks}</div></div><div class="mzj-editor-row"><div class="mzj-editor-row-label">Caption</div><div class="mzj-editor-row-track" style="width:${width}px">${capBlocks}</div></div><div class="mzj-editor-row"><div class="mzj-editor-row-label">FX</div><div class="mzj-editor-row-track" style="width:${width}px">${fxBlocks}</div></div><div class="mzj-editor-row"><div class="mzj-editor-row-label">Audio</div><div class="mzj-editor-row-track" style="width:${width}px"><div class="mzj-editor-block audio" data-editor-item="Voice Over" style="left:0;width:${width}px">Voice Over / Music</div></div></div>`;
+  }
+  function handleSlotChange(target){
+    const idx = Number(target.dataset.slotShot || target.dataset.slotDuration || target.dataset.slotTransition || target.dataset.slotCaptionStyle || target.dataset.slotEnable || 0);
+    const slot = state.slots.find(s => Number(s.index) === idx);
+    if(!slot) return;
+    if(target.dataset.slotShot){ slot.shotId = String(target.value||''); const row = rowById(slot.shotId); if(row) applySlotToRow(slot,row); }
+    if(target.dataset.slotEnable){ const row = rowById(slot.shotId); if(row){ row.enabledEl.checked = !!target.checked; row.enabledEl.dispatchEvent(new Event('change',{bubbles:true})); } }
+    if(target.dataset.slotDuration){ slot.duration = Math.max(.4, Number(target.value)||1.2); const row = rowById(slot.shotId); if(row) applySlotToRow(slot,row); }
+    if(target.dataset.slotTransition){ slot.transition = target.value || 'Cut'; }
+    if(target.dataset.slotCaptionStyle){ slot.captionStyle = target.value || 'Arabic Review'; }
+    renderSlots(); updateRefStats(); renderMiniTimeline();
+  }
+  function srtTime(sec){
+    sec = Math.max(0, Number(sec)||0);
+    const h=String(Math.floor(sec/3600)).padStart(2,'0');
+    const m=String(Math.floor((sec%3600)/60)).padStart(2,'0');
+    const s=String(Math.floor(sec%60)).padStart(2,'0');
+    const ms=String(Math.floor((sec-Math.floor(sec))*1000)).padStart(3,'0');
+    return `${h}:${m}:${s},${ms}`;
+  }
+  function collectCapCutPlan(){
+    if(!state.slots.length) state.slots = makeSlots(state.duration || 45);
+    linkSlotsToRows(false);
+    let t=0;
+    const clips = state.slots.map(slot => {
+      const row = rowById(slot.shotId);
+      const src = (slot._fileRef || (row ? (window.mzjChecklistGetFileForShot?.(row.id) || row.src || null) : null) || (slot.filePath ? {path:slot.filePath, name:slot.fileName || `slot_${slot.index}.mp4`} : null));
+      const duration = Math.max(.4, Number(slot.duration)||1.2);
+      const clip = {
+        slot:slot.index,
+        sceneId:row?.id || '',
+        sceneName:row?.title || '',
+        part:slot.part,
+        fileName:fileName(src) || slot.fileName || row?.fileName || '',
+        filePath:filePath(src) || slot.filePath || '',
+        sourceStart:0,
+        timelineStart:+t.toFixed(3),
+        duration:+duration.toFixed(3),
+        timelineEnd:+(t+duration).toFixed(3),
+        transition:slot.transition || 'Cut',
+        captionStyle:slot.captionStyle || 'Arabic Review',
+        caption:row?.captionEl?.value?.trim() || '',
+        voiceover:row?.voiceEl?.value?.trim() || ''
+      };
+      t += duration;
+      return clip;
+    }).filter(c => c.sceneId && (c.filePath || c.fileName));
+    const media = window.mzjChecklistGetMediaFiles?.() || {};
+    const dims = (() => { try { const opt = $('checklistPublishTypeSelect')?.selectedOptions?.[0]; return { width:Number(opt?.dataset.width)||1080, height:Number(opt?.dataset.height)||1920 }; } catch(_){ return {width:1080,height:1920}; } })();
+    return {
+      app:'MZJ Reel Studio',
+      type:'capcut-draft-beta',
+      createdAt:new Date().toISOString(),
+      reference:{ name:fileName(state.refFile)||'', path:filePath(state.refFile)||'', duration:state.duration||0, prompt:$('mzjReferencePrompt')?.value||'' },
+      project:{ name:'MZJ CapCut Draft Beta', width:dims.width, height:dims.height, duration:+t.toFixed(3) },
+      audio:{ voiceover:{ name:fileName(media.voice)||'', path:filePath(media.voice)||'' }, music:{ name:fileName(media.music)||'', path:filePath(media.music)||'' } },
+      logo:{ name:fileName(media.logo)||'', path:filePath(media.logo)||'' },
+      clips
+    };
+  }
+  async function exportCapCutDraft(){
+    const plan = collectCapCutPlan();
+    if(!plan.clips.length){ setStatus('لا توجد Slots مرتبطة بمشاهد لتصدير مشروع CapCut.'); return; }
+    const srt = plan.clips.map((c,i)=>`${i+1}\n${srtTime(c.timelineStart)} --> ${srtTime(c.timelineEnd)}\n${c.caption || c.sceneName}\n`).join('\n');
+    const csv = ['slot,scene_id,scene_name,file_path,timeline_start,duration,caption,voiceover,transition,caption_style'].concat(plan.clips.map(c => [c.slot,c.sceneId,c.sceneName,c.filePath,c.timelineStart,c.duration,c.caption,c.voiceover,c.transition,c.captionStyle].map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(','))).join('\n');
+    const fileNameOut = `MZJ_CapCut_Package_${Date.now()}.zip`;
+    if(window.mzjElectron?.saveCapCutPackage){
+      try{
+        setStatus('جاري تصدير باكدج CapCut ونسخ فيديوهات المشاهد...');
+        const nativeResult = await window.mzjElectron.saveCapCutPackage({ fileName:fileNameOut, plan, srt, csv });
+        if(nativeResult?.ok){
+          const copied = Number(nativeResult.copiedVideos || 0), total = Number(nativeResult.totalVideos || plan.clips.length || 0);
+          setStatus(`تم حفظ باكدج CapCut: ${copied}/${total} فيديو داخل media/videos` + (nativeResult.path ? ` - ${nativeResult.path}` : ''));
+          const note=$('mzjCapcutDraftNote'); if(note){ note.classList.add('is-visible'); note.textContent=`تم تجهيز باكدج CapCut. تم نسخ ${copied}/${total} فيديو. افتح media/videos وتأكد من وجود 1.mp4، 2.mp4...`; }
+          return;
+        }
+      }catch(error){
+        console.error('Native CapCut package export failed, falling back to JSZip', error);
+        setStatus('تعذر التصدير Native، جاري تجربة التصدير الاحتياطي...');
+      }
+    }
+    const readme = `MZJ CapCut Draft Beta\n\nهذا التصدير يحتوي على خطة مشروع CapCut مبنية من Shot Slots.\n- افتح CapCut واستورد ملفات الفيديو المذكورة في timeline.csv بنفس الترتيب.\n- استورد captions.srt للكابشنات.\n- استخدم edit_plan.json أو capcut_draft/draft_content.json كمرجع للتوقيتات والفواصل.\n\nملاحظة: Draft format تجريبي لأن CapCut لا يوفر API رسمي ثابت لكل مشاريع Desktop.\n`;
+    const draftContent = {
+      canvas_config:{ width:plan.project.width, height:plan.project.height, ratio:`${plan.project.width}:${plan.project.height}` },
+      timeline:{ duration:plan.project.duration, tracks:[
+        {type:'video', segments:plan.clips.map(c=>({id:`video_${c.slot}`, material_path:c.filePath, source_start:0, target_start:c.timelineStart, duration:c.duration, transition:c.transition}))},
+        {type:'text', segments:plan.clips.map(c=>({id:`caption_${c.slot}`, text:c.caption || c.sceneName, start:c.timelineStart, duration:c.duration, style:c.captionStyle}))},
+        {type:'audio', segments:[plan.audio.voiceover.path ? {id:'voiceover', material_path:plan.audio.voiceover.path, start:0, duration:plan.project.duration} : null, plan.audio.music.path ? {id:'music', material_path:plan.audio.music.path, start:0, duration:plan.project.duration} : null].filter(Boolean)}
+      ]}
+    };
+    if(!window.JSZip){
+      if(window.mzjElectron?.saveJsonFile) await window.mzjElectron.saveJsonFile({fileName:'MZJ_CapCut_Draft_Beta_edit_plan.json', data:plan});
+      setStatus('تم حفظ edit_plan JSON. مكتبة ZIP غير جاهزة في الصفحة.');
+      return;
+    }
+    const zip = new JSZip();
+    const mediaReport = [];
+    const mediaFolder = zip.folder('media');
+    const videosFolder = mediaFolder.folder('videos');
+    const audioFolder = mediaFolder.folder('audio');
+    const logoFolder = mediaFolder.folder('logo');
+    const referenceFolder = mediaFolder.folder('reference');
+    function cleanFileName(name, fallback){
+      return String(name || fallback || 'file').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+    }
+    async function fileToUint8Array(src){
+      if(!src) return null;
+      if(src instanceof File){ return new Uint8Array(await src.arrayBuffer()); }
+      if(src.file instanceof File){ return new Uint8Array(await src.file.arrayBuffer()); }
+      if(src.path && window.mzjElectron?.readFileBuffer){
+        const data = await window.mzjElectron.readFileBuffer(src.path);
+        if(data?.ok && data?.data) return new Uint8Array(data.data);
+        if(data?.data && Array.isArray(data.data)) return new Uint8Array(data.data);
+        if(data?.type === 'Buffer' && Array.isArray(data.data)) return new Uint8Array(data.data);
+        if(Array.isArray(data)) return new Uint8Array(data);
+        if(data instanceof ArrayBuffer) return new Uint8Array(data);
+        if(data && typeof data === 'object' && typeof data.length === 'number') return new Uint8Array(data);
+      }
+      return null;
+    }
+    async function addMediaFile(folder, src, name, relPrefix, label){
+      const safe = cleanFileName(name || fileName(src), `${label}.bin`);
+      try{
+        const bytes = await fileToUint8Array(src);
+        if(bytes && bytes.length){
+          folder.file(safe, bytes);
+          mediaReport.push(`OK ${label}: ${relPrefix}/${safe}`);
+          return `${relPrefix}/${safe}`;
+        }
+        mediaReport.push(`MISSING ${label}: ${safe} - الملف غير متاح للنسخ داخل الباكدج`);
+      }catch(error){
+        mediaReport.push(`ERROR ${label}: ${safe} - ${String(error?.message || error)}`);
+      }
+      return '';
+    }
+
+    for(const [clipIndex, c] of plan.clips.entries()){
+      const slotRef = state.slots.find(s => Number(s.index) === Number(c.slot));
+      const src = (slotRef?._fileRef || (c.sceneId ? (window.mzjChecklistGetFileForShot?.(c.sceneId) || null) : null) || (c.filePath ? {path:c.filePath, name:c.fileName || `${c.packageOrder || c.slot}.mp4`} : null));
+      const extRaw = (fileName(src) || c.fileName || '').split('.').pop() || 'mp4';
+      const ext = String(extRaw || 'mp4').replace(/[^a-z0-9]/gi,'').toLowerCase() || 'mp4';
+      const numberedName = `${clipIndex + 1}.${ext}`;
+      c.packageOrder = clipIndex + 1;
+      const packaged = await addMediaFile(videosFolder, src, numberedName, 'media/videos', `video slot ${c.slot}`);
+      if(packaged) c.packageFile = packaged;
+    }
+    const media = window.mzjChecklistGetMediaFiles?.() || {};
+    if(media.voice){ plan.audio.voiceover.packageFile = await addMediaFile(audioFolder, media.voice, fileName(media.voice) || 'voiceover.mp3', 'media/audio', 'voiceover'); }
+    if(media.music){ plan.audio.music.packageFile = await addMediaFile(audioFolder, media.music, fileName(media.music) || 'music.mp3', 'media/audio', 'music'); }
+    if(media.logo){ plan.logo.packageFile = await addMediaFile(logoFolder, media.logo, fileName(media.logo) || 'logo.png', 'media/logo', 'logo'); }
+    if(state.refFile){ plan.reference.packageFile = await addMediaFile(referenceFolder, state.refFile, fileName(state.refFile) || 'reference.mp4', 'media/reference', 'reference video'); }
+
+    const packagedCsv = ['order,slot,scene_id,scene_name,package_file,original_file_path,timeline_start,duration,caption,voiceover,transition,caption_style'].concat(plan.clips.map(c => [c.packageOrder||'',c.slot,c.sceneId,c.sceneName,c.packageFile||'',c.filePath,c.timelineStart,c.duration,c.caption,c.voiceover,c.transition,c.captionStyle].map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(','))).join('\n');
+    const finalReadme = readme + `\n\nMEDIA PACKAGE\nتم إضافة فولدر media داخل الملف المضغوط.\n- media/videos: فيديوهات المشاهد المختارة مرقمة 1، 2، 3 بنفس ترتيب CapCut.\n- media/audio: الفويس أوفر والموسيقى.\n- media/logo: اللوجو.\n- media/reference: الفيديو المرجعي.\n\nتقرير النسخ:\n${mediaReport.join('\n') || 'لا توجد ملفات ميديا للنسخ.'}\n`;
+
+    zip.file('README_IMPORT.txt', finalReadme);
+    zip.file('edit_plan.json', JSON.stringify(plan,null,2));
+    zip.file('captions.srt', '\ufeff'+srt);
+    zip.file('timeline.csv', '\ufeff'+packagedCsv);
+    zip.file('media_report.txt', '\ufeff'+mediaReport.join('\n'));
+    draftContent.timeline.tracks.forEach(track => {
+      if(track.type === 'video') track.segments.forEach(seg => { const clip = plan.clips.find(c => `video_${c.slot}` === seg.id); if(clip?.packageFile) seg.package_file = clip.packageFile; });
+      if(track.type === 'audio') track.segments.forEach(seg => { if(seg.id === 'voiceover') seg.package_file = plan.audio.voiceover.packageFile || ''; if(seg.id === 'music') seg.package_file = plan.audio.music.packageFile || ''; });
+    });
+    zip.folder('capcut_draft').file('draft_content.json', JSON.stringify(draftContent,null,2));
+    zip.folder('capcut_draft').file('draft_meta_info.json', JSON.stringify({name:'MZJ CapCut Draft Beta', create_time:Date.now(), duration:plan.project.duration},null,2));
+    const data = await zip.generateAsync({type:'uint8array'});
+    let saved = false;
+    if(window.mzjElectron?.saveBinaryFile){
+      try{ const r = await window.mzjElectron.saveBinaryFile({fileName:fileNameOut, data:Array.from(data)}); saved = !!r?.ok; if(saved) setStatus('تم حفظ باكدج CapCut Draft Beta: '+(r.path||'')); }catch(_){ saved=false; }
+    }
+    if(!saved){
+      const blob = new Blob([data], {type:'application/zip'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = fileNameOut; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+      setStatus('تم تجهيز وتحميل باكدج CapCut Draft Beta.');
+    }
+    const note=$('mzjCapcutDraftNote'); if(note){ note.classList.add('is-visible'); note.textContent='تم تجهيز باكدج CapCut Draft Beta. افتح README_IMPORT.txt داخل الملف لمعرفة طريقة الاستيراد.'; }
+  }
+  window.mzjReferenceRefreshSlots = function(){
+    try { if(state.refFile && !state.slots.length){ state.duration = state.duration || 57; state.slots = makeSlots(state.duration); } linkSlotsToRows(false); renderSlots(); updateRefStats(); renderMiniTimeline(); } catch(_) {}
+  };
+  function bind(){
+    $('mzjRefPickBtn')?.addEventListener('click', pickReference);
+    $('mzjRefVideoInput')?.addEventListener('change', ()=>analyzeReference().catch(error=>{ console.error(error); setStatus('فشل تحليل الفيديو المرجعي: '+(error?.message||error)); }));
+    $('mzjRefAnalyzeBtn')?.addEventListener('click', analyzeReference);
+    $('mzjRefApplyBtn')?.addEventListener('click', applyReferenceToShots);
+    $('mzjExportCapCutDraftBtn')?.addEventListener('click', exportCapCutDraft);
+    $('mzjReferencePrompt')?.addEventListener('input', ()=>{ updateRefStats(); if(state.slots.length){ const old = state.slots.map(s=>({shotId:s.shotId,duration:s.duration})); state.slots=makeSlots(state.duration||45); state.slots.forEach((s,i)=>{ if(old[i]?.shotId) s.shotId=old[i].shotId; if(old[i]?.duration) s.duration=old[i].duration; }); renderSlots(); renderMiniTimeline(); } });
+    $('mzjSendChecklistToTimelineBtn')?.addEventListener('click', ()=>{ applyReferenceToShots(); renderMiniTimeline(); setStatus('تم إرسال Shot Slots إلى Editor Timeline.'); });
+    qa('#mzjCapcutTabs button').forEach(btn=>btn.addEventListener('click',()=>{ qa('#mzjCapcutTabs button').forEach(b=>b.classList.remove('is-active')); btn.classList.add('is-active'); renderTool(btn.dataset.mzjTool); }));
+    document.addEventListener('click', e=>{
+      const exportInline=e.target.closest('#mzjExportCapCutDraftBtnInline'); if(exportInline){ exportCapCutDraft(); return; }
+      const card=e.target.closest('[data-slot-index]'); if(card){ state.selectedSlotIndex=Number(card.dataset.slotIndex)||state.selectedSlotIndex; qa('.mzj-slot-card-detailed').forEach(c=>c.classList.remove('is-selected')); card.classList.add('is-selected'); }
+      const pick=e.target.closest('[data-slot-pick-video]'); if(pick){
+        const slot=state.slots.find(s=>Number(s.index)===Number(pick.dataset.slotPickVideo));
+        if(slot?.shotId){
+          if(window.mzjElectron?.selectFiles){
+            window.mzjElectron.selectFiles({type:'video', title:'اختيار فيديو المشهد من الجهاز'}).then(result=>{
+              const picked = result?.ok && result.files?.length ? result.files[0] : null;
+              if(picked){
+                slot._fileRef = picked;
+                slot.fileName = picked.name || fileName(picked) || slot.fileName || '';
+                slot.filePath = picked.path || filePath(picked) || slot.filePath || '';
+                window.mzjChecklistSetNativeFileForShot?.(String(slot.shotId), picked);
+                setStatus(`تم ربط Slot ${slot.index} بالفيديو: ${slot.fileName}`);
+              }
+            }).catch(error=>{ console.error(error); setStatus('تعذر اختيار فيديو المشهد: '+(error?.message||error)); })
+              .finally(()=>{ linkSlotsToRows(false); renderSlots(); renderMiniTimeline(); updateRefStats(); });
+          } else if(typeof window.mzjChecklistPickVideoForShot === 'function'){
+            Promise.resolve(window.mzjChecklistPickVideoForShot('video', String(slot.shotId))).then(()=>{
+              const picked = window.mzjChecklistGetFileForShot?.(String(slot.shotId)) || null;
+              if(picked){ slot._fileRef = picked; slot.fileName = fileName(picked) || slot.fileName || ''; slot.filePath = filePath(picked) || slot.filePath || ''; }
+            }).finally(()=>{ linkSlotsToRows(false); renderSlots(); renderMiniTimeline(); updateRefStats(); });
+          } else {
+            q(`[data-shot-pick-file="${slot.shotId}"]`)?.click();
+            setTimeout(()=>{ renderSlots(); renderMiniTimeline(); updateRefStats(); },1200);
+          }
+        } else setStatus('اربط الـ Slot بمشهد الأول.');
+        return;
+      }
+      const focus=e.target.closest('[data-slot-focus-row]'); if(focus){ const id=focus.dataset.slotFocusRow; const row=id && q(`[data-shot-row="${id}"]`); row?.scrollIntoView({behavior:'smooth',block:'center'}); row?.classList.add('is-highlight'); setTimeout(()=>row?.classList.remove('is-highlight'),1200); return; }
+      const item=e.target.closest('[data-editor-item],[data-tool-item]'); if(!item) return; const name=item.dataset.editorItem || item.dataset.toolItem; const n=$('mzjInspectorName'), h=$('mzjInspectorHint'); if(n) n.textContent=name; if(h) h.textContent=item.dataset.editorItem ? 'عنصر من التايم لاين' : 'أداة من المكتبة';
+    });
+    document.addEventListener('input', e=>{
+      if(mzjSlotSyncing) return;
+      if(e.target.matches('[data-slot-duration]')) handleSlotChange(e.target);
+      if(e.target.matches('[data-slot-caption-text],[data-slot-voice-text]')){ const idx=Number(e.target.dataset.slotCaptionText || e.target.dataset.slotVoiceText); const slot=state.slots.find(s=>s.index===idx); updateRowTextFromSlot(slot); renderMiniTimeline(); }
+      if(e.target.matches('[data-shot-use],[data-shot-caption],[data-shot-voiceover]')){ renderSlots(); renderMiniTimeline(); }
+    });
+    document.addEventListener('change', e=>{
+      if(mzjSlotSyncing) return;
+      if(e.target.matches('[data-slot-shot],[data-slot-transition],[data-slot-caption-style],[data-slot-enable]')) handleSlotChange(e.target);
+      if(e.target.matches('[data-shot-enabled]')){ renderSlots(); renderMiniTimeline(); updateRefStats(); }
+    });
+    renderTool('media'); updateRefStats(); renderSlots(); renderMiniTimeline();
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
+})();
+
+// vLocalPublisher: صفحة متابعة أجندات النشر المحلية القادمة من Electron Agent.
+let publishingJobsCache = [];
+let publishingJobsUnsubscribe = null;
+function localPublisherStatusClass(status){
+  const s = normalizeText(status).toLowerCase();
+  if(['published','تم النشر','done','success'].includes(s)) return 'published';
+  if(['failed','فشل','error'].includes(s)) return 'failed';
+  if(['publishing','جاري النشر','processing'].includes(s)) return 'processing';
+  return 'scheduled';
+}
+function localPublisherStatusLabel(status){
+  const s = normalizeText(status);
+  const map = { queued:'مجدول', scheduled:'مجدول', ready:'جاهز', publishing:'جاري النشر', published:'تم النشر', failed:'فشل', draft:'مسودة' };
+  return map[s] || s || 'مجدول';
+}
+function localPublisherTypeLabel(type){
+  const s = normalizeText(type).toLowerCase();
+  if(['post','carousel','بوست'].includes(s)) return 'بوست Carousel';
+  if(['reel','ريل'].includes(s)) return 'Reel';
+  if(['story','ستوري'].includes(s)) return 'Story';
+  return type || 'منشور';
+}
+function localPublisherCaptionLabel(job){
+  if(job.contentType === 'story' || job.type === 'story') return 'بدون كابشن';
+  const text = normalizeText(job.captionText || job.caption || '');
+  return text ? `موجود · ${text.length} حرف` : 'غير موجود';
+}
+function loadPublishingJobs(){
+  if(!mainDb || publishingJobsUnsubscribe) return;
+  try{
+    publishingJobsUnsubscribe = safeCollection(window.MZJ_PUBLISHING_JOBS_COLLECTION || 'publishing_jobs').orderBy('scheduledAtIso','asc').limit(250).onSnapshot(snapshot => {
+      publishingJobsCache = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) }));
+      if(getRoute() === 'local-publisher') renderLocalPublisherPage();
+    }, error => console.warn('Publishing jobs load error', error));
+  }catch(error){ console.warn('Publishing jobs init error', error); }
+}
+function localPublisherPlatformRows(){
+  let rows = [];
+  try{ rows = typeof platformConnectionRows === 'function' ? platformConnectionRows() : []; }catch(_){ rows = []; }
+  if(!rows.length) return '<div class="empty-state">افتح صفحة ربط المنصات لفحص الحسابات المتاحة.</div>';
+  return rows.filter(row => ['facebook','instagram','tiktok','youtube','snapchat'].includes(row.key)).map(row => `<article class="local-platform-chip is-${escapeHtml(row.state || 'warning')}"><strong>${escapeHtml(row.name)}</strong><span>${escapeHtml(row.status)}</span><small>${escapeHtml(row.account || '')}</small></article>`).join('');
+}
+function renderLocalPublisherPage(){
+  const platformsEl = document.getElementById('localPublisherPlatforms');
+  if(platformsEl) platformsEl.innerHTML = localPublisherPlatformRows();
+  const stats = document.getElementById('localPublisherStats');
+  const jobs = publishingJobsCache || [];
+  const countBy = pred => jobs.filter(pred).length;
+  if(stats){
+    stats.innerHTML = `
+      <article><span>إجمالي المهام</span><strong>${jobs.length}</strong></article>
+      <article><span>جاهز / مجدول</span><strong>${countBy(job => ['queued','scheduled','ready','draft',''].includes(normalizeText(job.status).toLowerCase()))}</strong></article>
+      <article><span>تم النشر</span><strong>${countBy(job => localPublisherStatusClass(job.status) === 'published')}</strong></article>
+      <article><span>فشل</span><strong>${countBy(job => localPublisherStatusClass(job.status) === 'failed')}</strong></article>`;
+  }
+  const tbody = document.getElementById('localPublisherJobs');
+  if(!tbody) return;
+  if(!jobs.length){ tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">لا توجد مهام نشر محلية حتى الآن. افتح Electron Agent واعتمد فولدر الأجندة.</div></td></tr>'; return; }
+  tbody.innerHTML = jobs.slice(0, 200).map(job => {
+    const platforms = Array.isArray(job.platforms) ? job.platforms : (job.platform ? [job.platform] : []);
+    const files = Array.isArray(job.files) ? job.files : (Array.isArray(job.filesLocalPaths) ? job.filesLocalPaths : []);
+    const statusClass = localPublisherStatusClass(job.status);
+    const scheduled = normalizeText(job.scheduledAtIso || job.publishDate || job.date || '');
+    const updated = normalizeText(job.updatedAtIso || job.publishedAtIso || job.createdAtIso || '');
+    return `<tr>
+      <td><strong>${escapeHtml(scheduled || 'بدون تاريخ')}</strong></td>
+      <td>${escapeHtml(localPublisherTypeLabel(job.contentType || job.type))}</td>
+      <td><div class="local-platforms-mini">${platforms.length ? platforms.map(p => `<span>${escapeHtml(socialPlatformLabels[p] || p)}</span>`).join('') : '<span>كل المتاح</span>'}</div></td>
+      <td>${files.length || Number(job.filesCount || 0) || 0}</td>
+      <td>${escapeHtml(localPublisherCaptionLabel(job))}</td>
+      <td><span class="local-job-status is-${statusClass}">${escapeHtml(localPublisherStatusLabel(job.status))}</span>${job.error ? `<small class="local-job-error">${escapeHtml(job.error)}</small>` : ''}</td>
+      <td>${escapeHtml(updated ? formatDateShort(updated) : '—')}</td>
+    </tr>`;
+  }).join('');
+}
+document.addEventListener('click', event => {
+  if(event.target.closest('#localPublisherRefreshBtn')){
+    loadMetaConnection?.(); loadTikTokConnection?.(); loadYouTubeConnection?.();
+    renderLocalPublisherPage();
+    showToast('تم تحديث صفحة جدولة النشر المحلي.');
+  }
+});
+

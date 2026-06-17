@@ -18,7 +18,7 @@
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&amp;display=swap" rel="stylesheet"/>
-<link href="assets/css/style.css?v=230" rel="stylesheet">
+<link href="assets/css/style.css?v=260" rel="stylesheet">
 <link href="assets/favicon.png" rel="icon" type="image/x-icon"/>
 </link></head>
 <body>
@@ -65,6 +65,7 @@
 <a data-route="calendar" href="#calendar"><span class="icon">📅</span><span>التقويم</span></a>
 <a data-route="stock" href="#stock"><span class="icon">🚗</span><span>الاستوك</span></a>
 <a data-route="departments" href="#departments"><span class="icon">👥</span><span>الأقسام</span></a>
+<a data-route="local-publisher" href="#local-publisher"><span class="icon">🖥️</span><span>جدولة النشر المحلي</span></a>
 <a data-route="settings" href="#settings"><span class="icon">⚙</span><span>الإعدادات</span></a>
 </nav>
 </aside>
@@ -285,7 +286,7 @@
 <div class="page-head checklist-reel-head">
 <div class="page-title">
 <h1>Checklist ريل السيارات</h1>
-<p>اختار مشاهد الـ Checklist من جهازك، حدد المنصة والأبعاد، أضف الفويس أوفر والسكريبت، وصدّر فيديو رأسي جاهز للريل أو الستوري بدون API.</p>
+
 </div>
 <div class="actions">
 <button class="btn btn-light" id="checklistResetBtn" type="button">مسح الاختيارات</button>
@@ -297,7 +298,7 @@
 <div class="card checklist-studio-card">
 <div class="checklist-section-title">
 <span class="checklist-badge">1</span>
-<div><h2>بيانات الريل</h2><p>اختار المنصة والأبعاد، وحدد البيانات اللي تظهر فوق الفيديو.</p></div>
+<div><h2>بيانات الريل</h2></div>
 </div>
 <div class="checklist-form-grid compact">
 <label class="field"><span>اسم العربية</span><input id="checklistCarName" placeholder="مثال: Hyundai Staria 2026" type="text"/></label>
@@ -318,7 +319,7 @@
 <div class="card checklist-studio-card">
 <div class="checklist-section-title">
 <span class="checklist-badge">2</span>
-<div><h2>الصوت والهوية</h2><p>اختار الفويس أوفر، الموسيقى واللوجو من جهازك.</p></div>
+<div><h2>الصوت والهوية</h2></div>
 </div>
 <div class="checklist-file-grid">
 <label class="checklist-file-drop"><span>🎙️ فويس أوفر</span><strong id="checklistVoiceName">اختار voiceover.mp3</strong><input accept="audio/*" id="checklistVoiceFile" type="file"/></label>
@@ -329,7 +330,7 @@
 <div class="card checklist-studio-card">
 <div class="checklist-section-title">
 <span class="checklist-badge">3</span>
-<div><h2>استيراد سكريبت المشاهد</h2><p>استورد CSV / Excel من فريق التسويق، ثم جمّع سكريبت الفويس أوفر.</p></div>
+<div><h2>استيراد سكريبت المشاهد</h2></div>
 </div>
 <label class="checklist-file-drop"><span>📄 ملف CSV / Excel</span><strong id="checklistScriptSheetName">اختار CSV / Excel</strong><input accept=".csv,.xlsx,.xls" id="checklistScriptSheetFile" type="file"/></label>
 <div class="checklist-import-actions">
@@ -338,15 +339,82 @@
 <button class="btn btn-light" id="checklistBuildScriptBtn" type="button">تجميع سكريبت الفويس أوفر</button>
 </div>
 <textarea class="checklist-script small" id="checklistScript" placeholder="هيظهر هنا سكريبت الفويس أوفر الكامل للمشاهد المختارة."></textarea>
-<p class="muted small">الأعمدة: رقم المشهد، فويس أوفر، كابشن، بداية الاستخدام، مدة الاستخدام. وأعمدة اختيارية: caption_trend / highlight_word.</p>
+
 </div>
 </div>
+
+<div class="card mzj-pro-reference-card">
+  <div class="mzj-pro-card-head">
+    <div>
+      <span class="mzj-pro-eyebrow">Reference-Based Editing</span>
+      <h2>قالب مونتاج من فيديو جاهز + Editor بنفس منطق CapCut</h2>
+      
+    </div>
+    <div class="mzj-pro-actions">
+      <button class="btn btn-primary" id="mzjRefPickBtn" type="button">اختيار فيديو مرجعي</button>
+      <button class="btn btn-light" id="mzjRefAnalyzeBtn" type="button">تحليل المرجع</button>
+      <button class="btn btn-light" id="mzjRefApplyBtn" type="button">تطبيق على التايم لاين</button>
+      <button class="btn btn-primary" id="mzjExportCapCutDraftBtn" type="button">تصدير مشروع CapCut</button>
+    </div>
+  </div>
+  <input accept="video/*" id="mzjRefVideoInput" type="file" hidden />
+  <div class="mzj-reference-grid">
+    <section class="mzj-reference-panel">
+      <label class="field"><span>الفيديو المرجعي</span><input id="mzjRefVideoName" readonly value="لم يتم اختيار فيديو مرجعي بعد" /></label>
+      <label class="field"><span>البرومبت</span><textarea id="mzjReferencePrompt" rows="5" placeholder="مثال: اعمل ريل 60 ثانية بنفس إيقاع المرجع، ركز على الشكل الخارجي ثم الصالون ثم CTA، كابشنات سريعة وفواصل Flash."></textarea></label>
+      <div class="mzj-reference-stats" id="mzjReferenceStats">
+        <div><span>مدة المرجع</span><strong>—</strong></div>
+        <div><span>Slots</span><strong>—</strong></div>
+        <div><span>الستايل</span><strong>—</strong></div>
+      </div>
+    </section>
+    <section class="mzj-reference-slots">
+      <div class="mzj-section-mini-head"><strong>Shot Slots المستخرجة</strong><span>مرتبطة بالمشاهد المختارة من الجهاز</span></div>
+      <div class="mzj-slots-list" id="mzjReferenceSlots"><div class="empty-state">اختار فيديو مرجعي واضغط تحليل المرجع.</div></div>
+    </section>
+  </div>
+</div>
+
+<div class="card mzj-capcut-editor-shell" id="mzjCapcutEditorShell">
+  <div class="mzj-capcut-titlebar">
+    <div>
+      <span class="mzj-pro-eyebrow">MZJ Reel Studio Pro</span>
+      <h2>Editor Mode</h2>
+      
+    </div>
+    <button class="btn btn-primary" id="mzjSendChecklistToTimelineBtn" type="button">إرسال المشاهد المختارة إلى Timeline</button>
+  </div>
+  <div class="mzj-capcut-grid">
+    <aside class="mzj-capcut-library">
+      <div class="mzj-capcut-tabs" id="mzjCapcutTabs">
+        <button class="is-active" data-mzj-tool="media" type="button">Media</button>
+        <button data-mzj-tool="audio" type="button">Audio</button>
+        <button data-mzj-tool="text" type="button">Text</button>
+        <button data-mzj-tool="transitions" type="button">Transitions</button>
+        <button data-mzj-tool="effects" type="button">Effects</button>
+        <button data-mzj-tool="captions" type="button">Captions</button>
+        <button data-mzj-tool="templates" type="button">Templates</button>
+      </div>
+      <div class="mzj-tool-content" id="mzjToolContent"></div>
+    </aside>
+    <main class="mzj-capcut-center">
+      <div class="mzj-editor-mini-timeline" id="mzjEditorMiniTimeline"><div class="empty-state">اضغط إرسال المشاهد المختارة إلى Timeline.</div></div>
+    </main>
+    <aside class="mzj-capcut-inspector" id="mzjCapcutInspector">
+      <h3>إعدادات العنصر المختار</h3>
+      
+      <div class="mzj-inspector-box"><span>العنصر</span><strong id="mzjInspectorName">غير محدد</strong></div>
+      <div class="mzj-inspector-box"><span>التحكم</span><strong id="mzjInspectorHint">الفيديو / الكابشن / الفاصل</strong></div>
+    </aside>
+  </div>
+</div>
+
 <div class="checklist-work-grid">
 <section class="checklist-studio-main">
 <div class="card checklist-timeline-card">
 <div class="checklist-section-title wide">
 <span class="checklist-badge">5</span>
-<div><h2>اختيار المشاهد من الجهاز</h2><p>فعّل المشهد، اختار الفيديو، وعدل الفويس أوفر والكابشن لكل لقطة.</p></div>
+<div><h2>جدول المشاهد الأساسي</h2><p class="muted small">مخفي في وضع الريفرنس، والاختيار يتم من Shot Slots.</p></div>
 </div>
 <div class="checklist-parts-strip" id="checklistPartsStrip"></div>
 <div class="checklist-table-wrap">
@@ -372,7 +440,7 @@
 </div>
 <div class="card checklist-render-card">
 <div class="checklist-render-head">
-<div><h2>تصدير الفيديو النهائي</h2><p>التصدير من المتصفح مباشرة بنفس إعدادات الكابشن والحركات.</p></div>
+<div><h2>تصدير الفيديو النهائي</h2></div>
 </div>
 <div class="checklist-progress"><div id="checklistProgressBar"></div></div>
 <div class="checklist-log" id="checklistLog">جاهز لاختيار الملفات.</div>
@@ -384,7 +452,7 @@
 <div class="checklist-preview-head checklist-editor-head">
 <div>
 <h2>معاينة وتايم لاين المونتاج</h2>
-<p>اعمل Preview من التايم لاين، حرّك المؤشر، اختار أي كابشن وعدّل ستايله منفصلًا عن باقي الكابشنات.</p>
+
 </div>
 <div class="checklist-preview-hint">Player + Timeline + Caption Editor</div>
 </div>
@@ -406,7 +474,7 @@
 <label class="field"><span>تحريك المعاينة</span><input id="checklistPreviewScrub" max="0" min="0" step="0.01" type="range" value="0"/></label>
 <div class="checklist-preview-time"><span id="checklistPreviewTime">0.0s</span><strong id="checklistPreviewStatus">متوقف</strong></div>
 <label class="field checklist-speed-field"><span>سرعة المعاينة</span><select class="select" id="checklistPreviewSpeed"><option value="0.25">0.25x فحص بطيء</option><option value="0.5">0.5x بطيء</option><option selected="" value="0.75">0.75x للمراجعة</option><option value="1">1x طبيعي</option><option value="1.25">1.25x</option></select></label>
-<p class="muted small">اسحب الكابشن على الفيديو لتغيير مكانه. اختار كابشن من التايم لاين لتعديل ستايله وحده.</p>
+
 </div>
 
 <div class="card checklist-style-card checklist-style-card-in-preview">
@@ -432,11 +500,11 @@
 </div>
 </div>
 </div>
-</div><div class="checklist-below-editor-stack"><div class="card checklist-summary-wide-card"><div class="checklist-section-title checklist-summary-wide-title"><h3>ملخص المشاهد والمدة</h3><p class="muted small">المشاهد المفعلة، مدة الريل، وتوزيع اللقطات على أقسام التايم لاين.</p></div><div class="checklist-summary-list" id="checklistSummary"></div></div><div class="checklist-timeline-editor checklist-timeline-in-panel" dir="rtl" id="checklistTimelineEditor">
+</div><div class="checklist-below-editor-stack"><div class="card checklist-summary-wide-card"><div class="checklist-section-title checklist-summary-wide-title"><h3>ملخص المشاهد والمدة</h3></div><div class="checklist-summary-list" id="checklistSummary"></div></div><div class="checklist-timeline-editor checklist-timeline-in-panel" dir="rtl" id="checklistTimelineEditor">
 <div class="checklist-timeline-head">
 <div>
 <h3>تايم لاين المونتاج</h3>
-<p>اضغط على أي كابشن أو مشهد للانتقال له. اسحب داخل المسطرة لتحريك المؤشر.</p>
+
 </div>
 <div class="checklist-timeline-actions">
 <button class="btn btn-primary" id="checklistPreviewBtn" type="button">معاينة الفيديو</button>
@@ -716,6 +784,61 @@
 </div>
 </div>
 </section>
+<section class="view" data-title="جدولة النشر المحلي" id="local-publisher">
+<div class="page-head local-publisher-head">
+<div class="page-title">
+<h1>جدولة النشر المحلي</h1>
+<p>متابعة أجندات النشر التي يقرأها برنامج Electron من فولدرات الجهاز ويستخدم حسابات صفحة ربط المنصات.</p>
+</div>
+<div class="social-publisher-actions">
+<button class="btn btn-light" id="localPublisherRefreshBtn" type="button">تحديث</button>
+<a class="btn btn-light" href="#social-publisher">ربط المنصات</a>
+<a class="btn btn-primary" href="#platform-settings">حالة المنصات</a>
+</div>
+</div>
+<div class="local-publisher-grid">
+<article class="card local-publisher-card local-publisher-intro">
+<h2>طريقة عمل Electron Agent</h2>
+<p>اختار فولدر الأجندة من البرنامج، وهو يقرأ فولدرات الأيام مثل 17-6، ثم يحول بوست/ريل/ستوري إلى مهام نشر محفوظة في Firebase.</p>
+<div class="local-folder-map">
+<code>17-6/بوست</code><span>بوست واحد Carousel بكل الصور</span>
+<code>17-6/ريل</code><span>كل فيديو Reel مستقل بنفس الكابشن</span>
+<code>17-6/ستوري</code><span>كل ملف Story مستقلة بدون كابشن</span>
+<code>17-6/كابشن/كابشن.docx</code><span>النص الكامل للبوست والريل</span>
+</div>
+</article>
+<article class="card local-publisher-card">
+<h2>حسابات النشر المرتبطة</h2>
+<p>هذه الحالة مقروءة من صفحة ربط المنصات، وElectron يستخدم نفس الربط ولا ينشئ ربط جديد.</p>
+<div class="local-platform-status" id="localPublisherPlatforms"><div class="empty-state">جاري فحص حالة المنصات...</div></div>
+</article>
+</div>
+<div class="local-publisher-stats" id="localPublisherStats">
+<article><span>إجمالي المهام</span><strong>0</strong></article>
+<article><span>جاهز / مجدول</span><strong>0</strong></article>
+<article><span>تم النشر</span><strong>0</strong></article>
+<article><span>فشل</span><strong>0</strong></article>
+</div>
+<div class="card local-publisher-card">
+<div class="section-toolbar small-toolbar">
+<div>
+<h2>مهام النشر القادمة من Electron</h2>
+<p>أي أجندة يعتمدها البرنامج تظهر هنا مع التاريخ، النوع، عدد الملفات، وحالة النشر.</p>
+</div>
+<div class="publish-center-filters">
+<span>Firebase: publishing_jobs</span>
+<span>Local files من Electron</span>
+</div>
+</div>
+<div class="local-publisher-table-wrap">
+<table class="local-publisher-table">
+<thead><tr><th>التاريخ</th><th>النوع</th><th>المنصات</th><th>الملفات</th><th>الكابشن</th><th>الحالة</th><th>آخر تحديث</th></tr></thead>
+<tbody id="localPublisherJobs"><tr><td colspan="7"><div class="empty-state">لا توجد مهام نشر محلية حتى الآن.</div></td></tr></tbody>
+</table>
+</div>
+</div>
+</section>
+
 <section class="view" data-title="الإعدادات" id="settings">
 <div class="page-head"><div class="page-title"><h1>الإعدادات</h1><p>إدارة ألوان النظام، بيانات النظام، اليوزرات والصلاحيات.</p></div></div>
 <div class="settings-grid">
@@ -883,6 +1006,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="assets/js/jszip.min.js?v=160"></script>
-<script src="assets/js/app.js?v=230"></script>
+<script src="assets/js/app.js?v=322"></script>
 </input></input></input></input></body>
 </html>

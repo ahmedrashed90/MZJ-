@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MZJ Publisher Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Tajawal,Arial,sans-serif;background:#f6eee8;color:#2d1713}.shell{max-width:1180px;margin:0 auto;padding:28px}.hero{background:#fff;border:1px solid #e6cfc1;border-radius:24px;padding:22px;box-shadow:0 16px 42px rgba(90,58,50,.08)}h1{margin:0 0 8px;font-size:30px}p{color:#80665e;line-height:1.8}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}.card{background:#fff;border:1px solid #e6cfc1;border-radius:20px;padding:18px}.field{display:flex;flex-direction:column;gap:7px;font-weight:800}.field input{border:1px solid #dcc2b2;border-radius:13px;padding:12px;font:inherit}.btn{border:0;border-radius:14px;padding:12px 18px;font-weight:900;font:inherit;cursor:pointer}.btn-primary{background:#5a3a32;color:#fff}.btn-light{background:#fff7f2;color:#5a3a32;border:1px solid #e1c7b8}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.platforms{display:flex;gap:8px;flex-wrap:wrap}.platforms label{background:#fff7f2;border:1px solid #e3cabd;border-radius:999px;padding:8px 12px;font-weight:900}table{width:100%;border-collapse:collapse;background:#fff;border-radius:18px;overflow:hidden}th,td{padding:10px;border-bottom:1px solid #f0ded4;text-align:right}th{background:#fff7f2;color:#6b3f33}.status{font-weight:900;color:#5a3a32}.warn{color:#9d5b16}.ok{color:#22733a}.muted{color:#8e7166}.folder{direction:ltr;text-align:left;background:#fff7f2;border-radius:12px;padding:10px;margin-top:8px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.stats div{background:#fff;border:1px solid #e6cfc1;border-radius:16px;padding:12px}.stats strong{display:block;font-size:24px}@media(max-width:900px){.grid,.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <section class="hero">
+    <h1>MZJ Publisher Agent</h1>
+    <p>البرنامج يقرأ فولدرات الأجندة من الجهاز، يقرأ ملف كابشن Word، ويحول بوست/ريل/ستوري إلى مهام نشر محفوظة في Firebase ليتم عرضها في صفحة جدولة النشر المحلي داخل السيستم.</p>
+    <div class="folder" id="folderPath">لم يتم اختيار فولدر بعد</div>
+    <div class="actions">
+      <button class="btn btn-light" id="pickFolderBtn">اختيار فولدر الأجندة</button>
+      <button class="btn btn-primary" id="scanBtn">فحص الأجندة</button>
+      <button class="btn btn-primary" id="saveBtn">اعتماد الجدولة وحفظها في Firebase</button>
+    </div>
+    <p class="status" id="statusText">جاهز.</p>
+  </section>
+  <div class="grid">
+    <article class="card">
+      <h2>إعدادات التاريخ والوقت</h2>
+      <label class="field"><span>سنة النشر</span><input id="yearInput" type="number" min="2024" max="2100"></label><br>
+      <label class="field"><span>وقت البوست</span><input id="postTime" type="time" value="09:00"></label><br>
+      <label class="field"><span>وقت الريل</span><input id="reelTime" type="time" value="12:00"></label><br>
+      <label class="field"><span>وقت الستوري</span><input id="storyTime" type="time" value="18:00"></label>
+    </article>
+    <article class="card">
+      <h2>المنصات المستخدمة</h2>
+      <p>الحسابات نفسها يتم ربطها من صفحة ربط المنصات في السيستم.</p>
+      <div class="platforms">
+        <label><input type="checkbox" value="facebook" checked> Facebook</label>
+        <label><input type="checkbox" value="instagram" checked> Instagram</label>
+        <label><input type="checkbox" value="tiktok"> TikTok</label>
+        <label><input type="checkbox" value="youtube"> YouTube</label>
+        <label><input type="checkbox" value="snapchat"> Snapchat</label>
+      </div>
+    </article>
+  </div>
+  <div class="stats" id="stats"><div><span>الأيام</span><strong>0</strong></div><div><span>المهام</span><strong>0</strong></div><div><span>تحذيرات</span><strong>0</strong></div><div><span>جاهز للحفظ</span><strong>لا</strong></div></div>
+  <article class="card"><h2>المعاينة</h2><div id="warnings"></div><table><thead><tr><th>التاريخ</th><th>النوع</th><th>العنوان</th><th>الملفات</th><th>الكابشن</th></tr></thead><tbody id="jobsBody"><tr><td colspan="5" class="muted">اختار فولدر واضغط فحص الأجندة.</td></tr></tbody></table></article>
+</div>
+<script src="renderer.js"></script>
+</body>
+</html>
