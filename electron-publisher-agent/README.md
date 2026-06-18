@@ -79,3 +79,16 @@ npm run dist:installer
 - Local files still remain on the Electron device; the web dashboard can send commands through `publishing_jobs`.
 
 Important: deploy `firestore.rules` after uploading this version.
+
+## v36 - النشر الفعلي من زر نشر الآن
+
+تم تعديل زر نشر الآن في صفحة جدولة النشر المحلي بحيث يرسل أمر إلى Firebase، وElectron يلتقط الأمر تلقائيًا كل 5 ثوانٍ بدون الحاجة للضغط اليدوي داخل البرنامج.
+
+طريقة التنفيذ الجديدة:
+1. Electron يقرأ أمر `manual_publish_requested` أو `retry_requested` من `publishing_jobs`.
+2. يغير حالة المهمة إلى `publishing`.
+3. يرفع الملف المحلي من `localPath` إلى Firebase Storage داخل `local-publisher-media` للحصول على رابط عام صالح للنشر.
+4. يستدعي نفس endpoint المستخدم في صفحة تجهيز النشر: `/api/meta/publish/ready`.
+5. يحدث حالة المهمة إلى `published` أو `failed` مع حفظ نتيجة النشر أو الخطأ.
+
+مهم: يجب أن تكون Firebase Storage rules تسمح برفع وقراءة ملفات `local-publisher-media` أو تكون القواعد الحالية تسمح بذلك.

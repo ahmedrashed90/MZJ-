@@ -65,25 +65,11 @@ $('saveBtn').addEventListener('click', async () => {
   const result = await window.mzjPublisherAgent.savePublishingJobs({ jobs:scannedJobs });
   setStatus(`تم حفظ ${result.saved || 0} مهمة في Firebase.`, 'ok');
 });
-let isCheckingCommands = false;
-async function checkPublishCommands(silent = false){
-  if(isCheckingCommands) return null;
-  isCheckingCommands = true;
-  try{
-    if(!silent) setStatus('جاري فحص أوامر النشر اليدوي وإعادة المحاولة...');
-    const result = await window.mzjPublisherAgent.checkPublishingCommands();
-    const msg = `تم فحص الأوامر. المستلمة: ${result.handled || 0} · تم النشر: ${result.published || 0} · فشل: ${result.failed || 0}`;
-    if(!silent || Number(result.handled || 0) > 0) setStatus(msg, Number(result.failed || 0) ? 'warn' : 'ok');
-    return result;
-  }catch(error){
-    if(!silent) setStatus(error.message || 'فشل فحص أوامر النشر.', 'warn');
-    return { ok:false, error:error.message || String(error) };
-  }finally{
-    isCheckingCommands = false;
-  }
-}
-$('checkCommandsBtn')?.addEventListener('click', () => checkPublishCommands(false));
-setInterval(() => checkPublishCommands(true), 5000);
+$('checkCommandsBtn')?.addEventListener('click', async () => {
+  setStatus('جاري فحص أوامر النشر اليدوي وإعادة المحاولة...');
+  const result = await window.mzjPublisherAgent.checkPublishingCommands();
+  setStatus(`تم فحص الأوامر. عدد الطلبات المستلمة: ${result.handled || 0}.`, 'ok');
+});
 renderPlatformTimes();
 refreshCentralConnections();
 render();

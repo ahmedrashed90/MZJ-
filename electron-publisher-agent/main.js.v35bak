@@ -223,123 +223,31 @@ async function scanAgendaFolder(payload){
   }
   return { ok:true, folderPath:agendaRoot, jobs, warnings, days:dayFolders.length, platformTimes };
 }
-function mimeTypeForFile(filePath = ''){
-  const ext = String(path.extname(filePath || '')).toLowerCase();
-  return ({ '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.png':'image/png', '.webp':'image/webp', '.gif':'image/gif', '.mp4':'video/mp4', '.mov':'video/quicktime', '.m4v':'video/x-m4v', '.webm':'video/webm' })[ext] || 'application/octet-stream';
-}
-function safeStorageFileName(name = ''){
-  return String(name || 'media-file').replace(/[\/#?%*:|"<>]+/g, '-').replace(/\s+/g, '-').slice(0, 140) || 'media-file';
-}
-function inferReadyPostType(job = {}){
-  const type = String(job.contentType || job.type || '').toLowerCase();
-  if(type.includes('story')) return 'story';
-  if(type.includes('reel') || type.includes('short')) return 'reel';
-  return 'photo_post';
-}
-function publishEndpointFromConfig(config = {}){
-  if(config.publishEndpoint) return String(config.publishEndpoint).replace(/\/$/, '');
-  const site = String(config.siteUrl || config.webAppUrl || 'https://mzj.vercel.app').replace(/\/$/, '');
-  return `${site}/api/meta/publish/ready`;
-}
-async function uploadLocalJobMedia(job){
-  const { config, firebaseApp } = await getFirebase();
-  const storageMod = await import('firebase/storage');
-  const storage = storageMod.getStorage(firebaseApp);
-  const files = Array.isArray(job.files) && job.files.length ? job.files : (Array.isArray(job.filesLocalPaths) ? job.filesLocalPaths.map(localPath => ({ localPath, name:path.basename(localPath) })) : []);
-  if(!files.length) return [];
-  const uploaded = [];
-  for(let i = 0; i < files.length; i += 1){
-    const file = files[i] || {};
-    const localPath = String(file.localPath || file.path || file || '').trim();
-    if(!localPath) throw new Error('Local media path is missing.');
-    const buffer = await fs.readFile(localPath);
-    const name = file.name || path.basename(localPath);
-    const contentType = file.mimeType || (file.type && String(file.type).includes('/') ? file.type : mimeTypeForFile(localPath));
-    const storagePath = `local-publisher-media/${safeId(job.id || 'job')}/${String(i+1).padStart(2,'0')}-${Date.now()}-${safeStorageFileName(name)}`;
-    const storageRef = storageMod.ref(storage, storagePath);
-    await storageMod.uploadBytes(storageRef, buffer, { contentType, customMetadata:{ localJobId:String(job.id || ''), originalFileName:String(name || ''), source:'electron-local-agent' } });
-    const downloadURL = await storageMod.getDownloadURL(storageRef);
-    uploaded.push({ url:downloadURL, downloadURL, storagePath, name, localPath, contentType, type:contentType });
-  }
-  return uploaded;
-}
-async function publishLocalJobViaReadyEndpoint(job, uploadedMedia){
-  const { config } = await getFirebase();
-  const platform = String(job.platform || (Array.isArray(job.platforms) ? job.platforms[0] : '') || '').toLowerCase();
-  const urls = uploadedMedia.map(item => item.downloadURL || item.url).filter(Boolean);
-  const first = uploadedMedia[0] || {};
-  const caption = String(job.captionText || job.caption || '').trim();
-  const payload = {
-    taskId: job.id || '',
-    localJobId: job.id || '',
-    title: job.title || first.name || 'MZJ Local Publish',
-    contentType: job.contentType || '',
-    postType: inferReadyPostType(job),
-    postTypeLabel: job.contentType || '',
-    platforms: platform ? [platform] : (Array.isArray(job.platforms) ? job.platforms : []),
-    caption,
-    hashtags: job.hashtagsText || job.hashtags || '',
-    mediaUrl: urls[0] || '',
-    finalFileUrl: urls[0] || '',
-    mediaUrls: urls,
-    fileUrls: urls,
-    fileName: first.name || '',
-    fileNames: uploadedMedia.map(item => item.name).filter(Boolean),
-    mimeType: first.contentType || first.type || '',
-    source: 'electron-local-agent',
-    taskSnapshot: { title:job.title || '', sourceType:'local-publisher', publishDate:job.publishDate || job.date || '', publishTime:job.publishTime || '', platforms: platform ? [platform] : [] }
-  };
-  const endpoint = publishEndpointFromConfig(config);
-  const response = await fetch(endpoint, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(payload) });
-  const data = await response.json().catch(() => ({}));
-  if(!response.ok || data.ok === false){
-    const errors = Array.isArray(data.results) ? data.results.map(item => `${item.platform || platform || ''}: ${item.error || (item.skipped ? 'skipped' : 'failed')}`).join(' | ') : '';
-    throw new Error(data.error || errors || `Publish endpoint failed: ${response.status}`);
-  }
-  return data;
-}
-async function processRequestedJob(docSnap){
-  const { fsMod } = await getFirebase();
-  const job = { id:docSnap.id, ...(docSnap.data() || {}) };
-  const now = new Date().toISOString();
-  const platform = String(job.platform || (Array.isArray(job.platforms) ? job.platforms[0] : '') || '').toLowerCase();
-  const connections = await loadPlatformConnections();
-  const ready = platform ? platformReady(connections, platform) : false;
-  await fsMod.setDoc(docSnap.ref, { status:'publishing', agentLastSeenAtIso:now, publishStartedAtIso:now, publishAttempts:Number(job.publishAttempts || 0) + 1, agentCentralConnectionReady:ready, error:'', lastError:'', updatedAtIso:now, updatedAt:fsMod.serverTimestamp() }, { merge:true });
-  if(platform && !ready) throw new Error(`${platform} غير مربوط مركزيًا في Firebase أو لا يوجد توكن محفوظ.`);
-  const uploaded = await uploadLocalJobMedia(job);
-  const result = await publishLocalJobViaReadyEndpoint(job, uploaded);
-  const doneAt = new Date().toISOString();
-  await fsMod.setDoc(docSnap.ref, { status:'published', requestedAction:'', publishedAtIso:doneAt, publishCompletedAtIso:doneAt, uploadedMedia:uploaded, publishResult:result, agentNote:'تم النشر فعليًا من Electron باستخدام نفس مسار نشر صفحة تجهيز النشر.', updatedAtIso:doneAt, updatedAt:fsMod.serverTimestamp() }, { merge:true });
-  return { ok:true, id:docSnap.id, platform, result };
-}
 async function markRequestedJobsSeen(){
   const { config, db, fsMod } = await getFirebase();
   const collectionName = config.jobsCollection || 'publishing_jobs';
   const jobsRef = fsMod.collection(db, collectionName);
   const statuses = ['manual_publish_requested','retry_requested'];
   let handled = 0;
-  let published = 0;
-  let failed = 0;
-  const results = [];
   for(const status of statuses){
-    const q = fsMod.query(jobsRef, fsMod.where('status', '==', status), fsMod.limit(10));
+    const q = fsMod.query(jobsRef, fsMod.where('status', '==', status), fsMod.limit(20));
     const snap = await fsMod.getDocs(q);
     for(const docSnap of snap.docs){
+      const job = docSnap.data() || {};
+      const connections = await loadPlatformConnections();
+      const platform = String(job.platform || (Array.isArray(job.platforms) ? job.platforms[0] : '') || '').toLowerCase();
+      const ready = platform ? platformReady(connections, platform) : false;
+      await fsMod.setDoc(docSnap.ref, {
+        agentLastSeenAtIso: new Date().toISOString(),
+        agentCentralConnectionReady: ready,
+        agentNote: ready ? 'تم استلام الطلب من Electron والحساب المركزي موجود في Firebase. خطوة النشر الفعلية التالية تحتاج وحدة API الخاصة بالمنصة والملف المحلي.' : `تم استلام الطلب من Electron لكن ${platform || 'المنصة'} غير مربوطة مركزيًا في Firebase أو لا يوجد توكن محفوظ.`,
+        updatedAtIso: new Date().toISOString(),
+        updatedAt: fsMod.serverTimestamp()
+      }, { merge:true });
       handled += 1;
-      try{
-        const result = await processRequestedJob(docSnap);
-        published += 1;
-        results.push(result);
-      }catch(error){
-        failed += 1;
-        const now = new Date().toISOString();
-        await fsMod.setDoc(docSnap.ref, { status:'failed', error:error.message || String(error), lastError:error.message || String(error), publishFailedAtIso:now, agentNote:'فشل النشر الفعلي من Electron. راجع error/lastError.', updatedAtIso:now, updatedAt:fsMod.serverTimestamp() }, { merge:true }).catch(()=>null);
-        results.push({ ok:false, id:docSnap.id, error:error.message || String(error) });
-      }
     }
   }
-  return { ok:true, handled, published, failed, results };
+  return { ok:true, handled };
 }
 
 async function loadConfig(){
@@ -353,7 +261,7 @@ async function getFirebase(){
   const fsMod = await import('firebase/firestore');
   const firebaseApp = appMod.initializeApp(config.firebaseConfig);
   const db = fsMod.getFirestore(firebaseApp);
-  firebaseCache = { config, firebaseApp, db, fsMod };
+  firebaseCache = { config, db, fsMod };
   return firebaseCache;
 }
 async function saveJobsToFirebase(payload){
