@@ -8,45 +8,35 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
 <style>
-body{margin:0;font-family:Tajawal,Arial,sans-serif;background:#f6eee8;color:#2d1713}.shell{max-width:1180px;margin:0 auto;padding:28px}.hero{background:#fff;border:1px solid #e6cfc1;border-radius:24px;padding:22px;box-shadow:0 16px 42px rgba(90,58,50,.08)}h1{margin:0 0 8px;font-size:30px}p{color:#80665e;line-height:1.8}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}.card{background:#fff;border:1px solid #e6cfc1;border-radius:20px;padding:18px}.field{display:flex;flex-direction:column;gap:7px;font-weight:800}.field input{border:1px solid #dcc2b2;border-radius:13px;padding:12px;font:inherit}.btn{border:0;border-radius:14px;padding:12px 18px;font-weight:900;font:inherit;cursor:pointer}.btn-primary{background:#5a3a32;color:#fff}.btn-light{background:#fff7f2;color:#5a3a32;border:1px solid #e1c7b8}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.platforms{display:flex;gap:8px;flex-wrap:wrap}.platforms label{background:#fff7f2;border:1px solid #e3cabd;border-radius:999px;padding:8px 12px;font-weight:900}table{width:100%;border-collapse:collapse;background:#fff;border-radius:18px;overflow:hidden}th,td{padding:10px;border-bottom:1px solid #f0ded4;text-align:right}th{background:#fff7f2;color:#6b3f33}.status{font-weight:900;color:#5a3a32}.warn{color:#9d5b16}.ok{color:#22733a}.muted{color:#8e7166}.folder{direction:ltr;text-align:left;background:#fff7f2;border-radius:12px;padding:10px;margin-top:8px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.stats div{background:#fff;border:1px solid #e6cfc1;border-radius:16px;padding:12px}.stats strong{display:block;font-size:24px}@media(max-width:900px){.grid,.stats{grid-template-columns:1fr}}
+:root{--bg:#f6eee8;--panel:#fffaf7;--card:#fff;--ink:#2d1713;--muted:#8a6f66;--line:#ead5c8;--soft:#fff4ee;--brand:#5a3a32;--brand2:#8b5b4d;--ok:#168a4a;--warn:#a15c12;--bad:#b12d24;--shadow:0 18px 50px rgba(90,58,50,.10)}
+*{box-sizing:border-box}body{margin:0;font-family:Tajawal,Arial,sans-serif;background:radial-gradient(circle at top right,#fff8f4 0,#f6eee8 42%,#efe0d6 100%);color:var(--ink)}
+.shell{max-width:1320px;margin:0 auto;padding:24px}.topbar{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:18px}.brand{display:flex;align-items:center;gap:14px}.logo{width:54px;height:54px;border-radius:18px;background:linear-gradient(135deg,var(--brand),#c08a72);display:grid;place-items:center;color:#fff;font-weight:900;box-shadow:var(--shadow)}h1{margin:0;font-size:30px;letter-spacing:-.5px}.sub{margin:4px 0 0;color:var(--muted);font-size:14px}.status-pill{border:1px solid var(--line);background:rgba(255,255,255,.75);backdrop-filter:blur(10px);border-radius:999px;padding:10px 14px;font-weight:900;color:var(--brand)}
+.hero{background:linear-gradient(135deg,rgba(255,255,255,.92),rgba(255,247,242,.92));border:1px solid var(--line);border-radius:28px;padding:20px;box-shadow:var(--shadow);position:relative;overflow:hidden}.hero:before{content:"";position:absolute;inset:auto -80px -140px auto;width:320px;height:320px;background:rgba(139,91,77,.08);border-radius:50%}.path-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;position:relative}.folder{direction:ltr;text-align:left;background:#fff;border:1px dashed #d8bba9;border-radius:18px;padding:14px 16px;color:#5b443d;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;position:relative}.btn{border:0;border-radius:16px;padding:12px 18px;font-weight:900;font:inherit;cursor:pointer;transition:.16s transform,.16s box-shadow,.16s background}.btn:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(90,58,50,.12)}.btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}.btn-light{background:#fff;color:var(--brand);border:1px solid var(--line)}.btn-danger{background:#fff1ef;color:var(--bad);border:1px solid #f0b7ae}.status{font-weight:900;color:var(--brand);margin:14px 0 0}.status.ok{color:var(--ok)}.status.warn{color:var(--warn)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.stat{background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:20px;padding:16px;box-shadow:0 8px 26px rgba(90,58,50,.05)}.stat span{display:block;color:var(--muted);font-weight:700}.stat strong{display:block;font-size:28px;margin-top:6px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}.card{background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:24px;padding:18px;box-shadow:0 12px 34px rgba(90,58,50,.06)}.card h2{margin:0 0 8px;font-size:22px}.hint{color:var(--muted);line-height:1.8;margin:0 0 14px}.field{display:flex;flex-direction:column;gap:7px;font-weight:900}.field input,input[type=time],input[type=number]{border:1px solid #dcc2b2;border-radius:14px;padding:11px 12px;font:inherit;background:#fff;color:var(--ink)}.platforms{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}.platforms label{background:var(--soft);border:1px solid #e3cabd;border-radius:999px;padding:9px 13px;font-weight:900;display:flex;align-items:center;gap:7px}.connections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.connections p{margin:0;border:1px solid var(--line);background:#fff;border-radius:16px;padding:10px 12px;font-weight:800}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.muted{color:var(--muted)}
+table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden}th,td{padding:11px 12px;border-bottom:1px solid #f0ded4;text-align:right;vertical-align:middle}tr:last-child td{border-bottom:0}th{background:#fff4ee;color:#6b3f33;font-size:13px}.preview-wrap{max-height:430px;overflow:auto;border-radius:18px}.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;background:#fff4ee;border:1px solid #e7cfc2;font-weight:900;color:var(--brand);font-size:12px}.notice{border:1px dashed #d7b9a8;background:#fffaf6;border-radius:18px;padding:12px 14px;margin-bottom:12px}.notice p{margin:6px 0}.footer-note{margin-top:12px;color:var(--muted);font-size:13px;line-height:1.7}@media(max-width:980px){.grid,.stats{grid-template-columns:1fr}.path-row{grid-template-columns:1fr}.connections{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
 <body>
 <div class="shell">
+  <div class="topbar">
+    <div class="brand"><div class="logo">MZJ</div><div><h1>MZJ Publisher Agent</h1><p class="sub">وكيل النشر المحلي: قراءة الأجندة من الجهاز، رفع الملفات، وتنفيذ أوامر النشر من Firebase.</p></div></div>
+    <div class="status-pill">Electron Local Publisher</div>
+  </div>
   <section class="hero">
-    <h1>MZJ Publisher Agent</h1>
-    <p>البرنامج يقرأ فولدرات الأجندة من الجهاز، يقرأ ملف كابشن Word، ويحول بوست/ريل/ستوري إلى مهام نشر محفوظة في Firebase ليتم عرضها في صفحة جدولة النشر المحلي داخل السيستم.</p>
-    <div class="folder" id="folderPath">لم يتم اختيار فولدر بعد</div>
+    <div class="path-row"><div class="folder" id="folderPath">لم يتم اختيار فولدر بعد</div><button class="btn btn-light" id="pickFolderBtn">اختيار فولدر الأجندة</button></div>
     <div class="actions">
-      <button class="btn btn-light" id="pickFolderBtn">اختيار فولدر الأجندة</button>
       <button class="btn btn-primary" id="scanBtn">فحص الأجندة</button>
       <button class="btn btn-primary" id="saveBtn">اعتماد الجدولة وحفظها في Firebase</button>
       <button class="btn btn-light" id="checkCommandsBtn">فحص أوامر النشر الآن / إعادة المحاولة</button>
     </div>
     <p class="status" id="statusText">جاهز.</p>
   </section>
+  <div class="stats" id="stats"><div class="stat"><span>الأيام</span><strong>0</strong></div><div class="stat"><span>المهام</span><strong>0</strong></div><div class="stat"><span>تحذيرات</span><strong>0</strong></div><div class="stat"><span>جاهز للحفظ</span><strong>لا</strong></div></div>
   <div class="grid">
-    <article class="card">
-      <h2>إعدادات التاريخ والوقت</h2>
-      <label class="field"><span>سنة النشر</span><input id="yearInput" type="number" min="2024" max="2100"></label><br>
-      <p>الأوقات هنا احتياطية وقت الفحص. الأفضل حفظ الأوقات من صفحة جدولة النشر المحلي في السيستم، وElectron سيقرأها من Firebase عند الفحص.</p>
-      <table><thead><tr><th>المنصة</th><th>وقت البوست</th><th>وقت الريل</th><th>وقت الستوري</th></tr></thead><tbody id="platformTimesBody"></tbody></table>
-    </article>
-    <article class="card">
-      <h2>المنصات المستخدمة</h2>
-      <p>الحسابات نفسها يتم ربطها من صفحة ربط المنصات في السيستم، وتقرأ هنا من Firebase كمصدر مركزي.</p>
-      <div id="centralConnections" class="muted">جاري فحص الحسابات المركزية...</div>
-      <div class="platforms">
-        <label><input type="checkbox" value="facebook" checked> Facebook</label>
-        <label><input type="checkbox" value="instagram" checked> Instagram</label>
-        <label><input type="checkbox" value="tiktok"> TikTok</label>
-        <label><input type="checkbox" value="youtube"> YouTube</label>
-        <label><input type="checkbox" value="snapchat"> Snapchat</label>
-      </div>
-    </article>
+    <article class="card"><h2>إعدادات التاريخ والوقت</h2><p class="hint">Electron يقرأ أوقات النشر المحفوظة في Firebase، وهذه القيم احتياطية وقت الفحص اليدوي.</p><label class="field"><span>سنة النشر</span><input id="yearInput" type="number" min="2024" max="2100"></label><br><table><thead><tr><th>المنصة</th><th>وقت البوست</th><th>وقت الريل</th><th>وقت الستوري</th></tr></thead><tbody id="platformTimesBody"></tbody></table><p class="footer-note">الستوري يتم ترتيبها رقميًا حسب اسم الملف، وتضاف دقيقة بين كل ستوري والثانية.</p></article>
+    <article class="card"><h2>المنصات والحسابات المركزية</h2><p class="hint">الحسابات يتم ربطها من صفحة ربط المنصات داخل السيستم، وElectron يقرأ حالتها من Firebase.</p><div id="centralConnections" class="connections"><p class="muted">جاري فحص الحسابات المركزية...</p></div><div class="platforms"><label><input type="checkbox" value="facebook" checked> Facebook</label><label><input type="checkbox" value="instagram" checked> Instagram</label><label><input type="checkbox" value="tiktok"> TikTok</label><label><input type="checkbox" value="youtube"> YouTube</label><label><input type="checkbox" value="snapchat"> Snapchat</label></div><div class="notice"><p class="warn"><strong>ملاحظة:</strong> Facebook Story متوقف مؤقتًا حتى لا ينزل كـ Post عادي.</p><p class="muted">Facebook Post و Instagram Post/Reel/Story مستمرين حسب الربط والصلاحيات.</p></div></article>
   </div>
-  <div class="stats" id="stats"><div><span>الأيام</span><strong>0</strong></div><div><span>المهام</span><strong>0</strong></div><div><span>تحذيرات</span><strong>0</strong></div><div><span>جاهز للحفظ</span><strong>لا</strong></div></div>
-  <article class="card"><h2>المعاينة</h2><div id="warnings"></div><table><thead><tr><th>التاريخ</th><th>المنصة</th><th>النوع</th><th>العنوان</th><th>الملفات</th><th>الكابشن</th></tr></thead><tbody id="jobsBody"><tr><td colspan="6" class="muted">اختار فولدر واضغط فحص الأجندة.</td></tr></tbody></table></article>
+  <article class="card"><h2>المعاينة والتحذيرات</h2><div id="warnings" class="notice"></div><div class="preview-wrap"><table><thead><tr><th>التاريخ والوقت</th><th>المنصة</th><th>النوع</th><th>العنوان</th><th>الملفات</th><th>الكابشن</th></tr></thead><tbody id="jobsBody"><tr><td colspan="6" class="muted">اختار فولدر واضغط فحص الأجندة.</td></tr></tbody></table></div></article>
 </div>
 <script src="renderer.js"></script>
 </body>

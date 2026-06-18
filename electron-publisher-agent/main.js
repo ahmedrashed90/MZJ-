@@ -31,7 +31,19 @@ function normalizeArabicName(value){
 function isDirentName(dirent, expected){ return normalizeArabicName(dirent.name) === normalizeArabicName(expected); }
 function safeId(value){ return String(value || '').replace(/[\/\.\#\$\[\]]/g, '_').replace(/\s+/g, '_').slice(0, 900); }
 function hash(value){ return crypto.createHash('sha1').update(String(value || '')).digest('hex').slice(0, 12); }
-function naturalSort(list){ return list.sort((a,b) => String(a.name || a).localeCompare(String(b.name || b), 'ar', { numeric:true, sensitivity:'base' })); }
+function leadingNumber(value){
+  const name = String(value?.name || value || '').trim();
+  const match = name.match(/^\s*(\d+)/);
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+}
+function naturalSort(list){
+  return list.sort((a,b) => {
+    const an = leadingNumber(a);
+    const bn = leadingNumber(b);
+    if(an !== bn) return an - bn;
+    return String(a.name || a).localeCompare(String(b.name || b), 'ar', { numeric:true, sensitivity:'base' });
+  });
+}
 function isImage(name){ return /\.(png|jpe?g|webp|gif)$/i.test(name); }
 function isVideo(name){ return /\.(mp4|mov|m4v|webm)$/i.test(name); }
 function isMedia(name){ return isImage(name) || isVideo(name); }
@@ -71,7 +83,7 @@ const LOCAL_PUBLISHER_DEFAULT_TIMES = {
   youtube: { post:'', reel:'18:30', story:'' },
   snapchat: { post:'', reel:'', story:'23:00' }
 };
-const STORY_PLATFORMS = ['facebook','instagram','snapchat'];
+const STORY_PLATFORMS = ['instagram','snapchat']; // Facebook Stories are not sent as page posts; disabled until a dedicated Facebook Story API adapter is available.
 function cleanTime(value){
   const v = String(value || '').trim();
   return /^\d{2}:\d{2}$/.test(v) ? v : '';
@@ -143,7 +155,7 @@ function platformReady(connections, platform){
 function timeForPlatform(platformTimes, platform, contentType, fallback){
   return cleanTime(platformTimes?.[platform]?.[contentType]) || cleanTime(fallback?.[platform]?.[contentType]) || cleanTime(fallback?.[contentType]) || cleanTime(LOCAL_PUBLISHER_DEFAULT_TIMES?.[platform]?.[contentType]) || '';
 }
-function makeJob({ agendaRoot, dayFolder, dateIso, time, contentType, title, files, caption, captionPath, platform, index }){
+function makeJob({ agendaRoot, dayFolder, dateIso, time, contentType, title, files, caption, captionPath, platform, index, storyOrder }){
   const publishTime = cleanTime(time) || '09:00';
   const scheduledAtIso = `${dateIso}T${publishTime}:00`;
   const basis = [agendaRoot, dayFolder, platform || '', contentType, title, index || 0, files.map(f => f.path).join('|')].join('|');
@@ -163,6 +175,8 @@ function makeJob({ agendaRoot, dayFolder, dateIso, time, contentType, title, fil
     files: files.map(f => ({ name:f.name, localPath:f.path, type:isVideo(f.name) ? 'video' : 'image' })),
     filesLocalPaths: files.map(f => f.path),
     filesCount: files.length,
+    storyOrder: contentType === 'story' ? Number(storyOrder || index || 0) : null,
+    sortOrder: contentType === 'story' ? Number(storyOrder || index || 0) : Number(index || 0),
     captionText: caption || '',
     captionFilePath: captionPath || '',
     requestedAction: '',
@@ -184,6 +198,7 @@ async function scanAgendaFolder(payload){
   const jobs = [];
   const warnings = [];
   missingPlatforms.forEach(platform => warnings.push(`المنصة ${platform} غير مربوطة مركزيًا في Firebase أو لا يوجد توكن محفوظ. سيتم إنشاء المهام لكن النشر الفعلي يحتاج ربط المنصة.`));
+  if(selectedPlatforms.includes('facebook')) warnings.push('تم إيقاف إنشاء Facebook Story مؤقتًا حتى لا تنزل كمنشور عادي. Facebook Post/Reel مستمرين عادي.');
   for(const day of dayFolders){
     const m = day.name.match(/^(\d{1,2})-(\d{1,2})$/);
     const dd = String(Number(m[1])).padStart(2, '0');
@@ -218,7 +233,7 @@ async function scanAgendaFolder(payload){
       const baseTime = timeForPlatform(platformTimes, platform, 'story', fallbackTimes);
       if(!baseTime) return;
       const time = addMinutesToTime(baseTime, i);
-      jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time, contentType:'story', title:`ستوري ${day.name} - ${i+1} - ${platform}`, files:[file], caption:'', captionPath:'', platform, index:i+1 }));
+      jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time, contentType:'story', title:`ستوري ${day.name} - ${i+1} - ${platform} - ${file.name}`, files:[file], caption:'', captionPath:'', platform, index:i+1, storyOrder:i+1 }));
     }));
   }
   return { ok:true, folderPath:agendaRoot, jobs, warnings, days:dayFolders.length, platformTimes };
@@ -241,6 +256,19 @@ function publishEndpointFromConfig(config = {}){
   const site = String(config.siteUrl || config.webAppUrl || 'https://mzj.vercel.app').replace(/\/$/, '');
   return `${site}/api/meta/publish/ready`;
 }
+
+async function sleep(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
+async function waitForPublicMediaUrl(url, attempts = 6){
+  if(!url) return false;
+  for(let i = 0; i < attempts; i += 1){
+    try{
+      const response = await fetch(url, { method:'HEAD' });
+      if(response.ok) return true;
+    }catch(_){/* retry */}
+    await sleep(900 + (i * 250));
+  }
+  return false;
+}
 async function uploadLocalJobMedia(job){
   const { config, firebaseApp } = await getFirebase();
   const storageMod = await import('firebase/storage');
@@ -259,6 +287,7 @@ async function uploadLocalJobMedia(job){
     const storageRef = storageMod.ref(storage, storagePath);
     await storageMod.uploadBytes(storageRef, buffer, { contentType, customMetadata:{ localJobId:String(job.id || ''), originalFileName:String(name || ''), source:'electron-local-agent' } });
     const downloadURL = await storageMod.getDownloadURL(storageRef);
+    await waitForPublicMediaUrl(downloadURL).catch(()=>false);
     uploaded.push({ url:downloadURL, downloadURL, storagePath, name, localPath, contentType, type:contentType });
   }
   return uploaded;
@@ -304,6 +333,9 @@ async function processRequestedJob(docSnap){
   const now = new Date().toISOString();
   const platform = String(job.platform || (Array.isArray(job.platforms) ? job.platforms[0] : '') || '').toLowerCase();
   const connections = await loadPlatformConnections();
+  if(platform === 'facebook' && String(job.contentType || '').toLowerCase() === 'story') {
+    throw new Error('Facebook Story publishing is not supported yet and will not be sent as a normal post.');
+  }
   const ready = platform ? platformReady(connections, platform) : false;
   await fsMod.setDoc(docSnap.ref, { status:'publishing', agentLastSeenAtIso:now, publishStartedAtIso:now, publishAttempts:Number(job.publishAttempts || 0) + 1, agentCentralConnectionReady:ready, error:'', lastError:'', updatedAtIso:now, updatedAt:fsMod.serverTimestamp() }, { merge:true });
   if(platform && !ready) throw new Error(`${platform} غير مربوط مركزيًا في Firebase أو لا يوجد توكن محفوظ.`);
@@ -325,7 +357,13 @@ async function markRequestedJobsSeen(){
   for(const status of statuses){
     const q = fsMod.query(jobsRef, fsMod.where('status', '==', status), fsMod.limit(10));
     const snap = await fsMod.getDocs(q);
-    for(const docSnap of snap.docs){
+    const docs = snap.docs.slice().sort((a,b) => {
+      const ad = a.data() || {}; const bd = b.data() || {};
+      const at = `${ad.publishDate || ad.date || ''} ${ad.publishTime || ''} ${String(ad.storyOrder || ad.sortOrder || 0).padStart(4,'0')}`;
+      const bt = `${bd.publishDate || bd.date || ''} ${bd.publishTime || ''} ${String(bd.storyOrder || bd.sortOrder || 0).padStart(4,'0')}`;
+      return at.localeCompare(bt, 'ar', { numeric:true, sensitivity:'base' });
+    });
+    for(const docSnap of docs){
       handled += 1;
       try{
         const result = await processRequestedJob(docSnap);

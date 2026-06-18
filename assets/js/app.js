@@ -17543,9 +17543,10 @@ function renderLocalPublisherPage(){
     const updated = normalizeText(job.updatedAtIso || job.publishedAtIso || job.createdAtIso || '');
     const datePart = normalizeText(job.publishDate || job.date || (scheduled ? scheduled.slice(0,10) : ''));
     const timePart = normalizeText(job.publishTime || (scheduled && scheduled.includes('T') ? scheduled.slice(11,16) : ''));
+    const typeLabel = localPublisherTypeLabel(job.contentType || job.type) + ((normalizeText(job.contentType || job.type).toLowerCase() === 'story' && (job.storyOrder || job.sortOrder)) ? ` #${job.storyOrder || job.sortOrder}` : '');
     return `<tr data-local-job-id="${escapeHtml(job.id)}">
       <td><span class="local-schedule-primary">${escapeHtml(datePart || 'بدون تاريخ')}</span><span class="local-schedule-sub">${escapeHtml(timePart || 'بدون وقت')}</span></td>
-      <td>${escapeHtml(localPublisherTypeLabel(job.contentType || job.type))}</td>
+      <td>${escapeHtml(typeLabel)}</td>
       <td><span class="local-job-platform">${escapeHtml(localPublisherPlatformLabel(platform || 'كل المتاح'))}</span></td>
       <td>${files.length || Number(job.filesCount || 0) || 0}</td>
       <td>${escapeHtml(localPublisherCaptionLabel(job))}</td>

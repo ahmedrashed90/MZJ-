@@ -47,9 +47,9 @@ async function refreshCentralConnections(){
 }
 function render(){
   $('folderPath').textContent = selectedFolder || 'لم يتم اختيار فولدر بعد';
-  $('stats').innerHTML = `<div><span>الأيام</span><strong>${scannedDays}</strong></div><div><span>المهام</span><strong>${scannedJobs.length}</strong></div><div><span>تحذيرات</span><strong>${warnings.length}</strong></div><div><span>جاهز للحفظ</span><strong>${scannedJobs.length ? 'نعم' : 'لا'}</strong></div>`;
+  $('stats').innerHTML = `<div class="stat"><span>الأيام</span><strong>${scannedDays}</strong></div><div class="stat"><span>المهام</span><strong>${scannedJobs.length}</strong></div><div class="stat"><span>تحذيرات</span><strong>${warnings.length}</strong></div><div class="stat"><span>جاهز للحفظ</span><strong>${scannedJobs.length ? 'نعم' : 'لا'}</strong></div>`;
   $('warnings').innerHTML = warnings.length ? warnings.map(w => `<p class="warn">⚠ ${w}</p>`).join('') : '<p class="ok">لا توجد تحذيرات.</p>';
-  $('jobsBody').innerHTML = scannedJobs.length ? scannedJobs.slice(0,300).map(job => `<tr><td>${job.publishDate} ${job.publishTime}</td><td>${job.platform || '-'}</td><td>${job.contentType}</td><td>${job.title}</td><td>${job.filesCount}</td><td>${job.captionText ? 'موجود' : 'بدون'}</td></tr>`).join('') : '<tr><td colspan="6" class="muted">لا توجد مهام بعد.</td></tr>';
+  $('jobsBody').innerHTML = scannedJobs.length ? scannedJobs.slice(0,300).map(job => `<tr><td><span class="badge">${job.publishDate} ${job.publishTime}</span></td><td>${PLATFORM_LABELS[job.platform] || job.platform || '-'}</td><td>${job.contentType === 'story' ? `Story #${job.storyOrder || job.sortOrder || ''}` : job.contentType}</td><td>${job.title}</td><td>${job.filesCount}</td><td>${job.captionText ? '<span class="ok">موجود</span>' : '<span class="muted">بدون</span>'}</td></tr>`).join('') : '<tr><td colspan="6" class="muted">لا توجد مهام بعد.</td></tr>';
 }
 $('pickFolderBtn').addEventListener('click', async () => { selectedFolder = await window.mzjPublisherAgent.chooseAgendaFolder() || selectedFolder; render(); });
 $('scanBtn').addEventListener('click', async () => {

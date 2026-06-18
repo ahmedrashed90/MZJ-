@@ -1,7 +1,7 @@
 {
   "name": "mzj-publisher-agent",
-  "version": "1.1.1",
-  "description": "MZJ local publishing agent with direct publish-now execution.",
+  "version": "1.1.2",
+  "description": "MZJ local publishing agent with improved story ordering, diagnostics, and professional UI.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
