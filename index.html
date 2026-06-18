@@ -18,7 +18,7 @@
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&amp;display=swap" rel="stylesheet"/>
-<link href="assets/css/style.css?v=265" rel="stylesheet">
+<link href="assets/css/style.css?v=266" rel="stylesheet">
 <link href="assets/favicon.png" rel="icon" type="image/x-icon"/>
 </link></head>
 <body>
@@ -106,7 +106,7 @@
 <div class="page-head campaign-builder-head">
 <div class="page-title">
 <h1>إنشاء حملة</h1>
-<p>أنشئ الحملة بنظام خطوات: طلب الهيكل واختيار كتاب المحتوى، تحديد الكريتيف المطلوب للهيكل وربط الأقسام، ثم جدول النشر والميزانية.</p>
+<p>أنشئ الحملة بنظام خطوات: طلب الهيكل واختيار كتاب المحتوى، تحديد الكريتيف المطلوب للهيكل وربط الأقسام، ثم الميزانية الاختيارية.</p>
 </div>
 <div class="actions">
 <button class="btn btn-light" id="resetCampaignBuilder" type="button">مسح النموذج</button>
@@ -116,7 +116,7 @@
 <div aria-label="خطوات إنشاء الحملة" class="campaign-wizard-nav" id="campaignWizardNav">
 <button class="campaign-wizard-step active" data-campaign-wizard-target="1" type="button"><span>1</span><strong>بيانات طلب كاتب المحتوى</strong></button>
 <button class="campaign-wizard-step" data-campaign-wizard-target="2" type="button"><span>2</span><strong>تحديد الكريتيف المطلوب للهيكل</strong></button>
-<button class="campaign-wizard-step" data-campaign-wizard-target="3" type="button"><span>3</span><strong>جدول النشر والميزانية</strong></button>
+<button class="campaign-wizard-step" data-campaign-wizard-target="3" type="button"><span>3</span><strong>الميزانية</strong></button>
 </div>
 <div class="campaign-builder stacked" id="campaignWizard">
 <section class="request-panel card request-top campaign-wizard-panel active" data-campaign-wizard-step="1">
@@ -146,19 +146,12 @@
 <div aria-label="كريتيفات ومهام الحملة" class="creative-rows-stack" id="creativeRows">
 <div class="empty-state">اضغط على خطوة الكريتيفات والمهام لفتح نافذة ربط الكريتيفات باليوزرات تلقائيًا.</div>
 </div>
-<div class="campaign-wizard-actions"><button class="btn btn-light" data-campaign-wizard-prev="" type="button">السابق</button><button class="btn btn-primary" data-campaign-wizard-next="" type="button">التالي: جدول النشر والميزانية</button></div>
+<div class="campaign-wizard-actions"><button class="btn btn-light" data-campaign-wizard-prev="" type="button">السابق</button><button class="btn btn-primary" data-campaign-wizard-next="" type="button">التالي: الميزانية</button></div>
 </div>
 <div class="builder-bottom-stacked campaign-wizard-panel" data-campaign-wizard-step="3">
 <div class="card campaign-section-card">
 <div class="section-toolbar small-toolbar">
-<div><h2>جدول النشر</h2><p>يتولد كأجندة حسب تاريخ بداية ونهاية النشر، والاختيارات تعتمد على مخرجات التصميم والمونتاج.</p></div>
-<button class="btn btn-light" id="refreshPublishAgendaBtn" type="button">تحديث الجدول</button>
-</div>
-<div class="publish-agenda" id="publishAgenda"><div class="empty-state">حدد بداية ونهاية النشر ثم اختر كريتيفات ومخرجات التصميم والمونتاج.</div></div>
-</div>
-<div class="card campaign-section-card">
-<div class="section-toolbar small-toolbar">
-<div><h2>الميزانية</h2><p>كل بند ميزانية: Funnel، المنتج، المنصة، والقيمة. المنصات تظهر من صفحة الأقسام.</p></div>
+<div><h2>الميزانية</h2><p>إضافة الميزانية اختيارية أثناء إنشاء الحملة، ويمكن إضافتها أو تعديلها لاحقًا من صفحة إدارة الحملات. بند الكريتيف يعتمد على الكريتيفات المختارة في الخطوة الثانية.</p></div>
 <button class="btn btn-light" id="addBudgetRowBtn" type="button">＋ إضافة بند ميزانية</button>
 </div>
 <div class="budget-items" id="budgetRows"><div class="empty-state">لا توجد بنود ميزانية.</div></div>
@@ -1022,6 +1015,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="assets/js/jszip.min.js?v=160"></script>
-<script src="assets/js/app.js?v=355"></script>
+<script src="assets/js/app.js?v=356"></script>
 </input></input></input></input></body>
 </html>

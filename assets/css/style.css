@@ -9148,3 +9148,8 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 .structure-cleanup-notice strong{font-size:13px;line-height:1.6;}
 .structure-cleanup-notice .mini-btn{white-space:nowrap;}
 @media(max-width:720px){.structure-cleanup-notice{align-items:stretch;flex-direction:column}.structure-cleanup-notice .mini-btn{width:100%;}}
+
+/* MZJ v96 budget editor */
+.campaign-budget-editor .modal-section-title{align-items:center;gap:12px;}
+.campaign-budget-editor .budget-items{display:grid;gap:12px;margin-top:12px;}
+.campaign-card-meta .muted-chip{opacity:.72;}
