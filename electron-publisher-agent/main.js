@@ -83,7 +83,7 @@ const LOCAL_PUBLISHER_DEFAULT_TIMES = {
   youtube: { post:'', reel:'18:30', story:'' },
   snapchat: { post:'', reel:'', story:'23:00' }
 };
-const STORY_PLATFORMS = ['instagram','snapchat']; // Facebook Stories are not sent as page posts; disabled until a dedicated Facebook Story API adapter is available.
+const STORY_PLATFORMS = ['facebook','instagram','snapchat'];
 function cleanTime(value){
   const v = String(value || '').trim();
   return /^\d{2}:\d{2}$/.test(v) ? v : '';
@@ -198,7 +198,6 @@ async function scanAgendaFolder(payload){
   const jobs = [];
   const warnings = [];
   missingPlatforms.forEach(platform => warnings.push(`المنصة ${platform} غير مربوطة مركزيًا في Firebase أو لا يوجد توكن محفوظ. سيتم إنشاء المهام لكن النشر الفعلي يحتاج ربط المنصة.`));
-  if(selectedPlatforms.includes('facebook')) warnings.push('تم إيقاف إنشاء Facebook Story مؤقتًا حتى لا تنزل كمنشور عادي. Facebook Post/Reel مستمرين عادي.');
   for(const day of dayFolders){
     const m = day.name.match(/^(\d{1,2})-(\d{1,2})$/);
     const dd = String(Number(m[1])).padStart(2, '0');
@@ -333,9 +332,6 @@ async function processRequestedJob(docSnap){
   const now = new Date().toISOString();
   const platform = String(job.platform || (Array.isArray(job.platforms) ? job.platforms[0] : '') || '').toLowerCase();
   const connections = await loadPlatformConnections();
-  if(platform === 'facebook' && String(job.contentType || '').toLowerCase() === 'story') {
-    throw new Error('Facebook Story publishing is not supported yet and will not be sent as a normal post.');
-  }
   const ready = platform ? platformReady(connections, platform) : false;
   await fsMod.setDoc(docSnap.ref, { status:'publishing', agentLastSeenAtIso:now, publishStartedAtIso:now, publishAttempts:Number(job.publishAttempts || 0) + 1, agentCentralConnectionReady:ready, error:'', lastError:'', updatedAtIso:now, updatedAt:fsMod.serverTimestamp() }, { merge:true });
   if(platform && !ready) throw new Error(`${platform} غير مربوط مركزيًا في Firebase أو لا يوجد توكن محفوظ.`);
