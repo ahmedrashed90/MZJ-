@@ -1068,27 +1068,10 @@ window.addEventListener('load', () => {
 function funnelOptions(selectedValue = ''){
   return '<option value="">اختر Funnel</option>' + funnels.map(item => `<option value="${escapeHtml(item.name)}"${selectedValue === item.name ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
 }
-function campaignBudgetCreativeNames(){
-  const names = [];
-  document.querySelectorAll('#creativeRows .creative-assignment-panel').forEach(panel => {
-    const name = normalizeText(panel.dataset.creativeName || '');
-    if(name) names.push(name);
-  });
-  document.querySelectorAll('#creativeRows .js-creative-check:checked').forEach(input => {
-    const name = normalizeText(input.value || '');
-    if(name) names.push(name);
-  });
-  document.querySelectorAll('#creativeRows .js-popup-creative-check:checked').forEach(input => {
-    const name = normalizeText(input.value || '');
-    if(name) names.push(name);
-  });
-  return uniqueList(names);
-}
 function productOptions(selectedValue = ''){
   const current = normalizeText(selectedValue || '');
-  const creatives = uniqueList([...campaignBudgetCreativeNames(), current].filter(Boolean));
-  const emptyLabel = creatives.length ? 'اختر الكرييتيف' : 'اختار الكرييتيفات في الخطوة الثانية أولاً';
-  return `<option value="">${emptyLabel}</option>` + creatives.map(item => `<option value="${escapeHtml(item)}"${current === normalizeText(item) ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('');
+  const products = uniqueList([...getCampaignProducts(), current].filter(Boolean));
+  return '<option value="">اختر المنتج</option>' + products.map(item => `<option value="${escapeHtml(item)}"${selectedValue === item ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('');
 }
 function campaignCodeOptions(selectedValue = ''){
   return '<option value="">اختر الكود</option>' + campaignCodes.map(item => {
@@ -6057,8 +6040,6 @@ function collectBudgetRows(){
       funnel: card.querySelector('.js-funnel-select')?.value || '',
       newFunnel: normalizeText(card.querySelector('.js-new-funnel')?.value),
       product: card.querySelector('.js-product-select')?.value || '',
-      productCreative: card.querySelector('.js-product-select')?.value || '',
-      productType: 'creative',
       platform: card.querySelector('.js-platform-select')?.value || '',
       publishDate: card.querySelector('.js-budget-publish-date')?.value || '',
       duration: normalizeText(card.querySelector('.js-budget-duration')?.value),
@@ -6148,7 +6129,7 @@ function addBudgetItem(){
     <div class="budget-grid">
       <label class="field"><span>Funnel</span><select class="js-funnel-select">${funnelOptions()}</select></label>
       <label class="field"><span>Funnel جديد</span><input class="js-new-funnel" type="text" placeholder="اكتب Funnel" /></label>
-      <label class="field"><span>الكرييتيف</span><select class="js-product-select">${productOptions()}</select><small class="field-hint">يظهر هنا الكرييتيفات التي اخترتها في الخطوة الثانية.</small></label>
+      <label class="field"><span>المنتج</span><select class="js-product-select">${productOptions()}</select></label>
       <label class="field"><span>المنصة</span><select class="js-platform-select">${platformOptions()}</select></label>
       <label class="field"><span>تاريخ النشر</span><input class="js-budget-publish-date" type="date" /></label>
       <label class="field"><span>مدة الإعلان</span><input class="js-budget-duration" type="text" placeholder="مثال: 7 أيام" /></label>
@@ -7392,7 +7373,7 @@ function renderBudgetSummary(campaign){
   const list = Array.isArray(campaign.budgetItems) ? campaign.budgetItems : [];
   if(!list.length) return '<div class="empty-state mini-empty">لا توجد ميزانية.</div>';
   const grandTotal = list.reduce((sum, item) => sum + budgetItemTotal(item), 0);
-  return `<div class="compact-table"><table><thead><tr><th>Funnel</th><th>الكرييتيف</th><th>المنصة</th><th>عدد الإعلانات</th><th>القيمة</th><th>إجمالي البند</th></tr></thead><tbody>${list.map(item => `<tr><td>${escapeHtml(item.funnel || item.newFunnel || '')}</td><td>${escapeHtml(item.productCreative || item.product || '')}</td><td>${escapeHtml(item.platform || '')}</td><td>${escapeHtml(item.adsCount || '')}</td><td>${escapeHtml(item.value || '')}</td><td>${escapeHtml(budgetItemTotal(item) || '')}</td></tr>`).join('')}<tr class="budget-total-row"><td colspan="5">إجمالي الميزانية</td><td>${escapeHtml(grandTotal || 0)}</td></tr></tbody></table></div>`;
+  return `<div class="compact-table"><table><thead><tr><th>Funnel</th><th>المنتج</th><th>المنصة</th><th>عدد الإعلانات</th><th>القيمة</th><th>إجمالي البند</th></tr></thead><tbody>${list.map(item => `<tr><td>${escapeHtml(item.funnel || item.newFunnel || '')}</td><td>${escapeHtml(item.product || '')}</td><td>${escapeHtml(item.platform || '')}</td><td>${escapeHtml(item.adsCount || '')}</td><td>${escapeHtml(item.value || '')}</td><td>${escapeHtml(budgetItemTotal(item) || '')}</td></tr>`).join('')}<tr class="budget-total-row"><td colspan="5">إجمالي الميزانية</td><td>${escapeHtml(grandTotal || 0)}</td></tr></tbody></table></div>`;
 }
 function closeCampaignModal(){
   document.getElementById('campaignModal')?.classList.remove('show');
