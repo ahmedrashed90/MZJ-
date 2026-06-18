@@ -17429,7 +17429,7 @@ const LOCAL_PUBLISHER_CONTENT_TYPES = ['post','reel','story'];
 const LOCAL_PUBLISHER_DEFAULT_TIMES = {
   facebook: { post:'12:00', reel:'18:00', story:'21:00' },
   instagram: { post:'13:00', reel:'19:00', story:'22:00' },
-  tiktok: { post:'', reel:'20:00', story:'' },
+  tiktok: { post:'15:00', reel:'20:00', story:'22:30' },
   youtube: { post:'', reel:'18:30', story:'' },
   snapchat: { post:'', reel:'', story:'23:00' }
 };

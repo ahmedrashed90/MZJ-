@@ -79,11 +79,13 @@ const LOCAL_PUBLISHER_PLATFORMS = ['facebook','instagram','tiktok','youtube','sn
 const LOCAL_PUBLISHER_DEFAULT_TIMES = {
   facebook: { post:'12:00', reel:'18:00', story:'21:00' },
   instagram: { post:'13:00', reel:'19:00', story:'22:00' },
-  tiktok: { post:'', reel:'20:00', story:'' },
+  tiktok: { post:'15:00', reel:'20:00', story:'22:30' },
   youtube: { post:'', reel:'18:30', story:'' },
   snapchat: { post:'', reel:'', story:'23:00' }
 };
-const STORY_PLATFORMS = ['facebook','instagram','snapchat'];
+const STORY_PLATFORMS = ['facebook','instagram','tiktok','snapchat'];
+const REEL_AS_STORY_PLATFORMS = ['facebook','instagram','tiktok'];
+const STORY_VIDEO_AS_REEL_PLATFORMS = ['facebook','instagram','tiktok'];
 function cleanTime(value){
   const v = String(value || '').trim();
   return /^\d{2}:\d{2}$/.test(v) ? v : '';
@@ -210,29 +212,52 @@ async function scanAgendaFolder(payload){
 
     const postFolder = await findChildDir(dayPath, 'بوست');
     const postFiles = await listMediaFiles(postFolder, isImage);
+
+    const reelFolder = await findChildDir(dayPath, 'ريل');
+    const reelFiles = await listMediaFiles(reelFolder, isVideo);
+
+    const storyFolder = await findChildDir(dayPath, 'ستوري');
+    const storyFiles = await listMediaFiles(storyFolder, isMedia);
+    const storyImageFiles = storyFiles.filter(file => isImage(file.name));
+    const storyVideoFiles = storyFiles.filter(file => isVideo(file.name));
+
     if(postFiles.length){
-      selectedPlatforms.forEach(platform => {
+      selectedPlatforms.filter(platform => platform !== 'tiktok').forEach(platform => {
         const time = timeForPlatform(platformTimes, platform, 'post', fallbackTimes);
         if(!time) return;
         jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time, contentType:'post', title:`بوست ${day.name} - ${platform}`, files:postFiles, caption, captionPath:captionInfo.filePath, platform, index:1 }));
       });
     }
 
-    const reelFolder = await findChildDir(dayPath, 'ريل');
-    const reelFiles = await listMediaFiles(reelFolder, isVideo);
+    if(storyImageFiles.length && selectedPlatforms.includes('tiktok')){
+      const time = timeForPlatform(platformTimes, 'tiktok', 'post', fallbackTimes);
+      if(time){
+        jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time, contentType:'post', title:`بوست ${day.name} - tiktok - من فولدر ستوري`, files:storyImageFiles, caption, captionPath:captionInfo.filePath, platform:'tiktok', index:1 }));
+      }
+    }
+
     reelFiles.forEach((file, i) => selectedPlatforms.forEach(platform => {
       const time = timeForPlatform(platformTimes, platform, 'reel', fallbackTimes);
       if(!time) return;
-      jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time, contentType:'reel', title:`ريل ${day.name} - ${i+1} - ${platform}`, files:[file], caption, captionPath:captionInfo.filePath, platform, index:i+1 }));
+      jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time, contentType:'reel', title:`ريل ${day.name} - ${i+1} - ${platform} - من فولدر ريل`, files:[file], caption, captionPath:captionInfo.filePath, platform, index:i+1 }));
     }));
 
-    const storyFolder = await findChildDir(dayPath, 'ستوري');
-    const storyFiles = await listMediaFiles(storyFolder, isMedia);
-    storyFiles.forEach((file, i) => selectedPlatforms.filter(p => STORY_PLATFORMS.includes(p)).forEach(platform => {
+    storyVideoFiles.forEach((file, i) => selectedPlatforms.filter(p => STORY_VIDEO_AS_REEL_PLATFORMS.includes(p)).forEach(platform => {
+      const time = timeForPlatform(platformTimes, platform, 'reel', fallbackTimes);
+      if(!time) return;
+      const offsetIndex = reelFiles.length + i + 1;
+      jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time:addMinutesToTime(time, offsetIndex - 1), contentType:'reel', title:`ريل ${day.name} - ${offsetIndex} - ${platform} - من فولدر ستوري`, files:[file], caption, captionPath:captionInfo.filePath, platform, index:offsetIndex }));
+    }));
+
+    const storyFromStoryFolderJobs = storyFiles.map((file, i) => ({ file, index:i + 1, source:'story-folder' }));
+    const reelAsStoryJobs = reelFiles.map((file, i) => ({ file, index:storyFromStoryFolderJobs.length + i + 1, source:'reel-folder' }));
+    [...storyFromStoryFolderJobs, ...reelAsStoryJobs].forEach(({ file, index, source }) => selectedPlatforms.filter(p => STORY_PLATFORMS.includes(p)).forEach(platform => {
+      if(source === 'reel-folder' && !REEL_AS_STORY_PLATFORMS.includes(platform)) return;
       const baseTime = timeForPlatform(platformTimes, platform, 'story', fallbackTimes);
       if(!baseTime) return;
-      const time = addMinutesToTime(baseTime, i);
-      jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time, contentType:'story', title:`ستوري ${day.name} - ${i+1} - ${platform} - ${file.name}`, files:[file], caption:'', captionPath:'', platform, index:i+1, storyOrder:i+1 }));
+      const time = addMinutesToTime(baseTime, index - 1);
+      const sourceLabel = source === 'reel-folder' ? 'من فولدر ريل' : 'من فولدر ستوري';
+      jobs.push(makeJob({ agendaRoot, dayFolder:day.name, dateIso, time, contentType:'story', title:`ستوري ${day.name} - ${index} - ${platform} - ${sourceLabel} - ${file.name}`, files:[file], caption:'', captionPath:'', platform, index, storyOrder:index }));
     }));
   }
   return { ok:true, folderPath:agendaRoot, jobs, warnings, days:dayFolders.length, platformTimes };

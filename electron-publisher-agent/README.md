@@ -31,3 +31,12 @@ npm run dist
 - Facebook Post/Reel يعملان عبر نفس مسار النشر الموجود في صفحة تجهيز النشر.
 - Facebook Story يستخدم مسار photo_stories/video_stories ولا يستخدم مسار البوست العادي.
 - Instagram Story يحتاج ملفات بأبعاد وصيغ مقبولة ورابط Storage متاح للعامة.
+
+
+## v40 TikTok + Reel Story Rules
+
+- TikTok now creates jobs for Post, Reel, and Story.
+- TikTok Post uses image files from the `ستوري` folder, not the `بوست` folder.
+- Reel videos from the `ريل` folder are also created as Story jobs for Facebook, Instagram, and TikTok.
+- Video files placed inside the `ستوري` folder are also created as Reel jobs for Facebook, Instagram, and TikTok.
+- Story order remains numeric using the file name prefix and the generated `storyOrder` field.
