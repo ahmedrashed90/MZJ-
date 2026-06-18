@@ -1082,26 +1082,13 @@ function campaignBudgetCreativeNames(){
     const name = normalizeText(input.value || '');
     if(name) names.push(name);
   });
-  try{
-    const rows = typeof collectCampaignRows === 'function' ? collectCampaignRows() : [];
-    rows.forEach(row => {
-      const name = normalizeText(row.creative || row.creativeName || '');
-      if(name) names.push(name);
-    });
-  }catch(_){ }
   return uniqueList(names);
 }
 function productOptions(selectedValue = ''){
   const current = normalizeText(selectedValue || '');
   const creatives = uniqueList([...campaignBudgetCreativeNames(), current].filter(Boolean));
   const emptyLabel = creatives.length ? 'اختر الكرييتيف' : 'اختار الكرييتيفات في الخطوة الثانية أولاً';
-  return `<option value="">${emptyLabel}</option>` + creatives.map(item => `<option value="${escapeHtml(item)}"${current === item ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('');
-}
-function refreshBudgetCreativeSelects(){
-  document.querySelectorAll('#budgetRows .js-product-select').forEach(select => {
-    const value = normalizeText(select.value || '');
-    select.innerHTML = productOptions(value);
-  });
+  return `<option value="">${emptyLabel}</option>` + creatives.map(item => `<option value="${escapeHtml(item)}"${current === normalizeText(item) ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('');
 }
 function campaignCodeOptions(selectedValue = ''){
   return '<option value="">اختر الكود</option>' + campaignCodes.map(item => {
@@ -2670,7 +2657,6 @@ function saveCreativeAssignmentPopup(){
   }
   updateProductOutput(row);
   renderPublishAgenda();
-  refreshBudgetCreativeSelects();
   closeCreativeAssignmentPopup();
 }
 function selectedRoleTaskFromPanel(panel, role){
@@ -6264,7 +6250,7 @@ function bindCampaignBuilder(){
     if(event.target.closest('[data-close-creative-assignment-popup]')){ closeCreativeAssignmentPopup(); return; }
     if(event.target.closest('[data-save-creative-assignment-popup]')){ saveCreativeAssignmentPopup(); return; }
     const btn = event.target.closest('.delete-row');
-    if(btn){ const container = document.getElementById('creativeRows'); btn.closest('.creative-row-card')?.remove(); restoreEmptyRow(container, 1, 'ابدأ بإضافة كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); refreshBudgetCreativeSelects(); return; }
+    if(btn){ const container = document.getElementById('creativeRows'); btn.closest('.creative-row-card')?.remove(); restoreEmptyRow(container, 1, 'ابدأ بإضافة كريتيف للحملة.'); renderPublishAgenda(); refreshDynamicSelects(); return; }
     const budgetDel = event.target.closest('.delete-budget-row');
     if(budgetDel){ budgetDel.closest('.budget-item-card')?.remove(); if(budgetRows && !budgetRows.querySelector('.budget-item-card')) budgetRows.innerHTML = '<div class="empty-state">لا توجد بنود ميزانية.</div>'; updateBudgetGrandTotal(); }
   });
@@ -6313,7 +6299,7 @@ function bindCampaignBuilder(){
     if(event.target.matches('.js-structure-popup-platform')){ refreshStructurePlatformRow(event.target.closest('.structure-popup-platform-row')); return; }
     if(event.target.matches('.creative-popup-active-select')){ const modal = event.target.closest('#creativeAssignmentPopup'); setCreativePopupActive(modal, event.target.value || ''); return; }
     if(event.target.matches('.js-popup-creative-check')){ const modal = event.target.closest('#creativeAssignmentPopup'); if(event.target.checked) modal.dataset.activeCreativeKey = normalizeText(event.target.value || ''); refreshCreativePopupPanels(modal); return; }
-    if(event.target.matches('.js-creative-check')){ const row = event.target.closest('.creative-row-card'); refreshCreativeAssignmentPanels(row); renderPublishAgenda(); refreshDynamicSelects(); refreshBudgetCreativeSelects(); return; }
+    if(event.target.matches('.js-creative-check')){ const row = event.target.closest('.creative-row-card'); refreshCreativeAssignmentPanels(row); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-task-user-checkbox,.js-task-user,.js-car-checkbox,.js-creative-quantity')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
     if(event.target.matches('.js-content-dependency-check')){ const box = event.target.closest('.js-content-dependency'); syncContentDependencyState(box); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
@@ -7406,7 +7392,7 @@ function renderBudgetSummary(campaign){
   const list = Array.isArray(campaign.budgetItems) ? campaign.budgetItems : [];
   if(!list.length) return '<div class="empty-state mini-empty">لا توجد ميزانية.</div>';
   const grandTotal = list.reduce((sum, item) => sum + budgetItemTotal(item), 0);
-  return `<div class="compact-table"><table><thead><tr><th>Funnel</th><th>الكرييتيف</th><th>المنصة</th><th>عدد الإعلانات</th><th>القيمة</th><th>إجمالي البند</th></tr></thead><tbody>${list.map(item => `<tr><td>${escapeHtml(item.funnel || item.newFunnel || '')}</td><td>${escapeHtml(item.product || '')}</td><td>${escapeHtml(item.platform || '')}</td><td>${escapeHtml(item.adsCount || '')}</td><td>${escapeHtml(item.value || '')}</td><td>${escapeHtml(budgetItemTotal(item) || '')}</td></tr>`).join('')}<tr class="budget-total-row"><td colspan="5">إجمالي الميزانية</td><td>${escapeHtml(grandTotal || 0)}</td></tr></tbody></table></div>`;
+  return `<div class="compact-table"><table><thead><tr><th>Funnel</th><th>الكرييتيف</th><th>المنصة</th><th>عدد الإعلانات</th><th>القيمة</th><th>إجمالي البند</th></tr></thead><tbody>${list.map(item => `<tr><td>${escapeHtml(item.funnel || item.newFunnel || '')}</td><td>${escapeHtml(item.productCreative || item.product || '')}</td><td>${escapeHtml(item.platform || '')}</td><td>${escapeHtml(item.adsCount || '')}</td><td>${escapeHtml(item.value || '')}</td><td>${escapeHtml(budgetItemTotal(item) || '')}</td></tr>`).join('')}<tr class="budget-total-row"><td colspan="5">إجمالي الميزانية</td><td>${escapeHtml(grandTotal || 0)}</td></tr></tbody></table></div>`;
 }
 function closeCampaignModal(){
   document.getElementById('campaignModal')?.classList.remove('show');
