@@ -17692,3 +17692,155 @@ document.addEventListener('click', async event => {
   }
 });
 
+
+/* MZJ v92 - Sequential creative car choice flow */
+(function(){
+  const v92Clean = value => (typeof normalizeText === 'function' ? normalizeText(value) : String(value || '').trim());
+  const v92Unique = list => (typeof uniqueList === 'function' ? uniqueList(list) : [...new Set((list || []).filter(Boolean))]);
+  const v92Esc = value => (typeof escapeHtml === 'function' ? escapeHtml(value) : String(value || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])));
+
+  const previousCreativeAssignmentPanelHtmlV92 = typeof creativeAssignmentPanelHtml === 'function' ? creativeAssignmentPanelHtml : null;
+  creativeAssignmentPanelHtml = function(creativeName){
+    const key = typeof creativeSafeKey === 'function' ? creativeSafeKey(creativeName) : v92Clean(creativeName).replace(/\W+/g, '-');
+    const mainRole = typeof creativeDepartmentRole === 'function' ? creativeDepartmentRole(creativeName) : 'montage';
+    const roleBlocks = typeof creativeAssignmentRoleBlocksHtml === 'function' ? creativeAssignmentRoleBlocksHtml(creativeName) : '';
+    const carList = typeof creativeCarCheckboxList === 'function' ? creativeCarCheckboxList() : '';
+    return `<article class="creative-assignment-panel creative-assignment-panel-v92" data-creative-name="${v92Esc(creativeName)}" data-creative-key="${v92Esc(key)}" data-creative-main-role="${v92Esc(mainRole)}">
+      <header class="creative-assignment-panel-head creative-assignment-panel-head-v92">
+        <div><span>الكريتيف المختار</span><strong>${v92Esc(creativeName)}</strong><small>اختار هل الكريتيف محتاج سيارات، ثم احفظه وانتقل لكريتيف آخر.</small></div>
+        <input class="js-creative-quantity" type="hidden" value="1" />
+      </header>
+      <section class="creative-car-step-card">
+        <label class="creative-car-needed-field"><span>اختيار سيارة؟</span><select class="js-creative-car-needed"><option value="">اختر نعم أو لا</option><option value="yes">نعم</option><option value="no">لا</option></select></label>
+        <label class="creative-car-count-field is-hidden"><span>كام سيارة؟</span><input class="js-creative-car-count" type="number" min="1" max="50" inputmode="numeric" placeholder="اكتب عدد السيارات" /></label>
+        <div class="creative-stock-picker-hint">اختار نعم ثم اكتب عدد السيارات عشان يظهر اختيار سيارات الاستوك.</div>
+        <div class="creative-stock-picker-block is-hidden">
+          <div class="creative-stock-picker-title"><strong>اختيار السيارات من الاستوك</strong><small>يمكن اختيار أكثر من سيارة لهذا الكريتيف.</small></div>
+          <div class="car-checkbox-grid creative-car-checkbox-grid">${carList}</div>
+        </div>
+        <label class="creative-panel-note-field"><span>ملاحظة للكريتيف</span><textarea class="js-creative-panel-note" rows="2" placeholder="اكتب ملاحظة خاصة بهذا الكريتيف... أو اتركها فارغة"></textarea></label>
+        <div class="creative-current-save-row"><button class="btn btn-primary js-save-current-creative" type="button">حفظ هذا الكريتيف واختيار كريتيف آخر</button><small>بعد الحفظ تقدر تختار كريتيف ثاني من القائمة، وفي النهاية اضغط حفظ الربط.</small></div>
+      </section>
+      <div class="creative-assignment-inner-grid">${roleBlocks}</div>
+      <div class="creative-assignment-note">كاتب المحتوى يتم اختياره من خطوة بيانات طلب الهيكل. السيارات هنا مرتبطة بالكريتيف الحالي فقط.</div>
+    </article>`;
+  };
+
+  updateCreativePanelCarVisibility = function(panel){
+    if(!panel) return;
+    const needed = panel.querySelector('.js-creative-car-needed')?.value || '';
+    const countField = panel.querySelector('.creative-car-count-field');
+    const countInput = panel.querySelector('.js-creative-car-count');
+    const carBlock = panel.querySelector('.creative-stock-picker-block');
+    const hint = panel.querySelector('.creative-stock-picker-hint');
+    const yes = needed === 'yes';
+    const count = Number(countInput?.value || 0);
+    const hasCount = yes && Number.isFinite(count) && count > 0;
+    if(countField) countField.classList.toggle('is-hidden', !yes);
+    if(carBlock) carBlock.classList.toggle('is-hidden', !hasCount);
+    if(hint){
+      hint.classList.toggle('is-hidden', hasCount || needed === 'no');
+      hint.textContent = yes ? 'اكتب عدد السيارات عشان يظهر اختيار سيارات الاستوك.' : (needed === 'no' ? '' : 'اختار نعم أو لا لتحديد هل هذا الكريتيف محتاج سيارات.');
+    }
+    if(!yes){
+      panel.querySelectorAll('.js-creative-car-checkbox:checked').forEach(cb => { cb.checked = false; cb.removeAttribute('checked'); });
+      if(countInput) countInput.value = '';
+    }
+  };
+
+  const previousSelectedCarsFromCreativePanelV92 = typeof selectedCarsFromCreativePanel === 'function' ? selectedCarsFromCreativePanel : null;
+  selectedCarsFromCreativePanel = function(panel){
+    if(panel?.querySelector('.js-creative-car-needed')?.value !== 'yes') return [];
+    return previousSelectedCarsFromCreativePanelV92 ? previousSelectedCarsFromCreativePanelV92(panel) : [];
+  };
+
+  const previousUpdateProductOutputV92 = typeof updateProductOutput === 'function' ? updateProductOutput : null;
+  updateProductOutput = function(row){
+    const output = row?.querySelector('.js-product-output');
+    if(!output) return previousUpdateProductOutputV92 ? previousUpdateProductOutputV92(row) : undefined;
+    const panels = [...(row?.querySelectorAll('.creative-assignment-panel') || [])];
+    if(!panels.length) return previousUpdateProductOutputV92 ? previousUpdateProductOutputV92(row) : undefined;
+    output.value = panels.map(panel => {
+      const creative = v92Clean(panel.dataset.creativeName || '');
+      const needValue = panel.querySelector('.js-creative-car-needed')?.value || '';
+      const needText = needValue === 'yes' ? 'سيارات: نعم' : (needValue === 'no' ? 'سيارات: لا' : 'لم يحدد السيارات');
+      const carCount = v92Clean(panel.querySelector('.js-creative-car-count')?.value || '');
+      const selectedCount = selectedCarsFromCreativePanel(panel).length;
+      const note = v92Clean(panel.querySelector('.js-creative-panel-note')?.value || '');
+      const userNames = [...panel.querySelectorAll('.js-role-picker')].flatMap(control => typeof selectedOptionTexts === 'function' ? selectedOptionTexts(control) : []);
+      const usersText = v92Unique(userNames).join(' - ');
+      return [creative, needText, carCount ? `عدد السيارات ${carCount}` : '', selectedCount ? `مختار ${selectedCount}` : '', note ? `ملاحظة: ${note}` : '', usersText].filter(Boolean).join(' / ');
+    }).filter(Boolean).join(' | ');
+  };
+
+  const previousCollectCampaignRowsV92 = typeof collectCampaignRows === 'function' ? collectCampaignRows : null;
+  collectCampaignRows = function(){
+    const result = previousCollectCampaignRowsV92 ? previousCollectCampaignRowsV92.call(this) : [];
+    const panels = [...document.querySelectorAll('#creativeRows .creative-assignment-panel')].map(panel => ({
+      creative: v92Clean(panel.dataset.creativeName || ''),
+      needsCars: panel.querySelector('.js-creative-car-needed')?.value === 'yes',
+      carCount: Math.max(0, Number(panel.querySelector('.js-creative-car-count')?.value || 0) || 0),
+      note: v92Clean(panel.querySelector('.js-creative-panel-note')?.value || '')
+    }));
+    return (result || []).map(item => {
+      const meta = panels.find(panel => v92Clean(panel.creative) === v92Clean(item.creative || item.product || '')) || {};
+      if(meta.creative){
+        item.needsCars = !!meta.needsCars;
+        item.carCount = meta.carCount || 0;
+        item.requiredCarCount = meta.carCount || 0;
+        if(meta.note) item.creativeNote = meta.note;
+        (item.tasks || []).forEach(task => {
+          task.needsCars = !!meta.needsCars;
+          task.carCount = meta.carCount || 0;
+          task.requiredCarCount = meta.carCount || 0;
+          if(meta.note) task.campaignCreativeNote = meta.note;
+        });
+      }
+      return item;
+    });
+  };
+
+  const previousRefreshCreativePopupPanelsV92 = typeof refreshCreativePopupPanels === 'function' ? refreshCreativePopupPanels : null;
+  refreshCreativePopupPanels = function(modal){
+    if(previousRefreshCreativePopupPanelsV92) previousRefreshCreativePopupPanelsV92(modal);
+    modal?.querySelectorAll('.creative-assignment-panel').forEach(updateCreativePanelCarVisibility);
+  };
+
+  document.addEventListener('change', function(event){
+    if(event.target.matches('.js-creative-car-needed')){
+      const panel = event.target.closest('.creative-assignment-panel');
+      updateCreativePanelCarVisibility(panel);
+      updateProductOutput(panel?.closest('.creative-row-card'));
+      if(typeof renderPublishAgenda === 'function') renderPublishAgenda();
+    }
+  }, true);
+  document.addEventListener('input', function(event){
+    if(event.target.matches('.js-creative-car-count')){
+      const panel = event.target.closest('.creative-assignment-panel');
+      updateCreativePanelCarVisibility(panel);
+      updateProductOutput(panel?.closest('.creative-row-card'));
+      if(typeof renderPublishAgenda === 'function') renderPublishAgenda();
+    }
+  }, true);
+  document.addEventListener('click', function(event){
+    const btn = event.target.closest('.js-save-current-creative');
+    if(!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const panel = btn.closest('.creative-assignment-panel');
+    const modal = btn.closest('#creativeAssignmentPopup');
+    if(!panel || !modal) return;
+    syncPanelDynamicState(panel);
+    updateCreativePanelCarVisibility(panel);
+    const creative = v92Clean(panel.dataset.creativeName || '');
+    const card = [...modal.querySelectorAll('.popup-creative-check-card')].find(item => v92Clean(item.dataset.popupCreativeToggle || item.querySelector('.js-popup-creative-check')?.value || '') === creative);
+    card?.classList.add('is-saved-current');
+    const unchecked = [...modal.querySelectorAll('.js-popup-creative-check')].find(input => !input.checked && !input.closest('.is-filtered-out'));
+    if(unchecked){
+      modal.dataset.activeCreativeKey = v92Clean(unchecked.value || '');
+      setCreativePopupActive(modal, unchecked.value || '');
+      unchecked.closest('.popup-creative-check-card')?.scrollIntoView({ block:'nearest' });
+    }
+    if(typeof showToast === 'function') showToast('تم حفظ إعدادات الكريتيف الحالي. اختار كريتيف آخر أو اضغط حفظ الربط.');
+  }, true);
+})();

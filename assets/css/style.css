@@ -9074,3 +9074,16 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 .creative-panel-note-field{display:grid;gap:7px;font-weight:900;color:#4b2d25}
 .creative-panel-note-field textarea{width:100%;border:1px solid var(--border);border-radius:13px;background:#fff;color:var(--text);outline:none;padding:10px 12px;resize:vertical;min-height:64px}
 @media(max-width:700px){.creative-stock-picker-title{align-items:flex-start;flex-direction:column}.creative-car-checkbox-grid{grid-template-columns:1fr;max-height:260px}}
+
+/* MZJ v92 - Sequential creative car choice flow */
+#creativeAssignmentPopup .creative-assignment-panel-v92{display:grid!important;gap:14px!important}
+#creativeAssignmentPopup .creative-assignment-panel-head-v92{grid-template-columns:1fr!important;align-items:start!important}
+#creativeAssignmentPopup .creative-assignment-panel-head-v92 small{display:block;margin-top:6px;color:#8b665c;font-weight:800;line-height:1.6}
+#creativeAssignmentPopup .creative-car-step-card{border:1px solid rgba(121,70,52,.16);background:#fff;border-radius:20px;padding:14px;display:grid;gap:12px;box-shadow:0 12px 32px rgba(63,38,29,.06)}
+#creativeAssignmentPopup .creative-car-needed-field,#creativeAssignmentPopup .creative-car-count-field{display:grid;gap:7px;font-weight:900;color:#4b2d25}
+#creativeAssignmentPopup .creative-car-needed-field select,#creativeAssignmentPopup .creative-car-count-field input{width:100%;min-height:42px;border:1px solid rgba(121,70,52,.24);border-radius:14px;background:#fffaf7;padding:8px 12px;font-weight:900;color:#4b2d25}
+#creativeAssignmentPopup .creative-current-save-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px dashed rgba(121,70,52,.16);padding-top:10px}
+#creativeAssignmentPopup .creative-current-save-row small{color:#8b665c;font-weight:800;line-height:1.6}
+#creativeAssignmentPopup .popup-creative-check-card.is-saved-current{border-color:#31845b!important;background:#f4fff8!important}
+#creativeAssignmentPopup .popup-creative-check-card.is-saved-current:after{content:'تم الحفظ';font-size:11px;font-weight:900;color:#31845b;background:#e4f8ec;border-radius:999px;padding:4px 8px;margin-inline-start:6px}
+#creativeAssignmentPopup .creative-stock-picker-block.is-hidden,#creativeAssignmentPopup .creative-car-count-field.is-hidden,#creativeAssignmentPopup .creative-stock-picker-hint.is-hidden{display:none!important}
