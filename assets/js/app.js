@@ -17844,3 +17844,357 @@ document.addEventListener('click', async event => {
     if(typeof showToast === 'function') showToast('تم حفظ إعدادات الكريتيف الحالي. اختار كريتيف آخر أو اضغط حفظ الربط.');
   }, true);
 })();
+
+/* MZJ v93 - Full redesign for campaign step 2 popup: vertical creatives, cars beside, departments beside, duplicate creative instances */
+(function(){
+  const clean = value => (typeof normalizeText === 'function' ? normalizeText(value || '') : String(value || '').trim());
+  const esc = value => (typeof escapeHtml === 'function' ? escapeHtml(value) : String(value || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])));
+  const uniq = list => (typeof uniqueList === 'function' ? uniqueList(list) : [...new Set(list)]);
+  const instanceId = () => `cr-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+
+  function sourceCreativeItems(){
+    return (Array.isArray(creatives) && creatives.length ? creatives : MZJ_DEFAULT_CREATIVE_NAMES.map(name => ({ name, id: creativeSafeKey(name), isDefault: true })))
+      .map((item, index) => ({ ...item, name: clean(item.name), index: index + 1 }))
+      .filter(item => item.name);
+  }
+
+  function v93CreativeListHtml(){
+    return sourceCreativeItems().map(item => {
+      const parts = typeof creativeDisplayParts === 'function' ? creativeDisplayParts(item.name) : { title:item.name, type:'' };
+      return `<button class="v93-creative-pick" type="button" data-v93-creative-name="${esc(item.name)}" title="${esc(item.name)}">
+        <span class="v93-creative-pick-index">${item.index}</span>
+        <span class="v93-creative-pick-text"><strong>${esc(parts.title || item.name)}</strong>${parts.type ? `<small>${esc(parts.type)}</small>` : ''}</span>
+        <span class="v93-creative-pick-plus">+</span>
+      </button>`;
+    }).join('') || '<div class="empty-state mini-empty">لا توجد كريتيفات متاحة.</div>';
+  }
+
+  function v93SavedItemHtml(panel, index){
+    const creative = clean(panel?.dataset?.creativeName || '');
+    const needs = panel?.querySelector('.js-creative-car-needed')?.value || '';
+    const count = clean(panel?.querySelector('.js-creative-car-count')?.value || '');
+    const cars = typeof selectedCarsFromCreativePanel === 'function' ? selectedCarsFromCreativePanel(panel) : [];
+    const label = [needs === 'yes' ? 'سيارات: نعم' : (needs === 'no' ? 'سيارات: لا' : ''), count ? `عدد ${count}` : '', cars.length ? `مختار ${cars.length}` : ''].filter(Boolean).join(' / ');
+    return `<button class="v93-saved-creative-item" type="button" data-v93-saved-instance="${esc(panel.dataset.creativeInstanceId || '')}"><strong>${index + 1}. ${esc(creative)}</strong><small>${esc(label || 'محفوظ')}</small></button>`;
+  }
+
+  function v93RefreshSavedList(modal){
+    const savedList = modal?.querySelector('.v93-saved-list');
+    const saved = modal?.querySelector('.v93-saved-panels');
+    if(!savedList || !saved) return;
+    const panels = [...saved.querySelectorAll('.creative-assignment-panel')];
+    savedList.innerHTML = panels.length ? panels.map(v93SavedItemHtml).join('') : '<div class="v93-empty-note">لسه مفيش كريتيف محفوظ. اختار كريتيف واملأ بياناته ثم اضغط حفظ الكريتيف الحالي.</div>';
+  }
+
+  function v93CarListHtml(){
+    return typeof creativeCarCheckboxList === 'function' ? creativeCarCheckboxList() : '';
+  }
+
+  creativeAssignmentPanelHtml = function(creativeName){
+    const name = clean(creativeName);
+    const key = typeof creativeSafeKey === 'function' ? creativeSafeKey(name) : name.replace(/\W+/g, '-');
+    const mainRole = typeof creativeDepartmentRole === 'function' ? creativeDepartmentRole(name) : 'montage';
+    const roleBlocks = typeof creativeAssignmentRoleBlocksHtml === 'function' ? creativeAssignmentRoleBlocksHtml(name) : '';
+    const carList = v93CarListHtml();
+    return `<article class="creative-assignment-panel creative-assignment-panel-v93 is-active" data-creative-name="${esc(name)}" data-creative-key="${esc(key)}" data-creative-main-role="${esc(mainRole)}" data-creative-instance-id="${esc(instanceId())}">
+      <input class="js-creative-quantity" type="hidden" value="1" />
+      <div class="v93-active-head">
+        <div><span>الكريتيف الحالي</span><strong>${esc(name)}</strong><small>يمكن حفظ نفس الكريتيف أكثر من مرة كعنصر مستقل.</small></div>
+      </div>
+      <div class="v93-panel-columns">
+        <section class="v93-car-column">
+          <div class="v93-column-title"><strong>اختيار السيارة</strong><small>نعم/لا ثم العدد والبحث داخل الاستوك</small></div>
+          <label class="creative-car-needed-field"><span>اختيار سيارة؟</span><select class="js-creative-car-needed"><option value="">اختر نعم أو لا</option><option value="yes">نعم</option><option value="no">لا</option></select></label>
+          <label class="creative-car-count-field is-hidden"><span>كام سيارة؟</span><input class="js-creative-car-count" type="number" min="1" max="50" inputmode="numeric" placeholder="اكتب عدد السيارات" /></label>
+          <div class="creative-stock-picker-hint">اختار نعم ثم اكتب عدد السيارات عشان يظهر اختيار سيارات الاستوك.</div>
+          <div class="creative-stock-picker-block is-hidden">
+            <input class="v93-car-search" type="search" placeholder="بحث في السيارات..." aria-label="بحث في السيارات" />
+            <div class="car-checkbox-grid creative-car-checkbox-grid">${carList}</div>
+          </div>
+          <label class="creative-panel-note-field"><span>ملاحظة للكريتيف</span><textarea class="js-creative-panel-note" rows="3" placeholder="ملاحظة خاصة بهذا الكريتيف... أو اتركها فارغة"></textarea></label>
+          <button class="btn btn-primary js-v93-save-current-creative" type="button">حفظ الكريتيف الحالي</button>
+        </section>
+        <section class="v93-departments-column">
+          <div class="v93-column-title"><strong>تحديد الأقسام</strong><small>اختار اليوزرات والمواعيد والملاحظات لكل قسم</small></div>
+          <div class="creative-assignment-inner-grid">${roleBlocks}</div>
+        </section>
+      </div>
+    </article>`;
+  };
+
+  ensureCreativeAssignmentPopup = function(){
+    let modal = document.getElementById('creativeAssignmentPopup');
+    if(modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'creativeAssignmentPopup';
+    modal.className = 'task-modal creative-assignment-popup creative-assignment-popup-v93';
+    modal.setAttribute('aria-hidden', 'true');
+    modal.innerHTML = `
+      <div class="task-modal-backdrop" data-close-creative-assignment-popup></div>
+      <section class="task-modal-dialog creative-assignment-popup-dialog" role="dialog" aria-modal="true" aria-label="ربط الكريتيفات باليوزرات">
+        <button class="task-modal-close" type="button" data-close-creative-assignment-popup>×</button>
+        <div class="task-modal-head v93-popup-head">
+          <div><span>الكريتيفات والمهام</span><h2>ربط الكريتيفات باليوزرات</h2><p>اختار كريتيف من القائمة بالطول، ثم حدد السيارة والأقسام من نفس الشاشة. بعد الحفظ تقدر تختار نفس الكريتيف مرة ثانية.</p></div>
+        </div>
+        <div class="v93-popup-grid">
+          <aside class="v93-creative-column">
+            <h3>اختيار الكريتيف</h3>
+            <input class="creative-popup-search" type="search" placeholder="بحث باسم الكريتيف..." aria-label="بحث في الكريتيفات" />
+            <div class="creative-popup-checks v93-creative-list"></div>
+          </aside>
+          <main class="v93-current-column">
+            <div class="v93-current-placeholder">اختار كريتيف من القائمة عشان تظهر بياناته هنا.</div>
+            <div class="creative-popup-panels v93-current-panel-wrap"></div>
+          </main>
+          <aside class="v93-saved-column">
+            <h3>الكريتيفات المحفوظة</h3>
+            <div class="v93-saved-list"></div>
+            <div class="v93-saved-panels is-hidden"></div>
+          </aside>
+        </div>
+        <div class="creative-popup-actions"><button class="btn btn-light" type="button" data-close-creative-assignment-popup>إلغاء</button><button class="btn btn-primary" type="button" data-save-creative-assignment-popup>حفظ الربط</button></div>
+      </section>`;
+    document.body.appendChild(modal);
+    return modal;
+  };
+
+  popupCreativeCheckboxList = function(){ return v93CreativeListHtml(); };
+
+  reloadCreativesForPopup = async function(modal){
+    if(!modal || (Array.isArray(creatives) && creatives.length) || !mainDb) return;
+    const checks = modal.querySelector('.creative-popup-checks');
+    if(checks) checks.innerHTML = '<div class="multi-empty">جاري تحميل الكريتيفات...</div>';
+    try{
+      const snapshot = await safeCollection(window.MZJ_CREATIVES_COLLECTION).orderBy('name').get();
+      const mapped = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, name: getDocName(data) || data.name || doc.id, ...data }; }).filter(item => clean(item.name));
+      if(mapped.length){
+        creatives.splice(0, creatives.length, ...mapped);
+        if(typeof renderCreatives === 'function') renderCreatives();
+        if(typeof refreshDynamicSelects === 'function') refreshDynamicSelects();
+      }
+    }catch(error){ console.error('Reload creatives for popup error', error); }
+    if(checks) checks.innerHTML = v93CreativeListHtml();
+  };
+
+  getCreativePopupSelected = function(modal){
+    return [...(modal?.querySelectorAll('.v93-saved-panels .creative-assignment-panel, .v93-current-panel-wrap .creative-assignment-panel') || [])]
+      .map(panel => clean(panel.dataset.creativeName || '')).filter(Boolean);
+  };
+
+  setCreativePopupActive = function(modal, creativeName){
+    const name = clean(creativeName || '');
+    modal?.querySelectorAll('.v93-creative-pick').forEach(btn => btn.classList.toggle('is-active', clean(btn.dataset.v93CreativeName || '') === name));
+  };
+
+  refreshCreativePopupPanels = function(modal){
+    if(!modal) return;
+    modal.querySelectorAll('.creative-assignment-panel').forEach(panel => {
+      if(typeof refreshContentDependencyPickers === 'function') refreshContentDependencyPickers(panel);
+      if(typeof updateCreativePanelCarVisibility === 'function') updateCreativePanelCarVisibility(panel);
+    });
+    v93RefreshSavedList(modal);
+  };
+
+  openCreativeAssignmentPopup = function(row){
+    if(!row) return;
+    if(!row.dataset.creativeRowId) row.dataset.creativeRowId = `creative-row-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+    const modal = ensureCreativeAssignmentPopup();
+    modal.dataset.rowId = row.dataset.creativeRowId;
+    modal.querySelector('.creative-popup-checks').innerHTML = v93CreativeListHtml();
+    if(!creatives.length) setTimeout(() => reloadCreativesForPopup(modal), 10);
+    modal.querySelector('.v93-current-panel-wrap').innerHTML = '';
+    const savedPanels = [...row.querySelectorAll('.selected-creative-assignments .creative-assignment-panel')].map(panel => {
+      const clone = syncPanelDynamicState(panel).cloneNode(true);
+      if(!clone.dataset.creativeInstanceId) clone.dataset.creativeInstanceId = instanceId();
+      clone.classList.remove('is-active');
+      return clone.outerHTML;
+    }).join('');
+    modal.querySelector('.v93-saved-panels').innerHTML = savedPanels;
+    modal.querySelector('.v93-current-placeholder').style.display = 'grid';
+    modal.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
+    modal.querySelectorAll('.creative-assignment-panel').forEach(panel => { if(typeof refreshContentDependencyPickers === 'function') refreshContentDependencyPickers(panel); if(typeof updateCreativePanelCarVisibility === 'function') updateCreativePanelCarVisibility(panel); });
+    v93RefreshSavedList(modal);
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('creative-popup-open');
+  };
+
+  function v93OpenCreativeDraft(modal, creativeName){
+    if(!modal || !creativeName) return;
+    modal.querySelector('.v93-current-panel-wrap').innerHTML = creativeAssignmentPanelHtml(creativeName);
+    modal.querySelector('.v93-current-placeholder').style.display = 'none';
+    modal.querySelectorAll('.v93-current-panel-wrap .js-role-picker').forEach(refreshRolePicker);
+    modal.querySelectorAll('.v93-current-panel-wrap .creative-assignment-panel').forEach(panel => { if(typeof refreshContentDependencyPickers === 'function') refreshContentDependencyPickers(panel); if(typeof updateCreativePanelCarVisibility === 'function') updateCreativePanelCarVisibility(panel); });
+    setCreativePopupActive(modal, creativeName);
+  }
+
+  function v93SaveCurrentCreative(modal){
+    const current = modal?.querySelector('.v93-current-panel-wrap .creative-assignment-panel');
+    if(!current) return false;
+    if(typeof syncPanelDynamicState === 'function') syncPanelDynamicState(current);
+    if(typeof updateCreativePanelCarVisibility === 'function') updateCreativePanelCarVisibility(current);
+    if(!current.dataset.creativeInstanceId) current.dataset.creativeInstanceId = instanceId();
+    current.classList.remove('is-active');
+    modal.querySelector('.v93-saved-panels').insertAdjacentHTML('beforeend', current.outerHTML);
+    modal.querySelector('.v93-current-panel-wrap').innerHTML = '';
+    modal.querySelector('.v93-current-placeholder').style.display = 'grid';
+    setCreativePopupActive(modal, '');
+    modal.querySelectorAll('.v93-saved-panels .js-role-picker').forEach(refreshRolePicker);
+    v93RefreshSavedList(modal);
+    return true;
+  }
+
+  saveCreativeAssignmentPopup = function(){
+    const modal = document.getElementById('creativeAssignmentPopup');
+    if(!modal) return;
+    const row = document.querySelector(`.creative-row-card[data-creative-row-id="${CSS.escape(modal.dataset.rowId || '')}"]`);
+    if(!row){ closeCreativeAssignmentPopup(); return; }
+    const current = modal.querySelector('.v93-current-panel-wrap .creative-assignment-panel');
+    if(current) v93SaveCurrentCreative(modal);
+    const savedPanels = [...modal.querySelectorAll('.v93-saved-panels .creative-assignment-panel')].map(panel => syncPanelDynamicState(panel));
+    const uniqueNames = uniq(savedPanels.map(panel => clean(panel.dataset.creativeName || '')).filter(Boolean));
+    const grid = row.querySelector('.creative-checkbox-grid');
+    if(grid){
+      grid.innerHTML = creativeCheckboxList(uniqueNames);
+      grid.querySelectorAll('.js-creative-check').forEach(input => { input.checked = uniqueNames.map(clean).includes(clean(input.value)); });
+    }
+    const wrap = row.querySelector('.selected-creative-assignments');
+    if(wrap){
+      wrap.innerHTML = savedPanels.length ? savedPanels.map(panel => { panel.classList.remove('is-active'); return panel.outerHTML; }).join('') : '<div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر من زر الربط.</div>';
+      wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
+      wrap.querySelectorAll('.creative-assignment-panel').forEach(panel => { if(typeof refreshContentDependencyPickers === 'function') refreshContentDependencyPickers(panel); if(typeof applyContentMontageLinksToMontagePicker === 'function') applyContentMontageLinksToMontagePicker(panel); if(typeof updateCreativePanelCarVisibility === 'function') updateCreativePanelCarVisibility(panel); });
+    }
+    if(typeof updateProductOutput === 'function') updateProductOutput(row);
+    if(typeof renderPublishAgenda === 'function') renderPublishAgenda();
+    if(typeof closeCreativeAssignmentPopup === 'function') closeCreativeAssignmentPopup();
+  };
+
+  updateProductOutput = function(row){
+    const output = row?.querySelector('.js-product-output');
+    if(!output) return;
+    const panels = [...(row?.querySelectorAll('.creative-assignment-panel') || [])];
+    if(panels.length){
+      output.value = panels.map((panel, index) => {
+        const creative = clean(panel.dataset.creativeName || '');
+        const needs = panel.querySelector('.js-creative-car-needed')?.value || '';
+        const needText = needs === 'yes' ? 'سيارات: نعم' : (needs === 'no' ? 'سيارات: لا' : 'لم يحدد السيارات');
+        const carCount = clean(panel.querySelector('.js-creative-car-count')?.value || '');
+        const selectedCount = typeof selectedCarsFromCreativePanel === 'function' ? selectedCarsFromCreativePanel(panel).length : 0;
+        const note = clean(panel.querySelector('.js-creative-panel-note')?.value || '');
+        const userNames = [...panel.querySelectorAll('.js-role-picker')].flatMap(control => selectedOptionTexts(control));
+        const usersText = uniq(userNames).join(' - ');
+        return [`${index + 1}. ${creative}`, needText, carCount ? `عدد السيارات ${carCount}` : '', selectedCount ? `مختار ${selectedCount}` : '', note ? `ملاحظة: ${note}` : '', usersText].filter(Boolean).join(' / ');
+      }).filter(Boolean).join(' | ');
+      return;
+    }
+    const names = typeof selectedCreativeNames === 'function' ? selectedCreativeNames(row) : [];
+    output.value = names.join(' | ');
+  };
+
+  collectCampaignRows = function(){
+    return [...document.querySelectorAll('#creativeRows .creative-row-card')].flatMap(row => {
+      const panels = [...row.querySelectorAll('.creative-assignment-panel')].map(syncPanelDynamicState);
+      if(panels.length){
+        return panels.map((panel, index) => {
+          const creative = clean(panel.dataset.creativeName || '');
+          const qty = Math.max(1, Math.min(50, Number(panel.querySelector('.js-creative-quantity')?.value || 1)));
+          const panelCars = typeof selectedCarsFromCreativePanel === 'function' ? selectedCarsFromCreativePanel(panel) : [];
+          const creativeNote = clean(panel.querySelector('.js-creative-panel-note')?.value || '');
+          const carCount = Math.max(0, Number(panel.querySelector('.js-creative-car-count')?.value || 0) || 0);
+          const needsCars = panel.querySelector('.js-creative-car-needed')?.value === 'yes';
+          const structureRequestTask = typeof requestStructureTaskForCreative === 'function' ? requestStructureTaskForCreative(creative, qty) : null;
+          const tasks = [structureRequestTask, ...['montage','design','shooting'].map(role => selectedRoleTaskFromPanel(panel, role))].filter(Boolean).map(task => ({
+            ...task,
+            selectedCars: panelCars,
+            creativeNote,
+            campaignCreativeNote: creativeNote,
+            needsCars,
+            carCount,
+            requiredCarCount: carCount,
+            creativeInstanceIndex: index + 1,
+            creativeInstanceId: panel.dataset.creativeInstanceId || ''
+          }));
+          return {
+            creative,
+            creativeShortCode: creativeShortCodeForName(creative),
+            creativeInstanceIndex: index + 1,
+            creativeInstanceId: panel.dataset.creativeInstanceId || '',
+            quantity: qty,
+            tasks,
+            departmentAssignments: Object.fromEntries(tasks.map(t => [normalizeDepartmentRole(t.departmentRole || t.contentSectionName || ''), { userIds: t.userIds || [], userNames: t.userNames || [], userCodes: t.userCodes || [], departmentCode: t.departmentCode || roleCode(t.departmentRole || '') }]).filter(([role]) => role)),
+            product: `${index + 1}. ${creativeProductLabel(creative, panel) || creative}`,
+            selectedCars: panelCars,
+            needsCars,
+            carCount,
+            requiredCarCount: carCount,
+            creativeNote,
+            note: creativeNote,
+            workflowMode: 'creative_user_wizard',
+            assignmentMode: 'per_creative_duplicate_instances'
+          };
+        }).filter(item => item.creative || item.tasks.length || item.product || item.selectedCars.length);
+      }
+      return [];
+    });
+  };
+
+  document.addEventListener('click', function(event){
+    const pick = event.target.closest('.v93-creative-pick');
+    if(pick){
+      event.preventDefault();
+      event.stopPropagation();
+      v93OpenCreativeDraft(pick.closest('#creativeAssignmentPopup'), pick.dataset.v93CreativeName || '');
+      return;
+    }
+    const saveBtn = event.target.closest('.js-v93-save-current-creative');
+    if(saveBtn){
+      event.preventDefault();
+      event.stopPropagation();
+      const modal = saveBtn.closest('#creativeAssignmentPopup');
+      if(v93SaveCurrentCreative(modal) && typeof showToast === 'function') showToast('تم حفظ الكريتيف الحالي. تقدر تختار نفس الكريتيف أو كريتيف آخر.');
+      return;
+    }
+    const savedItem = event.target.closest('.v93-saved-creative-item');
+    if(savedItem){
+      event.preventDefault();
+      event.stopPropagation();
+      const modal = savedItem.closest('#creativeAssignmentPopup');
+      const id = savedItem.dataset.v93SavedInstance || '';
+      const panel = [...modal.querySelectorAll('.v93-saved-panels .creative-assignment-panel')].find(item => (item.dataset.creativeInstanceId || '') === id);
+      if(panel){
+        const current = modal.querySelector('.v93-current-panel-wrap .creative-assignment-panel');
+        if(current) v93SaveCurrentCreative(modal);
+        panel.remove();
+        panel.classList.add('is-active');
+        modal.querySelector('.v93-current-panel-wrap').innerHTML = panel.outerHTML;
+        modal.querySelector('.v93-current-placeholder').style.display = 'none';
+        modal.querySelectorAll('.v93-current-panel-wrap .js-role-picker').forEach(refreshRolePicker);
+        modal.querySelectorAll('.v93-current-panel-wrap .creative-assignment-panel').forEach(item => { if(typeof refreshContentDependencyPickers === 'function') refreshContentDependencyPickers(item); if(typeof updateCreativePanelCarVisibility === 'function') updateCreativePanelCarVisibility(item); });
+        v93RefreshSavedList(modal);
+      }
+      return;
+    }
+  }, true);
+
+  document.addEventListener('input', function(event){
+    if(event.target.matches('.v93-car-search')){
+      const query = clean(event.target.value).toLowerCase();
+      const block = event.target.closest('.creative-stock-picker-block');
+      block?.querySelectorAll('.creative-car-check-card,.car-check-card').forEach(card => {
+        const text = clean(card.textContent || '').toLowerCase();
+        card.classList.toggle('is-filtered-out', !!query && !text.includes(query));
+      });
+      return;
+    }
+    if(event.target.matches('.creative-popup-search')){
+      const query = clean(event.target.value).toLowerCase();
+      const modal = event.target.closest('#creativeAssignmentPopup');
+      modal?.querySelectorAll('.v93-creative-pick').forEach(btn => {
+        const text = clean(btn.dataset.v93CreativeName || btn.textContent || '').toLowerCase();
+        btn.classList.toggle('is-filtered-out', !!query && !text.includes(query));
+      });
+      event.stopPropagation();
+      return;
+    }
+  }, true);
+})();

@@ -9087,3 +9087,46 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 #creativeAssignmentPopup .popup-creative-check-card.is-saved-current{border-color:#31845b!important;background:#f4fff8!important}
 #creativeAssignmentPopup .popup-creative-check-card.is-saved-current:after{content:'تم الحفظ';font-size:11px;font-weight:900;color:#31845b;background:#e4f8ec;border-radius:999px;padding:4px 8px;margin-inline-start:6px}
 #creativeAssignmentPopup .creative-stock-picker-block.is-hidden,#creativeAssignmentPopup .creative-car-count-field.is-hidden,#creativeAssignmentPopup .creative-stock-picker-hint.is-hidden{display:none!important}
+
+/* MZJ v93 - redesigned campaign step 2 popup */
+#creativeAssignmentPopup.creative-assignment-popup-v93 .creative-assignment-popup-dialog{
+  width:min(1840px,98vw)!important;max-width:98vw!important;height:min(900px,94vh)!important;max-height:94vh!important;padding:18px!important;overflow:hidden!important;display:grid!important;grid-template-rows:auto 1fr auto!important;gap:12px!important;background:#fffaf7!important;
+}
+#creativeAssignmentPopup .v93-popup-head{padding:4px 44px 8px 8px!important;border-bottom:1px solid rgba(121,70,52,.15)!important;text-align:right!important}
+#creativeAssignmentPopup .v93-popup-grid{min-height:0!important;display:grid!important;grid-template-columns:310px minmax(720px,1fr) 280px!important;gap:12px!important;direction:rtl!important;overflow:hidden!important}
+#creativeAssignmentPopup .v93-creative-column,#creativeAssignmentPopup .v93-current-column,#creativeAssignmentPopup .v93-saved-column{min-height:0!important;border:1px solid rgba(121,70,52,.16)!important;border-radius:18px!important;background:#fff!important;padding:12px!important;box-shadow:0 12px 30px rgba(63,38,29,.05)!important;overflow:hidden!important;display:flex!important;flex-direction:column!important;gap:10px!important}
+#creativeAssignmentPopup .v93-creative-column h3,#creativeAssignmentPopup .v93-saved-column h3{margin:0!important;color:#4b2d25!important;font-size:15px!important;font-weight:1000!important}
+#creativeAssignmentPopup .v93-creative-list{display:flex!important;flex-direction:column!important;gap:8px!important;overflow:auto!important;padding:2px 3px 8px!important;min-height:0!important;max-height:none!important}
+#creativeAssignmentPopup .v93-creative-pick{width:100%!important;border:1px solid rgba(121,70,52,.18)!important;background:#fffaf7!important;border-radius:14px!important;padding:9px!important;display:grid!important;grid-template-columns:30px 1fr 24px!important;align-items:center!important;gap:8px!important;text-align:right!important;cursor:pointer!important;color:#2f1f1a!important;min-height:52px!important}
+#creativeAssignmentPopup .v93-creative-pick:hover,#creativeAssignmentPopup .v93-creative-pick.is-active{border-color:#8a5144!important;background:#fff0e8!important;box-shadow:0 8px 18px rgba(121,70,52,.11)!important}
+#creativeAssignmentPopup .v93-creative-pick.is-filtered-out,#creativeAssignmentPopup .car-check-card.is-filtered-out,#creativeAssignmentPopup .creative-car-check-card.is-filtered-out{display:none!important}
+#creativeAssignmentPopup .v93-creative-pick-index,#creativeAssignmentPopup .v93-creative-pick-plus{display:grid!important;place-items:center!important;width:26px!important;height:26px!important;border-radius:9px!important;background:#f3e8df!important;color:#7a4a3c!important;font-size:11px!important;font-weight:1000!important}
+#creativeAssignmentPopup .v93-creative-pick-text{min-width:0!important;display:grid!important;gap:2px!important}
+#creativeAssignmentPopup .v93-creative-pick-text strong{font-size:12px!important;font-weight:1000!important;white-space:normal!important;line-height:1.35!important}
+#creativeAssignmentPopup .v93-creative-pick-text small{font-size:10px!important;color:#9a766a!important;font-weight:800!important}
+#creativeAssignmentPopup .v93-current-placeholder{height:100%!important;display:grid;place-items:center;text-align:center;border:1px dashed rgba(121,70,52,.22);border-radius:16px;color:#9a766a;font-weight:1000;background:#fffaf7}
+#creativeAssignmentPopup .v93-current-panel-wrap{min-height:0!important;overflow:auto!important;display:block!important}
+#creativeAssignmentPopup .creative-assignment-panel-v93{height:100%!important;border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;display:grid!important;grid-template-rows:auto 1fr!important;gap:10px!important}
+#creativeAssignmentPopup .v93-active-head{border:1px solid rgba(121,70,52,.16)!important;border-radius:16px!important;background:#fffaf7!important;padding:10px 12px!important;color:#4b2d25!important}
+#creativeAssignmentPopup .v93-active-head span,#creativeAssignmentPopup .v93-active-head small{display:block!important;color:#9a766a!important;font-weight:900!important}
+#creativeAssignmentPopup .v93-active-head strong{display:block!important;font-size:17px!important;font-weight:1000!important;margin-top:3px!important}
+#creativeAssignmentPopup .v93-panel-columns{min-height:0!important;display:grid!important;grid-template-columns:minmax(330px,420px) minmax(430px,1fr)!important;gap:12px!important;overflow:hidden!important}
+#creativeAssignmentPopup .v93-car-column,#creativeAssignmentPopup .v93-departments-column{min-height:0!important;overflow:auto!important;border:1px solid rgba(121,70,52,.14)!important;border-radius:18px!important;background:#fffdfb!important;padding:12px!important;display:flex!important;flex-direction:column!important;gap:10px!important}
+#creativeAssignmentPopup .v93-column-title{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:8px!important;border-bottom:1px solid rgba(121,70,52,.12)!important;padding-bottom:8px!important;color:#4b2d25!important}
+#creativeAssignmentPopup .v93-column-title strong{font-size:15px!important;font-weight:1000!important}
+#creativeAssignmentPopup .v93-column-title small{font-size:11px!important;color:#9a766a!important;font-weight:900!important;text-align:left!important}
+#creativeAssignmentPopup .v93-car-column .creative-car-needed-field,#creativeAssignmentPopup .v93-car-column .creative-car-count-field,#creativeAssignmentPopup .v93-car-column .creative-panel-note-field{display:grid!important;gap:6px!important;font-weight:1000!important;color:#4b2d25!important}
+#creativeAssignmentPopup .v93-car-column select,#creativeAssignmentPopup .v93-car-column input,#creativeAssignmentPopup .v93-car-column textarea,#creativeAssignmentPopup .creative-popup-search{width:100%!important;border:1px solid rgba(121,70,52,.22)!important;border-radius:13px!important;background:#fff!important;padding:9px 11px!important;font-weight:900!important;color:#4b2d25!important}
+#creativeAssignmentPopup .creative-stock-picker-block{display:grid!important;gap:8px!important;border:1px dashed rgba(121,70,52,.22)!important;border-radius:16px!important;background:#fffaf7!important;padding:10px!important}
+#creativeAssignmentPopup .creative-stock-picker-block.is-hidden,#creativeAssignmentPopup .creative-car-count-field.is-hidden,#creativeAssignmentPopup .creative-stock-picker-hint.is-hidden{display:none!important}
+#creativeAssignmentPopup .creative-car-checkbox-grid{grid-template-columns:1fr!important;max-height:310px!important;overflow:auto!important;padding:2px!important;gap:7px!important}
+#creativeAssignmentPopup .creative-car-check-card,#creativeAssignmentPopup .car-check-card{min-height:52px!important;border-radius:13px!important;padding:8px 10px!important;background:#fff!important}
+#creativeAssignmentPopup .v93-departments-column .creative-assignment-inner-grid{display:grid!important;grid-template-columns:1fr!important;gap:10px!important;overflow:visible!important}
+#creativeAssignmentPopup .v93-departments-column .creative-role-assignment{border-radius:16px!important;background:#fffaf7!important;padding:10px!important;border:1px solid rgba(121,70,52,.13)!important}
+#creativeAssignmentPopup .v93-saved-list{min-height:0!important;overflow:auto!important;display:flex!important;flex-direction:column!important;gap:8px!important}
+#creativeAssignmentPopup .v93-saved-creative-item{border:1px solid rgba(49,132,91,.22)!important;background:#f6fff8!important;border-radius:14px!important;padding:9px 10px!important;text-align:right!important;display:grid!important;gap:4px!important;cursor:pointer!important;color:#254735!important}
+#creativeAssignmentPopup .v93-saved-creative-item strong{font-size:12px!important;font-weight:1000!important;line-height:1.35!important}
+#creativeAssignmentPopup .v93-saved-creative-item small{font-size:10.5px!important;font-weight:900!important;color:#4b7c62!important}
+#creativeAssignmentPopup .v93-empty-note{border:1px dashed rgba(121,70,52,.22);border-radius:14px;padding:14px;text-align:center;color:#9a766a;background:#fffaf7;font-weight:900;line-height:1.6}
+#creativeAssignmentPopup .is-hidden{display:none!important}
+@media(max-width:1200px){#creativeAssignmentPopup .v93-popup-grid{grid-template-columns:1fr!important;overflow:auto!important}#creativeAssignmentPopup .creative-assignment-popup-dialog{overflow:auto!important;height:94vh!important}#creativeAssignmentPopup .v93-panel-columns{grid-template-columns:1fr!important}#creativeAssignmentPopup .v93-creative-list{max-height:260px!important}}
