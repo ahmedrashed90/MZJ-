@@ -9130,3 +9130,21 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 #creativeAssignmentPopup .v93-empty-note{border:1px dashed rgba(121,70,52,.22);border-radius:14px;padding:14px;text-align:center;color:#9a766a;background:#fffaf7;font-weight:900;line-height:1.6}
 #creativeAssignmentPopup .is-hidden{display:none!important}
 @media(max-width:1200px){#creativeAssignmentPopup .v93-popup-grid{grid-template-columns:1fr!important;overflow:auto!important}#creativeAssignmentPopup .creative-assignment-popup-dialog{overflow:auto!important;height:94vh!important}#creativeAssignmentPopup .v93-panel-columns{grid-template-columns:1fr!important}#creativeAssignmentPopup .v93-creative-list{max-height:260px!important}}
+
+/* v95 legacy structure cleanup notice */
+.structure-cleanup-notice{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin:12px 0;
+  padding:12px 14px;
+  border:1px solid rgba(184,94,78,.35);
+  border-radius:14px;
+  background:#fff7f3;
+  color:#5a3a32;
+  box-shadow:0 8px 22px rgba(90,58,50,.08);
+}
+.structure-cleanup-notice strong{font-size:13px;line-height:1.6;}
+.structure-cleanup-notice .mini-btn{white-space:nowrap;}
+@media(max-width:720px){.structure-cleanup-notice{align-items:stretch;flex-direction:column}.structure-cleanup-notice .mini-btn{width:100%;}}
