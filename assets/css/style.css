@@ -9063,3 +9063,14 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 .local-schedule-primary{display:block;font-weight:900;color:var(--text);direction:ltr;text-align:right}
 .local-schedule-sub{display:block;color:var(--muted);font-size:12px;margin-top:3px;direction:ltr;text-align:right}
 @media(max-width:900px){.local-job-actions{min-width:220px}}
+
+/* v91: campaign wizard - cars and notes per creative */
+.creative-stock-picker-hint{margin:0 0 12px;border:1px dashed rgba(121,70,52,.24);background:#fff7f0;border-radius:14px;padding:10px 12px;color:#8a5b4c;font-weight:900;font-size:.86rem;line-height:1.6}
+.creative-stock-picker-block{margin:0 0 14px;border:1px solid rgba(121,70,52,.18);background:#fffaf7;border-radius:16px;padding:12px;display:grid;gap:10px}
+.creative-stock-picker-title{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#4b2d25;font-weight:900}
+.creative-stock-picker-title small{color:#8a746a;font-weight:800}
+.creative-car-checkbox-grid{max-height:220px;overflow:auto;padding:3px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.creative-car-check-card{min-height:58px;align-items:flex-start}
+.creative-panel-note-field{display:grid;gap:7px;font-weight:900;color:#4b2d25}
+.creative-panel-note-field textarea{width:100%;border:1px solid var(--border);border-radius:13px;background:#fff;color:var(--text);outline:none;padding:10px 12px;resize:vertical;min-height:64px}
+@media(max-width:700px){.creative-stock-picker-title{align-items:flex-start;flex-direction:column}.creative-car-checkbox-grid{grid-template-columns:1fr;max-height:260px}}

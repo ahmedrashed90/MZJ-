@@ -2169,10 +2169,12 @@ function updateProductOutput(row){
   if(panels.length){
     output.value = panels.map(panel => {
       const creative = normalizeText(panel.dataset.creativeName || '');
-      const qty = normalizeText(panel.querySelector('.js-creative-quantity')?.value || '1');
+      const qty = normalizeText(panel.querySelector('.js-creative-quantity')?.value || '');
       const userNames = [...panel.querySelectorAll('.js-role-picker')].flatMap(control => selectedOptionTexts(control));
       const usersText = uniqueList(userNames).join(' - ');
-      return [creative, qty ? `عدد ${qty}` : '', usersText].filter(Boolean).join(' / ');
+      const carCount = selectedCarsFromCreativePanel(panel).length;
+      const note = normalizeText(panel.querySelector('.js-creative-panel-note')?.value || '');
+      return [creative, qty ? `عدد ${qty}` : '', carCount ? `${carCount} سيارة` : '', note ? `ملاحظة: ${note}` : '', usersText].filter(Boolean).join(' / ');
     }).filter(Boolean).join(' | ');
     return;
   }
@@ -2425,12 +2427,18 @@ function creativeAssignmentPanelHtml(creativeName){
   return `<article class="creative-assignment-panel" data-creative-name="${escapeHtml(creativeName)}" data-creative-key="${escapeHtml(key)}" data-creative-main-role="${escapeHtml(mainRole)}">
     <header class="creative-assignment-panel-head">
       <div><span>الكريتيف</span><strong>${escapeHtml(creativeName)}</strong></div>
-      <label class="creative-qty-field"><span>العدد</span><input class="js-creative-quantity" type="number" min="1" value="1" inputmode="numeric" /></label>
+      <label class="creative-qty-field"><span>عدد الكريتيف المطلوب</span><input class="js-creative-quantity" type="number" min="1" value="" inputmode="numeric" placeholder="اكتب العدد" /></label>
     </header>
+    <div class="creative-stock-picker-hint">اكتب عدد الكريتيف المطلوب أولاً عشان يظهر اختيار السيارات لهذا الكريتيف.</div>
+    <div class="creative-stock-picker-block is-hidden">
+      <div class="creative-stock-picker-title"><strong>اختيار سيارات من الاستوك</strong><small>يمكن اختيار أكثر من سيارة لهذا الكريتيف فقط.</small></div>
+      <div class="car-checkbox-grid creative-car-checkbox-grid">${creativeCarCheckboxList()}</div>
+      <label class="creative-panel-note-field"><span>ملاحظة للكريتيف</span><textarea class="js-creative-panel-note" rows="2" placeholder="اكتب ملاحظة خاصة بهذا الكريتيف والسيارات المختارة..."></textarea></label>
+    </div>
     <div class="creative-assignment-inner-grid">
       ${creativeAssignmentRoleBlocksHtml(creativeName)}
     </div>
-    <div class="creative-assignment-note">كاتب المحتوى يتم اختياره من خطوة بيانات طلب الهيكل. هنا اختار الأقسام التنفيذية المطلوبة للكريتيف، وسيتم ربطها تلقائيًا بأكواد الهيكل بعد الاعتماد.</div>
+    <div class="creative-assignment-note">كاتب المحتوى يتم اختياره من خطوة بيانات طلب الهيكل. هنا اختار السيارات والملاحظة الخاصة بكل كريتيف، ثم اربط الأقسام التنفيذية المطلوبة.</div>
   </article>`;
 }
 function refreshCreativeAssignmentPanels(row){
@@ -2452,6 +2460,7 @@ function refreshCreativeAssignmentPanels(row){
   wrap.innerHTML = nodes.join('');
   wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
   wrap.querySelectorAll('.creative-assignment-panel').forEach(refreshContentDependencyPickers);
+  updateAllCreativePanelCarVisibility(wrap);
   updateProductOutput(row);
 }
 
@@ -2467,7 +2476,7 @@ function ensureCreativeAssignmentPopup(){
     <section class="task-modal-dialog creative-assignment-popup-dialog" role="dialog" aria-modal="true" aria-label="ربط الكريتيفات باليوزرات">
       <button class="task-modal-close" type="button" data-close-creative-assignment-popup>×</button>
       <div class="task-modal-head">
-        <div><span>الكريتيفات والمهام</span><h2>ربط الكريتيفات باليوزرات</h2><p>اختار الكريتيفات، حدد العدد، واربط كل كريتيف بيوزرات الأقسام المطلوبة.</p></div>
+        <div><span>الكريتيفات والمهام</span><h2>ربط الكريتيفات باليوزرات</h2><p>اختار الكريتيف، اكتب عدد الكريتيف المطلوب، وبعدها اختار سياراته من الاستوك واكتب ملاحظته واربط اليوزرات.</p></div>
       </div>
       <div class="creative-popup-layout">
         <aside class="creative-popup-side">
@@ -2592,6 +2601,7 @@ function refreshCreativePopupPanels(modal){
   wrap.innerHTML = `<div class="creative-popup-editor-switch"><div class="creative-popup-active-tabs" role="tablist" aria-label="اختيار الكريتيف الحالي">${summary}</div></div><div class="creative-popup-active-panels">${panels}</div>`;
   wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
   wrap.querySelectorAll('.creative-assignment-panel').forEach(refreshContentDependencyPickers);
+  updateAllCreativePanelCarVisibility(wrap);
   setCreativePopupActive(modal, activeKey);
 }
 function openCreativeAssignmentPopup(row){
@@ -2608,6 +2618,7 @@ function openCreativeAssignmentPopup(row){
   refreshCreativePopupPanels(modal);
   modal.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
   modal.querySelectorAll('.creative-assignment-panel').forEach(refreshContentDependencyPickers);
+  updateAllCreativePanelCarVisibility(modal);
   modal.classList.add('show');
   modal.setAttribute('aria-hidden', 'false');
   document.body.classList.add('creative-popup-open');
@@ -2636,7 +2647,7 @@ function saveCreativeAssignmentPopup(){
     const panels = [...modal.querySelectorAll('.creative-popup-panels .creative-assignment-panel')].filter(panel => selected.map(normalizeText).includes(normalizeText(panel.dataset.creativeName || '')));
     wrap.innerHTML = panels.length ? panels.map(panel => syncPanelDynamicState(panel).outerHTML).join('') : '<div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر من زر الربط.</div>';
     wrap.querySelectorAll('.js-role-picker').forEach(refreshRolePicker);
-    wrap.querySelectorAll('.creative-assignment-panel').forEach(panel => { refreshContentDependencyPickers(panel); applyContentMontageLinksToMontagePicker(panel); });
+    wrap.querySelectorAll('.creative-assignment-panel').forEach(panel => { refreshContentDependencyPickers(panel); applyContentMontageLinksToMontagePicker(panel); updateCreativePanelCarVisibility(panel); });
   }
   updateProductOutput(row);
   renderPublishAgenda();
@@ -5769,8 +5780,15 @@ function collectCampaignRows(){
       return panels.map(panel => {
         const creative = normalizeText(panel.dataset.creativeName || '');
         const qty = Math.max(1, Math.min(50, Number(panel.querySelector('.js-creative-quantity')?.value || 1)));
+        const panelCars = selectedCarsFromCreativePanel(panel);
+        const creativeNote = normalizeText(panel.querySelector('.js-creative-panel-note')?.value || '');
         const structureRequestTask = requestStructureTaskForCreative(creative, qty);
-        const tasks = [structureRequestTask, ...['montage','design','shooting'].map(role => selectedRoleTaskFromPanel(panel, role))].filter(Boolean);
+        const tasks = [structureRequestTask, ...['montage','design','shooting'].map(role => selectedRoleTaskFromPanel(panel, role))].filter(Boolean).map(task => ({
+          ...task,
+          selectedCars: panelCars,
+          creativeNote,
+          campaignCreativeNote: creativeNote
+        }));
         return {
           creative,
           creativeShortCode: creativeShortCodeForName(creative),
@@ -5778,7 +5796,9 @@ function collectCampaignRows(){
           tasks,
           departmentAssignments: Object.fromEntries(tasks.map(t => [normalizeDepartmentRole(t.departmentRole || t.contentSectionName || ''), { userIds: t.userIds || [], userNames: t.userNames || [], userCodes: t.userCodes || [], departmentCode: t.departmentCode || roleCode(t.departmentRole || '') }]).filter(([role]) => role)),
           product: creativeProductLabel(creative, panel),
-          selectedCars: cars,
+          selectedCars: panelCars,
+          creativeNote,
+          note: creativeNote,
           workflowMode: 'creative_user_wizard',
           assignmentMode: 'per_creative_full_binding'
         };
@@ -5838,6 +5858,42 @@ function carCheckboxList(selectedIds = []){
     const label = [group.carName, group.statement, group.exteriorColor, group.interiorColor].filter(Boolean).join(' - ');
     return `<label class="car-check-card"><input type="checkbox" class="js-car-checkbox" value="${escapeHtml(value)}" data-car-group="${escapeHtml(group.key)}"${selected ? ' checked' : ''}><span>${escapeHtml(label)}</span><small>${group.count} سيارة</small></label>`;
   }).join('') : '<div class="empty-state mini-empty">لا توجد سيارات متاحة من الاستوك.</div>';
+}
+
+function creativeCarCheckboxList(selectedIds = []){
+  const chosen = Array.isArray(selectedIds) ? selectedIds.map(String) : String(selectedIds || '').split('|').map(x => x.trim()).filter(Boolean);
+  const groups = buildStockGroups().slice(0, 160);
+  return groups.length ? groups.map(group => {
+    const first = group.cars[0] || {};
+    const value = first.id || first.vin || first.plate || group.key;
+    const selected = chosen.includes(value) || chosen.includes(group.key) || group.cars.some(car => chosen.includes(car.id));
+    const label = [group.carName, group.statement, group.exteriorColor, group.interiorColor].filter(Boolean).join(' - ');
+    return `<label class="car-check-card creative-car-check-card"><input type="checkbox" class="js-creative-car-checkbox" value="${escapeHtml(value)}" data-car-group="${escapeHtml(group.key)}"${selected ? ' checked' : ''}><span>${escapeHtml(label)}</span><small>${group.count} سيارة</small></label>`;
+  }).join('') : '<div class="empty-state mini-empty">لا توجد سيارات متاحة من الاستوك.</div>';
+}
+function selectedCarsFromCreativePanel(panel){
+  return [...(panel?.querySelectorAll('.js-creative-car-checkbox:checked') || [])].map(input => {
+    const groupKey = input.dataset.carGroup || '';
+    const group = buildStockGroups().find(item => item.key === groupKey);
+    if(group){
+      return { id: input.value, groupKey, label: [group.carName, group.statement, group.exteriorColor, group.interiorColor].filter(Boolean).join(' - '), count: group.count };
+    }
+    const car = cars.find(item => item.id === input.value) || { id: input.value };
+    return { id: input.value, label: carDisplayName(car) || input.value };
+  });
+}
+function updateCreativePanelCarVisibility(panel){
+  if(!panel) return;
+  const qtyInput = panel.querySelector('.js-creative-quantity');
+  const carBlock = panel.querySelector('.creative-stock-picker-block');
+  const hint = panel.querySelector('.creative-stock-picker-hint');
+  const qty = Number(qtyInput?.value || 0);
+  const hasQty = Number.isFinite(qty) && qty > 0;
+  if(carBlock) carBlock.classList.toggle('is-hidden', !hasQty);
+  if(hint) hint.classList.toggle('is-hidden', hasQty);
+}
+function updateAllCreativePanelCarVisibility(root = document){
+  root.querySelectorAll?.('.creative-assignment-panel')?.forEach(updateCreativePanelCarVisibility);
 }
 function selectedCarsFromRow(row){
   if(!row?.querySelector('.js-enable-cars')?.checked) return [];
@@ -6159,8 +6215,7 @@ function createCampaignCreativeRow(openNow = false){
       <div class="creative-main-select creative-checkbox-picker creative-hidden-storage"><span>اختيار الكريتيفات</span><div class="creative-checkbox-grid">${creativeCheckboxList()}</div></div>
       <div class="selected-creative-assignments creative-hidden-storage"><div class="empty-state mini-empty">اختار كريتيف واحد أو أكثر من Popup الربط.</div></div>
       <label class="creative-product-field product-under-creatives"><span>ملخص الربط</span><input class="product-output js-product-output" type="text" readonly aria-label="ملخص الربط" placeholder="اضغط اختيار الكريتيفات واليوزرات" /></label>
-      <label class="car-picker-enable"><input type="checkbox" class="js-enable-cars"> <span>اختيار سيارات من الاستوك</span></label><div class="car-picker-block is-hidden"><div class="car-picker-title">اختيار السيارات</div><div class="car-checkbox-grid">${carCheckboxList()}</div></div>
-      <div class="creative-waiting-note">نافذة الربط تفتح تلقائيًا من خطوة الكريتيفات والمهام. كل كريتيف لازم يتربط كامل باليوزرات المطلوبة.</div>`;
+      <div class="creative-waiting-note">نافذة الربط تفتح تلقائيًا من خطوة الكريتيفات والمهام. اختيارات السيارات والملاحظات أصبحت داخل كل كريتيف بعد كتابة العدد.</div>`;
     creativeRows.appendChild(card);
     refreshDynamicSelects();
     renderPublishAgenda();
@@ -6255,6 +6310,8 @@ function bindCampaignBuilder(){
       });
       return;
     }
+    if(event.target.matches('.js-creative-quantity')){ const panel = event.target.closest('.creative-assignment-panel'); updateCreativePanelCarVisibility(panel); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
+    if(event.target.matches('.js-creative-panel-note')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')) updateBudgetGrandTotal();
     if(event.target.matches('.structure-assignee-search')) filterStructureAssigneePicker(event.target);
     if(event.target === publishPrepGlobalSearchInput() && getRoute() === 'publish-prep') renderPublishPrepPage();
@@ -6281,7 +6338,7 @@ function bindCampaignBuilder(){
     if(event.target.matches('.creative-popup-active-select')){ const modal = event.target.closest('#creativeAssignmentPopup'); setCreativePopupActive(modal, event.target.value || ''); return; }
     if(event.target.matches('.js-popup-creative-check')){ const modal = event.target.closest('#creativeAssignmentPopup'); if(event.target.checked) modal.dataset.activeCreativeKey = normalizeText(event.target.value || ''); refreshCreativePopupPanels(modal); return; }
     if(event.target.matches('.js-creative-check')){ const row = event.target.closest('.creative-row-card'); refreshCreativeAssignmentPanels(row); renderPublishAgenda(); refreshDynamicSelects(); return; }
-    if(event.target.matches('.js-task-user-checkbox,.js-task-user,.js-car-checkbox,.js-creative-quantity')){ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
+    if(event.target.matches('.js-task-user-checkbox,.js-task-user,.js-car-checkbox,.js-creative-car-checkbox,.js-creative-quantity')){ updateCreativePanelCarVisibility(event.target.closest('.creative-assignment-panel')); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); refreshDynamicSelects(); return; }
     if(event.target.matches('.js-budget-ads-count,.js-budget-value')){ updateBudgetGrandTotal(); return; }
     if(event.target.matches('.js-content-dependency-check')){ const box = event.target.closest('.js-content-dependency'); syncContentDependencyState(box); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
     if(event.target.matches('.js-content-montage-link-check')){ const panel = event.target.closest('.creative-assignment-panel'); syncContentMontageLinks(panel); applyContentMontageLinksToMontagePicker(panel); updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); return; }
