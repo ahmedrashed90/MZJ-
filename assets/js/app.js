@@ -19144,3 +19144,184 @@ try{ window.MZJ_APP_VERSION = 'v104-structure-cars-execution-direction'; window.
     }
   };
 })();
+
+/* MZJ v106 - structure template rows only for current content writer task, no repeated 50 rows. */
+(function(){
+  const VERSION = 'v106-structure-template-current-writer-only';
+  try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; }catch(_){ }
+  const txt = value => { try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); } };
+  const uniq = list => { try{ return uniqueList((list || []).filter(Boolean)); }catch(_){ return [...new Set((list || []).filter(Boolean))]; } };
+  const clean = value => { try{ return identityClean(value || ''); }catch(_){ return txt(value).toLowerCase().replace(/\s+/g,''); } };
+  function safeName(value){ try{ return safeStorageSegment(value || ''); }catch(_){ return String(value || 'campaign-structure').replace(/[\\/:*?"<>|]+/g,'-').slice(0,90); } }
+  function carLabel(car){
+    if(!car) return '';
+    if(typeof car === 'string') return txt(car);
+    return txt(car.label || car.name || car.carName || car.title || [car.brand, car.model, car.year, car.color].filter(Boolean).join(' ') || car.groupKey || car.id || '');
+  }
+  function carLabels(list){ return uniq((Array.isArray(list) ? list : []).map(carLabel)); }
+  function campaignOfTaskV106(task){
+    try{ return (typeof campaignRecordForTask === 'function' ? campaignRecordForTask(task) : null) || (typeof campaignForTask === 'function' ? campaignForTask(task) : null) || (typeof getCampaign === 'function' ? getCampaign(task) : null) || {}; }catch(_){ return {}; }
+  }
+  function writerTokens(task){
+    const values = [
+      task?.assignedToId, task?.assigneeId, task?.userId, task?.uid, task?.assignedUserId,
+      task?.assignedToName, task?.userName, task?.assigneeName, task?.assignedName,
+      ...(Array.isArray(task?.userIds) ? task.userIds : []),
+      ...(Array.isArray(task?.userNames) ? task.userNames : [])
+    ];
+    const code = typeof contentWriterCodeForTask === 'function' ? contentWriterCodeForTask(task) : '';
+    if(code) values.push(code);
+    try{ values.push(...(typeof userCodesForTask === 'function' ? userCodesForTask(task) : [])); }catch(_){ }
+    return uniq(values.map(v => clean(v)).filter(Boolean));
+  }
+  function assignmentTokens(assignment){
+    if(!assignment) return [];
+    const values = [
+      assignment.assignedToId, assignment.assigneeId, assignment.userId, assignment.uid,
+      assignment.assignedToName, assignment.userName, assignment.assigneeName,
+      ...(Array.isArray(assignment.userIds) ? assignment.userIds : []),
+      ...(Array.isArray(assignment.userNames) ? assignment.userNames : []),
+      ...(Array.isArray(assignment.userCodes) ? assignment.userCodes : [])
+    ];
+    try{ values.push(...(typeof userCodesForTask === 'function' ? userCodesForTask(assignment) : [])); }catch(_){ }
+    return uniq(values.map(v => clean(v)).filter(Boolean));
+  }
+  function overlaps(a, b){ return a.length && b.length && a.some(x => b.includes(x)); }
+  function requestedNames(task){
+    return uniq([
+      ...(Array.isArray(task?.structureRequiredCreatives) ? task.structureRequiredCreatives : []),
+      ...(Array.isArray(task?.creativeBundleNames) ? task.creativeBundleNames : []),
+      task?.structureCreativeLabel || '', task?.creative || '', task?.product || ''
+    ].flatMap(v => String(v || '').split(/[،,|]+/)).map(v => txt(v).replace(/^\d+\.\s*/, '')).filter(Boolean));
+  }
+  function rowName(row){ return txt(row?.creative || row?.product || row?.name || row?.label || ''); }
+  function rowMatchesRequested(row, requestedKeys){
+    if(!requestedKeys.length) return true;
+    const key = clean(rowName(row));
+    if(!key) return false;
+    return requestedKeys.some(req => key.includes(req) || req.includes(key));
+  }
+  function writerAssignmentForRow(row){
+    try{
+      return (typeof assignmentForRoleFromCreativeRow === 'function' ? assignmentForRoleFromCreativeRow(row, 'content') : null) ||
+        row?.departmentAssignments?.content || row?.departmentAssignments?.CONTENT || row?.contentAssignment || row?.writerAssignment || null;
+    }catch(_){ return row?.departmentAssignments?.content || row?.contentAssignment || null; }
+  }
+  function quantity(row){
+    const raw = Number(row?.quantity || row?.qty || row?.count || row?.creativeCount || row?.requiredCount || 1);
+    return Math.max(1, Math.min(50, Number.isFinite(raw) ? raw : 1));
+  }
+  function unitsForCurrentWriterTask(task){
+    const campaign = campaignOfTaskV106(task);
+    const rows = Array.isArray(campaign?.creatives) ? campaign.creatives : [];
+    const req = requestedNames(task);
+    const reqKeys = req.map(clean).filter(Boolean);
+    const writer = writerTokens(task);
+    let candidates = rows.map((row, index) => ({ row, index }));
+    const writerMatches = candidates.filter(({ row }) => overlaps(writer, assignmentTokens(writerAssignmentForRow(row))));
+    if(writerMatches.length) candidates = writerMatches;
+    const requestedMatches = candidates.filter(({ row }) => rowMatchesRequested(row, reqKeys));
+    if(requestedMatches.length) candidates = requestedMatches;
+    else if(!writerMatches.length && reqKeys.length){
+      const globalReqMatches = rows.map((row, index) => ({ row, index })).filter(({ row }) => rowMatchesRequested(row, reqKeys));
+      if(globalReqMatches.length) candidates = globalReqMatches;
+    }
+    if(!candidates.length && rows.length) candidates = rows.map((row, index) => ({ row, index })).filter(({ row }) => rowMatchesRequested(row, reqKeys));
+    const out = [];
+    candidates.forEach(({ row, index }) => {
+      const name = rowName(row);
+      if(!name) return;
+      const cars = carLabels(row?.selectedCars || row?.cars || row?.stockCars || []);
+      for(let i = 0; i < quantity(row); i += 1){ out.push({ row, index, creativeName:name, carText: cars.join('، '), copyIndex:i }); }
+    });
+    if(out.length) return out.slice(0, 50);
+    const fallbackName = txt(task?.creative || task?.product || req[0] || '');
+    return fallbackName ? [{ row:{ creative:fallbackName, selectedCars: task?.selectedCars || [] }, index:0, creativeName:fallbackName, carText: carLabels(task?.selectedCars || []).join('، '), copyIndex:0 }] : [];
+  }
+  const previousDownloadStructureTemplateV106 = (typeof downloadStructureTemplateForTaskExact === 'function') ? downloadStructureTemplateForTaskExact : null;
+  downloadStructureTemplateForTaskExact = async function(task){
+    try{
+      if(!window.JSZip) throw new Error('JSZip is not loaded');
+      const zip = await window.JSZip.loadAsync(STRUCTURE_TEMPLATE_BASE64_V145, { base64: true });
+      const sheetPath = 'xl/worksheets/sheet1.xml';
+      const sheetFile = zip.file(sheetPath);
+      if(!sheetFile) throw new Error('Structure template sheet is missing');
+      let sheetXml = await sheetFile.async('string');
+      const campaign = campaignOfTaskV106(task);
+      const campaignCode = (typeof campaignCodeForTask === 'function' ? campaignCodeForTask(task) : txt(task?.campaignCode || campaign?.campaignCode || campaign?.campaign_code)).toUpperCase();
+      const creativeCode = (typeof templateCreativeLinkCodeForTask === 'function' ? templateCreativeLinkCodeForTask({ ...task, campaignCode }) : '').toUpperCase();
+      const writerCode = typeof contentWriterCodeForTask === 'function' ? contentWriterCodeForTask(task) : '';
+      const writerName = task?.assignedToName || task?.userName || task?.assigneeName || (Array.isArray(task?.userNames) ? task.userNames[0] : '') || '';
+      const campaignName = task?.campaignName || task?.campaignTitle || task?.campaign || campaign?.campaignName || campaign?.name || '';
+      const campaignTypeName = task?.campaignTypeName || task?.campaignType || task?.typeName || task?.type || campaign?.campaignTypeName || campaign?.campaignType || campaign?.typeName || campaign?.type || '';
+      const units = unitsForCurrentWriterTask(task);
+      const creativeSummary = uniq(units.map(unit => unit.creativeName).filter(Boolean)).map(name => {
+        const count = units.filter(unit => unit.creativeName === name).length;
+        return count > 1 ? `${name} × ${count}` : name;
+      }).join('، ');
+      const patches = {
+        A1: campaignCode ? `حمله - ${campaignCode}` : 'حمله -',
+        A35: campaignCode ? `حمله - ${campaignCode}` : 'حمله -',
+        B2: 'اسم الحملة', C2: campaignName || '',
+        B3: 'كود الحملة', C3: campaignCode || '',
+        B4: 'كود الكرييتيف', C4: creativeCode || '',
+        B5: 'الكرييتيف المطلوب للهيكل', C5: creativeSummary || task?.creative || task?.product || '',
+        B6: 'كاتب المحتوى', C6: writerName || '',
+        B7: 'كود كاتب المحتوى', C7: writerCode || '',
+        B8: 'نوع الحمله', C8: campaignTypeName || '',
+        B9: 'معنى العنصر داخل MZJ', C9: '', B10: 'دور العنصر في تعزيز الثقة', C10: '',
+        B11: 'الهدف الاستراتيجي للحملة', C11: '', B12: 'الهدف النهائي للحملة', C12: '',
+        B13: 'الترجمة الملموسة للهدف النهائي', C13: '', B14: 'الرسالة الرئيسية', C14: '',
+        B15: 'إحساس الحملة', C15: '', B16: 'الترجمة التنفيذية لإحساس الحملة', C16: '',
+        B17: 'نوع المحتوى', C17: '', B18: 'وصف المحتوى', C18: '', B19: 'الرسالة', C19: '', B20: 'المطلوب من الكاتب', C20: '', B21: 'CTA', C21: '', B22: '', C22: '',
+        A36: 'نوع الحمله', B36: 'نوع المحتوى', C36: 'السيارة', D36: 'رقم التاسك', E36: 'الهدف', F36: 'الهدف الملموس', G36: 'الفكرة', H36: 'وصف المحتوى', I36: 'الرسالة', J36: 'المطلوب من الكاتب', K36: 'CTA', L36: 'كود الكرييتيف المختصر', M36: 'كود القسم', N36: 'كود اليوزر', O36: 'كود كاتب المحتوى', P36: ''
+      };
+      sheetXml = patchWorkbookCellsInlineV148(sheetXml, patches);
+      for(let index = 0; index < 50; index += 1){
+        const rowNumber = 37 + index;
+        const emptyPatch = {};
+        ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P'].forEach(col => { emptyPatch[`${col}${rowNumber}`] = ''; });
+        sheetXml = patchWorkbookCellsInlineV148(sheetXml, emptyPatch);
+      }
+      units.forEach((unit, index) => {
+        const rowNumber = 37 + index;
+        const n = String(index + 1).padStart(2, '0');
+        const creativeName = unit.creativeName || rowName(unit.row) || '';
+        const shortCode = txt(unit.row?.creativeShortCode || (typeof creativeShortCodeForName === 'function' ? creativeShortCodeForName(creativeName) : '')).toUpperCase();
+        const unitCreativeCode = (typeof creativeLinkCodeForIndex === 'function' ? creativeLinkCodeForIndex(campaignCode, unit.index || 0) : creativeCode).toUpperCase() || creativeCode;
+        const role = typeof creativeDepartmentRole === 'function' ? creativeDepartmentRole(creativeName || unit.row?.creative || '') : '';
+        const roleTaskRaw = typeof assignmentForRoleFromCreativeRow === 'function' ? (assignmentForRoleFromCreativeRow(unit.row, role) || {}) : {};
+        const roleTask = (typeof v165FilterAssignmentForWriter === 'function') ? (v165FilterAssignmentForWriter(roleTaskRaw, task) || roleTaskRaw) : roleTaskRaw;
+        const deptCode = typeof roleCode === 'function' ? roleCode(role) : '';
+        const userCodes = uniq([...(Array.isArray(roleTask.userCodes) ? roleTask.userCodes : []), ...(typeof userCodesForTask === 'function' ? userCodesForTask(roleTask) : [])]).filter(Boolean).join(',') || writerCode;
+        const taskNo = unitCreativeCode ? `${unitCreativeCode}-${shortCode}-${deptCode}-${userCodes || 'USER'}-${writerCode || 'N'}${n}` : '';
+        const rowPatch = {
+          [`A${rowNumber}`]: index === 0 ? (campaignTypeName || '') : '',
+          [`B${rowNumber}`]: creativeName || '',
+          [`C${rowNumber}`]: unit.carText || (typeof mzjCarsForStructureRow === 'function' ? mzjCarsForStructureRow(task, { contentType: creativeName, creativeShortCode: shortCode }) : '') || '',
+          [`D${rowNumber}`]: taskNo,
+          [`E${rowNumber}`]: '', [`F${rowNumber}`]: '', [`G${rowNumber}`]: '', [`H${rowNumber}`]: '', [`I${rowNumber}`]: '', [`J${rowNumber}`]: '', [`K${rowNumber}`]: '',
+          [`L${rowNumber}`]: shortCode,
+          [`M${rowNumber}`]: deptCode,
+          [`N${rowNumber}`]: userCodes,
+          [`O${rowNumber}`]: writerCode || '',
+          [`P${rowNumber}`]: ''
+        };
+        sheetXml = patchWorkbookCellsInlineV148(sheetXml, rowPatch);
+      });
+      zip.file(sheetPath, sheetXml);
+      const out = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const fileBase = safeName([creativeCode || campaignCode, writerName || writerCode || '', 'هيكل'].filter(Boolean).join('-'));
+      const blobUrl = URL.createObjectURL(out);
+      const a = document.createElement('a');
+      a.href = blobUrl; a.download = `${fileBase || 'campaign-structure'}-template.xlsx`; a.style.display = 'none';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 1200);
+      showToast(`تم تحميل قالب الهيكل بالأكواد بعدد ${units.length} صف فقط لهذا التاسك.`);
+    }catch(error){
+      console.error('v106 current writer structure template download failed', error);
+      if(previousDownloadStructureTemplateV106) return previousDownloadStructureTemplateV106(task);
+      showToast('تعذر تحميل قالب الهيكل.');
+    }
+  };
+})();
