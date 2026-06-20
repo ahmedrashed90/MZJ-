@@ -540,6 +540,15 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    match /task_template_uploads/{docId} {
+      allow read, create, update, delete: if true;
+    }
+
+
+    match /task_templates/{docId} {
+      allow read, write, delete: if true;
+    }
+
 
     match /publish_prep_tasks/{docId} {
       // Temporary while the current MZJ user system is not Firebase Auth-based.
