@@ -11754,6 +11754,85 @@ async function downloadStructureTemplateForTaskExact(task){
   function v107TaskTemplateDownloadUrl(tpl){
     return tpl?.fileUrl || tpl?.downloadURL || tpl?.downloadUrl || tpl?.url || tpl?.fileData || '';
   }
+
+  function v113TaskTemplateIdentityValues(task){
+    if(!task) return [];
+    return [
+      task.id, task.taskId, task.docId, task.taskNo, task.structureTaskNo, task.linkedExecutionTaskId,
+      task.taskKey, task.openKey
+    ].map(value => normalizeText(value)).filter(Boolean);
+  }
+  function v113TaskTemplateSameUser(a, b){
+    const idsA = [a?.userId, a?.userUid, a?.assignedToId, a?.assignedToUid, a?.assigneeUid, a?.userEmail, a?.assignedToEmail, a?.assigneeEmail].map(identityClean).filter(Boolean);
+    const idsB = [b?.userId, b?.userUid, b?.assignedToId, b?.assignedToUid, b?.assigneeUid, b?.userEmail, b?.assignedToEmail, b?.assigneeEmail].map(identityClean).filter(Boolean);
+    if(!idsA.length || !idsB.length) return true;
+    return idsA.some(id => idsB.includes(id));
+  }
+  function v113TaskTemplateMatches(candidate, source){
+    if(!candidate || !source) return false;
+    const a = v113TaskTemplateIdentityValues(candidate);
+    const b = v113TaskTemplateIdentityValues(source);
+    if(a.length && b.length && a.some(id => b.includes(id))) return true;
+    try{
+      const sigA = taskSignature({ ...candidate, campaignId: candidate.campaignId || source.campaignId || '' });
+      const sigB = taskSignature({ ...source, campaignId: source.campaignId || candidate.campaignId || '' });
+      if(sigA && sigB && sigA === sigB) return true;
+    }catch(_){ }
+    const noA = identityClean(candidate.taskNo || candidate.structureTaskNo || '');
+    const noB = identityClean(source.taskNo || source.structureTaskNo || '');
+    if(noA && noB && noA === noB && v113TaskTemplateSameUser(candidate, source)) return true;
+    const creativeA = identityClean(candidate.creative || candidate.product || candidate.taskType || '');
+    const creativeB = identityClean(source.creative || source.product || source.taskType || '');
+    const roleA = identityClean(candidate.departmentRole || candidate.assignedDepartmentName || candidate.contentSectionName || '');
+    const roleB = identityClean(source.departmentRole || source.assignedDepartmentName || source.contentSectionName || '');
+    return !!(creativeA && creativeB && creativeA === creativeB && roleA && roleB && roleA === roleB && v113TaskTemplateSameUser(candidate, source));
+  }
+  async function v113SaveTaskTemplatePatch(sourceTask, templateData){
+    if(!mainDb) throw new Error('اتصال Firebase غير متاح.');
+    const campaignId = sourceTask?.campaignId || activeTaskModalMeta?.campaignId || '';
+    let campaignIndex = campaigns.findIndex(c => c.id === campaignId || c.docId === campaignId);
+    if(campaignIndex < 0){
+      campaignIndex = campaigns.findIndex(c => Array.isArray(c.departmentTasks) && c.departmentTasks.some(t => v113TaskTemplateMatches(t, sourceTask)));
+    }
+    if(campaignIndex < 0) throw new Error('تعذر تحديد الحملة لحفظ Task Template.');
+    const campaign = campaigns[campaignIndex];
+    const storedTemplate = encodeStructureWorkbookForFirestore(templateData || {});
+    const baseTask = { ...(sourceTask || {}), campaignId: sourceTask?.campaignId || campaign.id };
+    let matched = false;
+    const sourceStableId = sourceTask?.id || sourceTask?.taskId || sourceTask?.docId || sourceTask?.taskNo || sourceTask?.structureTaskNo || '';
+    let nextTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks.map(raw => {
+      const normalized = normalizeCampaignTask(raw, campaign);
+      if(!v113TaskTemplateMatches(normalized, sourceTask) && !v113TaskTemplateMatches(raw, sourceTask)) return raw;
+      matched = true;
+      return sanitizeTaskForFirestore({
+        ...raw,
+        id: raw.id || sourceStableId || normalized.id,
+        campaignId: raw.campaignId || campaign.id,
+        taskTemplate: storedTemplate,
+        status: 'pending_task_template_review',
+        updatedAt: new Date().toISOString()
+      });
+    }) : [];
+    if(!matched){
+      nextTasks.push(sanitizeTaskForFirestore({
+        ...baseTask,
+        id: sourceStableId || baseTask.id || `${campaign.id}-task-template-${Date.now()}`,
+        campaignId: campaign.id,
+        taskTemplate: storedTemplate,
+        status: 'pending_task_template_review',
+        updatedAt: new Date().toISOString()
+      }));
+    }
+    await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update({ departmentTasks: nextTasks, updatedAt: serverTime() });
+    campaigns[campaignIndex] = { ...campaign, departmentTasks: nextTasks, updatedAt: new Date().toISOString() };
+    if(activeTaskModalMeta){
+      activeTaskModalMeta.taskId = sourceStableId || activeTaskModalMeta.taskId;
+      activeTaskModalMeta.campaignId = campaign.id;
+    }
+    try{ renderAdminDashboard(); renderTasksPage(); }catch(_){ }
+    return nextTasks.find(t => v113TaskTemplateMatches(t, sourceTask)) || null;
+  }
+
   async function v107UploadTaskTemplateFileToStorage(file, task){
     if(!mainStorage) throw new Error('Firebase Storage غير متاح. تأكد من تحميل storage SDK.');
     const campaignId = v107SafeTemplateStorageSegment(task.campaignId || task.campaignCode || task.campaignName || 'campaign');
@@ -11822,9 +11901,7 @@ async function downloadStructureTemplateForTaskExact(task){
       uploadedAt:new Date().toISOString(),
       uploadedBy:getCurrentUser().email || getCurrentUser().name || ''
     };
-    const safeTaskId = task.id || task.taskId || task.docId || task.taskNo || task.structureTaskNo;
-    if(!safeTaskId) throw new Error('تعذر تحديد كود التاسك لحفظ Task Template.');
-    await updateTaskOnFirebase(safeTaskId, { taskTemplate: encodeStructureWorkbookForFirestore(next), status:'pending_task_template_review' });
+    await v113SaveTaskTemplatePatch(task, next);
     showToast('تم رفع Task Template. في انتظار مراجعة الأدمن.');
     refreshOpenTaskModal();
   }
