@@ -6939,7 +6939,7 @@ function renderUserDashboard(){
     return `<article class="content-task-card ${completed ? 'completed' : ''} ${waitingFinal ? 'waiting-final-file' : ''} ${waitingDependency ? 'waiting-dependency' : ''}">
       <h3>${escapeHtml(task.campaignName || 'حملة')}</h3>
       <p>${shortTaskName(task)}</p>
-      <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>${actionHtml}${taskStructureAttachedBadge(task)}</div>
+      <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(taskOpenKeyV110(task))}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>${actionHtml}${taskStructureAttachedBadge(task)}</div>
       <div class="task-metric-row"><span>نسبة الإنجاز</span><b>${progress}%</b></div>
       ${waitingDependency ? '' : `<div class="task-metric-row"><span>حالة التاسك</span><b>${statusText}</b></div>`}
       <div class="task-card-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
@@ -7024,7 +7024,7 @@ function renderCampaignInlineTasks(campaign){
     <div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([taskDepartmentLabel(task), task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div>
     <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}</span>
     <b>${taskProgress(task)}%</b>
-    <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
+    <button type="button" class="mini-btn" data-open-task="${escapeHtml(taskOpenKeyV110(task))}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
   </article>`;
   return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
 }
@@ -7048,7 +7048,7 @@ function renderCampaignDetail(campaignId){
   const taskItem = task => `<article class="campaign-task-list-item">
     <div class="task-list-main"><strong>${shortTaskName(task)}</strong><p>${escapeHtml([task.contentSectionName, task.taskType, taskOwnerName(task)].filter(Boolean).join(' / ') || 'بدون بيانات')}</p></div>
     <div class="task-list-state"><span>${taskProgress(task)}%</span><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b>${taskStructureAttachedBadge(task)}</div>
-    <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">تفاصيل</button>
+    <button type="button" class="mini-btn" data-open-task="${escapeHtml(taskOpenKeyV110(task))}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">تفاصيل</button>
   </article>`;
   const grouped = groupTasksForKanban(related);
   detail.classList.add('show');
@@ -12788,7 +12788,7 @@ async function downloadStructureTemplateForTaskExact(task){
         <div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([taskDepartmentLabel(task), task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div>
         <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}</span>
         <b>${taskProgress(task)}%</b>
-        <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
+        <button type="button" class="mini-btn" data-open-task="${escapeHtml(taskOpenKeyV110(task))}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
       </article>`;
       return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
     };
@@ -13005,7 +13005,7 @@ async function downloadStructureTemplateForTaskExact(task){
           <div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([taskDepartmentLabel(task), task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div>
           <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}</span>
           <b>${taskProgress(task)}%</b>
-          <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">تفاصيل</button>
+          <button type="button" class="mini-btn" data-open-task="${escapeHtml(taskOpenKeyV110(task))}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">تفاصيل</button>
         </article>`;
         return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
       }catch(error){ console.error('v198 render campaign inline tasks failed', error); return prevRenderCampaignInlineTasksV198(campaign); }
@@ -14640,7 +14640,7 @@ try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
           <div><strong>${v220TaskIdChip(task)}${shortTaskName(task)}</strong><p>${v220Esc([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))} ${v220OwnerBadge(task)}</p></div>
           <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${v220TaskTemplateBadge(task)}</span>
           <b>${taskProgress(task)}%</b>
-          <button type="button" class="mini-btn" data-open-task="${v220Esc(task.id)}" data-task-campaign="${v220Esc(campaign.id || task.campaignId || '')}">تفاصيل</button>
+          <button type="button" class="mini-btn" data-open-task="${v220Esc(taskOpenKeyV110(task))}" data-task-campaign="${v220Esc(campaign.id || task.campaignId || '')}">تفاصيل</button>
         </article>`;
         return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
       }catch(error){ console.error('v220 render campaign inline tasks failed', error); return prevRenderCampaignInlineTasksV220(campaign); }
@@ -14855,7 +14855,7 @@ try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
       try{
         const related = (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []).slice().sort(typeof v197AdminTaskSort === 'function' ? v197AdminTaskSort : undefined);
         const grouped = typeof groupTasksForKanban === 'function' ? groupTasksForKanban(related) : [];
-        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${esc([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))} ${ownerBadge(task)}</p></div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${esc(task.id)}" data-task-campaign="${esc(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
+        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${esc([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))} ${ownerBadge(task)}</p></div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${esc(taskOpenKeyV110(task))}" data-task-campaign="${esc(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
         return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
       }catch(error){ console.error('v221 render campaign inline tasks failed', error); return oldInline(campaign); }
     };
@@ -15077,7 +15077,7 @@ try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
       try{
         const related = (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []).slice().sort(typeof v197AdminTaskSort === 'function' ? v197AdminTaskSort : undefined);
         const grouped = typeof groupTasksForKanban === 'function' ? groupTasksForKanban(related) : [];
-        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 inline-task-row-v222 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${html([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))}</p>${renderAssigneeAndWriter(task)}</div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${html(task.id)}" data-task-campaign="${html(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
+        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 inline-task-row-v222 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${html([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))}</p>${renderAssigneeAndWriter(task)}</div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${html(taskOpenKeyV110(task))}" data-task-campaign="${html(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
         return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
       }catch(error){ console.error('v222 render campaign inline tasks failed', error); return oldInline(campaign); }
     };
@@ -15292,7 +15292,7 @@ try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
       try{
         const related = (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []).slice().sort(typeof v197AdminTaskSort === 'function' ? v197AdminTaskSort : undefined);
         const grouped = typeof groupTasksForKanban === 'function' ? groupTasksForKanban(related) : [];
-        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 inline-task-row-v222 inline-task-row-v223 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${html([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))}</p>${renderAssigneeAndWriter(task)}</div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${html(task.id)}" data-task-campaign="${html(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
+        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 inline-task-row-v222 inline-task-row-v223 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${html([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))}</p>${renderAssigneeAndWriter(task)}</div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${html(taskOpenKeyV110(task))}" data-task-campaign="${html(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
         return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
       }catch(error){ console.error('v223 render campaign inline tasks failed', error); return oldInline(campaign); }
     };
@@ -19450,6 +19450,17 @@ try{ window.MZJ_APP_VERSION = 'v104-structure-cars-execution-direction'; window.
   };
 })();
 
+
+/* v110 - stable open id for task detail buttons */
+function taskOpenKeyV110(task){
+  try{
+    return String(
+      task?.id || task?.taskId || task?.docId || task?.uid || task?.firebaseId || task?.key ||
+      task?.taskNo || task?.structureTaskNo || task?.contentExecutionPairKey || task?.linkedExecutionPairKey || ''
+    );
+  }catch(_){ return ''; }
+}
+
 /* v109 - restore task details button after Task Template storage changes */
 (function(){
   const esc = typeof escapeHtml === 'function' ? escapeHtml : (value => String(value ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])));
@@ -19502,8 +19513,12 @@ try{ window.MZJ_APP_VERSION = 'v104-structure-cars-execution-direction'; window.
     return false;
   }
   function openTaskDetailsV109(taskId, campaignId, opts = {}){
-    const task = findTaskV109(taskId, campaignId || '');
+    let task = findTaskV109(taskId, campaignId || '');
+    if(!task && opts && opts.fallbackTask){
+      try{ task = opts.fallbackTask; }catch(_){ task = null; }
+    }
     if(!task){
+      try{ console.warn('v110 task details not found', { taskId, campaignId }); }catch(_){ }
       try{ showToast('تعذر فتح تفاصيل التاسك. جرّب تحديث الصفحة.'); }catch(_){ }
       return false;
     }
@@ -19536,6 +19551,9 @@ try{ window.MZJ_APP_VERSION = 'v104-structure-cars-execution-direction'; window.
     if(typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
     try{ document.getElementById('notificationPanel')?.classList.add('is-hidden'); }catch(_){ }
     try{ if(typeof closeCampaignModal === 'function') closeCampaignModal(); }catch(_){ }
-    openTaskDetailsV109(btn.dataset.openTask || '', btn.dataset.taskCampaign || '', { fromVisibleButton:true });
+    const ok = openTaskDetailsV109(btn.dataset.openTask || '', btn.dataset.taskCampaign || '', { fromVisibleButton:true });
+    if(!ok){
+      try{ console.warn('v110 open task failed from button', { openTask: btn.dataset.openTask || '', campaign: btn.dataset.taskCampaign || '' }); }catch(_){ }
+    }
   }, true);
 })();
