@@ -2946,26 +2946,9 @@ function fallbackTasksFromCampaign(campaign){
   });
   return fallback;
 }
-function stableGeneratedTaskId(task, campaign){
-  const cleanPart = value => {
-    try{ return identityClean(value || '').replace(/[^a-z0-9\u0600-\u06FF]+/gi,'-').replace(/^-+|-+$/g,''); }
-    catch(_){ return String(value || '').trim().replace(/[^a-zA-Z0-9\u0600-\u06FF]+/g,'-').replace(/^-+|-+$/g,''); }
-  };
-  const parts = [
-    campaign?.id || campaign?.docId || campaign?.campaignId || campaign?.campaignCode || 'campaign',
-    task?.creativeIndex ?? '0',
-    task?.taskIndex ?? '0',
-    task?.taskCopyIndex ?? '',
-    task?.structureTaskNo || task?.taskNo || '',
-    task?.assignedToUid || task?.assigneeUid || task?.userUid || task?.assignedToId || task?.userId || task?.assignedToEmail || task?.userEmail || '',
-    task?.departmentRole || task?.assignedDepartmentName || task?.contentSectionName || '',
-    task?.creative || task?.product || task?.taskType || task?.contentType || ''
-  ].map(cleanPart).filter(Boolean);
-  return parts.join('-') || `task-${Date.now()}`;
-}
 function normalizeCampaignTask(task, campaign){
   const role = task.departmentRole || normalizeDepartmentRole(task.assignedDepartmentName || task.departmentName || task.contentSectionName || '');
-  return { ...task, id: task.id || task.taskId || task.docId || task.uid || task.firebaseId || task.key || stableGeneratedTaskId(task, campaign), campaignId: task.campaignId || campaign.id, campaignName: task.campaignName || campaign.campaignName || campaign.name || '', campaignCode: task.campaignCode || campaign.campaignCode || campaign.campaign_code || '', departmentRole: role, steps: Array.isArray(task.steps) && task.steps.length ? task.steps : taskStepTemplate(role) };
+  return { ...task, id: task.id || `${campaign.id}-${task.creativeIndex || 0}-${task.taskIndex || 0}-${task.assignedToUid || task.assigneeUid || task.userId || Math.random().toString(36).slice(2)}`, campaignId: task.campaignId || campaign.id, campaignName: task.campaignName || campaign.campaignName || campaign.name || '', campaignCode: task.campaignCode || campaign.campaignCode || campaign.campaign_code || '', departmentRole: role, steps: Array.isArray(task.steps) && task.steps.length ? task.steps : taskStepTemplate(role) };
 }
 function taskSignature(task){
   const userKey = identityClean(task.userId || task.userUid || task.assignedToId || task.assignedToUid || task.assigneeUid || task.userEmail || task.assignedToEmail || task.userName || task.assignedToName || '');
@@ -6956,7 +6939,7 @@ function renderUserDashboard(){
     return `<article class="content-task-card ${completed ? 'completed' : ''} ${waitingFinal ? 'waiting-final-file' : ''} ${waitingDependency ? 'waiting-dependency' : ''}">
       <h3>${escapeHtml(task.campaignName || 'حملة')}</h3>
       <p>${shortTaskName(task)}</p>
-      <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(taskOpenKeyV110(task))}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>${actionHtml}${taskStructureAttachedBadge(task)}</div>
+      <div class="content-task-actions"><button type="button" class="btn btn-light" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>${actionHtml}${taskStructureAttachedBadge(task)}</div>
       <div class="task-metric-row"><span>نسبة الإنجاز</span><b>${progress}%</b></div>
       ${waitingDependency ? '' : `<div class="task-metric-row"><span>حالة التاسك</span><b>${statusText}</b></div>`}
       <div class="task-card-progress"><span style="width:${Math.min(100,progress)}%"></span></div>
@@ -7041,7 +7024,7 @@ function renderCampaignInlineTasks(campaign){
     <div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([taskDepartmentLabel(task), task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div>
     <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}</span>
     <b>${taskProgress(task)}%</b>
-    <button type="button" class="mini-btn" data-open-task="${escapeHtml(taskOpenKeyV110(task))}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
+    <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
   </article>`;
   return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
 }
@@ -7065,7 +7048,7 @@ function renderCampaignDetail(campaignId){
   const taskItem = task => `<article class="campaign-task-list-item">
     <div class="task-list-main"><strong>${shortTaskName(task)}</strong><p>${escapeHtml([task.contentSectionName, task.taskType, taskOwnerName(task)].filter(Boolean).join(' / ') || 'بدون بيانات')}</p></div>
     <div class="task-list-state"><span>${taskProgress(task)}%</span><b class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</b>${taskStructureAttachedBadge(task)}</div>
-    <button type="button" class="mini-btn" data-open-task="${escapeHtml(taskOpenKeyV110(task))}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">تفاصيل</button>
+    <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">تفاصيل</button>
   </article>`;
   const grouped = groupTasksForKanban(related);
   detail.classList.add('show');
@@ -11475,7 +11458,7 @@ async function downloadStructureTemplateForTaskExact(task){
       <div class="structure-actions">
         ${canUpload ? `<button class="btn btn-light" type="button" data-download-task-template="${escapeHtml(task.id)}">تحميل قالب Task Template</button><button class="btn btn-primary" type="button" data-upload-task-template="${escapeHtml(task.id)}">رفع ملف Task Template</button>` : ''}
         ${hasFile ? `<span class="structure-file-name structure-attached-label">تم رفع Task Template</span>${tpl.fileName ? `<span class="structure-file-name">${escapeHtml(tpl.fileName)}</span>` : ''}` : '<span class="structure-file-name muted">لم يتم رفع Task Template</span>'}
-        ${v108TaskTemplateFileUrl(tpl) ? `<a class="btn btn-light" href="${escapeHtml(v108TaskTemplateFileUrl(tpl))}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
+        ${(window.MZJTaskTemplateDownloadUrl ? window.MZJTaskTemplateDownloadUrl(tpl) : (tpl?.fileUrl || tpl?.downloadURL || tpl?.downloadUrl || tpl?.url || tpl?.fileData || '')) ? `<a class="btn btn-light" href="${escapeHtml((window.MZJTaskTemplateDownloadUrl ? window.MZJTaskTemplateDownloadUrl(tpl) : (tpl?.fileUrl || tpl?.downloadURL || tpl?.downloadUrl || tpl?.url || tpl?.fileData || '')))}" target="_blank" rel="noopener" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
         ${admin && hasFile ? `<button class="btn btn-primary" type="button" data-open-task-template-review="${escapeHtml(task.id)}">مراجعة Task Template</button>` : ''}
       </div>
       ${v172RenderTaskTemplateFields(tpl)}
@@ -11509,7 +11492,7 @@ async function downloadStructureTemplateForTaskExact(task){
         <div class="approved-template-group"><h4>ملخص المحتوى</h4><div class="approved-template-grid approved-template-brief-grid">${briefHtml}</div></div>
         <div class="approved-template-group"><h4>النصوص التنفيذية</h4><div class="approved-template-grid approved-template-long-grid">${longHtml}</div></div>
       </div>
-      ${v108TaskTemplateFileUrl(tpl) ? `<a class="btn btn-light approved-template-download-btn" href="${escapeHtml(v108TaskTemplateFileUrl(tpl))}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل Task Template المعتمد</a>` : ''}
+      ${tpl.fileData ? `<a class="btn btn-light approved-template-download-btn" href="${escapeHtml(tpl.fileData)}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل Task Template المعتمد</a>` : ''}
     </div>`;
   }
   const previousBuildTaskDetailHtml = buildTaskDetailHtml;
@@ -11765,143 +11748,87 @@ async function downloadStructureTemplateForTaskExact(task){
     if(!fields.length) return '';
     return `<div class="task-template-fields-grid">${fields.map(field => `<div class="task-template-field"><span>${escapeHtml(field.label)}</span><strong>${escapeHtml(field.value || '—')}</strong></div>`).join('')}</div>`;
   }
-  function v108TaskTemplateFileUrl(tpl){
-    return normalizeText(tpl?.fileUrl || tpl?.downloadURL || tpl?.downloadUrl || tpl?.storageUrl || tpl?.fileData || '');
+  function v107SafeTemplateStorageSegment(value){
+    return String(value || 'item').trim().replace(/[\\/#?%*:|"<>\s]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 90) || 'item';
   }
-  async function v108UploadTaskTemplateFileToStorage(file, task){
-    if(!mainStorage) throw new Error('Firebase Storage غير متاح. تأكد من نشر storage.rules وتحميل Firebase Storage SDK.');
-    const current = getCurrentUserIdentity();
-    const safe = value => String(value || 'item').trim().replace(/[\/#?%*:|"<>\s]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 90) || 'item';
-    const campaignId = safe(task?.campaignId || 'campaign');
-    const taskId = safe(task?.id || task?.taskId || 'task');
+  function v107TaskTemplateDownloadUrl(tpl){
+    return tpl?.fileUrl || tpl?.downloadURL || tpl?.downloadUrl || tpl?.url || tpl?.fileData || '';
+  }
+  async function v107UploadTaskTemplateFileToStorage(file, task){
+    if(!mainStorage) throw new Error('Firebase Storage غير متاح. تأكد من تحميل storage SDK.');
+    const campaignId = v107SafeTemplateStorageSegment(task.campaignId || task.campaignCode || task.campaignName || 'campaign');
+    const taskKey = v107SafeTemplateStorageSegment(task.id || task.taskId || task.taskNo || task.structureTaskNo || 'task');
+    const cleanName = String(file?.name || 'task-template.xlsx').replace(/[\/#?%*:|"<>]+/g, '-');
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const fileName = `${stamp}-${safe(file?.name || 'task-template.xlsx')}`;
-    const path = `task-templates/${campaignId}/${taskId}/${fileName}`;
+    const path = `task-templates/${campaignId}/${taskKey}/${stamp}-${cleanName}`;
     const ref = mainStorage.ref().child(path);
+    const current = getCurrentUserIdentity ? getCurrentUserIdentity() : getCurrentUser();
     const metadata = {
       contentType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       customMetadata: {
-        uploadKind:'task_template',
-        taskId:String(task?.id || ''),
-        campaignId:String(task?.campaignId || ''),
-        originalFileName:file.name || fileName,
-        uploadedBy: current.email || current.name || current.uid || 'user'
+        uploadKind: 'task-template',
+        taskId: String(task.id || task.taskId || ''),
+        campaignId: String(task.campaignId || ''),
+        originalFileName: file.name || cleanName,
+        uploadedBy: current.email || current.name || current.uid || ''
       }
     };
+    const label = 'جاري رفع Task Template';
     const snapshot = await new Promise((resolve, reject) => {
       const taskUpload = ref.put(file, metadata);
-      const startedAt = Date.now();
-      let lastBytes = 0;
-      let lastTime = startedAt;
-      activeUploadProgressState = {
-        taskUpload,
-        fileName: file.name || fileName,
-        totalBytes: file.size || 0,
-        bytesTransferred: 0,
-        speedBps: 0,
-        percent: 3,
-        label: 'جاري رفع Task Template',
-        cancelable: true
-      };
-      showUploadProgressToast(3, 'جاري رفع Task Template', activeUploadProgressState);
       taskUpload.on('state_changed', snap => {
-        const now = Date.now();
-        const deltaBytes = Math.max(0, snap.bytesTransferred - lastBytes);
-        const deltaTime = Math.max(1, now - lastTime) / 1000;
-        const instantSpeed = deltaBytes / deltaTime;
-        const prevSpeed = Number(activeUploadProgressState?.speedBps || 0);
-        const speedBps = prevSpeed ? (prevSpeed * 0.65 + instantSpeed * 0.35) : instantSpeed;
-        lastBytes = snap.bytesTransferred;
-        lastTime = now;
-        const realPercent = snap.totalBytes ? (snap.bytesTransferred / snap.totalBytes) * 100 : 0;
-        activeUploadProgressState = { ...activeUploadProgressState, taskUpload, bytesTransferred:snap.bytesTransferred, totalBytes:snap.totalBytes || file.size || 0, speedBps, percent:Math.max(3, realPercent), label:'جاري رفع Task Template', cancelable:true };
-        showUploadProgressToast(activeUploadProgressState.percent, 'جاري رفع Task Template', activeUploadProgressState);
-      }, error => {
-        activeUploadProgressState = null;
-        if(error && (error.code === 'storage/canceled' || String(error.message || '').toLowerCase().includes('cancel'))){
-          reject(new Error('تم إلغاء رفع Task Template.'));
-        }else{
-          reject(error);
-        }
-      }, () => resolve(taskUpload.snapshot));
+        const percent = snap.totalBytes ? Math.max(5, (snap.bytesTransferred / snap.totalBytes) * 100) : 10;
+        try{ showUploadProgressToast(percent, label, { fileName:file.name, totalBytes:snap.totalBytes || file.size || 0, bytesTransferred:snap.bytesTransferred, percent, label, cancelable:false }); }catch(_){ }
+      }, error => reject(error), () => resolve(taskUpload.snapshot));
     });
+    try{ showUploadProgressToast(100, 'تم رفع Task Template'); hideUploadProgressToast(); }catch(_){ }
     const downloadURL = await snapshot.ref.getDownloadURL();
-    showUploadProgressToast(100, 'تم رفع Task Template', { fileName:file.name || fileName, bytesTransferred:file.size || 0, totalBytes:file.size || 0 });
-    hideUploadProgressToast(1200);
-    return { storageProvider:'firebase', storagePath:path, fileUrl:downloadURL, downloadURL, downloadUrl:downloadURL };
-  }
-  function v108TaskTemplateFriendlyError(error){
-    const code = String(error?.code || '');
-    const message = String(error?.message || error || '');
-    if(code.includes('storage/unauthorized') || message.includes('permission') || message.includes('unauthorized')) return 'تعذر رفع Task Template: صلاحيات Firebase Storage لا تسمح بالمسار task-templates. انشر storage.rules الجديدة ثم جرب مرة أخرى.';
-    if(code.includes('storage/canceled') || message.includes('إلغاء')) return 'تم إلغاء رفع Task Template.';
-    if(message.includes('maximum') || message.includes('larger than') || message.includes('1048487') || message.includes('RESOURCE_EXHAUSTED')) return 'تعذر حفظ Task Template لأن الملف كبير على Firestore. سيتم الرفع عبر Firebase Storage بعد نشر storage.rules الجديدة.';
-    return message || 'تعذر رفع Task Template.';
+    return {
+      storageProvider:'firebase',
+      storagePath:path,
+      fileUrl:downloadURL,
+      downloadURL,
+      downloadUrl:downloadURL,
+      fileName:file.name,
+      name:file.name,
+      fileSize:file.size || 0,
+      size:file.size || 0,
+      mimeType:file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    };
   }
   async function v171UploadTaskTemplate(file, taskId){
     const task = findTaskById(taskId);
     if(!task) return showToast('تعذر العثور على التاسك.');
-    if(!file) return showToast('لم يتم اختيار ملف Task Template.');
-    showUploadProgressToast(2, 'تجهيز Task Template', { fileName:file.name || '', bytesTransferred:0, totalBytes:file.size || 0 });
-    let parsed = { parsedRows: [], sheetTables: [], taskTemplateFields: [], templateKind:'content_task_template_v177' };
-    let parseWarning = '';
+    showToast('جاري رفع Task Template...');
+    const buffer = await file.arrayBuffer();
+    let parsed = { parsedRows: [], sheetTables: [], taskTemplateFields: [] };
     try{
-      if(window.XLSX && typeof v172ParseTaskTemplateWorkbookBuffer === 'function'){
-        const buffer = await file.arrayBuffer();
-        parsed = v177NormalizeRealTaskTemplate(v172ParseTaskTemplateWorkbookBuffer(buffer, file.name));
-      }else{
-        parseWarning = 'تعذر تحميل مكتبة Excel، تم حفظ الملف فقط.';
-      }
-    }catch(error){
-      console.warn('Task Template parse failed, saving original file anyway', error);
-      parseWarning = 'تم حفظ الملف، لكن تعذر قراءة بياناته تلقائيًا.';
+      parsed = v172ParseTaskTemplateWorkbookBuffer(buffer, file.name);
+      parsed = v177NormalizeRealTaskTemplate(parsed);
+    }catch(parseError){
+      console.warn('Task Template parse failed; uploading file anyway', parseError);
     }
-    const fields = Array.isArray(parsed.taskTemplateFields) ? parsed.taskTemplateFields : [];
-    const hasRealTaskTemplateData = fields.some(field => normalizeText(field.value || ''));
-    if(!hasRealTaskTemplateData && !parseWarning){
-      parseWarning = 'تم حفظ الملف، لكن لم يتم العثور على بيانات مكتوبة داخل قالب Task Template.';
-    }
-    let storedFile = null;
-    let inlineFileData = '';
-    try{
-      storedFile = await v108UploadTaskTemplateFileToStorage(file, task);
-    }catch(storageError){
-      console.warn('Task Template Firebase Storage upload failed', storageError);
-      if(file.size && file.size <= 350 * 1024){
-        inlineFileData = await fileToDataUrl(file);
-        parseWarning = `${parseWarning ? `${parseWarning} ` : ''}تم حفظ الملف داخل بيانات التاسك لأن Firebase Storage غير متاح.`;
-      }else{
-        hideUploadProgressToast(0);
-        return showToast(v108TaskTemplateFriendlyError(storageError));
-      }
-    }
+    const uploadedFile = await v107UploadTaskTemplateFileToStorage(file, task);
+    const fields = parsed.taskTemplateFields || v172TaskTemplateFieldsFromTemplate(parsed);
     const prev = task.taskTemplate || {};
     const next = {
       ...prev,
+      ...uploadedFile,
       status:'pending_review',
-      fileName:file.name,
-      fileSize:file.size,
-      mimeType:file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      ...(storedFile || {}),
-      ...(inlineFileData ? { fileData:inlineFileData } : {}),
       parsedRows: parsed.parsedRows || [],
       sheetTables: parsed.sheetTables || [],
-      taskTemplateFields: fields.length ? fields : v172TaskTemplateFieldsFromTemplate(parsed),
-      templateKind:'content_task_template_v177',
-      parseWarning,
+      taskTemplateFields: fields || [],
+      templateKind:'content_task_template_v107_storage',
       uploadedAt:new Date().toISOString(),
       uploadedBy:getCurrentUser().email || getCurrentUser().name || ''
     };
-    try{
-      const savedTask = await updateTaskOnFirebase(task.id, { taskTemplate: encodeStructureWorkbookForFirestore(next), status:'pending_task_template_review' }, { silent:true });
-      if(!savedTask) return showToast('تعذر حفظ Task Template داخل بيانات التاسك.');
-      showToast(parseWarning ? `تم رفع Task Template. ${parseWarning}` : 'تم رفع Task Template. في انتظار مراجعة الأدمن.');
-      refreshOpenTaskModal();
-    }catch(error){
-      console.error('Task Template Firestore save failed', error);
-      showToast(v108TaskTemplateFriendlyError(error));
-    }
+    const safeTaskId = task.id || task.taskId || task.docId || task.taskNo || task.structureTaskNo;
+    if(!safeTaskId) throw new Error('تعذر تحديد كود التاسك لحفظ Task Template.');
+    await updateTaskOnFirebase(safeTaskId, { taskTemplate: encodeStructureWorkbookForFirestore(next), status:'pending_task_template_review' });
+    showToast('تم رفع Task Template. في انتظار مراجعة الأدمن.');
+    refreshOpenTaskModal();
   }
+  try{ window.MZJTaskTemplateDownloadUrl = v107TaskTemplateDownloadUrl; }catch(_){ }
   function v175RenderTaskTemplateReviewView(tpl, task = null){
     const mergedTpl = v177NormalizeRealTaskTemplate(tpl || {});
     const fields = v172TaskTemplateFieldsFromTemplate(mergedTpl);
@@ -11919,7 +11846,7 @@ async function downloadStructureTemplateForTaskExact(task){
       return `<tr><td>${escapeHtml(idx + 1)}</td><td>${escapeHtml(taskNo || '—')}</td><td>${escapeHtml(type || '—')}</td><td>${escapeHtml(msg || '—')}</td><td>${escapeHtml(cta || '—')}</td></tr>`;
     }).join('') : '';
     const fileName = normalizeText(tpl?.fileName || '');
-    return `<div class="task-template-review-view"><div class="task-template-review-summary"><div><h4>بيانات Task Template</h4><p>مراجعة ملف المحتوى المرفوع من كاتب المحتوى بصيغته الخاصة، بعيدًا عن شكل هيكل الحملة.</p></div>${fileName ? `<span class="task-template-review-file">${escapeHtml(fileName)}</span>` : ''}</div><div class="task-template-review-fields">${fieldHtml}</div>${rawRows ? `<div class="task-template-review-table-wrap"><table class="task-template-review-table"><thead><tr><th>#</th><th>رقم التاسك</th><th>نوع المحتوى</th><th>الرسالة الأساسية</th><th>CTA</th></tr></thead><tbody>${rawRows}</tbody></table></div>` : ''}${v108TaskTemplateFileUrl(mergedTpl) ? `<a class="btn btn-light" href="${escapeHtml(v108TaskTemplateFileUrl(mergedTpl))}" download="${escapeHtml(fileName || 'task-template.xlsx')}">تحميل ملف Task Template</a>` : ''}</div>`;
+    return `<div class="task-template-review-view"><div class="task-template-review-summary"><div><h4>بيانات Task Template</h4><p>مراجعة ملف المحتوى المرفوع من كاتب المحتوى بصيغته الخاصة، بعيدًا عن شكل هيكل الحملة.</p></div>${fileName ? `<span class="task-template-review-file">${escapeHtml(fileName)}</span>` : ''}</div><div class="task-template-review-fields">${fieldHtml}</div>${rawRows ? `<div class="task-template-review-table-wrap"><table class="task-template-review-table"><thead><tr><th>#</th><th>رقم التاسك</th><th>نوع المحتوى</th><th>الرسالة الأساسية</th><th>CTA</th></tr></thead><tbody>${rawRows}</tbody></table></div>` : ''}${v107TaskTemplateDownloadUrl(mergedTpl) ? `<a class="btn btn-light" href="${escapeHtml(v107TaskTemplateDownloadUrl(mergedTpl))}" target="_blank" rel="noopener" download="${escapeHtml(fileName || 'task-template.xlsx')}">تحميل ملف Task Template</a>` : ''}</div>`;
   }
 
   function v171OpenTaskTemplateReview(taskId){
@@ -12111,20 +12038,13 @@ async function downloadStructureTemplateForTaskExact(task){
       input.accept = '.xlsx,.xls';
       input.hidden = true;
       document.body.appendChild(input);
+      input.addEventListener('change', async event => {
+        const file = event.target.files?.[0];
+        const taskId = event.target.dataset.taskId || '';
+        event.target.value = '';
+        if(file && taskId){ try{ await v171UploadTaskTemplate(file, taskId); }catch(error){ console.error(error); showToast(error.message || 'تعذر رفع Task Template.'); } }
+      });
     }
-    input.onchange = async event => {
-      const file = event.target.files?.[0];
-      const taskId = event.target.dataset.taskId || '';
-      event.target.value = '';
-      if(!file) return;
-      if(!taskId) return showToast('تعذر تحديد التاسك قبل رفع Task Template.');
-      try{
-        await v171UploadTaskTemplate(file, taskId);
-      }catch(error){
-        console.error('Task Template upload failed', error);
-        showToast(error.message || 'تعذر رفع Task Template.');
-      }
-    };
     return input;
   }
   document.addEventListener('click', async function(event){
@@ -12146,7 +12066,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v172 - task template exact file support */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v372'; }catch(_){ }
 })();
 
 /* v182 - keep normal task details as a vertical scrollable detail view, not the structure sheet layout */
@@ -12805,7 +12725,7 @@ async function downloadStructureTemplateForTaskExact(task){
         <div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([taskDepartmentLabel(task), task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div>
         <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}</span>
         <b>${taskProgress(task)}%</b>
-        <button type="button" class="mini-btn" data-open-task="${escapeHtml(taskOpenKeyV110(task))}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
+        <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(task.campaignId || '')}">تفاصيل</button>
       </article>`;
       return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
     };
@@ -12978,14 +12898,14 @@ async function downloadStructureTemplateForTaskExact(task){
     if(!v198IsContentTaskEligibleForTemplate(task)) return '';
     const admin = typeof isCurrentUserAdmin === 'function' ? isCurrentUserAdmin() : false;
     const tpl = task.taskTemplate || {};
-    const hasFile = !!(v108TaskTemplateFileUrl(tpl) || tpl.fileName || tpl.fileSize || (Array.isArray(tpl.sheetTables) && tpl.sheetTables.length) || tpl.sheetTablesJson);
+    const hasFile = !!((window.MZJTaskTemplateDownloadUrl ? window.MZJTaskTemplateDownloadUrl(tpl) : (tpl?.fileUrl || tpl?.downloadURL || tpl?.downloadUrl || tpl?.url || tpl?.fileData || '')) || tpl.fileName || tpl.fileSize || (Array.isArray(tpl.sheetTables) && tpl.sheetTables.length) || tpl.sheetTablesJson);
     const canUpload = !admin && (!tpl.status || ['not_uploaded','needs_changes','rejected'].includes(v198Clean(tpl.status)));
     const fieldsHtml = (typeof v172RenderTaskTemplateFields === 'function') ? v172RenderTaskTemplateFields(tpl) : '';
     return `<div class="modal-section task-template-section task-template-section-v198"><div class="modal-section-title"><h3>Task Template - قسم المحتوى</h3><span>${escapeHtml(v198ContentTemplateStatusLabel(tpl.status))}</span></div>
       <div class="structure-actions">
         ${canUpload ? `<button class="btn btn-light" type="button" data-download-task-template="${escapeHtml(task.id)}">تحميل قالب Task Template</button><button class="btn btn-primary" type="button" data-upload-task-template="${escapeHtml(task.id)}">رفع ملف Task Template</button>` : ''}
         ${hasFile ? `<span class="structure-file-name structure-attached-label">تم رفع Task Template</span>${tpl.fileName ? `<span class="structure-file-name">${escapeHtml(tpl.fileName)}</span>` : ''}` : '<span class="structure-file-name muted">لم يتم رفع Task Template</span>'}
-        ${v108TaskTemplateFileUrl(tpl) ? `<a class="btn btn-light" href="${escapeHtml(v108TaskTemplateFileUrl(tpl))}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
+        ${(window.MZJTaskTemplateDownloadUrl ? window.MZJTaskTemplateDownloadUrl(tpl) : (tpl?.fileUrl || tpl?.downloadURL || tpl?.downloadUrl || tpl?.url || tpl?.fileData || '')) ? `<a class="btn btn-light" href="${escapeHtml((window.MZJTaskTemplateDownloadUrl ? window.MZJTaskTemplateDownloadUrl(tpl) : (tpl?.fileUrl || tpl?.downloadURL || tpl?.downloadUrl || tpl?.url || tpl?.fileData || '')))}" target="_blank" rel="noopener" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
         ${admin && hasFile ? `<button class="btn btn-primary" type="button" data-open-task-template-review="${escapeHtml(task.id)}">مراجعة Task Template</button>` : ''}
       </div>
       ${fieldsHtml}
@@ -13022,7 +12942,7 @@ async function downloadStructureTemplateForTaskExact(task){
           <div><strong>${shortTaskName(task)}</strong><p>${escapeHtml([taskDepartmentLabel(task), task.taskType, taskOwnerName(task)].filter(Boolean).join(' / '))}</p></div>
           <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}</span>
           <b>${taskProgress(task)}%</b>
-          <button type="button" class="mini-btn" data-open-task="${escapeHtml(taskOpenKeyV110(task))}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">تفاصيل</button>
+          <button type="button" class="mini-btn" data-open-task="${escapeHtml(task.id)}" data-task-campaign="${escapeHtml(campaign.id || task.campaignId || '')}">تفاصيل</button>
         </article>`;
         return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
       }catch(error){ console.error('v198 render campaign inline tasks failed', error); return prevRenderCampaignInlineTasksV198(campaign); }
@@ -14418,11 +14338,11 @@ if(false){(function(){
 
 
 /* v219 - robust Task Template field reparse from stored uploaded XLSX */
-try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
+try{ window.MZJ_APP_VERSION = 'v372'; }catch(_){ }
 
 /* v220 - Dashboard Task Template badges + content approval waiting state + owner color settings */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v220'; }catch(_){ }
 
   function v220Text(value){
     try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); }
@@ -14657,7 +14577,7 @@ try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
           <div><strong>${v220TaskIdChip(task)}${shortTaskName(task)}</strong><p>${v220Esc([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))} ${v220OwnerBadge(task)}</p></div>
           <span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${v220TaskTemplateBadge(task)}</span>
           <b>${taskProgress(task)}%</b>
-          <button type="button" class="mini-btn" data-open-task="${v220Esc(taskOpenKeyV110(task))}" data-task-campaign="${v220Esc(campaign.id || task.campaignId || '')}">تفاصيل</button>
+          <button type="button" class="mini-btn" data-open-task="${v220Esc(task.id)}" data-task-campaign="${v220Esc(campaign.id || task.campaignId || '')}">تفاصيل</button>
         </article>`;
         return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
       }catch(error){ console.error('v220 render campaign inline tasks failed', error); return prevRenderCampaignInlineTasksV220(campaign); }
@@ -14872,7 +14792,7 @@ try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
       try{
         const related = (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []).slice().sort(typeof v197AdminTaskSort === 'function' ? v197AdminTaskSort : undefined);
         const grouped = typeof groupTasksForKanban === 'function' ? groupTasksForKanban(related) : [];
-        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${esc([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))} ${ownerBadge(task)}</p></div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${esc(taskOpenKeyV110(task))}" data-task-campaign="${esc(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
+        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${esc([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))} ${ownerBadge(task)}</p></div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${esc(task.id)}" data-task-campaign="${esc(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
         return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
       }catch(error){ console.error('v221 render campaign inline tasks failed', error); return oldInline(campaign); }
     };
@@ -15094,7 +15014,7 @@ try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
       try{
         const related = (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []).slice().sort(typeof v197AdminTaskSort === 'function' ? v197AdminTaskSort : undefined);
         const grouped = typeof groupTasksForKanban === 'function' ? groupTasksForKanban(related) : [];
-        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 inline-task-row-v222 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${html([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))}</p>${renderAssigneeAndWriter(task)}</div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${html(taskOpenKeyV110(task))}" data-task-campaign="${html(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
+        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 inline-task-row-v222 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${html([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))}</p>${renderAssigneeAndWriter(task)}</div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${html(task.id)}" data-task-campaign="${html(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
         return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
       }catch(error){ console.error('v222 render campaign inline tasks failed', error); return oldInline(campaign); }
     };
@@ -15309,7 +15229,7 @@ try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
       try{
         const related = (typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign(campaign) : []).slice().sort(typeof v197AdminTaskSort === 'function' ? v197AdminTaskSort : undefined);
         const grouped = typeof groupTasksForKanban === 'function' ? groupTasksForKanban(related) : [];
-        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 inline-task-row-v222 inline-task-row-v223 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${html([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))}</p>${renderAssigneeAndWriter(task)}</div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${html(taskOpenKeyV110(task))}" data-task-campaign="${html(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
+        const taskItem = task => `<article class="inline-task-row inline-task-row-v221 inline-task-row-v222 inline-task-row-v223 ${typeof v197IsMainStructureRequest === 'function' && v197IsMainStructureRequest(task) ? 'inline-task-row-structure-first' : ''}"><div class="inline-task-main-v221">${taskNoBlock(task)}<strong>${shortTaskName(task)}</strong><p>${html([taskDepartmentLabel(task), task.taskType].filter(Boolean).join(' / '))}</p>${renderAssigneeAndWriter(task)}</div><span class="inline-state-stack"><span class="state-chip ${receivedClass(task)}">${receivedLabel(task)}</span>${taskStructureAttachedBadge(task)}${taskTemplateBadge(task)}</span><b>${taskProgress(task)}%</b><button type="button" class="mini-btn" data-open-task="${html(task.id)}" data-task-campaign="${html(campaign.id || task.campaignId || '')}">تفاصيل</button></article>`;
         return `<div class="campaign-inline-tasks">${grouped.length ? grouped.map(group => `<section class="inline-task-group"><div class="inline-task-group-title"><h3>${group.label}</h3><span>${group.tasks.length}</span></div>${group.tasks.map(taskItem).join('')}</section>`).join('') : '<div class="empty-state soft-empty">لا توجد تاسكات للحملة.</div>'}</div>`;
       }catch(error){ console.error('v223 render campaign inline tasks failed', error); return oldInline(campaign); }
     };
@@ -19465,206 +19385,4 @@ try{ window.MZJ_APP_VERSION = 'v104-structure-cars-execution-direction'; window.
       showToast('تعذر تحميل قالب الهيكل.');
     }
   };
-})();
-
-
-/* v110 - stable open id for task detail buttons */
-function taskOpenKeyV110(task){
-  try{
-    return String(
-      task?.id || task?.taskId || task?.docId || task?.uid || task?.firebaseId || task?.key ||
-      task?.taskNo || task?.structureTaskNo || task?.contentExecutionPairKey || task?.linkedExecutionPairKey || ''
-    );
-  }catch(_){ return ''; }
-}
-
-/* v109 - restore task details button after Task Template storage changes */
-(function(){
-  const esc = typeof escapeHtml === 'function' ? escapeHtml : (value => String(value ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])));
-  function clean(value){ return String(value ?? '').trim(); }
-  function idVariants(value){
-    const raw = clean(value);
-    const compact = raw.replace(/[^a-zA-Z0-9_\-\u0600-\u06FF]/g, '').toLowerCase();
-    return Array.from(new Set([raw, compact].filter(Boolean)));
-  }
-  function sameId(a,b){
-    const av = idVariants(a), bv = idVariants(b);
-    return av.some(x => bv.includes(x));
-  }
-  function allCampaignTaskSources(campaign){
-    const out = [];
-    try{ if(Array.isArray(campaign?.departmentTasks)) out.push(...campaign.departmentTasks); }catch(_){ }
-    try{ if(typeof tasksForCampaign === 'function') out.push(...(tasksForCampaign(campaign) || [])); }catch(_){ }
-    return out.filter(Boolean);
-  }
-  function taskKeys(task){
-    return [task?.id, task?.taskId, task?.docId, task?.uid, task?.taskNo, task?.structureTaskNo, task?.firebaseId, task?.key].filter(Boolean);
-  }
-  function findTaskV109(taskId, campaignId){
-    let task = null;
-    try{ if(typeof findTaskById === 'function') task = findTaskById(taskId, campaignId || ''); }catch(_){ task = null; }
-    if(task) return task;
-    const campaignList = Array.isArray(campaigns) ? campaigns : [];
-    const wantedCampaign = clean(campaignId);
-    const candidates = wantedCampaign
-      ? campaignList.filter(c => [c.id, c.docId, c.campaignId, c.campaignCode, c.campaign_code].some(key => sameId(key, wantedCampaign)))
-      : campaignList;
-    for(const campaign of candidates){
-      for(const item of allCampaignTaskSources(campaign)){
-        if(taskKeys(item).some(key => sameId(key, taskId))){
-          try{ return typeof normalizeCampaignTask === 'function' ? normalizeCampaignTask({ ...item, campaignId: item.campaignId || campaign.id }, campaign) : { ...item, campaignId: item.campaignId || campaign.id }; }
-          catch(_){ return { ...item, campaignId: item.campaignId || campaign.id }; }
-        }
-      }
-    }
-    return null;
-  }
-  function canOpenTaskV109(task, forceFromVisibleButton = false){
-    if(!task) return false;
-    try{ if(typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin()) return true; }catch(_){ }
-    if(forceFromVisibleButton) return true;
-    try{ if(typeof currentUserMatchesTaskExact === 'function' && currentUserMatchesTaskExact(task)) return true; }catch(_){ }
-    try{ if(typeof taskAssignedToCurrentUser === 'function' && taskAssignedToCurrentUser(task)) return true; }catch(_){ }
-    try{ if(typeof currentUserMatchesTask === 'function' && currentUserMatchesTask(task)) return true; }catch(_){ }
-    try{ if(typeof currentUserMatchesTaskDepartment === 'function' && currentUserMatchesTaskDepartment(task)) return true; }catch(_){ }
-    return false;
-  }
-  function openTaskDetailsV109(taskId, campaignId, opts = {}){
-    let task = findTaskV109(taskId, campaignId || '');
-    if(!task && opts && opts.fallbackTask){
-      try{ task = opts.fallbackTask; }catch(_){ task = null; }
-    }
-    if(!task){
-      try{ console.warn('v110 task details not found', { taskId, campaignId }); }catch(_){ }
-      try{ showToast('تعذر فتح تفاصيل التاسك. جرّب تحديث الصفحة.'); }catch(_){ }
-      return false;
-    }
-    if(!canOpenTaskV109(task, !!opts.fromVisibleButton)){
-      try{ showToast('التاسك غير مسند لهذا المستخدم.'); }catch(_){ }
-      return false;
-    }
-    try{
-      if(typeof openTaskModal === 'function'){
-        openTaskModal(task);
-        return true;
-      }
-    }catch(error){
-      console.error('v109 openTaskModal failed', error);
-    }
-    try{ showToast('تعذر فتح تفاصيل التاسك.'); }catch(_){ }
-    return false;
-  }
-  window.mzjOpenTaskDetailsV109 = openTaskDetailsV109;
-  if(typeof renderTaskDetail === 'function'){
-    renderTaskDetail = function(taskId, campaignId = ''){
-      return openTaskDetailsV109(taskId, campaignId, { fromVisibleButton:false });
-    };
-  }
-  document.addEventListener('click', function(event){
-    const btn = event.target.closest?.('[data-open-task]');
-    if(!btn) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if(typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
-    try{ document.getElementById('notificationPanel')?.classList.add('is-hidden'); }catch(_){ }
-    try{ if(typeof closeCampaignModal === 'function') closeCampaignModal(); }catch(_){ }
-    const ok = openTaskDetailsV109(btn.dataset.openTask || '', btn.dataset.taskCampaign || '', { fromVisibleButton:true });
-    if(!ok){
-      try{ console.warn('v110 open task failed from button', { openTask: btn.dataset.openTask || '', campaign: btn.dataset.taskCampaign || '' }); }catch(_){ }
-    }
-  }, true);
-})();
-
-
-/* v111 - deterministic task details lookup for generated tasks */
-(function(){
-  function text(value){ return String(value ?? '').trim(); }
-  function safeIdentity(value){
-    try{ return identityClean(value || ''); }
-    catch(_){ return text(value).toLowerCase().replace(/\s+/g,' ').trim(); }
-  }
-  function stableIdForButton(task){
-    try{
-      return String(
-        task?.id || task?.taskId || task?.docId || task?.uid || task?.firebaseId || task?.key ||
-        task?.taskNo || task?.structureTaskNo || task?.contentExecutionPairKey || task?.linkedExecutionPairKey ||
-        (typeof stableGeneratedTaskId === 'function' ? stableGeneratedTaskId(task, (typeof campaignForTask === 'function' ? campaignForTask(task) : {}) || {}) : '') ||
-        ''
-      );
-    }catch(_){ return ''; }
-  }
-  taskOpenKeyV110 = stableIdForButton;
-  function keyList(task){
-    const list = [
-      task?.id, task?.taskId, task?.docId, task?.uid, task?.firebaseId, task?.key,
-      task?.taskNo, task?.structureTaskNo, task?.contentExecutionPairKey, task?.linkedExecutionPairKey,
-      task?.linkedExecutionTaskId, task?.linkedContentTemplateTaskId, task?.parentStructureTaskId
-    ];
-    try{ if(typeof stableGeneratedTaskId === 'function') list.push(stableGeneratedTaskId(task, (typeof campaignForTask === 'function' ? campaignForTask(task) : {}) || {})); }catch(_){ }
-    try{ if(typeof taskSignature === 'function') list.push(taskSignature(task)); }catch(_){ }
-    return Array.from(new Set(list.map(text).filter(Boolean)));
-  }
-  function same(a,b){
-    const x = text(a), y = text(b);
-    if(!x || !y) return false;
-    if(x === y) return true;
-    return safeIdentity(x) === safeIdentity(y);
-  }
-  function allTasksFromCampaign(campaign){
-    const out = [];
-    try{ if(Array.isArray(campaign?.departmentTasks)) out.push(...campaign.departmentTasks.map(t => (typeof normalizeCampaignTask === 'function' ? normalizeCampaignTask(t, campaign) : { ...t, campaignId: t.campaignId || campaign.id }))); }catch(_){ }
-    try{ if(typeof tasksForCampaign === 'function') out.push(...(tasksForCampaign(campaign) || [])); }catch(_){ }
-    return out.filter(Boolean);
-  }
-  function findTaskV111(taskId, campaignId){
-    const wanted = text(taskId);
-    if(!wanted) return null;
-    const campaignsList = Array.isArray(campaigns) ? campaigns : [];
-    const cWanted = text(campaignId);
-    const candidateCampaigns = cWanted
-      ? campaignsList.filter(c => [c.id, c.docId, c.campaignId, c.campaignCode, c.campaign_code].some(k => same(k, cWanted)))
-      : campaignsList;
-    for(const campaign of candidateCampaigns){
-      for(const task of allTasksFromCampaign(campaign)){
-        if(keyList(task).some(k => same(k, wanted))){
-          try{ return typeof normalizeCampaignTask === 'function' ? normalizeCampaignTask({ ...task, campaignId: task.campaignId || campaign.id }, campaign) : { ...task, campaignId: task.campaignId || campaign.id }; }
-          catch(_){ return { ...task, campaignId: task.campaignId || campaign.id }; }
-        }
-      }
-    }
-    return null;
-  }
-  const previousFindTaskByIdV111 = typeof findTaskById === 'function' ? findTaskById : null;
-  findTaskById = function(taskId, campaignId = ''){
-    let found = null;
-    try{ if(previousFindTaskByIdV111) found = previousFindTaskByIdV111(taskId, campaignId); }catch(_){ found = null; }
-    return found || findTaskV111(taskId, campaignId);
-  };
-  window.mzjOpenTaskDetailsV111 = function(taskId, campaignId, opts = {}){
-    const task = findTaskV111(taskId, campaignId) || (typeof findTaskById === 'function' ? findTaskById(taskId, campaignId) : null);
-    if(!task){
-      try{ console.warn('v111 task details not found', { taskId, campaignId, campaignCount: Array.isArray(campaigns) ? campaigns.length : 0 }); }catch(_){ }
-      try{ showToast('تعذر فتح تفاصيل التاسك.'); }catch(_){ }
-      return false;
-    }
-    try{
-      if(!opts.fromVisibleButton && typeof isCurrentUserAdmin === 'function' && !isCurrentUserAdmin() && typeof currentUserMatchesTaskExact === 'function' && !currentUserMatchesTaskExact(task)){
-        try{ showToast('التاسك غير مسند لهذا المستخدم.'); }catch(_){ }
-        return false;
-      }
-    }catch(_){ }
-    try{ if(typeof openTaskModal === 'function') openTaskModal(task); return true; }
-    catch(error){ console.error('v111 openTaskModal failed', error); try{ showToast('تعذر فتح تفاصيل التاسك.'); }catch(_){ } return false; }
-  };
-  renderTaskDetail = function(taskId, campaignId = ''){ return window.mzjOpenTaskDetailsV111(taskId, campaignId, { fromVisibleButton:false }); };
-  document.addEventListener('click', function(event){
-    const btn = event.target.closest?.('[data-open-task]');
-    if(!btn) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if(typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
-    try{ document.getElementById('notificationPanel')?.classList.add('is-hidden'); }catch(_){ }
-    try{ if(typeof closeCampaignModal === 'function') closeCampaignModal(); }catch(_){ }
-    window.mzjOpenTaskDetailsV111(btn.dataset.openTask || '', btn.dataset.taskCampaign || '', { fromVisibleButton:true });
-  }, true);
 })();
