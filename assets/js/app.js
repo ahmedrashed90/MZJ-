@@ -4316,8 +4316,6 @@ function renderReadableStructureWorkbookTable(task, structure, admin){
     ['idea','الفكرة'],
     ['description','وصف المحتوى'],
     ['message','الرسالة'],
-    ['contentAngle','زاوية المحتوى'],
-    ['highlightTranslation','الترجمة التنفيذية لما يجب إبرازه'],
     ['writerRequest','المطلوب من الكاتب'],
     ['cta','CTA']
   ];
@@ -10780,7 +10778,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v164 - no default content-writer checks + remove execution angle/highlight columns from template */
 (function(){
-  const APP_CACHE_VERSION = '176';
+  const APP_CACHE_VERSION = '175';
   try{ window.MZJ_APP_VERSION = APP_CACHE_VERSION; }catch(e){}
 
   const oldSelectedContentDependencyV164 = selectedContentDependency;
@@ -10910,7 +10908,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v165 - per-user content-writer linking inside execution roles + clearer dashboard names + full task details scroll */
 (function(){
-  const APP_CACHE_VERSION = '176';
+  const APP_CACHE_VERSION = '175';
   try{ window.MZJ_APP_VERSION = APP_CACHE_VERSION; }catch(e){}
 
   function v165Encode(value){
@@ -18873,92 +18871,3 @@ document.addEventListener('click', async event => {
   }, true);
 })();
 
-
-/* MZJ v100 - fix structure review row status buttons inside campaign detail popup */
-(function(){
-  const VERSION = 'v100-structure-row-review-buttons-fix';
-  try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; }catch(_){ }
-  function clean(value){
-    try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); }
-  }
-  function cssEscape(value){
-    try{ return CSS.escape(String(value || '')); }catch(_){ return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '\\$&'); }
-  }
-  function rowStatus(value){
-    try{ return normalizeStructureRowReviewStatus(value || 'approved'); }catch(_){
-      const raw = clean(value).toLowerCase();
-      if(raw === 'needs_changes' || raw.includes('تعديل')) return 'needs_changes';
-      if(raw === 'rejected' || raw.includes('رفض')) return 'rejected';
-      return 'approved';
-    }
-  }
-  function setRowButtonsState(btn, status){
-    const wrap = btn?.closest?.('.structure-row-review');
-    if(!wrap) return;
-    wrap.querySelectorAll('[data-set-structure-row-status]').forEach(item => {
-      const active = rowStatus(item.getAttribute('data-set-structure-row-status')) === status;
-      item.classList.toggle('active', active);
-      item.classList.toggle('success', active && status === 'approved');
-      item.classList.toggle('warn', active && status === 'needs_changes');
-      item.classList.toggle('danger', active && status === 'rejected');
-    });
-  }
-  function findCampaignAndTask(taskId){
-    const list = Array.isArray(window.campaigns) ? window.campaigns : (typeof campaigns !== 'undefined' && Array.isArray(campaigns) ? campaigns : []);
-    for(let ci = 0; ci < list.length; ci += 1){
-      const campaign = list[ci];
-      const tasks = Array.isArray(campaign?.departmentTasks) ? campaign.departmentTasks : [];
-      const ti = tasks.findIndex(task => String(task?.id || '') === String(taskId || ''));
-      if(ti >= 0) return { list, campaign, campaignIndex: ci, task: tasks[ti], taskIndex: ti };
-    }
-    return null;
-  }
-  async function saveRowStatusFromButton(btn){
-    const taskId = btn?.getAttribute('data-task-id') || '';
-    const rowKey = btn?.getAttribute('data-row-key') || '';
-    const status = rowStatus(btn?.getAttribute('data-set-structure-row-status') || 'approved');
-    if(!taskId || !rowKey){
-      try{ showToast('تعذر تحديد الصف.'); }catch(_){ }
-      return;
-    }
-
-    setRowButtonsState(btn, status);
-    const row = btn.closest('[data-structure-review-row]') || document.querySelector(`.structure-review-popup [data-structure-review-row="${cssEscape(rowKey)}"]`);
-    if(row) row.setAttribute('data-review-status', status);
-
-    const hit = findCampaignAndTask(taskId);
-    if(!hit){
-      try{ await setStructureRowReviewStatus(taskId, rowKey, status); }catch(error){ console.error('v100 structure row fallback failed', error); }
-      return;
-    }
-
-    const structure = (hit.task && typeof hit.task.structure === 'object' && hit.task.structure) ? hit.task.structure : {};
-    const rowReviewStatuses = { ...(structure.rowReviewStatuses || {}) };
-    rowReviewStatuses[rowKey] = status;
-    const nextStructure = {
-      ...structure,
-      rowReviewStatuses,
-      status: structure.status === 'approved' ? 'pending_review' : (structure.status || 'pending_review'),
-      reviewedAt: new Date().toISOString(),
-      reviewedBy: ((typeof getCurrentUser === 'function' && getCurrentUser())?.email || (typeof getCurrentUser === 'function' && getCurrentUser())?.name || '')
-    };
-
-    try{
-      await updateTaskOnFirebase(taskId, { structure: nextStructure }, { silent:true });
-      try{ showToast('تم تحديث حالة الصف.'); }catch(_){ }
-    }catch(error){
-      console.error('v100 structure row status save failed', error);
-      setRowButtonsState(btn, rowStatus(structure.rowReviewStatuses?.[rowKey] || 'approved'));
-      try{ showToast('تعذر تحديث حالة الصف.'); }catch(_){ }
-    }
-  }
-
-  document.addEventListener('click', function(event){
-    const btn = event.target?.closest?.('[data-set-structure-row-status]');
-    if(!btn || !btn.closest('.structure-review-popup')) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if(typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
-    saveRowStatusFromButton(btn);
-  }, true);
-})();
