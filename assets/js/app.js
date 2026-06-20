@@ -2946,9 +2946,26 @@ function fallbackTasksFromCampaign(campaign){
   });
   return fallback;
 }
+function stableGeneratedTaskId(task, campaign){
+  const cleanPart = value => {
+    try{ return identityClean(value || '').replace(/[^a-z0-9\u0600-\u06FF]+/gi,'-').replace(/^-+|-+$/g,''); }
+    catch(_){ return String(value || '').trim().replace(/[^a-zA-Z0-9\u0600-\u06FF]+/g,'-').replace(/^-+|-+$/g,''); }
+  };
+  const parts = [
+    campaign?.id || campaign?.docId || campaign?.campaignId || campaign?.campaignCode || 'campaign',
+    task?.creativeIndex ?? '0',
+    task?.taskIndex ?? '0',
+    task?.taskCopyIndex ?? '',
+    task?.structureTaskNo || task?.taskNo || '',
+    task?.assignedToUid || task?.assigneeUid || task?.userUid || task?.assignedToId || task?.userId || task?.assignedToEmail || task?.userEmail || '',
+    task?.departmentRole || task?.assignedDepartmentName || task?.contentSectionName || '',
+    task?.creative || task?.product || task?.taskType || task?.contentType || ''
+  ].map(cleanPart).filter(Boolean);
+  return parts.join('-') || `task-${Date.now()}`;
+}
 function normalizeCampaignTask(task, campaign){
   const role = task.departmentRole || normalizeDepartmentRole(task.assignedDepartmentName || task.departmentName || task.contentSectionName || '');
-  return { ...task, id: task.id || `${campaign.id}-${task.creativeIndex || 0}-${task.taskIndex || 0}-${task.assignedToUid || task.assigneeUid || task.userId || Math.random().toString(36).slice(2)}`, campaignId: task.campaignId || campaign.id, campaignName: task.campaignName || campaign.campaignName || campaign.name || '', campaignCode: task.campaignCode || campaign.campaignCode || campaign.campaign_code || '', departmentRole: role, steps: Array.isArray(task.steps) && task.steps.length ? task.steps : taskStepTemplate(role) };
+  return { ...task, id: task.id || task.taskId || task.docId || task.uid || task.firebaseId || task.key || stableGeneratedTaskId(task, campaign), campaignId: task.campaignId || campaign.id, campaignName: task.campaignName || campaign.campaignName || campaign.name || '', campaignCode: task.campaignCode || campaign.campaignCode || campaign.campaign_code || '', departmentRole: role, steps: Array.isArray(task.steps) && task.steps.length ? task.steps : taskStepTemplate(role) };
 }
 function taskSignature(task){
   const userKey = identityClean(task.userId || task.userUid || task.assignedToId || task.assignedToUid || task.assigneeUid || task.userEmail || task.assignedToEmail || task.userName || task.assignedToName || '');
@@ -19555,5 +19572,99 @@ function taskOpenKeyV110(task){
     if(!ok){
       try{ console.warn('v110 open task failed from button', { openTask: btn.dataset.openTask || '', campaign: btn.dataset.taskCampaign || '' }); }catch(_){ }
     }
+  }, true);
+})();
+
+
+/* v111 - deterministic task details lookup for generated tasks */
+(function(){
+  function text(value){ return String(value ?? '').trim(); }
+  function safeIdentity(value){
+    try{ return identityClean(value || ''); }
+    catch(_){ return text(value).toLowerCase().replace(/\s+/g,' ').trim(); }
+  }
+  function stableIdForButton(task){
+    try{
+      return String(
+        task?.id || task?.taskId || task?.docId || task?.uid || task?.firebaseId || task?.key ||
+        task?.taskNo || task?.structureTaskNo || task?.contentExecutionPairKey || task?.linkedExecutionPairKey ||
+        (typeof stableGeneratedTaskId === 'function' ? stableGeneratedTaskId(task, (typeof campaignForTask === 'function' ? campaignForTask(task) : {}) || {}) : '') ||
+        ''
+      );
+    }catch(_){ return ''; }
+  }
+  taskOpenKeyV110 = stableIdForButton;
+  function keyList(task){
+    const list = [
+      task?.id, task?.taskId, task?.docId, task?.uid, task?.firebaseId, task?.key,
+      task?.taskNo, task?.structureTaskNo, task?.contentExecutionPairKey, task?.linkedExecutionPairKey,
+      task?.linkedExecutionTaskId, task?.linkedContentTemplateTaskId, task?.parentStructureTaskId
+    ];
+    try{ if(typeof stableGeneratedTaskId === 'function') list.push(stableGeneratedTaskId(task, (typeof campaignForTask === 'function' ? campaignForTask(task) : {}) || {})); }catch(_){ }
+    try{ if(typeof taskSignature === 'function') list.push(taskSignature(task)); }catch(_){ }
+    return Array.from(new Set(list.map(text).filter(Boolean)));
+  }
+  function same(a,b){
+    const x = text(a), y = text(b);
+    if(!x || !y) return false;
+    if(x === y) return true;
+    return safeIdentity(x) === safeIdentity(y);
+  }
+  function allTasksFromCampaign(campaign){
+    const out = [];
+    try{ if(Array.isArray(campaign?.departmentTasks)) out.push(...campaign.departmentTasks.map(t => (typeof normalizeCampaignTask === 'function' ? normalizeCampaignTask(t, campaign) : { ...t, campaignId: t.campaignId || campaign.id }))); }catch(_){ }
+    try{ if(typeof tasksForCampaign === 'function') out.push(...(tasksForCampaign(campaign) || [])); }catch(_){ }
+    return out.filter(Boolean);
+  }
+  function findTaskV111(taskId, campaignId){
+    const wanted = text(taskId);
+    if(!wanted) return null;
+    const campaignsList = Array.isArray(campaigns) ? campaigns : [];
+    const cWanted = text(campaignId);
+    const candidateCampaigns = cWanted
+      ? campaignsList.filter(c => [c.id, c.docId, c.campaignId, c.campaignCode, c.campaign_code].some(k => same(k, cWanted)))
+      : campaignsList;
+    for(const campaign of candidateCampaigns){
+      for(const task of allTasksFromCampaign(campaign)){
+        if(keyList(task).some(k => same(k, wanted))){
+          try{ return typeof normalizeCampaignTask === 'function' ? normalizeCampaignTask({ ...task, campaignId: task.campaignId || campaign.id }, campaign) : { ...task, campaignId: task.campaignId || campaign.id }; }
+          catch(_){ return { ...task, campaignId: task.campaignId || campaign.id }; }
+        }
+      }
+    }
+    return null;
+  }
+  const previousFindTaskByIdV111 = typeof findTaskById === 'function' ? findTaskById : null;
+  findTaskById = function(taskId, campaignId = ''){
+    let found = null;
+    try{ if(previousFindTaskByIdV111) found = previousFindTaskByIdV111(taskId, campaignId); }catch(_){ found = null; }
+    return found || findTaskV111(taskId, campaignId);
+  };
+  window.mzjOpenTaskDetailsV111 = function(taskId, campaignId, opts = {}){
+    const task = findTaskV111(taskId, campaignId) || (typeof findTaskById === 'function' ? findTaskById(taskId, campaignId) : null);
+    if(!task){
+      try{ console.warn('v111 task details not found', { taskId, campaignId, campaignCount: Array.isArray(campaigns) ? campaigns.length : 0 }); }catch(_){ }
+      try{ showToast('تعذر فتح تفاصيل التاسك.'); }catch(_){ }
+      return false;
+    }
+    try{
+      if(!opts.fromVisibleButton && typeof isCurrentUserAdmin === 'function' && !isCurrentUserAdmin() && typeof currentUserMatchesTaskExact === 'function' && !currentUserMatchesTaskExact(task)){
+        try{ showToast('التاسك غير مسند لهذا المستخدم.'); }catch(_){ }
+        return false;
+      }
+    }catch(_){ }
+    try{ if(typeof openTaskModal === 'function') openTaskModal(task); return true; }
+    catch(error){ console.error('v111 openTaskModal failed', error); try{ showToast('تعذر فتح تفاصيل التاسك.'); }catch(_){ } return false; }
+  };
+  renderTaskDetail = function(taskId, campaignId = ''){ return window.mzjOpenTaskDetailsV111(taskId, campaignId, { fromVisibleButton:false }); };
+  document.addEventListener('click', function(event){
+    const btn = event.target.closest?.('[data-open-task]');
+    if(!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if(typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+    try{ document.getElementById('notificationPanel')?.classList.add('is-hidden'); }catch(_){ }
+    try{ if(typeof closeCampaignModal === 'function') closeCampaignModal(); }catch(_){ }
+    window.mzjOpenTaskDetailsV111(btn.dataset.openTask || '', btn.dataset.taskCampaign || '', { fromVisibleButton:true });
   }, true);
 })();
