@@ -11751,21 +11751,45 @@ async function downloadStructureTemplateForTaskExact(task){
   async function v171UploadTaskTemplate(file, taskId){
     const task = findTaskById(taskId);
     if(!task) return showToast('تعذر العثور على التاسك.');
-    showToast('جاري قراءة Task Template...');
+    if(!file) return showToast('لم يتم اختيار ملف Task Template.');
+    showToast('جاري رفع ملف Task Template...');
     const fileData = await fileToDataUrl(file);
-    const buffer = await file.arrayBuffer();
-    let parsed = v172ParseTaskTemplateWorkbookBuffer(buffer, file.name);
-    parsed = v177NormalizeRealTaskTemplate(parsed);
-    // لا نستخدم بيانات هيكل الحملة كبديل هنا؛ Task Template لازم يتقرأ من ملفه الحقيقي فقط.
-    const hasRealTaskTemplateData = (parsed.taskTemplateFields || []).some(field => normalizeText(field.value || ''));
-    if(!hasRealTaskTemplateData){
-      showToast('تعذر قراءة بيانات Task Template من الملف. ارفع قالب Task Template الحقيقي بعد تعبئته.');
-      return;
+    let parsed = { parsedRows: [], sheetTables: [], taskTemplateFields: [], templateKind:'content_task_template_v177' };
+    let parseWarning = '';
+    try{
+      if(window.XLSX && typeof v172ParseTaskTemplateWorkbookBuffer === 'function'){
+        const buffer = await file.arrayBuffer();
+        parsed = v177NormalizeRealTaskTemplate(v172ParseTaskTemplateWorkbookBuffer(buffer, file.name));
+      }else{
+        parseWarning = 'تعذر تحميل مكتبة Excel، تم حفظ الملف فقط.';
+      }
+    }catch(error){
+      console.warn('Task Template parse failed, saving original file anyway', error);
+      parseWarning = 'تم حفظ الملف، لكن تعذر قراءة بياناته تلقائيًا.';
+    }
+    const fields = Array.isArray(parsed.taskTemplateFields) ? parsed.taskTemplateFields : [];
+    const hasRealTaskTemplateData = fields.some(field => normalizeText(field.value || ''));
+    if(!hasRealTaskTemplateData && !parseWarning){
+      parseWarning = 'تم حفظ الملف، لكن لم يتم العثور على بيانات مكتوبة داخل قالب Task Template.';
     }
     const prev = task.taskTemplate || {};
-    const next = { ...prev, status:'pending_review', fileName:file.name, fileSize:file.size, fileData, parsedRows: parsed.parsedRows || [], sheetTables: parsed.sheetTables || [], taskTemplateFields: parsed.taskTemplateFields || v172TaskTemplateFieldsFromTemplate(parsed), templateKind:'content_task_template_v177', uploadedAt:new Date().toISOString(), uploadedBy:getCurrentUser().email || getCurrentUser().name || '' };
-    await updateTaskOnFirebase(task.id, { taskTemplate: encodeStructureWorkbookForFirestore(next), status:'pending_task_template_review' });
-    showToast('تم رفع Task Template. في انتظار مراجعة الأدمن.');
+    const next = {
+      ...prev,
+      status:'pending_review',
+      fileName:file.name,
+      fileSize:file.size,
+      fileData,
+      parsedRows: parsed.parsedRows || [],
+      sheetTables: parsed.sheetTables || [],
+      taskTemplateFields: fields.length ? fields : v172TaskTemplateFieldsFromTemplate(parsed),
+      templateKind:'content_task_template_v177',
+      parseWarning,
+      uploadedAt:new Date().toISOString(),
+      uploadedBy:getCurrentUser().email || getCurrentUser().name || ''
+    };
+    const savedTask = await updateTaskOnFirebase(task.id, { taskTemplate: encodeStructureWorkbookForFirestore(next), status:'pending_task_template_review' }, { silent:true });
+    if(!savedTask) return showToast('تعذر حفظ Task Template داخل بيانات التاسك.');
+    showToast(parseWarning ? `تم رفع Task Template. ${parseWarning}` : 'تم رفع Task Template. في انتظار مراجعة الأدمن.');
     refreshOpenTaskModal();
   }
   function v175RenderTaskTemplateReviewView(tpl, task = null){
@@ -11977,13 +12001,20 @@ async function downloadStructureTemplateForTaskExact(task){
       input.accept = '.xlsx,.xls';
       input.hidden = true;
       document.body.appendChild(input);
-      input.addEventListener('change', async event => {
-        const file = event.target.files?.[0];
-        const taskId = event.target.dataset.taskId || '';
-        event.target.value = '';
-        if(file && taskId){ try{ await v171UploadTaskTemplate(file, taskId); }catch(error){ console.error(error); showToast(error.message || 'تعذر رفع Task Template.'); } }
-      });
     }
+    input.onchange = async event => {
+      const file = event.target.files?.[0];
+      const taskId = event.target.dataset.taskId || '';
+      event.target.value = '';
+      if(!file) return;
+      if(!taskId) return showToast('تعذر تحديد التاسك قبل رفع Task Template.');
+      try{
+        await v171UploadTaskTemplate(file, taskId);
+      }catch(error){
+        console.error('Task Template upload failed', error);
+        showToast(error.message || 'تعذر رفع Task Template.');
+      }
+    };
     return input;
   }
   document.addEventListener('click', async function(event){
@@ -12005,7 +12036,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v172 - task template exact file support */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v220'; }catch(_){ }
 })();
 
 /* v182 - keep normal task details as a vertical scrollable detail view, not the structure sheet layout */
@@ -14277,7 +14308,7 @@ if(false){(function(){
 
 
 /* v219 - robust Task Template field reparse from stored uploaded XLSX */
-try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
+try{ window.MZJ_APP_VERSION = 'v220'; }catch(_){ }
 
 /* v220 - Dashboard Task Template badges + content approval waiting state + owner color settings */
 (function(){
