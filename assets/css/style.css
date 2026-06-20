@@ -9153,3 +9153,14 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 .campaign-budget-editor .modal-section-title{align-items:center;gap:12px;}
 .campaign-budget-editor .budget-items{display:grid;gap:12px;margin-top:12px;}
 .campaign-card-meta .muted-chip{opacity:.72;}
+
+/* MZJ v97 - Multi creative and platform budget rows */
+.budget-grid-multi{grid-template-columns:repeat(4,minmax(180px,1fr));align-items:stretch}
+.budget-multi-field{display:flex;flex-direction:column;gap:8px}
+.budget-multi-picker{min-height:46px;max-height:150px;overflow:auto;border:1px solid var(--border);border-radius:14px;background:#fff;padding:8px;display:grid;gap:6px}
+.budget-multi-option{display:flex;align-items:center;gap:8px;border:1px solid rgba(126,84,64,.18);border-radius:12px;padding:7px 9px;background:#fffaf6;font-size:12px;font-weight:800;color:var(--text);cursor:pointer}
+.budget-multi-option input{width:16px;height:16px;accent-color:var(--primary)}
+.budget-multi-option span{font-size:12px!important;line-height:1.35}
+.budget-grid-multi .budget-multi-field{grid-column:span 1}
+@media (max-width:1200px){.budget-grid-multi{grid-template-columns:repeat(2,minmax(180px,1fr))}}
+@media (max-width:760px){.budget-grid-multi{grid-template-columns:1fr}.budget-grid-multi .budget-multi-field{grid-column:auto}}
