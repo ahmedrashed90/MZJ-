@@ -19449,3 +19449,93 @@ try{ window.MZJ_APP_VERSION = 'v104-structure-cars-execution-direction'; window.
     }
   };
 })();
+
+/* v109 - restore task details button after Task Template storage changes */
+(function(){
+  const esc = typeof escapeHtml === 'function' ? escapeHtml : (value => String(value ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])));
+  function clean(value){ return String(value ?? '').trim(); }
+  function idVariants(value){
+    const raw = clean(value);
+    const compact = raw.replace(/[^a-zA-Z0-9_\-\u0600-\u06FF]/g, '').toLowerCase();
+    return Array.from(new Set([raw, compact].filter(Boolean)));
+  }
+  function sameId(a,b){
+    const av = idVariants(a), bv = idVariants(b);
+    return av.some(x => bv.includes(x));
+  }
+  function allCampaignTaskSources(campaign){
+    const out = [];
+    try{ if(Array.isArray(campaign?.departmentTasks)) out.push(...campaign.departmentTasks); }catch(_){ }
+    try{ if(typeof tasksForCampaign === 'function') out.push(...(tasksForCampaign(campaign) || [])); }catch(_){ }
+    return out.filter(Boolean);
+  }
+  function taskKeys(task){
+    return [task?.id, task?.taskId, task?.docId, task?.uid, task?.taskNo, task?.structureTaskNo, task?.firebaseId, task?.key].filter(Boolean);
+  }
+  function findTaskV109(taskId, campaignId){
+    let task = null;
+    try{ if(typeof findTaskById === 'function') task = findTaskById(taskId, campaignId || ''); }catch(_){ task = null; }
+    if(task) return task;
+    const campaignList = Array.isArray(campaigns) ? campaigns : [];
+    const wantedCampaign = clean(campaignId);
+    const candidates = wantedCampaign
+      ? campaignList.filter(c => [c.id, c.docId, c.campaignId, c.campaignCode, c.campaign_code].some(key => sameId(key, wantedCampaign)))
+      : campaignList;
+    for(const campaign of candidates){
+      for(const item of allCampaignTaskSources(campaign)){
+        if(taskKeys(item).some(key => sameId(key, taskId))){
+          try{ return typeof normalizeCampaignTask === 'function' ? normalizeCampaignTask({ ...item, campaignId: item.campaignId || campaign.id }, campaign) : { ...item, campaignId: item.campaignId || campaign.id }; }
+          catch(_){ return { ...item, campaignId: item.campaignId || campaign.id }; }
+        }
+      }
+    }
+    return null;
+  }
+  function canOpenTaskV109(task, forceFromVisibleButton = false){
+    if(!task) return false;
+    try{ if(typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin()) return true; }catch(_){ }
+    if(forceFromVisibleButton) return true;
+    try{ if(typeof currentUserMatchesTaskExact === 'function' && currentUserMatchesTaskExact(task)) return true; }catch(_){ }
+    try{ if(typeof taskAssignedToCurrentUser === 'function' && taskAssignedToCurrentUser(task)) return true; }catch(_){ }
+    try{ if(typeof currentUserMatchesTask === 'function' && currentUserMatchesTask(task)) return true; }catch(_){ }
+    try{ if(typeof currentUserMatchesTaskDepartment === 'function' && currentUserMatchesTaskDepartment(task)) return true; }catch(_){ }
+    return false;
+  }
+  function openTaskDetailsV109(taskId, campaignId, opts = {}){
+    const task = findTaskV109(taskId, campaignId || '');
+    if(!task){
+      try{ showToast('تعذر فتح تفاصيل التاسك. جرّب تحديث الصفحة.'); }catch(_){ }
+      return false;
+    }
+    if(!canOpenTaskV109(task, !!opts.fromVisibleButton)){
+      try{ showToast('التاسك غير مسند لهذا المستخدم.'); }catch(_){ }
+      return false;
+    }
+    try{
+      if(typeof openTaskModal === 'function'){
+        openTaskModal(task);
+        return true;
+      }
+    }catch(error){
+      console.error('v109 openTaskModal failed', error);
+    }
+    try{ showToast('تعذر فتح تفاصيل التاسك.'); }catch(_){ }
+    return false;
+  }
+  window.mzjOpenTaskDetailsV109 = openTaskDetailsV109;
+  if(typeof renderTaskDetail === 'function'){
+    renderTaskDetail = function(taskId, campaignId = ''){
+      return openTaskDetailsV109(taskId, campaignId, { fromVisibleButton:false });
+    };
+  }
+  document.addEventListener('click', function(event){
+    const btn = event.target.closest?.('[data-open-task]');
+    if(!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if(typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+    try{ document.getElementById('notificationPanel')?.classList.add('is-hidden'); }catch(_){ }
+    try{ if(typeof closeCampaignModal === 'function') closeCampaignModal(); }catch(_){ }
+    openTaskDetailsV109(btn.dataset.openTask || '', btn.dataset.taskCampaign || '', { fromVisibleButton:true });
+  }, true);
+})();
