@@ -4316,6 +4316,8 @@ function renderReadableStructureWorkbookTable(task, structure, admin){
     ['idea','الفكرة'],
     ['description','وصف المحتوى'],
     ['message','الرسالة'],
+    ['contentAngle','زاوية المحتوى'],
+    ['highlightTranslation','الترجمة التنفيذية لما يجب إبرازه'],
     ['writerRequest','المطلوب من الكاتب'],
     ['cta','CTA']
   ];
@@ -10778,7 +10780,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v164 - no default content-writer checks + remove execution angle/highlight columns from template */
 (function(){
-  const APP_CACHE_VERSION = '175';
+  const APP_CACHE_VERSION = '176';
   try{ window.MZJ_APP_VERSION = APP_CACHE_VERSION; }catch(e){}
 
   const oldSelectedContentDependencyV164 = selectedContentDependency;
@@ -10908,7 +10910,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v165 - per-user content-writer linking inside execution roles + clearer dashboard names + full task details scroll */
 (function(){
-  const APP_CACHE_VERSION = '175';
+  const APP_CACHE_VERSION = '176';
   try{ window.MZJ_APP_VERSION = APP_CACHE_VERSION; }catch(e){}
 
   function v165Encode(value){
