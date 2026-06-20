@@ -18959,3 +18959,188 @@ document.addEventListener('click', async event => {
 
 /* MZJ v104 - Cars in Content Execution Direction template/review. */
 try{ window.MZJ_APP_VERSION = 'v104-structure-cars-execution-direction'; window.MZJ_LAST_PATCH = 'v104-structure-cars-execution-direction'; }catch(_){ }
+
+/* MZJ v105 - Final structure car pipeline: task details + template + review fields. */
+(function(){
+  const VERSION = 'v105-structure-car-template-details-final';
+  try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; }catch(_){ }
+  const txt = value => { try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); } };
+  const uniq = list => { try{ return uniqueList((list || []).filter(Boolean)); }catch(_){ return [...new Set((list || []).filter(Boolean))]; } };
+  function esc(value){ try{ return escapeHtml(value || ''); }catch(_){ return String(value || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); } }
+  function cleanKey(value){ try{ return identityClean(value || ''); }catch(_){ return txt(value).toLowerCase().replace(/\s+/g,''); } }
+  function carLabel(car){
+    if(!car) return '';
+    if(typeof car === 'string') return txt(car);
+    return txt(car.label || car.name || car.carName || car.title || [car.brand, car.model, car.year, car.color].filter(Boolean).join(' ') || car.groupKey || car.id || '');
+  }
+  function carLabels(list){ return uniq((Array.isArray(list) ? list : []).map(carLabel).filter(Boolean)); }
+  function campaignOfTask(task){
+    try{ return campaignRecordForTask(task) || campaignForTask(task) || getCampaign(task) || {}; }catch(_){ return {}; }
+  }
+  function creativeRowsForStructure(task){
+    const campaign = campaignOfTask(task);
+    const rows = Array.isArray(campaign.creatives) ? campaign.creatives : [];
+    if(!rows.length){
+      return [{ row:{ creative: task?.creative || task?.product || '', product: task?.product || task?.creative || '', selectedCars: task?.selectedCars || [] }, index: 0 }];
+    }
+    const requested = uniq([
+      ...(Array.isArray(task?.structureRequiredCreatives) ? task.structureRequiredCreatives : []),
+      ...(Array.isArray(task?.creativeBundleNames) ? task.creativeBundleNames : []),
+      task?.structureCreativeLabel || '', task?.creative || '', task?.product || ''
+    ].flatMap(v => String(v || '').split(/[،,|]+/)).map(v => txt(v).replace(/^\d+\.\s*/, '')).filter(Boolean));
+    const requestedKeys = requested.map(cleanKey).filter(Boolean);
+    let matches = rows.map((row, index) => ({ row, index })).filter(({row}) => {
+      const name = txt(row?.creative || row?.product || row?.name || '');
+      const key = cleanKey(name);
+      return key && (!requestedKeys.length || requestedKeys.some(req => key.includes(req) || req.includes(key)));
+    });
+    if(!matches.length) matches = rows.map((row, index) => ({ row, index }));
+    return matches;
+  }
+  function quantityOfCreativeRow(row){
+    const n = Number(row?.quantity || row?.qty || row?.count || row?.creativeCount || row?.requiredCount || 1);
+    return Math.max(1, Math.min(50, Number.isFinite(n) ? n : 1));
+  }
+  function templateUnitsForStructure(task){
+    const out = [];
+    creativeRowsForStructure(task).forEach(({ row, index }) => {
+      const creativeName = txt(row?.creative || row?.product || row?.name || '');
+      const cars = carLabels(row?.selectedCars || row?.cars || row?.stockCars || []);
+      const carText = cars.join('، ');
+      const qty = quantityOfCreativeRow(row);
+      for(let i = 0; i < qty; i += 1){ out.push({ row, index, creativeName, carText, copyIndex: i }); }
+    });
+    if(out.length) return out.slice(0, 50);
+    return [{ row:{}, index:0, creativeName: txt(task?.creative || task?.product || ''), carText: carLabels(task?.selectedCars || []).join('، '), copyIndex:0 }];
+  }
+  window.mzjStructureTaskCarsText = function(task, row){
+    const direct = txt(row?.car || row?.cars || row?.selectedCar || row?.raw?.['السيارة'] || row?.raw?.['السيارات'] || task?.selectedCar || task?.carName || '');
+    if(direct) return direct;
+    const fromTask = carLabels(task?.selectedCars || []);
+    if(fromTask.length) return fromTask.join('، ');
+    const byRowCode = txt(row?.creativeShortCode || (typeof extractCreativeShortCodeFromTaskNo === 'function' ? extractCreativeShortCodeFromTaskNo(row?.taskNo || '') : ''));
+    const byContent = cleanKey(row?.contentType || row?.contentName || row?.creative || '');
+    const matches = creativeRowsForStructure(task).filter(({row: creativeRow}) => {
+      const name = txt(creativeRow?.creative || creativeRow?.product || '');
+      const shortCode = txt(creativeRow?.creativeShortCode || (typeof creativeShortCodeForName === 'function' ? creativeShortCodeForName(name) : ''));
+      if(byRowCode && shortCode && byRowCode.toUpperCase() === shortCode.toUpperCase()) return true;
+      const k = cleanKey(name);
+      return byContent && k && (byContent.includes(k) || k.includes(byContent));
+    });
+    const rows = matches.length ? matches : creativeRowsForStructure(task);
+    const labels = uniq(rows.flatMap(({row: creativeRow}) => carLabels(creativeRow?.selectedCars || creativeRow?.cars || creativeRow?.stockCars || [])));
+    return labels.join('، ');
+  };
+  const prevMzjCars = (typeof mzjCarsForStructureRow === 'function') ? mzjCarsForStructureRow : null;
+  try{
+    mzjCarsForStructureRow = function(task, row){ return window.mzjStructureTaskCarsText(task, row) || (prevMzjCars ? prevMzjCars(task, row) : ''); };
+  }catch(_){ }
+
+  const prevBuildDetails = (typeof buildTaskDetailHtml === 'function') ? buildTaskDetailHtml : null;
+  if(prevBuildDetails){
+    buildTaskDetailHtml = function(task){
+      let html = prevBuildDetails.apply(this, arguments);
+      const cars = window.mzjStructureTaskCarsText(task, task?.structureRow || {}) || '';
+      if(cars){
+        html = html.replace(/(<div class="brief-box"><span>السيارة المختارة<\/span><strong>)(.*?)(<\/strong><\/div>)/, `$1${esc(cars)}$3`);
+      }
+      if(task?.structureRow && cars && !/بيانات تاسك الهيكل[\s\S]*?<span>السيارة<\/span>/.test(html)){
+        html = html.replace('<div class="structure-task-grid">', `<div class="structure-task-grid"><div><span>السيارة</span><strong>${esc(cars || '—')}</strong></div>`);
+      }
+      return html;
+    };
+  }
+
+  const prevBuildDocs = (typeof buildCampaignTaskDocs === 'function') ? buildCampaignTaskDocs : null;
+  if(prevBuildDocs){
+    buildCampaignTaskDocs = function(campaignId, payload){
+      const docs = prevBuildDocs.apply(this, arguments) || [];
+      docs.forEach(doc => {
+        const isStructure = !!(doc?.needsStructureUpload || doc?.structureRequestTask || doc?.sourceRequestStep === 'campaign_request_data' || txt(doc?.taskType).includes('طلب هيكل') || txt(doc?.taskType).includes('هيكل حملة'));
+        if(!isStructure) return;
+        const labels = uniq((Array.isArray(payload?.creatives) ? payload.creatives : []).flatMap(row => carLabels(row?.selectedCars || [])));
+        if(labels.length){ doc.selectedCar = labels.join('، '); doc.selectedCars = labels.map(label => ({ label })); }
+      });
+      return docs;
+    };
+  }
+
+  const prevExact = (typeof downloadStructureTemplateForTaskExact === 'function') ? downloadStructureTemplateForTaskExact : null;
+  downloadStructureTemplateForTaskExact = async function(task){
+    try{
+      if(!window.JSZip) throw new Error('JSZip is not loaded');
+      const zip = await window.JSZip.loadAsync(STRUCTURE_TEMPLATE_BASE64_V145, { base64: true });
+      const sheetPath = 'xl/worksheets/sheet1.xml';
+      const sheetFile = zip.file(sheetPath);
+      if(!sheetFile) throw new Error('Structure template sheet is missing');
+      let sheetXml = await sheetFile.async('string');
+      const campaign = campaignOfTask(task);
+      const campaignCode = (typeof campaignCodeForTask === 'function' ? campaignCodeForTask(task) : txt(task?.campaignCode)).toUpperCase();
+      const creativeCode = (typeof templateCreativeLinkCodeForTask === 'function' ? templateCreativeLinkCodeForTask({ ...task, campaignCode }) : '').toUpperCase();
+      const writerCode = typeof contentWriterCodeForTask === 'function' ? contentWriterCodeForTask(task) : '';
+      const writerName = task?.assignedToName || task?.userName || task?.assigneeName || '';
+      const campaignName = task?.campaignName || task?.campaignTitle || task?.campaign || campaign?.campaignName || campaign?.name || '';
+      const campaignTypeName = task?.campaignTypeName || task?.campaignType || task?.typeName || task?.type || campaign?.campaignTypeName || campaign?.campaignType || campaign?.typeName || campaign?.type || '';
+      const units = templateUnitsForStructure(task);
+      const creativeSummary = uniq(units.map(u => u.creativeName).filter(Boolean)).join('، ');
+      const patches = {
+        A1: campaignCode ? `حمله - ${campaignCode}` : 'حمله -',
+        A35: campaignCode ? `حمله - ${campaignCode}` : 'حمله -',
+        B2: 'اسم الحملة', C2: campaignName || '',
+        B3: 'كود الحملة', C3: campaignCode || '',
+        B4: 'كود الكرييتيف', C4: creativeCode || '',
+        B5: 'الكرييتيف المطلوب للهيكل', C5: creativeSummary || task?.creative || task?.product || '',
+        B6: 'كاتب المحتوى', C6: writerName || '',
+        B7: 'كود كاتب المحتوى', C7: writerCode || '',
+        B8: 'نوع الحمله', C8: campaignTypeName || '',
+        B9: 'معنى العنصر داخل MZJ', C9: '', B10: 'دور العنصر في تعزيز الثقة', C10: '',
+        B11: 'الهدف الاستراتيجي للحملة', C11: '', B12: 'الهدف النهائي للحملة', C12: '',
+        B13: 'الترجمة الملموسة للهدف النهائي', C13: '', B14: 'الرسالة الرئيسية', C14: '',
+        B15: 'إحساس الحملة', C15: '', B16: 'الترجمة التنفيذية لإحساس الحملة', C16: '',
+        B17: 'نوع المحتوى', C17: '', B18: 'زاوية المحتوى', C18: '', B19: 'ما يجب إبرازه', C19: '',
+        B20: 'الترجمة التنفيذية لما يجب إبرازه', C20: '', B21: 'ما يجب تجنبه', C21: '', B22: 'CTA', C22: '',
+        A36: 'نوع الحمله', B36: 'نوع المحتوى', C36: 'السيارة', D36: 'رقم التاسك', E36: 'الهدف', F36: 'الهدف الملموس', G36: 'الفكرة', H36: 'وصف المحتوى', I36: 'الرسالة', J36: 'المطلوب من الكاتب', K36: 'CTA', L36: 'كود الكرييتيف المختصر', M36: 'كود القسم', N36: 'كود اليوزر', O36: 'كود كاتب المحتوى', P36: ''
+      };
+      sheetXml = patchWorkbookCellsInlineV148(sheetXml, patches);
+      for(let index = 0; index < 50; index += 1){
+        const unit = units[index % units.length] || {};
+        const rowNumber = 37 + index;
+        const n = String(index + 1).padStart(2, '0');
+        const creativeName = txt(unit.creativeName || unit.row?.creative || unit.row?.product || '');
+        const shortCode = txt(unit.row?.creativeShortCode || (typeof creativeShortCodeForName === 'function' ? creativeShortCodeForName(creativeName) : '')).toUpperCase();
+        const unitCreativeCode = (typeof creativeLinkCodeForIndex === 'function' ? creativeLinkCodeForIndex(campaignCode, unit.index || 0) : creativeCode).toUpperCase() || creativeCode;
+        const role = typeof creativeDepartmentRole === 'function' ? creativeDepartmentRole(creativeName || unit.row?.creative || '') : '';
+        const roleTask = typeof assignmentForRoleFromCreativeRow === 'function' ? (assignmentForRoleFromCreativeRow(unit.row, role) || {}) : {};
+        const deptCode = typeof roleCode === 'function' ? roleCode(role) : '';
+        const userCodes = uniq([...(Array.isArray(roleTask.userCodes) ? roleTask.userCodes : []), ...(typeof userCodesForTask === 'function' ? userCodesForTask(roleTask) : [])]).filter(Boolean).join(',') || writerCode;
+        const taskNo = unitCreativeCode ? `${unitCreativeCode}-${shortCode}-${deptCode}-${userCodes || 'USER'}-${writerCode || 'N'}${n}` : '';
+        const rowPatch = {
+          [`A${rowNumber}`]: index === 0 ? (campaignTypeName || '') : '',
+          [`B${rowNumber}`]: creativeName || '',
+          [`C${rowNumber}`]: unit.carText || '',
+          [`D${rowNumber}`]: taskNo,
+          [`E${rowNumber}`]: '', [`F${rowNumber}`]: '', [`G${rowNumber}`]: '', [`H${rowNumber}`]: '', [`I${rowNumber}`]: '', [`J${rowNumber}`]: '', [`K${rowNumber}`]: '',
+          [`L${rowNumber}`]: shortCode,
+          [`M${rowNumber}`]: deptCode,
+          [`N${rowNumber}`]: userCodes,
+          [`O${rowNumber}`]: writerCode || '',
+          [`P${rowNumber}`]: ''
+        };
+        sheetXml = patchWorkbookCellsInlineV148(sheetXml, rowPatch);
+      }
+      zip.file(sheetPath, sheetXml);
+      const out = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const fileBase = typeof safeStorageSegment === 'function' ? safeStorageSegment([creativeCode || campaignCode, writerName || writerCode || '', 'هيكل'].filter(Boolean).join('-')) : 'campaign-structure';
+      const blobUrl = URL.createObjectURL(out);
+      const a = document.createElement('a');
+      a.href = blobUrl; a.download = `${fileBase || 'campaign-structure'}-template.xlsx`; a.style.display = 'none';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 1200);
+      showToast('تم تحميل قالب الهيكل بالأكواد مع حقل السيارة لكل نوع محتوى.');
+    }catch(error){
+      console.error('v105 structure template download failed', error);
+      if(prevExact) return prevExact(task);
+      showToast('تعذر تحميل قالب الهيكل.');
+    }
+  };
+})();
