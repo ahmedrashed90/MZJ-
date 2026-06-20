@@ -9230,3 +9230,21 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 }
 
 /* v103 revised structure upload display fix */
+
+
+/* v122 campaign audit visible controls */
+.campaign-audit-tools{display:flex;justify-content:flex-start;gap:10px;margin:0 0 14px 0;padding:12px 14px;border:1px dashed rgba(133,72,54,.25);border-radius:16px;background:rgba(255,255,255,.55);}
+.campaign-audit-export-btn{font-weight:800;}
+
+/* v123 campaign audit export click fix */
+.campaign-audit-export-btn{cursor:pointer;}
+/* v132: show the three missing approved-structure execution headers only */
+#taskModal.has-structure-sheet-modal .structure-section-execution .structure-table.compact-excel-section td.execution-fixed-header,
+#taskModal.has-structure-sheet-modal .structure-section-execution .full-structure-table td.execution-fixed-header,
+.structure-section-execution .structure-table.compact-excel-section td.execution-fixed-header,
+.structure-section-execution .full-structure-table td.execution-fixed-header{
+  background:#2f3d49!important;
+  color:#fff!important;
+  font-weight:900!important;
+  text-align:center!important;
+}
