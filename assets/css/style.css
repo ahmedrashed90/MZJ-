@@ -9228,3 +9228,5 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 .structure-readable-execution .execution-table td:nth-child(14){
   min-width:220px!important;
 }
+
+/* v103 revised structure upload display fix */

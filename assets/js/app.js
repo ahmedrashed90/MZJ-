@@ -4088,7 +4088,11 @@ function structureRowsWithReviewStatus(structure){
     });
 }
 function structureDistributionRows(structure){
-  if(Array.isArray(structure?.approvedRows) && structure.approvedRows.length){
+  const cleanStatus = normalizeText(structure?.status || '').toLowerCase();
+  const shouldUseApprovedRows = Array.isArray(structure?.approvedRows)
+    && structure.approvedRows.length
+    && (cleanStatus === 'approved' || cleanStatus === 'distributed');
+  if(shouldUseApprovedRows){
     return structure.approvedRows
       .filter(isRealStructureDistributionRow)
       .map((row, index) => ({ ...row, contentType: normalizeText(row?.contentType || row?.contentName || row?.idea || row?.description || 'نوع محتوى'), taskNo: normalizeText(row?.taskNo || '') || `T${String(index + 1).padStart(2, '0')}`, reviewStatus: 'approved' }));
@@ -5559,6 +5563,10 @@ async function uploadStructureFileForTask(file, taskId){
     fileData,
     parsedRows,
     sheetTables,
+    // عند رفع نسخة معدلة بعد طلب الأدمن، لا تستخدم الصفوف المعتمدة القديمة أو حالات مراجعة الصفوف القديمة.
+    // كانت بتخلي مراجعة الهيكل تعرض النسخة القديمة/المختصرة بدل آخر ملف مرفوع.
+    approvedRows: [],
+    rowReviewStatuses: {},
     notes: [],
     marks: [],
     reviewedAt: '',
