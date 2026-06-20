@@ -11458,7 +11458,7 @@ async function downloadStructureTemplateForTaskExact(task){
       <div class="structure-actions">
         ${canUpload ? `<button class="btn btn-light" type="button" data-download-task-template="${escapeHtml(task.id)}">تحميل قالب Task Template</button><button class="btn btn-primary" type="button" data-upload-task-template="${escapeHtml(task.id)}">رفع ملف Task Template</button>` : ''}
         ${hasFile ? `<span class="structure-file-name structure-attached-label">تم رفع Task Template</span>${tpl.fileName ? `<span class="structure-file-name">${escapeHtml(tpl.fileName)}</span>` : ''}` : '<span class="structure-file-name muted">لم يتم رفع Task Template</span>'}
-        ${tpl.fileData ? `<a class="btn btn-light" href="${escapeHtml(tpl.fileData)}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
+        ${v108TaskTemplateFileUrl(tpl) ? `<a class="btn btn-light" href="${escapeHtml(v108TaskTemplateFileUrl(tpl))}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
         ${admin && hasFile ? `<button class="btn btn-primary" type="button" data-open-task-template-review="${escapeHtml(task.id)}">مراجعة Task Template</button>` : ''}
       </div>
       ${v172RenderTaskTemplateFields(tpl)}
@@ -11492,7 +11492,7 @@ async function downloadStructureTemplateForTaskExact(task){
         <div class="approved-template-group"><h4>ملخص المحتوى</h4><div class="approved-template-grid approved-template-brief-grid">${briefHtml}</div></div>
         <div class="approved-template-group"><h4>النصوص التنفيذية</h4><div class="approved-template-grid approved-template-long-grid">${longHtml}</div></div>
       </div>
-      ${tpl.fileData ? `<a class="btn btn-light approved-template-download-btn" href="${escapeHtml(tpl.fileData)}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل Task Template المعتمد</a>` : ''}
+      ${v108TaskTemplateFileUrl(tpl) ? `<a class="btn btn-light approved-template-download-btn" href="${escapeHtml(v108TaskTemplateFileUrl(tpl))}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل Task Template المعتمد</a>` : ''}
     </div>`;
   }
   const previousBuildTaskDetailHtml = buildTaskDetailHtml;
@@ -11748,12 +11748,84 @@ async function downloadStructureTemplateForTaskExact(task){
     if(!fields.length) return '';
     return `<div class="task-template-fields-grid">${fields.map(field => `<div class="task-template-field"><span>${escapeHtml(field.label)}</span><strong>${escapeHtml(field.value || '—')}</strong></div>`).join('')}</div>`;
   }
+  function v108TaskTemplateFileUrl(tpl){
+    return normalizeText(tpl?.fileUrl || tpl?.downloadURL || tpl?.downloadUrl || tpl?.storageUrl || tpl?.fileData || '');
+  }
+  async function v108UploadTaskTemplateFileToStorage(file, task){
+    if(!mainStorage) throw new Error('Firebase Storage غير متاح. تأكد من نشر storage.rules وتحميل Firebase Storage SDK.');
+    const current = getCurrentUserIdentity();
+    const safe = value => String(value || 'item').trim().replace(/[\/#?%*:|"<>\s]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 90) || 'item';
+    const campaignId = safe(task?.campaignId || 'campaign');
+    const taskId = safe(task?.id || task?.taskId || 'task');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `${stamp}-${safe(file?.name || 'task-template.xlsx')}`;
+    const path = `task-templates/${campaignId}/${taskId}/${fileName}`;
+    const ref = mainStorage.ref().child(path);
+    const metadata = {
+      contentType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      customMetadata: {
+        uploadKind:'task_template',
+        taskId:String(task?.id || ''),
+        campaignId:String(task?.campaignId || ''),
+        originalFileName:file.name || fileName,
+        uploadedBy: current.email || current.name || current.uid || 'user'
+      }
+    };
+    const snapshot = await new Promise((resolve, reject) => {
+      const taskUpload = ref.put(file, metadata);
+      const startedAt = Date.now();
+      let lastBytes = 0;
+      let lastTime = startedAt;
+      activeUploadProgressState = {
+        taskUpload,
+        fileName: file.name || fileName,
+        totalBytes: file.size || 0,
+        bytesTransferred: 0,
+        speedBps: 0,
+        percent: 3,
+        label: 'جاري رفع Task Template',
+        cancelable: true
+      };
+      showUploadProgressToast(3, 'جاري رفع Task Template', activeUploadProgressState);
+      taskUpload.on('state_changed', snap => {
+        const now = Date.now();
+        const deltaBytes = Math.max(0, snap.bytesTransferred - lastBytes);
+        const deltaTime = Math.max(1, now - lastTime) / 1000;
+        const instantSpeed = deltaBytes / deltaTime;
+        const prevSpeed = Number(activeUploadProgressState?.speedBps || 0);
+        const speedBps = prevSpeed ? (prevSpeed * 0.65 + instantSpeed * 0.35) : instantSpeed;
+        lastBytes = snap.bytesTransferred;
+        lastTime = now;
+        const realPercent = snap.totalBytes ? (snap.bytesTransferred / snap.totalBytes) * 100 : 0;
+        activeUploadProgressState = { ...activeUploadProgressState, taskUpload, bytesTransferred:snap.bytesTransferred, totalBytes:snap.totalBytes || file.size || 0, speedBps, percent:Math.max(3, realPercent), label:'جاري رفع Task Template', cancelable:true };
+        showUploadProgressToast(activeUploadProgressState.percent, 'جاري رفع Task Template', activeUploadProgressState);
+      }, error => {
+        activeUploadProgressState = null;
+        if(error && (error.code === 'storage/canceled' || String(error.message || '').toLowerCase().includes('cancel'))){
+          reject(new Error('تم إلغاء رفع Task Template.'));
+        }else{
+          reject(error);
+        }
+      }, () => resolve(taskUpload.snapshot));
+    });
+    const downloadURL = await snapshot.ref.getDownloadURL();
+    showUploadProgressToast(100, 'تم رفع Task Template', { fileName:file.name || fileName, bytesTransferred:file.size || 0, totalBytes:file.size || 0 });
+    hideUploadProgressToast(1200);
+    return { storageProvider:'firebase', storagePath:path, fileUrl:downloadURL, downloadURL, downloadUrl:downloadURL };
+  }
+  function v108TaskTemplateFriendlyError(error){
+    const code = String(error?.code || '');
+    const message = String(error?.message || error || '');
+    if(code.includes('storage/unauthorized') || message.includes('permission') || message.includes('unauthorized')) return 'تعذر رفع Task Template: صلاحيات Firebase Storage لا تسمح بالمسار task-templates. انشر storage.rules الجديدة ثم جرب مرة أخرى.';
+    if(code.includes('storage/canceled') || message.includes('إلغاء')) return 'تم إلغاء رفع Task Template.';
+    if(message.includes('maximum') || message.includes('larger than') || message.includes('1048487') || message.includes('RESOURCE_EXHAUSTED')) return 'تعذر حفظ Task Template لأن الملف كبير على Firestore. سيتم الرفع عبر Firebase Storage بعد نشر storage.rules الجديدة.';
+    return message || 'تعذر رفع Task Template.';
+  }
   async function v171UploadTaskTemplate(file, taskId){
     const task = findTaskById(taskId);
     if(!task) return showToast('تعذر العثور على التاسك.');
     if(!file) return showToast('لم يتم اختيار ملف Task Template.');
-    showToast('جاري رفع ملف Task Template...');
-    const fileData = await fileToDataUrl(file);
+    showUploadProgressToast(2, 'تجهيز Task Template', { fileName:file.name || '', bytesTransferred:0, totalBytes:file.size || 0 });
     let parsed = { parsedRows: [], sheetTables: [], taskTemplateFields: [], templateKind:'content_task_template_v177' };
     let parseWarning = '';
     try{
@@ -11772,13 +11844,29 @@ async function downloadStructureTemplateForTaskExact(task){
     if(!hasRealTaskTemplateData && !parseWarning){
       parseWarning = 'تم حفظ الملف، لكن لم يتم العثور على بيانات مكتوبة داخل قالب Task Template.';
     }
+    let storedFile = null;
+    let inlineFileData = '';
+    try{
+      storedFile = await v108UploadTaskTemplateFileToStorage(file, task);
+    }catch(storageError){
+      console.warn('Task Template Firebase Storage upload failed', storageError);
+      if(file.size && file.size <= 350 * 1024){
+        inlineFileData = await fileToDataUrl(file);
+        parseWarning = `${parseWarning ? `${parseWarning} ` : ''}تم حفظ الملف داخل بيانات التاسك لأن Firebase Storage غير متاح.`;
+      }else{
+        hideUploadProgressToast(0);
+        return showToast(v108TaskTemplateFriendlyError(storageError));
+      }
+    }
     const prev = task.taskTemplate || {};
     const next = {
       ...prev,
       status:'pending_review',
       fileName:file.name,
       fileSize:file.size,
-      fileData,
+      mimeType:file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ...(storedFile || {}),
+      ...(inlineFileData ? { fileData:inlineFileData } : {}),
       parsedRows: parsed.parsedRows || [],
       sheetTables: parsed.sheetTables || [],
       taskTemplateFields: fields.length ? fields : v172TaskTemplateFieldsFromTemplate(parsed),
@@ -11787,10 +11875,15 @@ async function downloadStructureTemplateForTaskExact(task){
       uploadedAt:new Date().toISOString(),
       uploadedBy:getCurrentUser().email || getCurrentUser().name || ''
     };
-    const savedTask = await updateTaskOnFirebase(task.id, { taskTemplate: encodeStructureWorkbookForFirestore(next), status:'pending_task_template_review' }, { silent:true });
-    if(!savedTask) return showToast('تعذر حفظ Task Template داخل بيانات التاسك.');
-    showToast(parseWarning ? `تم رفع Task Template. ${parseWarning}` : 'تم رفع Task Template. في انتظار مراجعة الأدمن.');
-    refreshOpenTaskModal();
+    try{
+      const savedTask = await updateTaskOnFirebase(task.id, { taskTemplate: encodeStructureWorkbookForFirestore(next), status:'pending_task_template_review' }, { silent:true });
+      if(!savedTask) return showToast('تعذر حفظ Task Template داخل بيانات التاسك.');
+      showToast(parseWarning ? `تم رفع Task Template. ${parseWarning}` : 'تم رفع Task Template. في انتظار مراجعة الأدمن.');
+      refreshOpenTaskModal();
+    }catch(error){
+      console.error('Task Template Firestore save failed', error);
+      showToast(v108TaskTemplateFriendlyError(error));
+    }
   }
   function v175RenderTaskTemplateReviewView(tpl, task = null){
     const mergedTpl = v177NormalizeRealTaskTemplate(tpl || {});
@@ -11809,7 +11902,7 @@ async function downloadStructureTemplateForTaskExact(task){
       return `<tr><td>${escapeHtml(idx + 1)}</td><td>${escapeHtml(taskNo || '—')}</td><td>${escapeHtml(type || '—')}</td><td>${escapeHtml(msg || '—')}</td><td>${escapeHtml(cta || '—')}</td></tr>`;
     }).join('') : '';
     const fileName = normalizeText(tpl?.fileName || '');
-    return `<div class="task-template-review-view"><div class="task-template-review-summary"><div><h4>بيانات Task Template</h4><p>مراجعة ملف المحتوى المرفوع من كاتب المحتوى بصيغته الخاصة، بعيدًا عن شكل هيكل الحملة.</p></div>${fileName ? `<span class="task-template-review-file">${escapeHtml(fileName)}</span>` : ''}</div><div class="task-template-review-fields">${fieldHtml}</div>${rawRows ? `<div class="task-template-review-table-wrap"><table class="task-template-review-table"><thead><tr><th>#</th><th>رقم التاسك</th><th>نوع المحتوى</th><th>الرسالة الأساسية</th><th>CTA</th></tr></thead><tbody>${rawRows}</tbody></table></div>` : ''}${mergedTpl?.fileData ? `<a class="btn btn-light" href="${escapeHtml(mergedTpl.fileData)}" download="${escapeHtml(fileName || 'task-template.xlsx')}">تحميل ملف Task Template</a>` : ''}</div>`;
+    return `<div class="task-template-review-view"><div class="task-template-review-summary"><div><h4>بيانات Task Template</h4><p>مراجعة ملف المحتوى المرفوع من كاتب المحتوى بصيغته الخاصة، بعيدًا عن شكل هيكل الحملة.</p></div>${fileName ? `<span class="task-template-review-file">${escapeHtml(fileName)}</span>` : ''}</div><div class="task-template-review-fields">${fieldHtml}</div>${rawRows ? `<div class="task-template-review-table-wrap"><table class="task-template-review-table"><thead><tr><th>#</th><th>رقم التاسك</th><th>نوع المحتوى</th><th>الرسالة الأساسية</th><th>CTA</th></tr></thead><tbody>${rawRows}</tbody></table></div>` : ''}${v108TaskTemplateFileUrl(mergedTpl) ? `<a class="btn btn-light" href="${escapeHtml(v108TaskTemplateFileUrl(mergedTpl))}" download="${escapeHtml(fileName || 'task-template.xlsx')}">تحميل ملف Task Template</a>` : ''}</div>`;
   }
 
   function v171OpenTaskTemplateReview(taskId){
@@ -12036,7 +12129,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v172 - task template exact file support */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v220'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
 })();
 
 /* v182 - keep normal task details as a vertical scrollable detail view, not the structure sheet layout */
@@ -12868,14 +12961,14 @@ async function downloadStructureTemplateForTaskExact(task){
     if(!v198IsContentTaskEligibleForTemplate(task)) return '';
     const admin = typeof isCurrentUserAdmin === 'function' ? isCurrentUserAdmin() : false;
     const tpl = task.taskTemplate || {};
-    const hasFile = !!(tpl.fileData || tpl.fileName || tpl.fileSize || (Array.isArray(tpl.sheetTables) && tpl.sheetTables.length) || tpl.sheetTablesJson);
+    const hasFile = !!(v108TaskTemplateFileUrl(tpl) || tpl.fileName || tpl.fileSize || (Array.isArray(tpl.sheetTables) && tpl.sheetTables.length) || tpl.sheetTablesJson);
     const canUpload = !admin && (!tpl.status || ['not_uploaded','needs_changes','rejected'].includes(v198Clean(tpl.status)));
     const fieldsHtml = (typeof v172RenderTaskTemplateFields === 'function') ? v172RenderTaskTemplateFields(tpl) : '';
     return `<div class="modal-section task-template-section task-template-section-v198"><div class="modal-section-title"><h3>Task Template - قسم المحتوى</h3><span>${escapeHtml(v198ContentTemplateStatusLabel(tpl.status))}</span></div>
       <div class="structure-actions">
         ${canUpload ? `<button class="btn btn-light" type="button" data-download-task-template="${escapeHtml(task.id)}">تحميل قالب Task Template</button><button class="btn btn-primary" type="button" data-upload-task-template="${escapeHtml(task.id)}">رفع ملف Task Template</button>` : ''}
         ${hasFile ? `<span class="structure-file-name structure-attached-label">تم رفع Task Template</span>${tpl.fileName ? `<span class="structure-file-name">${escapeHtml(tpl.fileName)}</span>` : ''}` : '<span class="structure-file-name muted">لم يتم رفع Task Template</span>'}
-        ${tpl.fileData ? `<a class="btn btn-light" href="${escapeHtml(tpl.fileData)}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
+        ${v108TaskTemplateFileUrl(tpl) ? `<a class="btn btn-light" href="${escapeHtml(v108TaskTemplateFileUrl(tpl))}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
         ${admin && hasFile ? `<button class="btn btn-primary" type="button" data-open-task-template-review="${escapeHtml(task.id)}">مراجعة Task Template</button>` : ''}
       </div>
       ${fieldsHtml}
@@ -14308,11 +14401,11 @@ if(false){(function(){
 
 
 /* v219 - robust Task Template field reparse from stored uploaded XLSX */
-try{ window.MZJ_APP_VERSION = 'v220'; }catch(_){ }
+try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
 
 /* v220 - Dashboard Task Template badges + content approval waiting state + owner color settings */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v220'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v221'; }catch(_){ }
 
   function v220Text(value){
     try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); }

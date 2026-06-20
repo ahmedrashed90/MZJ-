@@ -7,6 +7,10 @@ service firebase.storage {
       allow read, write: if true;
     }
 
+    match /task-templates/{allPaths=**} {
+      allow read, write, delete: if true;
+    }
+
     match /publish-prep/{userId}/{taskId}/{fileName} {
       allow read, write: if request.auth != null;
     }
