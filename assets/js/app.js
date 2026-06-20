@@ -3908,10 +3908,12 @@ function parseExecutionRowsFromSheetTables(structure){
     const idx = {
       campaignType: structureHeaderIndexStrict(headers, ['نوع الحمله','نوع الحملة','campaign type']),
       contentType: structureHeaderIndexStrict(headers, ['نوع المحتوى','نوع المحتوي','content type']),
+      car: structureHeaderIndexStrict(headers, ['السيارة','السيارات','car','cars']),
       taskNo: structureHeaderIndexStrict(headers, ['كود تاسك الهيكل','رقم التاسك','task no','task code','structure task code']),
       creativeShortCode: structureHeaderIndexStrict(headers, ['كود الكرييتيف المختصر','creative short code','creative code short']),
       departmentCode: structureHeaderIndexStrict(headers, ['كود القسم','department code','dept code']),
       userCode: structureHeaderIndexStrict(headers, ['كود اليوزر','كود اليوزرات','user code','assignee code']),
+      contentWriterCode: structureHeaderIndexStrict(headers, ['كود كاتب المحتوى','كود كاتب المحتوي','content writer code','writer code']),
       goal: structureHeaderIndexStrict(headers, ['الهدف','goal']),
       tangibleGoal: structureHeaderIndexStrict(headers, ['الهدف الملموس','tangible goal']),
       idea: structureHeaderIndexStrict(headers, ['الفكرة','idea']),
@@ -3941,6 +3943,8 @@ function parseExecutionRowsFromSheetTables(structure){
       item.departmentCode = cellByHeader(row, idx.departmentCode) || extractDepartmentCodeFromTaskNo(item.taskNo);
       item.userCode = cellByHeader(row, idx.userCode);
       item.userCodes = item.userCode;
+      item.contentWriterCode = cellByHeader(row, idx.contentWriterCode);
+      item.car = cellByHeader(row, idx.car);
       item.goal = cellByHeader(row, idx.goal);
       item.tangibleGoal = cellByHeader(row, idx.tangibleGoal);
       item.idea = cellByHeader(row, idx.idea);
@@ -3955,23 +3959,25 @@ function parseExecutionRowsFromSheetTables(structure){
       item.cta = cellByHeader(row, idx.cta);
       if(hasKnownExecutionLayout){
         // fallback آمن للصفوف اللي بعض خلاياها المدمجة بتسيب قيم فاضية أو بتزحزح القراءة.
-        item.cta = item.cta || normalizeText(row[0] || row[11] || '');
-        item.writerRequest = item.writerRequest || normalizeText(row[1] || row[12] || row[10] || '');
-        item.avoid = item.avoid || normalizeText(row[2] || row[11] || '');
-        item.highlightTranslation = item.highlightTranslation || normalizeText(row[3] || row[10] || row[9] || '');
-        item.highlight = item.highlight || normalizeText(row[4] || row[9] || '');
-        item.contentAngle = item.contentAngle || normalizeText(row[5] || row[8] || '');
-        item.message = item.message || normalizeText(row[6] || row[7] || '');
+        item.car = item.car || normalizeText(row[2] || '');
+        item.taskNo = item.taskNo || normalizeText(row[3] || row[2] || '');
+        item.goal = item.goal || normalizeText(row[4] || row[3] || '');
+        item.tangibleGoal = item.tangibleGoal || normalizeText(row[5] || row[4] || '');
+        item.idea = item.idea || normalizeText(row[6] || row[5] || '');
         item.description = item.description || normalizeText(row[7] || row[6] || '');
-        item.idea = item.idea || normalizeText(row[8] || row[5] || '');
-        item.tangibleGoal = item.tangibleGoal || normalizeText(row[9] || row[4] || '');
-        item.goal = item.goal || normalizeText(row[10] || row[3] || '');
-        item.taskNo = item.taskNo || normalizeText(row[11] || row[2] || '');
+        item.message = item.message || normalizeText(row[8] || row[7] || '');
+        item.writerRequest = item.writerRequest || normalizeText(row[9] || row[10] || '');
+        item.cta = item.cta || normalizeText(row[10] || row[11] || '');
+        item.creativeShortCode = item.creativeShortCode || normalizeText(row[11] || '');
+        item.departmentCode = item.departmentCode || normalizeText(row[12] || '');
+        item.userCode = item.userCode || normalizeText(row[13] || '');
+        item.contentWriterCode = item.contentWriterCode || normalizeText(row[14] || '');
       }
       item.taskNo = strongestStructureTaskNo(row, item.taskNo) || item.taskNo;
       const explicitContentType = cellByHeader(row, idx.contentType) || '';
       const executionValuesForRealCheck = [
         explicitContentType,
+        item.car,
         item.goal,
         item.tangibleGoal,
         item.idea,
@@ -4005,7 +4011,7 @@ function isPlaceholderStructureText(value){
   const key = structureHeaderKey(value || '');
   if(!key) return true;
   const placeholders = [
-    'نوع محتوي','نوع المحتوى','نوع المحتوي','هدف','الهدف','الفكره','الفكرة','وصف المحتوي','وصف المحتوى',
+    'نوع محتوي','نوع المحتوى','نوع المحتوي','السيارة','السيارات','هدف','الهدف','الفكره','الفكرة','وصف المحتوي','وصف المحتوى',
     'الرساله','الرسالة','المطلوب من الكاتب','cta','الدعوه لاتخاذ اجراء','زاويه المحتوي','زاوية المحتوى',
     'الترجمه التنفيذيه لما يجب ابرازه','رقم التاسك','كود تاسك الهيكل','كود الحمله','كود الكرييتيف','كود كاتب المحتوي'
   ].map(structureHeaderKey);
@@ -4022,7 +4028,7 @@ function isStructureCodeOnlyValue(value){
 }
 function isRealStructureDistributionRow(row){
   const contentType = normalizeText(row?.contentType || '');
-  const details = [row?.goal, row?.tangibleGoal, row?.idea, row?.contentName, row?.description, row?.message, row?.contentAngle, row?.highlight, row?.highlightTranslation, row?.avoid, row?.writerRequest, row?.cta]
+  const details = [row?.goal, row?.tangibleGoal, row?.idea, row?.contentName, row?.description, row?.message, row?.car, row?.contentAngle, row?.highlight, row?.highlightTranslation, row?.avoid, row?.writerRequest, row?.cta]
     .map(value => normalizeText(value || ''))
     .filter(value => value && !isPlaceholderStructureText(value) && !isStructureCodeOnlyValue(value));
   const explicitType = contentType && !isPlaceholderStructureText(contentType) && !isStructureCodeOnlyValue(contentType);
@@ -4320,21 +4326,21 @@ function renderReadableStructureWorkbookTable(task, structure, admin){
   const notes = Array.isArray(structure.notes) ? structure.notes : [];
   const marks = Array.isArray(structure.marks) ? structure.marks : [];
   const executionHeaders = [
-    ['campaignType','نوع الحملة'],
+    ['campaignType','نوع الحمله'],
     ['contentType','نوع المحتوى'],
+    ['car','السيارة'],
     ['taskNo','رقم التاسك'],
     ['goal','الهدف'],
     ['tangibleGoal','الهدف الملموس'],
     ['idea','الفكرة'],
-    ['contentName','اسم المحتوى'],
     ['description','وصف المحتوى'],
     ['message','الرسالة'],
-    ['contentAngle','زاوية المحتوى'],
-    ['highlight','ما يجب إبرازه'],
-    ['highlightTranslation','الترجمة التنفيذية لما يجب إبرازه'],
-    ['avoid','ما يجب تجنبه'],
     ['writerRequest','المطلوب من الكاتب'],
-    ['cta','CTA']
+    ['cta','CTA'],
+    ['creativeShortCode','كود الكرييتيف المختصر'],
+    ['departmentCode','كود القسم'],
+    ['userCode','كود اليوزر'],
+    ['contentWriterCode','كود كاتب المحتوى']
   ];
   const rowReviewStatuses = structure.rowReviewStatuses || {};
   function readableCellAttrs(section, rowIndex, colIndex, value){
@@ -4361,7 +4367,7 @@ function renderReadableStructureWorkbookTable(task, structure, admin){
     const currentStatus = normalizeStructureRowReviewStatus(rowReviewStatuses[reviewKey] || row.reviewStatus || 'approved');
     const reviewCell = admin ? `<td class="structure-row-review-cell"><div class="structure-row-review" data-row-review-key="${escapeHtml(reviewKey)}"><button type="button" class="mini-btn ${currentStatus === 'approved' ? 'active success' : ''}" data-set-structure-row-status="approved" data-task-id="${escapeHtml(task.id)}" data-row-key="${escapeHtml(reviewKey)}">مقبول</button><button type="button" class="mini-btn ${currentStatus === 'needs_changes' ? 'active warn' : ''}" data-set-structure-row-status="needs_changes" data-task-id="${escapeHtml(task.id)}" data-row-key="${escapeHtml(reviewKey)}">تعديل</button><button type="button" class="mini-btn ${currentStatus === 'rejected' ? 'active danger' : ''}" data-set-structure-row-status="rejected" data-task-id="${escapeHtml(task.id)}" data-row-key="${escapeHtml(reviewKey)}">مرفوض</button></div></td>` : '';
     return `<tr data-structure-review-row="${escapeHtml(reviewKey)}">${admin ? reviewCell : ''}${executionHeaders.map(([key], colIndex) => {
-      const value = row[key] || '';
+      const value = key === 'car' ? (row.car || mzjCarsForStructureRow(task, row) || '') : (row[key] || '');
       const meta = noteBadges('readable-execution', rowIndex, colIndex);
       return `<td class="${escapeHtml(meta.className)}" ${readableCellAttrs('readable-execution', rowIndex, colIndex, value)}>${escapeHtml(value)}${meta.html}</td>`;
     }).join('')}</tr>`;
@@ -4577,42 +4583,92 @@ function contentWriterCodeForTask(task){
   if(name.includes('امجاد') || name.includes('الدوسري') || name.includes('amjad')) return 'A';
   return userCodeFromIdentity(task?.assignedToName || task?.userName || task?.assigneeName || 'N') || 'N';
 }
-function structureTemplateRowsForTask(task, count = 50){
-  const creativeCode = taskCreativeLinkCode(task);
-  const writerCode = contentWriterCodeForTask(task);
+
+function mzjCarLabel(car){
+  if(!car) return '';
+  if(typeof car === 'string') return normalizeText(car);
+  return normalizeText(car.label || car.name || car.carName || [car.brand, car.model, car.year].filter(Boolean).join(' ') || car.id || car.groupKey || '');
+}
+function mzjSelectedCarLabels(list){
+  return uniqueList((Array.isArray(list) ? list : []).map(mzjCarLabel).filter(Boolean));
+}
+function mzjCampaignCreativeRowsForStructureTask(task){
   const campaign = campaignRecordForTask(task) || {};
-  const creativeName = task.creative || task.product || (task.taskType || '').replace(/^طلب\s*هيكل\s*-?/i, '').trim() || '';
-  const creativeShortCode = task.creativeShortCode || creativeShortCodeForName(creativeName);
-  const creativeRow = creativeAssignmentForStructureRow(campaign, task, { creativeShortCode, taskNo: creativeCode });
-  const mainRole = creativeDepartmentRole(creativeName || creativeRow?.creative || '');
-  const roleTask = assignmentForRoleFromCreativeRow(creativeRow, mainRole) || {};
-  const deptCode = roleCode(mainRole);
-  const execUserCodes = uniqueList([...(Array.isArray(roleTask.userCodes) ? roleTask.userCodes : []), ...userCodesForTask(roleTask)]).filter(Boolean).join(',');
+  const rows = Array.isArray(campaign.creatives) ? campaign.creatives : [];
+  const wanted = uniqueList([
+    ...(Array.isArray(task?.structureRequiredCreatives) ? task.structureRequiredCreatives : []),
+    ...(Array.isArray(task?.creativeBundleNames) ? task.creativeBundleNames : []),
+    task?.structureCreativeLabel || '',
+    task?.creative || '',
+    task?.product || ''
+  ].flatMap(item => String(item || '').split(/[،,|]+/)).map(normalizeText).filter(Boolean));
+  const wantedKeys = wanted.map(identityClean).filter(Boolean);
+  let matches = rows.map((row, index) => ({ row, index })).filter(({row}) => {
+    const name = normalizeText(row?.creative || row?.product || '');
+    const key = identityClean(name);
+    return key && (!wantedKeys.length || wantedKeys.some(w => key.includes(w) || w.includes(key)));
+  });
+  if(!matches.length && rows.length) matches = rows.map((row, index) => ({ row, index }));
+  if(!matches.length){
+    matches = [{ row: { creative: task?.creative || task?.product || '', product: task?.product || task?.creative || '', selectedCars: task?.selectedCars || [] }, index: creativeIndexForTask(task) || 0 }];
+  }
+  return matches;
+}
+function mzjCarsForStructureRow(task, row){
+  const direct = normalizeText(row?.car || row?.cars || row?.selectedCar || row?.raw?.['السيارة'] || row?.raw?.['السيارات'] || '');
+  if(direct) return direct;
+  const campaign = campaignRecordForTask(task) || {};
+  const creativeRow = creativeAssignmentForStructureRow(campaign, task, row) || null;
+  const labels = mzjSelectedCarLabels(creativeRow?.selectedCars || row?.selectedCars || task?.selectedCars || []);
+  return labels.join('، ');
+}
+
+function structureTemplateRowsForTask(task, count = 50){
+  const campaign = campaignRecordForTask(task) || {};
+  const campaignCode = campaignCodeForTask(task);
+  const writerCode = contentWriterCodeForTask(task);
+  const creativeEntries = mzjCampaignCreativeRowsForStructureTask(task);
+  const units = creativeEntries.flatMap(({ row, index }) => {
+    const creativeName = normalizeText(row?.creative || row?.product || '');
+    const carsList = mzjSelectedCarLabels(row?.selectedCars || []);
+    const safeCars = carsList.length ? carsList : [''];
+    return safeCars.map((carLabel, carIndex) => ({ row, index, creativeName, carLabel, carIndex }));
+  });
+  const safeUnits = units.length ? units : [{ row: {}, index: creativeIndexForTask(task) || 0, creativeName: task.creative || task.product || '', carLabel: '', carIndex: 0 }];
   return Array.from({length: Math.max(1, Number(count) || 50)}, (_, index) => {
+    const unit = safeUnits[index % safeUnits.length];
+    const creativeName = normalizeText(unit.creativeName || unit.row?.creative || unit.row?.product || task.creative || task.product || '');
+    const creativeShortCode = normalizeText(unit.row?.creativeShortCode || creativeShortCodeForName(creativeName)).toUpperCase();
+    const creativeCode = creativeLinkCodeForIndex(campaignCode, unit.index).toUpperCase();
+    const mainRole = creativeDepartmentRole(creativeName || unit.row?.creative || '');
+    const roleTask = assignmentForRoleFromCreativeRow(unit.row, mainRole) || {};
+    const deptCode = roleCode(mainRole);
+    const execUserCodes = uniqueList([...(Array.isArray(roleTask.userCodes) ? roleTask.userCodes : []), ...userCodesForTask(roleTask)]).filter(Boolean).join(',');
+  const templateCreativeUnits = mzjCampaignCreativeRowsForStructureTask(task).flatMap(({ row, index }) => {
+    const unitName = normalizeText(row?.creative || row?.product || '');
+    const unitCars = mzjSelectedCarLabels(row?.selectedCars || []);
+    const safeCars = unitCars.length ? unitCars : [''];
+    return safeCars.map((carLabel, carIndex) => ({ row, index, creativeName: unitName, carLabel, carIndex }));
+  });
+  const safeTemplateUnits = templateCreativeUnits.length ? templateCreativeUnits : [{ row: creativeRow || {}, index: creativeIndexForTask(task) || 0, creativeName, carLabel: '', carIndex: 0 }];
     const n = String(index + 1).padStart(2, '0');
     const taskNo = creativeCode ? `${creativeCode}-${creativeShortCode}-${deptCode}-${execUserCodes || writerCode}-${writerCode}${n}` : '';
     return {
-      'كود الحملة': task.campaignCode || '',
-      'كود الكرييتيف': creativeCode,
-      'كود الكرييتيف المختصر': creativeShortCode,
-      'كود القسم': deptCode,
-      'كود اليوزر': execUserCodes || writerCode,
-      'كود كاتب المحتوى': writerCode,
-      'كود تاسك الهيكل': taskNo,
-      'رقم الهيكل الأصلي': '',
-      'نوع الحملة': '',
+      'نوع الحمله': task.campaignTypeName || task.campaignType || task.typeName || task.type || campaign.campaignTypeName || campaign.campaignType || campaign.typeName || campaign.type || '',
       'نوع المحتوى': '',
+      'السيارة': unit.carLabel || '',
+      'رقم التاسك': taskNo,
       'الهدف': '',
       'الهدف الملموس': '',
       'الفكرة': '',
-      'اسم المحتوى': '',
       'وصف المحتوى': '',
       'الرسالة': '',
-      'زاوية المحتوى': '',
-      'الترجمة التنفيذية لما يجب إبرازه': '',
       'المطلوب من الكاتب': '',
       'CTA': '',
-      'ملاحظات خاصة': ''
+      'كود الكرييتيف المختصر': creativeShortCode,
+      'كود القسم': deptCode,
+      'كود اليوزر': execUserCodes || writerCode,
+      'كود كاتب المحتوى': writerCode
     };
   });
 }
@@ -4819,7 +4875,7 @@ async function downloadStructureTemplateForTaskExact(task){
   sharedXml = patchedWorkbook.sharedXml;
   const writerPrefix = writerCode || 'N';
   // أعمدة أكواد الربط داخل جدول التنفيذ.
-  let headerPatch = patchWorkbookCellsWithSharedStrings(sheetXml, sharedXml, { M36: 'كود الكرييتيف المختصر', N36: 'كود القسم', O36: 'كود اليوزر', P36: 'كود كاتب المحتوى' });
+  let headerPatch = patchWorkbookCellsWithSharedStrings(sheetXml, sharedXml, { A36: 'نوع الحمله', B36: 'نوع المحتوى', C36: 'السيارة', D36: 'رقم التاسك', E36: 'الهدف', F36: 'الهدف الملموس', G36: 'الفكرة', H36: 'وصف المحتوى', I36: 'الرسالة', J36: 'المطلوب من الكاتب', K36: 'CTA', L36: 'كود الكرييتيف المختصر', M36: 'كود القسم', N36: 'كود اليوزر', O36: 'كود كاتب المحتوى', P36: '' });
   sheetXml = headerPatch.sheetXml; sharedXml = headerPatch.sharedXml;
   for(let index = 0; index < 50; index += 1){
     const rowNumber = 37 + index;
@@ -4827,10 +4883,18 @@ async function downloadStructureTemplateForTaskExact(task){
     // نوع الحملة ورقم التاسك فقط من السيستم. باقي خلايا الجدول فاضية للكاتب.
     patchedWorkbook = patchWorkbookCellsWithSharedStrings(sheetXml, sharedXml, { [`A${rowNumber}`]: index === 0 ? (campaignTypeName || '') : '' });
     sheetXml = patchedWorkbook.sheetXml; sharedXml = patchedWorkbook.sharedXml;
-    const fullTaskCode = creativeCode ? `${creativeCode}-${creativeShortCode}-${deptCode}-${execUserCodes || writerPrefix}-${writerPrefix}${n}` : '';
-    patchedWorkbook = patchWorkbookCellsWithSharedStrings(sheetXml, sharedXml, { [`C${rowNumber}`]: fullTaskCode, [`M${rowNumber}`]: creativeShortCode, [`N${rowNumber}`]: deptCode, [`O${rowNumber}`]: execUserCodes || writerPrefix, [`P${rowNumber}`]: writerPrefix });
+    const unit = safeTemplateUnits[index % safeTemplateUnits.length];
+    const unitCreativeName = normalizeText(unit.creativeName || unit.row?.creative || unit.row?.product || creativeName || '');
+    const unitCreativeCode = creativeLinkCodeForIndex(campaignCode, unit.index).toUpperCase() || creativeCode;
+    const unitShortCode = normalizeText(unit.row?.creativeShortCode || creativeShortCodeForName(unitCreativeName) || creativeShortCode).toUpperCase();
+    const unitRole = creativeDepartmentRole(unitCreativeName || unit.row?.creative || '');
+    const unitRoleTask = assignmentForRoleFromCreativeRow(unit.row, unitRole) || roleTask || {};
+    const unitDeptCode = roleCode(unitRole) || deptCode;
+    const unitExecCodes = uniqueList([...(Array.isArray(unitRoleTask.userCodes) ? unitRoleTask.userCodes : []), ...userCodesForTask(unitRoleTask)]).filter(Boolean).join(',') || execUserCodes || writerPrefix;
+    const fullTaskCode = unitCreativeCode ? `${unitCreativeCode}-${unitShortCode}-${unitDeptCode}-${unitExecCodes}-${writerPrefix}${n}` : '';
+    patchedWorkbook = patchWorkbookCellsWithSharedStrings(sheetXml, sharedXml, { [`C${rowNumber}`]: unit.carLabel || '', [`D${rowNumber}`]: fullTaskCode, [`L${rowNumber}`]: unitShortCode, [`M${rowNumber}`]: unitDeptCode, [`N${rowNumber}`]: unitExecCodes, [`O${rowNumber}`]: writerPrefix, [`P${rowNumber}`]: '' });
     sheetXml = patchedWorkbook.sheetXml; sharedXml = patchedWorkbook.sharedXml;
-    const rowBlankPatches = {}; ['B','D','E','F','G','H','I','J','K','L'].forEach(col => { rowBlankPatches[`${col}${rowNumber}`] = ''; });
+    const rowBlankPatches = {}; ['B','E','F','G','H','I','J','K'].forEach(col => { rowBlankPatches[`${col}${rowNumber}`] = ''; });
     patchedWorkbook = patchWorkbookCellsWithSharedStrings(sheetXml, sharedXml, rowBlankPatches);
     sheetXml = patchedWorkbook.sheetXml; sharedXml = patchedWorkbook.sharedXml;
   }
@@ -4985,7 +5049,7 @@ function buildTaskDetailHtml(task){
   if(task.upstreamUserLabel) taskBriefBoxes.push(`<div class="brief-box"><span>تابع لمحتوى</span><strong>${escapeHtml(task.upstreamUserLabel)}</strong></div>`);
   const taskSectionNote = normalizeText(task.sectionNote || task.departmentNote || task.roleNote || task.assignmentNote || '');
   if(taskSectionNote) taskBriefBoxes.push(`<div class="brief-box wide"><span>ملاحظة القسم</span><strong>${escapeHtml(taskSectionNote)}</strong></div>`);
-  taskBriefBoxes.push(`<div class="brief-box"><span>السيارة المختارة</span><strong>${escapeHtml(task.selectedCar || task.carName || '')}</strong></div>`);
+  taskBriefBoxes.push(`<div class="brief-box"><span>السيارة المختارة</span><strong>${escapeHtml(task.selectedCar || mzjSelectedCarLabels(task.selectedCars || []).join('، ') || task.carName || '')}</strong></div>`);
   const contentRequiredBox = isContentTask ? `<div class="campaign-info-box wide"><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(writerBrief || '—')}</strong></div>` : '';
   const structureDataHtml = task.structureRow ? `<div class="modal-section structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3></div><div class="structure-task-grid"><div><span>نوع المحتوى</span><strong>${escapeHtml(taskContentType(task) || '—')}</strong></div><div><span>الهدف</span><strong>${escapeHtml(task.structureRow.goal || '—')}</strong></div><div><span>الهدف الملموس</span><strong>${escapeHtml(task.structureRow.tangibleGoal || '—')}</strong></div><div><span>الفكرة</span><strong>${escapeHtml(task.structureRow.idea || '—')}</strong></div><div><span>وصف المحتوى</span><strong>${escapeHtml(task.structureRow.description || '—')}</strong></div><div><span>الرسالة</span><strong>${escapeHtml(task.structureRow.message || '—')}</strong></div><div><span>زاوية المحتوى</span><strong>${escapeHtml(task.structureRow.contentAngle || '—')}</strong></div><div><span>الترجمة التنفيذية لما يجب إبرازه</span><strong>${escapeHtml(task.structureRow.highlightTranslation || '—')}</strong></div><div><span>المطلوب من الكاتب</span><strong>${escapeHtml(task.structureRow.writerRequest || '—')}</strong></div><div><span>CTA</span><strong>${escapeHtml(task.structureRow.cta || '—')}</strong></div></div></div>` : '';
   const finalSection = progress >= 100 ? `<div class="modal-section attachment-section final-upload-section"><div class="modal-section-title"><h3>الملف النهائي</h3><span>متاح</span></div><button type="button" class="btn btn-primary" data-upload-task-attachment="final">رفع الملف النهائي</button><div id="taskUploadProgressInline" class="task-upload-progress-inline"></div>${renderAttachmentTable(task, 'final')}</div>` : '';
@@ -5340,8 +5404,8 @@ function buildStructureTaskFromRow(campaign, parentTask, row, assigneeId, rowInd
     caption: publishMeta.caption || '',
     hashtags: publishMeta.hashtags || publishMeta.hashtagsText || '',
     hashtagsText: publishMeta.hashtagsText || publishMeta.hashtags || '',
-    selectedCar: '',
-    selectedCars: [],
+    selectedCar: row.car || mzjCarsForStructureRow(parentTask, row) || '',
+    selectedCars: (row.car || mzjCarsForStructureRow(parentTask, row)) ? [{ label: row.car || mzjCarsForStructureRow(parentTask, row) }] : [],
     userId: resolvedUserId,
     userUid: user.uid || resolvedUserId,
     userName: resolvedUserName,
@@ -10298,7 +10362,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
   isRealStructureDistributionRow = function(row){
     const contentType = normalizeText(row?.contentType || '');
-    const details = [row?.goal, row?.tangibleGoal, row?.idea, row?.contentName, row?.description, row?.message, row?.contentAngle, row?.highlight, row?.highlightTranslation, row?.avoid, row?.writerRequest, row?.cta]
+    const details = [row?.goal, row?.tangibleGoal, row?.idea, row?.contentName, row?.description, row?.message, row?.car, row?.contentAngle, row?.highlight, row?.highlightTranslation, row?.avoid, row?.writerRequest, row?.cta]
       .map(value => normalizeText(value || ''))
       .filter(value => value && !isPlaceholderStructureText(value) && !isStructureCodeOnlyValue(value));
     const explicitType = contentType && !isPlaceholderStructureText(contentType) && !isStructureCodeOnlyValue(contentType);
@@ -18892,3 +18956,6 @@ document.addEventListener('click', async event => {
   }, true);
 })();
 
+
+/* MZJ v104 - Cars in Content Execution Direction template/review. */
+try{ window.MZJ_APP_VERSION = 'v104-structure-cars-execution-direction'; window.MZJ_LAST_PATCH = 'v104-structure-cars-execution-direction'; }catch(_){ }
