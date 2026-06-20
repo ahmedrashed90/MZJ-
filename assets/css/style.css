@@ -9198,3 +9198,33 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 .campaign-budget-editor-large .budget-grand-total{font-size:15px!important;padding:14px 16px!important;border-radius:16px!important;background:#fff6ef!important;border:1px solid rgba(126,84,64,.2)!important}
 @media(max-width:1280px){.budget-funnel-layout{grid-template-columns:1fr 1fr!important}.budget-platform-values-panel{grid-column:span 2!important}}
 @media(max-width:760px){#campaignModal.campaign-budget-large-modal .campaign-modal-dialog,#campaignModal.campaign-budget-large-modal .task-modal-dialog,#campaignModal.campaign-budget-large-modal .modal-dialog{width:98vw!important;max-width:98vw!important}.budget-funnel-layout{grid-template-columns:1fr!important}.budget-platform-values-panel{grid-column:auto!important}.budget-creative-panel .budget-multi-picker,.budget-platform-panel .budget-multi-picker{min-height:140px!important;max-height:190px!important}}
+
+/* v102: show the full Content Execution Direction table including all execution columns */
+.structure-readable-execution .structure-readable-table-wrap,
+.structure-readable-execution .execution-scroll{
+  max-height:70vh!important;
+  overflow:auto!important;
+}
+.structure-readable-execution .execution-table,
+.structure-readable-execution .structure-readable-table{
+  min-width:2300px!important;
+  table-layout:auto!important;
+}
+.structure-readable-execution .execution-table th,
+.structure-readable-execution .execution-table td{
+  min-width:150px!important;
+  white-space:pre-wrap!important;
+  word-break:break-word!important;
+}
+.structure-readable-execution .execution-table th:nth-child(10),
+.structure-readable-execution .execution-table td:nth-child(10),
+.structure-readable-execution .execution-table th:nth-child(11),
+.structure-readable-execution .execution-table td:nth-child(11),
+.structure-readable-execution .execution-table th:nth-child(12),
+.structure-readable-execution .execution-table td:nth-child(12),
+.structure-readable-execution .execution-table th:nth-child(13),
+.structure-readable-execution .execution-table td:nth-child(13),
+.structure-readable-execution .execution-table th:nth-child(14),
+.structure-readable-execution .execution-table td:nth-child(14){
+  min-width:220px!important;
+}

@@ -3919,9 +3919,7 @@ function parseExecutionRowsFromSheetTables(structure){
       description: structureHeaderIndexStrict(headers, ['وصف المحتوي','وصف المحتوى','description']),
       message: structureHeaderIndexStrict(headers, ['الرسالة','message']),
       contentAngle: structureHeaderIndexStrict(headers, ['زاوية المحتوى','زاوية المحتوي','content angle']),
-      highlight: structureHeaderIndexStrict(headers, ['ما يجب إبرازه','ما يجب ابرازه','what to highlight','highlight']),
-      highlightTranslation: structureHeaderIndexStrict(headers, ['الترجمة التنفيذية لما يجب إبرازه','الترجمة التنفيذية لما يجب ابرازه','الترجمة التنفيذية لما يجب ابرازة','highlight translation','execution translation']),
-      avoid: structureHeaderIndexStrict(headers, ['ما يجب تجنبه','ما يجب تجنبة','what to avoid','avoid']),
+      highlightTranslation: structureHeaderIndexStrict(headers, ['الترجمة التنفيذية لما يجب إبرازه','الترجمة التنفيذية لما يجب ابرازه','ما يجب إبرازه','ما يجب ابرازه','highlight translation']),
       writerRequest: structureHeaderIndexStrict(headers, ['المطلوب من الكاتب','required from writer','writer request']),
       cta: structureHeaderIndexStrict(headers, ['cta','الدعوة لاتخاذ إجراء'])
     };
@@ -3948,25 +3946,21 @@ function parseExecutionRowsFromSheetTables(structure){
       item.description = cellByHeader(row, idx.description);
       item.message = cellByHeader(row, idx.message);
       item.contentAngle = cellByHeader(row, idx.contentAngle);
-      item.highlight = cellByHeader(row, idx.highlight);
       item.highlightTranslation = cellByHeader(row, idx.highlightTranslation);
-      item.avoid = cellByHeader(row, idx.avoid);
       item.writerRequest = cellByHeader(row, idx.writerRequest);
       item.cta = cellByHeader(row, idx.cta);
       if(hasKnownExecutionLayout){
         // fallback آمن للصفوف اللي بعض خلاياها المدمجة بتسيب قيم فاضية أو بتزحزح القراءة.
         item.cta = item.cta || normalizeText(row[0] || row[11] || '');
-        item.writerRequest = item.writerRequest || normalizeText(row[1] || row[12] || row[10] || '');
-        item.avoid = item.avoid || normalizeText(row[2] || row[11] || '');
-        item.highlightTranslation = item.highlightTranslation || normalizeText(row[3] || row[10] || row[9] || '');
-        item.highlight = item.highlight || normalizeText(row[4] || row[9] || '');
-        item.contentAngle = item.contentAngle || normalizeText(row[5] || row[8] || '');
-        item.message = item.message || normalizeText(row[6] || row[7] || '');
-        item.description = item.description || normalizeText(row[7] || row[6] || '');
-        item.idea = item.idea || normalizeText(row[8] || row[5] || '');
-        item.tangibleGoal = item.tangibleGoal || normalizeText(row[9] || row[4] || '');
-        item.goal = item.goal || normalizeText(row[10] || row[3] || '');
-        item.taskNo = item.taskNo || normalizeText(row[11] || row[2] || '');
+        item.writerRequest = item.writerRequest || normalizeText(row[1] || row[10] || '');
+        item.highlightTranslation = item.highlightTranslation || normalizeText(row[2] || row[9] || '');
+        item.contentAngle = item.contentAngle || normalizeText(row[3] || row[8] || '');
+        item.message = item.message || normalizeText(row[4] || row[7] || '');
+        item.description = item.description || normalizeText(row[5] || row[6] || '');
+        item.idea = item.idea || normalizeText(row[6] || row[5] || '');
+        item.tangibleGoal = item.tangibleGoal || normalizeText(row[7] || row[4] || '');
+        item.goal = item.goal || normalizeText(row[8] || row[3] || '');
+        item.taskNo = item.taskNo || normalizeText(row[9] || row[2] || '');
       }
       item.taskNo = strongestStructureTaskNo(row, item.taskNo) || item.taskNo;
       const explicitContentType = cellByHeader(row, idx.contentType) || '';
@@ -3979,9 +3973,7 @@ function parseExecutionRowsFromSheetTables(structure){
         item.description,
         item.message,
         item.contentAngle,
-        item.highlight,
         item.highlightTranslation,
-        item.avoid,
         item.writerRequest,
         item.cta
       ].map(value => normalizeText(value || '')).filter(value => {
@@ -4022,7 +4014,7 @@ function isStructureCodeOnlyValue(value){
 }
 function isRealStructureDistributionRow(row){
   const contentType = normalizeText(row?.contentType || '');
-  const details = [row?.goal, row?.tangibleGoal, row?.idea, row?.contentName, row?.description, row?.message, row?.contentAngle, row?.highlight, row?.highlightTranslation, row?.avoid, row?.writerRequest, row?.cta]
+  const details = [row?.goal, row?.tangibleGoal, row?.idea, row?.contentName, row?.description, row?.message, row?.contentAngle, row?.highlightTranslation, row?.writerRequest, row?.cta]
     .map(value => normalizeText(value || ''))
     .filter(value => value && !isPlaceholderStructureText(value) && !isStructureCodeOnlyValue(value));
   const explicitType = contentType && !isPlaceholderStructureText(contentType) && !isStructureCodeOnlyValue(contentType);
@@ -4322,13 +4314,8 @@ function renderReadableStructureWorkbookTable(task, structure, admin){
     ['goal','الهدف'],
     ['tangibleGoal','الهدف الملموس'],
     ['idea','الفكرة'],
-    ['contentName','اسم المحتوى'],
     ['description','وصف المحتوى'],
     ['message','الرسالة'],
-    ['contentAngle','زاوية المحتوى'],
-    ['highlight','ما يجب إبرازه'],
-    ['highlightTranslation','الترجمة التنفيذية لما يجب إبرازه'],
-    ['avoid','ما يجب تجنبه'],
     ['writerRequest','المطلوب من الكاتب'],
     ['cta','CTA']
   ];
@@ -4404,9 +4391,9 @@ function renderStructureWorkbookTable(task, structure, admin){
 
 function structureRowsTable(rows, notes = []){
   if(!Array.isArray(rows) || !rows.length) return '<div class="empty-state mini-empty">لم يتم قراءة صفوف آلية تنفيذ المحتوى من الملف.</div>';
-  return `<div class="structure-table-wrap"><table class="structure-table"><thead><tr><th>رقم التاسك</th><th>نوع المحتوى</th><th>الفكرة</th><th>وصف المحتوى</th><th>الرسالة</th><th>زاوية المحتوى</th><th>ما يجب إبرازه</th><th>الترجمة التنفيذية لما يجب إبرازه</th><th>ما يجب تجنبه</th><th>المطلوب من الكاتب</th><th>CTA</th><th>ملاحظات</th></tr></thead><tbody>${rows.map((row, index) => {
+  return `<div class="structure-table-wrap"><table class="structure-table"><thead><tr><th>رقم التاسك</th><th>نوع المحتوى</th><th>الفكرة</th><th>وصف المحتوى</th><th>المطلوب من الكاتب</th><th>ملاحظات</th></tr></thead><tbody>${rows.map((row, index) => {
     const rowNotes = notes.filter(n => Number(n.rowIndex) === index);
-    return `<tr class="${rowNotes.length ? 'has-note' : ''}"><td>${escapeHtml(row.taskNo || index + 1)}</td><td>${escapeHtml(row.contentType || '—')}</td><td>${escapeHtml(row.idea || row.contentName || '—')}</td><td>${escapeHtml(row.description || '—')}</td><td>${escapeHtml(row.message || '—')}</td><td>${escapeHtml(row.contentAngle || '—')}</td><td>${escapeHtml(row.highlight || '—')}</td><td>${escapeHtml(row.highlightTranslation || '—')}</td><td>${escapeHtml(row.avoid || '—')}</td><td>${escapeHtml(row.writerRequest || '—')}</td><td>${escapeHtml(row.cta || '—')}</td><td>${rowNotes.map(n => `<div class="structure-note-chip">${escapeHtml(n.note || '')}</div>`).join('') || '—'}</td></tr>`;
+    return `<tr class="${rowNotes.length ? 'has-note' : ''}"><td>${escapeHtml(row.taskNo || index + 1)}</td><td>${escapeHtml(row.contentType || '—')}</td><td>${escapeHtml(row.idea || row.contentName || '—')}</td><td>${escapeHtml(row.description || '—')}</td><td>${escapeHtml(row.writerRequest || '—')}</td><td>${rowNotes.map(n => `<div class="structure-note-chip">${escapeHtml(n.note || '')}</div>`).join('') || '—'}</td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
 function structureUserPickerHtml(selected = []){
@@ -10290,7 +10277,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
   isRealStructureDistributionRow = function(row){
     const contentType = normalizeText(row?.contentType || '');
-    const details = [row?.goal, row?.tangibleGoal, row?.idea, row?.contentName, row?.description, row?.message, row?.contentAngle, row?.highlight, row?.highlightTranslation, row?.avoid, row?.writerRequest, row?.cta]
+    const details = [row?.goal, row?.tangibleGoal, row?.idea, row?.contentName, row?.description, row?.message, row?.contentAngle, row?.highlightTranslation, row?.writerRequest, row?.cta]
       .map(value => normalizeText(value || ''))
       .filter(value => value && !isPlaceholderStructureText(value) && !isStructureCodeOnlyValue(value));
     const explicitType = contentType && !isPlaceholderStructureText(contentType) && !isStructureCodeOnlyValue(contentType);
