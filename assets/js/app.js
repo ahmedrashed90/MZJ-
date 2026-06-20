@@ -18454,7 +18454,7 @@ document.addEventListener('click', async event => {
 
 /* MZJ v98 - Larger Campaign Management budget popup with funnel totals and per-platform values. */
 (function(){
-  const VERSION = 'v98-budget-funnel-platform-values';
+  const VERSION = 'v99-budget-save-rules-safe';
   try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; }catch(_){ }
   const txt = value => { try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); } };
   const uniq = list => { try{ return uniqueList((list || []).filter(Boolean)); }catch(_){ return [...new Set((list || []).filter(Boolean))]; } };
@@ -18725,16 +18725,21 @@ document.addEventListener('click', async event => {
     const editor = document.querySelector(`[data-campaign-budget-editor="${cssEsc(campaignId)}"]`);
     const rows = editor?.querySelector('[data-campaign-budget-rows]');
     const budgetItems = collectBudgetFrom(rows);
+    const computedBudgetTotal = budgetTotal(budgetItems);
+    const computedFunnelTotals = budgetFunnelTotals(budgetItems);
+    /*
+      Firestore rules for marketing_campaigns currently allow budgetItems and updatedAt
+      but do not allow new top-level fields such as budgetTotal or budgetFunnelTotals.
+      Saving those top-level fields makes the whole update fail with permission-denied.
+      Keep totals calculated from budgetItems in the UI, and only persist allowed fields.
+    */
     const patch = {
       budgetItems,
-      budgetTotal: budgetTotal(budgetItems),
-      budgetFunnelTotals: budgetFunnelTotals(budgetItems),
-      budgetUpdatedAt: new Date().toISOString(),
       updatedAt: typeof serverTime === 'function' ? serverTime() : new Date().toISOString()
     };
     try{
       await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaignId).update(patch);
-      if(campaign) Object.assign(campaign, patch);
+      if(campaign) Object.assign(campaign, patch, { budgetTotal: computedBudgetTotal, budgetFunnelTotals: computedFunnelTotals });
       if(typeof showToast === 'function') showToast('تم حفظ ميزانية الحملة.');
       if(typeof renderCampaigns === 'function') renderCampaigns();
       openCampaignBudgetModal(campaignId);
