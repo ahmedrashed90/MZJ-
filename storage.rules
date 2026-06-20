@@ -15,10 +15,6 @@ service firebase.storage {
       allow read, write, delete: if true;
     }
 
-    match /task-templates/{allPaths=**} {
-      allow read, write, delete: if true;
-    }
-
     match /{allPaths=**} {
       allow read: if true;
       allow write, delete: if false;
