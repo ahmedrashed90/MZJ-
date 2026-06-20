@@ -2982,7 +2982,7 @@ function tasksForCampaign(campaign){
   // المصدر الأساسي للتاسكات هو marketing_campaigns > departmentTasks.
   // ولو الحملة اتسجلت بالكريتيفات فقط لأي سبب، نولد نفس التاسكات من creatives عشان الداشبورد مايفضلش فاضي.
   const fromDepartmentTasks = Array.isArray(campaign.departmentTasks)
-    ? campaign.departmentTasks.map(task => normalizeCampaignTask(task, campaign))
+    ? campaign.departmentTasks.map((task, index) => ({ ...normalizeCampaignTask(task, campaign), __departmentTaskIndex: index, departmentTaskIndex: task.departmentTaskIndex ?? index }))
     : [];
   const fromCreativeRows = fallbackTasksFromCampaign(campaign).map(task => normalizeCampaignTask(task, campaign));
   return mergeCampaignTasks(fromDepartmentTasks.length ? fromDepartmentTasks : fromCreativeRows);
@@ -3617,6 +3617,8 @@ function encodeStructureWorkbookForFirestore(structure){
 function sanitizeTaskForFirestore(task){
   if(!task || typeof task !== 'object') return task;
   const next = { ...task };
+  delete next.__departmentTaskIndex;
+  delete next.__taskSource;
   if(next.structure && typeof next.structure === 'object'){
     next.structure = encodeStructureWorkbookForFirestore(next.structure);
   }
@@ -11787,6 +11789,7 @@ async function downloadStructureTemplateForTaskExact(task){
     const roleB = identityClean(source.departmentRole || source.assignedDepartmentName || source.contentSectionName || '');
     return !!(creativeA && creativeB && creativeA === creativeB && roleA && roleB && roleA === roleB && v113TaskTemplateSameUser(candidate, source));
   }
+  /* v114 - persist Task Template to the exact departmentTasks array item currently opened */
   async function v113SaveTaskTemplatePatch(sourceTask, templateData){
     if(!mainDb) throw new Error('اتصال Firebase غير متاح.');
     const campaignId = sourceTask?.campaignId || activeTaskModalMeta?.campaignId || '';
@@ -11800,15 +11803,20 @@ async function downloadStructureTemplateForTaskExact(task){
     const baseTask = { ...(sourceTask || {}), campaignId: sourceTask?.campaignId || campaign.id };
     let matched = false;
     const sourceStableId = sourceTask?.id || sourceTask?.taskId || sourceTask?.docId || sourceTask?.taskNo || sourceTask?.structureTaskNo || '';
-    let nextTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks.map(raw => {
+    const directIndexRaw = sourceTask?.__departmentTaskIndex ?? sourceTask?.departmentTaskIndex;
+    const directIndex = Number.isFinite(Number(directIndexRaw)) ? Number(directIndexRaw) : -1;
+    let nextTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks.map((raw, index) => {
       const normalized = normalizeCampaignTask(raw, campaign);
-      if(!v113TaskTemplateMatches(normalized, sourceTask) && !v113TaskTemplateMatches(raw, sourceTask)) return raw;
+      const directHit = index === directIndex;
+      if(!directHit && !v113TaskTemplateMatches(normalized, sourceTask) && !v113TaskTemplateMatches(raw, sourceTask)) return raw;
       matched = true;
       return sanitizeTaskForFirestore({
         ...raw,
         id: raw.id || sourceStableId || normalized.id,
         campaignId: raw.campaignId || campaign.id,
         taskTemplate: storedTemplate,
+        contentTaskTemplate: storedTemplate,
+        taskTemplateStatus: 'pending_review',
         status: 'pending_task_template_review',
         updatedAt: new Date().toISOString()
       });
@@ -11819,6 +11827,8 @@ async function downloadStructureTemplateForTaskExact(task){
         id: sourceStableId || baseTask.id || `${campaign.id}-task-template-${Date.now()}`,
         campaignId: campaign.id,
         taskTemplate: storedTemplate,
+        contentTaskTemplate: storedTemplate,
+        taskTemplateStatus: 'pending_review',
         status: 'pending_task_template_review',
         updatedAt: new Date().toISOString()
       }));
