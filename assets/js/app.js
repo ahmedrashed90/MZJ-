@@ -18452,15 +18452,15 @@ document.addEventListener('click', async event => {
   }
 })();
 
-/* MZJ v96 - Campaign budget can be added during step 3 or later from Campaign Management.
-   Step 3 no longer contains the publish schedule. Budget product is now the selected creative. */
+/* MZJ v98 - Larger Campaign Management budget popup with funnel totals and per-platform values. */
 (function(){
-  const VERSION = 'v97-budget-multi-creatives-platforms';
+  const VERSION = 'v98-budget-funnel-platform-values';
   try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; }catch(_){ }
   const txt = value => { try{ return normalizeText(value || ''); }catch(_){ return String(value || '').trim(); } };
   const uniq = list => { try{ return uniqueList((list || []).filter(Boolean)); }catch(_){ return [...new Set((list || []).filter(Boolean))]; } };
   const esc = value => { try{ return escapeHtml(value == null ? '' : String(value)); }catch(_){ return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); } };
   const money = value => Number(value || 0).toLocaleString('en-US');
+  const cssEsc = value => { try{ return CSS.escape(value); }catch(_){ return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '\\$&'); } };
 
   function budgetValueList(value){
     if(Array.isArray(value)) return uniq(value.map(txt).filter(Boolean));
@@ -18474,6 +18474,22 @@ document.addEventListener('click', async event => {
   }
   function budgetItemPlatforms(item){
     return budgetValueList(item?.platforms || item?.platform || '');
+  }
+  function platformValueMap(item){
+    const map = {};
+    if(item?.platformValues && typeof item.platformValues === 'object' && !Array.isArray(item.platformValues)){
+      Object.entries(item.platformValues).forEach(([key, value]) => { const name = txt(key); if(name) map[name] = Number(value || 0); });
+    }
+    if(Array.isArray(item?.platformValueItems)){
+      item.platformValueItems.forEach(row => { const name = txt(row?.platform || row?.name || ''); if(name) map[name] = Number(row?.value || 0); });
+    }
+    const platforms = budgetItemPlatforms(item);
+    if(platforms.length && !Object.keys(map).length){
+      const legacyValue = Number(item?.value || 0);
+      if(platforms.length === 1) map[platforms[0]] = legacyValue;
+      else platforms.forEach(name => { map[name] = 0; });
+    }
+    return map;
   }
   function optionLabelsFromHtml(optionsHtml){
     const labels = [];
@@ -18496,7 +18512,6 @@ document.addEventListener('click', async event => {
   function checkedBudgetValues(card, selector){
     return uniq([...(card?.querySelectorAll(selector + ':checked') || [])].map(input => txt(input.value)).filter(Boolean));
   }
-
   function creativeNameFromRow(row, index){
     const base = txt(row?.creative || row?.product || row?.structureCreativeLabel || row?.creativeName || '');
     if(!base) return '';
@@ -18504,88 +18519,117 @@ document.addEventListener('click', async event => {
     const prefix = row?.creativeInstanceNo || row?.instanceNo || row?.index || (index + 1);
     return count > 1 ? `${prefix}. ${base} / عدد ${count}` : `${prefix}. ${base}`;
   }
-
   function campaignCreativeBudgetOptions(campaign, selectedValue = ''){
     const rows = Array.isArray(campaign?.creatives) ? campaign.creatives : [];
     const labels = rows.map(creativeNameFromRow).filter(Boolean);
-    const values = uniq([...labels, txt(selectedValue)].filter(Boolean));
+    const current = Array.isArray(selectedValue) ? selectedValue : budgetValueList(selectedValue);
+    const values = uniq([...labels, ...current].filter(Boolean));
     if(!values.length) return '<option value="">لا توجد كريتيفات محفوظة</option>';
-    return '<option value="">اختر الكريتيف</option>' + values.map(label => `<option value="${esc(label)}"${label === selectedValue ? ' selected' : ''}>${esc(label)}</option>`).join('');
+    return '<option value="">اختر الكريتيف</option>' + values.map(label => `<option value="${esc(label)}">${esc(label)}</option>`).join('');
   }
-
   function builderCreativeBudgetOptions(selectedValue = ''){
     let rows = [];
     try{ rows = typeof collectCampaignRows === 'function' ? (collectCampaignRows() || []) : []; }catch(_){ rows = []; }
     const labels = rows.map(creativeNameFromRow).filter(Boolean);
-    const current = txt(selectedValue || '');
-    const values = uniq([...labels, current].filter(Boolean));
+    const current = Array.isArray(selectedValue) ? selectedValue : budgetValueList(selectedValue);
+    const values = uniq([...labels, ...current].filter(Boolean));
     if(!values.length) return '<option value="">احفظ كريتيفات الخطوة الثانية أولاً</option>';
-    return '<option value="">اختر الكريتيف</option>' + values.map(label => `<option value="${esc(label)}"${label === current ? ' selected' : ''}>${esc(label)}</option>`).join('');
+    return '<option value="">اختر الكريتيف</option>' + values.map(label => `<option value="${esc(label)}">${esc(label)}</option>`).join('');
   }
 
   if(typeof productOptions === 'function'){
-    const oldProductOptionsV96 = productOptions;
+    const oldProductOptionsV98 = productOptions;
     productOptions = function(selectedValue = ''){
       const route = (typeof getRoute === 'function') ? getRoute() : (location.hash || '').replace('#','');
       const inCreate = route === 'create-campaign' || document.getElementById('campaignWizard')?.contains(document.activeElement);
       if(inCreate) return builderCreativeBudgetOptions(selectedValue);
-      return oldProductOptionsV96.apply(this, arguments);
+      return oldProductOptionsV98.apply(this, arguments);
     };
+  }
+
+  function platformValuesHtml(platforms = [], values = {}){
+    const selected = budgetValueList(platforms);
+    if(!selected.length) return '<div class="budget-platform-empty">اختر منصة واحدة على الأقل لكتابة قيمتها.</div>';
+    return selected.map(platform => `<label class="field budget-platform-value-field"><span>قيمة ${esc(platform)}</span><input class="js-budget-platform-value" type="number" min="0" step="0.01" data-platform="${esc(platform)}" value="${esc(values[platform] ?? '')}" /></label>`).join('');
+  }
+  function syncPlatformValueInputs(card, item = null){
+    if(!card) return;
+    const box = card.querySelector('.js-budget-platform-values');
+    if(!box) return;
+    const old = {};
+    card.querySelectorAll('.js-budget-platform-value').forEach(input => { old[txt(input.dataset.platform || '')] = Number(input.value || 0); });
+    const selected = checkedBudgetValues(card, '.js-budget-platform-check');
+    const incoming = item ? platformValueMap(item) : {};
+    const values = {};
+    selected.forEach(name => { values[name] = old[name] ?? incoming[name] ?? ''; });
+    box.innerHTML = platformValuesHtml(selected, values);
+  }
+  function platformValuesFromCard(card){
+    const values = {};
+    card?.querySelectorAll('.js-budget-platform-value').forEach(input => {
+      const name = txt(input.dataset.platform || '');
+      if(name) values[name] = Number(input.value || 0);
+    });
+    return values;
+  }
+  function platformValueItemsFrom(values){
+    return Object.entries(values || {}).filter(([name]) => txt(name)).map(([platform, value]) => ({ platform, value: Number(value || 0) }));
+  }
+  function platformValuesTotal(values){
+    return Object.values(values || {}).reduce((sum, value) => sum + Math.max(0, Number(value || 0)), 0);
   }
 
   function budgetRowHtml(item = {}, optionsHtml = '', isModal = false){
     const creativeValues = budgetItemCreatives(item);
-    const creativeOptions = optionsHtml || builderCreativeBudgetOptions(creativeValues[0] || '');
+    const creativeOptions = optionsHtml || builderCreativeBudgetOptions(creativeValues);
     const platformValues = budgetItemPlatforms(item);
     const platformOptionsHtml = typeof platformOptions === 'function' ? platformOptions('') : '';
-    return `<article class="budget-item-card ${isModal ? 'campaign-budget-modal-row' : ''}">
-      <div class="budget-item-title"><strong>بند ميزانية</strong><button class="delete-budget-row" type="button">×</button></div>
-      <div class="budget-grid budget-grid-multi">
-        <label class="field"><span>Funnel</span><select class="js-funnel-select">${typeof funnelOptions === 'function' ? funnelOptions(item.funnel || '') : ''}</select></label>
-        <label class="field"><span>Funnel جديد</span><input class="js-new-funnel" type="text" placeholder="اكتب Funnel" value="${esc(item.newFunnel || '')}" /></label>
-        <div class="field budget-multi-field"><span>الكريتيفات</span><div class="budget-multi-picker js-budget-creative-multi">${budgetCheckboxListFromOptions(creativeOptions, creativeValues, 'js-budget-creative-check')}</div></div>
-        <div class="field budget-multi-field"><span>المنصات</span><div class="budget-multi-picker js-budget-platform-multi">${budgetCheckboxListFromOptions(platformOptionsHtml, platformValues, 'js-budget-platform-check')}</div></div>
-        <label class="field"><span>تاريخ النشر</span><input class="js-budget-publish-date" type="date" value="${esc(item.publishDate || '')}" /></label>
-        <label class="field"><span>مدة الإعلان</span><input class="js-budget-duration" type="text" placeholder="مثال: 7 أيام" value="${esc(item.duration || '')}" /></label>
+    const valuesMap = platformValueMap(item);
+    const isManagement = !!isModal;
+    return `<article class="budget-item-card ${isModal ? 'campaign-budget-modal-row budget-funnel-row' : ''}">
+      <div class="budget-item-title"><strong>Funnel ميزانية</strong><button class="delete-budget-row" type="button">×</button></div>
+      <div class="${isManagement ? 'budget-funnel-layout' : 'budget-grid budget-grid-multi'}">
+        <div class="budget-funnel-main">
+          <label class="field"><span>Funnel</span><select class="js-funnel-select">${typeof funnelOptions === 'function' ? funnelOptions(item.funnel || '') : ''}</select></label>
+          <label class="field"><span>Funnel جديد</span><input class="js-new-funnel" type="text" placeholder="اكتب Funnel" value="${esc(item.newFunnel || '')}" /></label>
+        </div>
+        <div class="field budget-multi-field budget-creative-panel"><span>اختار كريتيف أو أكثر</span><div class="budget-multi-picker js-budget-creative-multi">${budgetCheckboxListFromOptions(creativeOptions, creativeValues, 'js-budget-creative-check')}</div></div>
+        <div class="field budget-multi-field budget-platform-panel"><span>اختار منصة أو أكثر</span><div class="budget-multi-picker js-budget-platform-multi">${budgetCheckboxListFromOptions(platformOptionsHtml, platformValues, 'js-budget-platform-check')}</div></div>
+        <div class="budget-platform-values-panel"><div class="budget-platform-values-title">قيمة كل منصة</div><div class="budget-platform-values-grid js-budget-platform-values">${platformValuesHtml(platformValues, valuesMap)}</div></div>
+        ${isManagement ? '' : `
         <label class="field"><span>عدد الإعلانات</span><input class="js-budget-ads-count" type="number" min="0" value="${esc(item.adsCount ?? '')}" /></label>
         <label class="field"><span>هدف المحتوى</span><input class="js-budget-content-goal" type="text" value="${esc(item.contentGoal || '')}" /></label>
-        <label class="field"><span>الهدف المتوقع</span><input class="js-budget-expected-goal" type="text" value="${esc(item.expectedGoal || '')}" /></label>
-        <label class="field"><span>القيمة</span><input class="js-budget-value" type="number" min="0" step="0.01" value="${esc(item.value ?? '')}" /></label>
+        <label class="field"><span>الهدف المتوقع</span><input class="js-budget-expected-goal" type="text" value="${esc(item.expectedGoal || '')}" /></label>`}
       </div>
+      <div class="budget-row-total-line"><span>إجمالي هذا الـ Funnel</span><strong class="js-budget-row-total">${esc(money(platformValuesTotal(valuesMap)))}</strong></div>
     </article>`;
   }
 
   addBudgetItem = function(){
     const wrap = document.getElementById('budgetRows');
     if(!wrap) return;
-    const empty = wrap.querySelector('.empty-state');
-    if(empty) empty.remove();
+    wrap.querySelector('.empty-state')?.remove();
     const temp = document.createElement('div');
     temp.innerHTML = budgetRowHtml({}, builderCreativeBudgetOptions(''), false);
     wrap.appendChild(temp.firstElementChild);
     if(typeof refreshDynamicSelects === 'function') refreshDynamicSelects();
-    if(typeof updateBudgetGrandTotal === 'function') updateBudgetGrandTotal();
-  };
-
-  const oldCollectBudgetRowsV96 = typeof collectBudgetRows === 'function' ? collectBudgetRows : null;
-  collectBudgetRows = function(){
-    const cards = [...document.querySelectorAll('#budgetRows .budget-item-card')];
-    return cards.map((card, index) => collectBudgetCard(card, index)).filter(isFilledBudgetItem);
+    updateBudgetGrandTotal();
   };
 
   function collectBudgetCard(card, index){
-    const adsRaw = card.querySelector('.js-budget-ads-count')?.value;
-    const adsCount = adsRaw === '' || adsRaw == null ? '' : Number(adsRaw || 0);
-    const effectiveAdsCount = adsRaw === '' || adsRaw == null ? 1 : Number(adsRaw || 0);
-    const value = Number(card.querySelector('.js-budget-value')?.value || 0);
     const productCreatives = checkedBudgetValues(card, '.js-budget-creative-check');
     const selectedPlatforms = checkedBudgetValues(card, '.js-budget-platform-check');
+    const values = platformValuesFromCard(card);
+    const value = platformValuesTotal(values);
     const productCreative = productCreatives.join('، ');
     const platform = selectedPlatforms.join('، ');
+    const funnel = card.querySelector('.js-funnel-select')?.value || '';
+    const newFunnel = txt(card.querySelector('.js-new-funnel')?.value);
     return {
       index: index + 1,
-      funnel: card.querySelector('.js-funnel-select')?.value || '',
-      newFunnel: txt(card.querySelector('.js-new-funnel')?.value),
+      funnel,
+      newFunnel,
+      funnelName: newFunnel || funnel,
       product: productCreative,
       productCreative,
       productCreatives,
@@ -18593,37 +18637,65 @@ document.addEventListener('click', async event => {
       productType: 'creative',
       platform,
       platforms: selectedPlatforms,
-      publishDate: card.querySelector('.js-budget-publish-date')?.value || '',
-      duration: txt(card.querySelector('.js-budget-duration')?.value),
-      adsCount,
-      contentGoal: txt(card.querySelector('.js-budget-content-goal')?.value),
-      expectedGoal: txt(card.querySelector('.js-budget-expected-goal')?.value),
+      platformValues: values,
+      platformValueItems: platformValueItemsFrom(values),
       value,
-      total: Math.max(0, effectiveAdsCount) * Math.max(0, value)
+      total: value,
+      adsCount: card.querySelector('.js-budget-ads-count')?.value ? Number(card.querySelector('.js-budget-ads-count')?.value || 0) : '',
+      contentGoal: txt(card.querySelector('.js-budget-content-goal')?.value),
+      expectedGoal: txt(card.querySelector('.js-budget-expected-goal')?.value)
     };
   }
-
   function isFilledBudgetItem(item){
-    return !!(item.funnel || item.newFunnel || item.product || (Array.isArray(item.productCreatives) && item.productCreatives.length) || item.platform || (Array.isArray(item.platforms) && item.platforms.length) || item.publishDate || item.duration || item.adsCount !== '' || item.contentGoal || item.expectedGoal || item.value || item.total);
+    return !!(item.funnel || item.newFunnel || item.product || (Array.isArray(item.productCreatives) && item.productCreatives.length) || item.platform || (Array.isArray(item.platforms) && item.platforms.length) || item.value || item.total || Object.keys(item.platformValues || {}).length);
   }
-
+  collectBudgetRows = function(){
+    const cards = [...document.querySelectorAll('#budgetRows .budget-item-card')];
+    return cards.map((card, index) => collectBudgetCard(card, index)).filter(isFilledBudgetItem);
+  };
   function collectBudgetFrom(container){
     return [...(container?.querySelectorAll('.budget-item-card') || [])].map((card, index) => collectBudgetCard(card, index)).filter(isFilledBudgetItem);
   }
-
-  function budgetTotal(items){
-    return (items || []).reduce((sum, item) => {
-      const rawAds = item?.adsCount ?? '';
-      const adsCount = rawAds === '' || rawAds == null ? 1 : Number(rawAds || 0);
-      const value = Number(item?.value || 0);
-      return sum + (Math.max(0, adsCount) * Math.max(0, value));
-    }, 0);
+  function budgetItemPlatformTotal(item){
+    const values = platformValueMap(item);
+    const total = platformValuesTotal(values);
+    if(total) return total;
+    return Math.max(0, Number(item?.total ?? item?.value ?? 0));
   }
-
+  function budgetTotal(items){
+    return (items || []).reduce((sum, item) => sum + budgetItemPlatformTotal(item), 0);
+  }
+  window.budgetItemTotal = budgetItemPlatformTotal;
+  function funnelKey(item){ return txt(item?.newFunnel || item?.funnelName || item?.funnel || 'بدون Funnel'); }
+  function budgetFunnelTotals(items){
+    const totals = {};
+    (items || []).forEach(item => { const key = funnelKey(item); totals[key] = (totals[key] || 0) + budgetItemPlatformTotal(item); });
+    return totals;
+  }
+  function funnelTotalsHtml(items){
+    const totals = budgetFunnelTotals(items);
+    const entries = Object.entries(totals);
+    if(!entries.length) return '<div class="budget-funnel-total-chip muted-chip">لا توجد ميزانية</div>';
+    return entries.map(([name, total]) => `<div class="budget-funnel-total-chip"><span>${esc(name)}</span><strong>${esc(money(total))}</strong></div>`).join('');
+  }
+  function updateBudgetRowTotal(card){
+    const holder = card?.querySelector('.js-budget-row-total');
+    if(holder) holder.textContent = money(platformValuesTotal(platformValuesFromCard(card)));
+  }
+  function updateBudgetGrandTotal(){
+    const items = collectBudgetRows();
+    const holder = document.getElementById('budgetGrandTotalValue');
+    if(holder) holder.textContent = money(budgetTotal(items));
+    document.querySelectorAll('#budgetRows .budget-item-card').forEach(updateBudgetRowTotal);
+  }
+  window.updateBudgetGrandTotal = updateBudgetGrandTotal;
   function updateCampaignBudgetModalTotal(modal){
     const items = collectBudgetFrom(modal?.querySelector('[data-campaign-budget-rows]'));
     const holder = modal?.querySelector('[data-campaign-budget-total]');
+    const funnelHolder = modal?.querySelector('[data-campaign-funnel-totals]');
     if(holder) holder.textContent = money(budgetTotal(items));
+    if(funnelHolder) funnelHolder.innerHTML = funnelTotalsHtml(items);
+    modal?.querySelectorAll('.budget-item-card').forEach(updateBudgetRowTotal);
   }
 
   function openCampaignBudgetModal(campaignId){
@@ -18631,17 +18703,17 @@ document.addEventListener('click', async event => {
     const modal = document.getElementById('campaignModal');
     const content = document.getElementById('campaignModalContent');
     if(!campaign || !modal || !content) return;
-    const options = campaignCreativeBudgetOptions(campaign, '');
     const list = Array.isArray(campaign.budgetItems) ? campaign.budgetItems : [];
-    content.innerHTML = `<div class="task-modal-head"><div><span>ميزانية الحملة</span><h2>${esc(campaignNameText(campaign) || campaign.name || 'حملة')}</h2><p>${esc(campaignCodeText(campaign) || '')}</p></div><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div>
-      <div class="modal-section campaign-budget-editor" data-campaign-budget-editor="${esc(campaign.id)}">
-        <div class="modal-section-title"><h3>بنود الميزانية حسب الكريتيف</h3><button type="button" class="mini-btn" data-add-campaign-budget-row>＋ إضافة بند</button></div>
-        <p class="muted small">اختيار الكريتيف هنا مبني على الكريتيفات المحفوظة في الخطوة الثانية. يمكن حفظ الميزانية الآن حتى لو لم يتم تحديدها أثناء إنشاء الحملة.</p>
-        <div class="budget-items" data-campaign-budget-rows>${list.length ? list.map(item => budgetRowHtml(item, campaignCreativeBudgetOptions(campaign, txt(item.productCreative || item.product || '')), true)).join('') : '<div class="empty-state">لا توجد بنود ميزانية.</div>'}</div>
-        <div class="budget-grand-total"><span>إجمالي الميزانية</span><strong data-campaign-budget-total>0</strong></div>
+    content.innerHTML = `<div class="task-modal-head campaign-budget-head"><div><span>ميزانية الحملة</span><h2>${esc(campaignNameText(campaign) || campaign.name || 'حملة')}</h2><p>${esc(campaignCodeText(campaign) || '')}</p></div><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div>
+      <div class="modal-section campaign-budget-editor campaign-budget-editor-large" data-campaign-budget-editor="${esc(campaign.id)}">
+        <div class="modal-section-title"><h3>توزيع الميزانية حسب Funnel / الكريتيف / المنصة</h3><button type="button" class="mini-btn" data-add-campaign-budget-row>＋ إضافة Funnel</button></div>
+        <p class="muted small">اختار Funnel، ثم كريتيف أو أكثر، ثم منصة أو أكثر. بعد اختيار المنصات اكتب قيمة كل منصة، وسيظهر إجمالي كل Funnel وإجمالي الميزانية كاملة.</p>
+        <div class="budget-items" data-campaign-budget-rows>${list.length ? list.map(item => budgetRowHtml(item, campaignCreativeBudgetOptions(campaign, budgetItemCreatives(item)), true)).join('') : '<div class="empty-state">لا توجد بنود ميزانية.</div>'}</div>
+        <div class="budget-funnel-totals"><div class="budget-funnel-totals-title">إجمالي كل Funnel</div><div class="budget-funnel-total-list" data-campaign-funnel-totals></div></div>
+        <div class="budget-grand-total"><span>إجمالي الميزانية كاملة</span><strong data-campaign-budget-total>0</strong></div>
         <div class="campaign-wizard-actions"><button type="button" class="btn btn-light" data-close-campaign-modal>إلغاء</button><button type="button" class="btn btn-primary" data-save-campaign-budget="${esc(campaign.id)}">حفظ الميزانية</button></div>
       </div>`;
-    modal.classList.add('show');
+    modal.classList.add('show','campaign-budget-large-modal');
     modal.setAttribute('aria-hidden','false');
     document.body.classList.add('modal-open');
     updateCampaignBudgetModalTotal(modal);
@@ -18650,12 +18722,13 @@ document.addEventListener('click', async event => {
   async function saveCampaignBudget(campaignId){
     if(!mainDb){ try{ showToast('اتصال Firebase غير متاح.'); }catch(_){} return; }
     const campaign = (Array.isArray(campaigns) ? campaigns : []).find(item => item.id === campaignId);
-    const editor = document.querySelector(`[data-campaign-budget-editor="${CSS.escape(campaignId)}"]`);
+    const editor = document.querySelector(`[data-campaign-budget-editor="${cssEsc(campaignId)}"]`);
     const rows = editor?.querySelector('[data-campaign-budget-rows]');
     const budgetItems = collectBudgetFrom(rows);
     const patch = {
       budgetItems,
       budgetTotal: budgetTotal(budgetItems),
+      budgetFunnelTotals: budgetFunnelTotals(budgetItems),
       budgetUpdatedAt: new Date().toISOString(),
       updatedAt: typeof serverTime === 'function' ? serverTime() : new Date().toISOString()
     };
@@ -18664,18 +18737,18 @@ document.addEventListener('click', async event => {
       if(campaign) Object.assign(campaign, patch);
       if(typeof showToast === 'function') showToast('تم حفظ ميزانية الحملة.');
       if(typeof renderCampaigns === 'function') renderCampaigns();
-      if(typeof openCampaignDataModal === 'function') openCampaignDataModal(campaignId);
+      openCampaignBudgetModal(campaignId);
     }catch(error){
       console.error('Campaign budget save error', error);
       if(typeof showToast === 'function') showToast('تعذر حفظ ميزانية الحملة.');
     }
   }
 
-  const oldRenderCampaignCardsV96 = typeof renderCampaignCards === 'function' ? renderCampaignCards : null;
-  if(oldRenderCampaignCardsV96){
+  const oldRenderCampaignCardsV98 = typeof renderCampaignCards === 'function' ? renderCampaignCards : null;
+  if(oldRenderCampaignCardsV98){
     renderCampaignCards = function(containerId, limit = 6){
       const el = document.getElementById(containerId);
-      if(!el) return oldRenderCampaignCardsV96.apply(this, arguments);
+      if(!el) return oldRenderCampaignCardsV98.apply(this, arguments);
       if(!Array.isArray(campaigns) || !campaigns.length){ el.innerHTML = '<div class="empty-state">لا توجد حملات محفوظة حتى الآن.</div>'; return; }
       el.innerHTML = campaigns.slice(0, limit).map(campaign => {
         const hasBudget = Array.isArray(campaign.budgetItems) && campaign.budgetItems.length;
@@ -18697,27 +18770,33 @@ document.addEventListener('click', async event => {
     };
   }
 
-  const oldRenderBudgetSummaryV96 = typeof renderBudgetSummary === 'function' ? renderBudgetSummary : null;
-  if(oldRenderBudgetSummaryV96){
+  const oldRenderBudgetSummaryV98 = typeof renderBudgetSummary === 'function' ? renderBudgetSummary : null;
+  if(oldRenderBudgetSummaryV98){
     renderBudgetSummary = function(campaign){
       const list = Array.isArray(campaign?.budgetItems) ? campaign.budgetItems : [];
       if(!list.length) return '<div class="empty-state mini-empty">لا توجد ميزانية.</div>';
       const grandTotal = budgetTotal(list);
-      return `<div class="compact-table"><table><thead><tr><th>Funnel</th><th>الكريتيفات</th><th>المنصات</th><th>عدد الإعلانات</th><th>القيمة</th><th>إجمالي البند</th></tr></thead><tbody>${list.map(item => `<tr><td>${esc(item.funnel || item.newFunnel || '')}</td><td>${esc(budgetItemCreatives(item).join('، ') || item.productCreative || item.product || '')}</td><td>${esc(budgetItemPlatforms(item).join('، ') || item.platform || '')}</td><td>${esc(item.adsCount || '')}</td><td>${esc(item.value || '')}</td><td>${esc(typeof budgetItemTotal === 'function' ? budgetItemTotal(item) : (item.total || ''))}</td></tr>`).join('')}<tr class="budget-total-row"><td colspan="5">إجمالي الميزانية</td><td>${esc(grandTotal || 0)}</td></tr></tbody></table></div>`;
+      const rows = list.map(item => {
+        const values = platformValueMap(item);
+        const valuesText = Object.entries(values).map(([platform, value]) => `${platform}: ${money(value)}`).join('، ') || money(budgetItemPlatformTotal(item));
+        return `<tr><td>${esc(funnelKey(item))}</td><td>${esc(budgetItemCreatives(item).join('، ') || item.productCreative || item.product || '')}</td><td>${esc(budgetItemPlatforms(item).join('، ') || item.platform || '')}</td><td>${esc(valuesText)}</td><td>${esc(money(budgetItemPlatformTotal(item)))}</td></tr>`;
+      }).join('');
+      const funnelRows = Object.entries(budgetFunnelTotals(list)).map(([name, total]) => `<tr class="budget-total-row"><td colspan="4">إجمالي ${esc(name)}</td><td>${esc(money(total))}</td></tr>`).join('');
+      return `<div class="compact-table"><table><thead><tr><th>Funnel</th><th>الكريتيفات</th><th>المنصات</th><th>قيمة كل منصة</th><th>إجمالي Funnel</th></tr></thead><tbody>${rows}${funnelRows}<tr class="budget-total-row"><td colspan="4">إجمالي الميزانية كاملة</td><td>${esc(money(grandTotal))}</td></tr></tbody></table></div>`;
     };
   }
 
-  const oldOpenCampaignEditModalV96 = typeof openCampaignEditModal === 'function' ? openCampaignEditModal : null;
-  if(oldOpenCampaignEditModalV96){
+  const oldOpenCampaignEditModalV98 = typeof openCampaignEditModal === 'function' ? openCampaignEditModal : null;
+  if(oldOpenCampaignEditModalV98){
     openCampaignEditModal = function(campaignId){
-      oldOpenCampaignEditModalV96.apply(this, arguments);
+      oldOpenCampaignEditModalV98.apply(this, arguments);
       const content = document.getElementById('campaignModalContent');
       const campaign = (Array.isArray(campaigns) ? campaigns : []).find(item => item.id === campaignId);
-      if(!content || !campaign) return;
+      if(!content || !campaign || content.querySelector('[data-open-campaign-budget]')) return;
       const title = campaign.budgetItems?.length ? 'تعديل الميزانية' : 'إضافة الميزانية';
       const block = document.createElement('div');
       block.className = 'modal-section';
-      block.innerHTML = `<div class="modal-section-title"><h3>ميزانية الحملة</h3></div><p class="muted small">يمكن إضافة الميزانية أو تعديلها بعد إنشاء الحملة، والبند يكون على حسب الكريتيف المختار.</p><button type="button" class="btn btn-light" data-open-campaign-budget="${esc(campaignId)}">${esc(title)}</button>`;
+      block.innerHTML = `<div class="modal-section-title"><h3>ميزانية الحملة</h3></div><p class="muted small">يمكن إضافة الميزانية أو تعديلها بعد إنشاء الحملة، مع قيمة منفصلة لكل منصة وإجمالي لكل Funnel.</p><button type="button" class="btn btn-light" data-open-campaign-budget="${esc(campaignId)}">${esc(title)}</button>`;
       content.appendChild(block);
     };
   }
@@ -18754,23 +18833,36 @@ document.addEventListener('click', async event => {
     }
   }, true);
 
-  document.addEventListener('input', function(event){
-    if(event.target.closest?.('[data-campaign-budget-editor]') && event.target.matches('.js-budget-ads-count,.js-budget-value')){
-      updateCampaignBudgetModalTotal(document.getElementById('campaignModal'));
-    }
-  }, true);
   document.addEventListener('change', function(event){
-    if(event.target.closest?.('[data-campaign-budget-editor]') && event.target.matches('.js-budget-ads-count,.js-budget-value,.js-funnel-select,.js-budget-creative-check,.js-budget-platform-check')){
+    const card = event.target.closest?.('.budget-item-card');
+    if(event.target.matches('.js-budget-platform-check')){
+      syncPlatformValueInputs(card);
+    }
+    if(event.target.closest?.('[data-campaign-budget-editor]') && event.target.matches('.js-funnel-select,.js-new-funnel,.js-budget-creative-check,.js-budget-platform-check,.js-budget-platform-value')){
       updateCampaignBudgetModalTotal(document.getElementById('campaignModal'));
     }
+    if(event.target.closest?.('#budgetRows') && event.target.matches('.js-funnel-select,.js-new-funnel,.js-budget-creative-check,.js-budget-platform-check,.js-budget-platform-value')){
+      updateBudgetGrandTotal();
+    }
   }, true);
-
+  document.addEventListener('input', function(event){
+    if(event.target.matches('.js-budget-platform-value')){
+      updateBudgetRowTotal(event.target.closest('.budget-item-card'));
+    }
+    if(event.target.closest?.('[data-campaign-budget-editor]') && event.target.matches('.js-new-funnel,.js-budget-platform-value')){
+      updateCampaignBudgetModalTotal(document.getElementById('campaignModal'));
+    }
+    if(event.target.closest?.('#budgetRows') && event.target.matches('.js-new-funnel,.js-budget-platform-value')){
+      updateBudgetGrandTotal();
+    }
+  }, true);
   document.addEventListener('change', function(event){
     if(event.target.matches('#creativeRows .js-creative-check, #creativeRows .js-creative-quantity, #creativeRows .js-task-user, #creativeRows .js-creative-car-checkbox')){
       document.querySelectorAll('#budgetRows .js-budget-creative-multi').forEach(box => {
         const selected = checkedBudgetValues(box.closest('.budget-item-card'), '.js-budget-creative-check');
-        box.innerHTML = budgetCheckboxListFromOptions(builderCreativeBudgetOptions(selected[0] || ''), selected, 'js-budget-creative-check');
+        box.innerHTML = budgetCheckboxListFromOptions(builderCreativeBudgetOptions(selected), selected, 'js-budget-creative-check');
       });
     }
   }, true);
 })();
+

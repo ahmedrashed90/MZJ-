@@ -9164,3 +9164,37 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
 .budget-grid-multi .budget-multi-field{grid-column:span 1}
 @media (max-width:1200px){.budget-grid-multi{grid-template-columns:repeat(2,minmax(180px,1fr))}}
 @media (max-width:760px){.budget-grid-multi{grid-template-columns:1fr}.budget-grid-multi .budget-multi-field{grid-column:auto}}
+
+/* MZJ v98 - Large campaign management budget popup */
+#campaignModal.campaign-budget-large-modal .campaign-modal-dialog,
+#campaignModal.campaign-budget-large-modal .task-modal-dialog,
+#campaignModal.campaign-budget-large-modal .modal-dialog{
+  width:min(1540px,96vw)!important;
+  max-width:96vw!important;
+}
+#campaignModal.campaign-budget-large-modal #campaignModalContent{
+  max-height:88vh!important;
+  overflow:auto!important;
+}
+.campaign-budget-editor-large{padding:16px!important}
+.campaign-budget-editor-large .budget-items{display:grid!important;gap:16px!important}
+.budget-funnel-row{border:1px solid rgba(126,84,64,.18)!important;border-radius:18px!important;background:#fffaf7!important;padding:14px!important;box-shadow:0 10px 24px rgba(66,34,22,.06)!important}
+.budget-funnel-layout{display:grid!important;grid-template-columns:280px minmax(260px,1.05fr) minmax(240px,.95fr) minmax(260px,.9fr)!important;gap:12px!important;align-items:stretch!important}
+.budget-funnel-main{display:grid!important;gap:10px!important;align-content:start!important}
+.budget-creative-panel .budget-multi-picker,.budget-platform-panel .budget-multi-picker{max-height:240px!important;min-height:190px!important;background:#fff!important}
+.budget-platform-values-panel{display:flex!important;flex-direction:column!important;gap:8px!important;border:1px dashed rgba(126,84,64,.2)!important;border-radius:16px!important;background:#fff!important;padding:10px!important;min-height:190px!important}
+.budget-platform-values-title{font-size:12px!important;font-weight:1000!important;color:#5a3a32!important;text-align:right!important}
+.budget-platform-values-grid{display:grid!important;gap:8px!important;overflow:auto!important;max-height:230px!important;padding-left:2px!important}
+.budget-platform-value-field{margin:0!important;background:#fffaf6!important;border:1px solid rgba(126,84,64,.14)!important;border-radius:12px!important;padding:8px!important}
+.budget-platform-empty{display:flex!important;align-items:center!important;justify-content:center!important;min-height:88px!important;text-align:center!important;border:1px dashed rgba(126,84,64,.18)!important;border-radius:12px!important;color:#9a766a!important;font-size:12px!important;font-weight:900!important;background:#fffaf7!important}
+.budget-row-total-line{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;margin-top:10px!important;padding:9px 12px!important;border-radius:14px!important;background:#f4fff6!important;border:1px solid rgba(49,132,91,.18)!important;color:#254735!important;font-weight:1000!important}
+.budget-row-total-line strong{font-size:15px!important;color:#1d5b38!important}
+.budget-funnel-totals{margin-top:14px!important;border:1px solid rgba(126,84,64,.16)!important;border-radius:16px!important;background:#fff!important;padding:12px!important;display:grid!important;gap:10px!important}
+.budget-funnel-totals-title{font-weight:1000!important;color:#5a3a32!important;text-align:right!important}
+.budget-funnel-total-list{display:flex!important;flex-wrap:wrap!important;gap:8px!important}
+.budget-funnel-total-chip{display:flex!important;align-items:center!important;gap:10px!important;border:1px solid rgba(49,132,91,.2)!important;border-radius:999px!important;background:#f5fff8!important;color:#254735!important;padding:8px 12px!important;font-weight:900!important}
+.budget-funnel-total-chip strong{color:#1d5b38!important}
+.budget-funnel-total-chip.muted-chip{opacity:.75;background:#fffaf7!important;color:#9a766a!important;border-color:rgba(126,84,64,.15)!important}
+.campaign-budget-editor-large .budget-grand-total{font-size:15px!important;padding:14px 16px!important;border-radius:16px!important;background:#fff6ef!important;border:1px solid rgba(126,84,64,.2)!important}
+@media(max-width:1280px){.budget-funnel-layout{grid-template-columns:1fr 1fr!important}.budget-platform-values-panel{grid-column:span 2!important}}
+@media(max-width:760px){#campaignModal.campaign-budget-large-modal .campaign-modal-dialog,#campaignModal.campaign-budget-large-modal .task-modal-dialog,#campaignModal.campaign-budget-large-modal .modal-dialog{width:98vw!important;max-width:98vw!important}.budget-funnel-layout{grid-template-columns:1fr!important}.budget-platform-values-panel{grid-column:auto!important}.budget-creative-panel .budget-multi-picker,.budget-platform-panel .budget-multi-picker{min-height:140px!important;max-height:190px!important}}
