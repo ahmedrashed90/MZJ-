@@ -22372,3 +22372,235 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     if(urlFromStored(structure) && !structureSheetTables(structure).length) reloadStructureSheetFromStoredFile(taskId, true);
   };
 })();
+
+
+/* v141 - fix receive persistence + Task Template upload on Storage only */
+(function(){
+  const VERSION = 'v141-receive-template-storage';
+  const MSG_UPDATED = '\u062a\u0645 \u062a\u062d\u062f\u064a\u062b \u0627\u0644\u062a\u0627\u0633\u0643.';
+  const MSG_RECEIVED = '\u062a\u0645 \u062a\u0623\u0643\u064a\u062f \u0627\u0644\u0627\u0633\u062a\u0644\u0627\u0645.';
+  const MSG_NOT_RECEIVED = '\u062a\u0645 \u0625\u0644\u063a\u0627\u0621 \u0627\u0644\u0627\u0633\u062a\u0644\u0627\u0645.';
+  const MSG_NO_TASK = '\u062a\u0639\u0630\u0631 \u0627\u0644\u0639\u062b\u0648\u0631 \u0639\u0644\u0649 \u0627\u0644\u062a\u0627\u0633\u0643 \u062f\u0627\u062e\u0644 \u0627\u0644\u062d\u0645\u0644\u0629.';
+  const MSG_TEMPLATE_UPLOADING = '\u062c\u0627\u0631\u064a \u0631\u0641\u0639 Task Template...';
+  const MSG_TEMPLATE_DONE = '\u062a\u0645 \u0631\u0641\u0639 Task Template \u0648\u062d\u0641\u0638\u0647. \u0641\u064a \u0627\u0646\u062a\u0638\u0627\u0631 \u0645\u0631\u0627\u062c\u0639\u0629 \u0627\u0644\u0623\u062f\u0645\u0646.';
+  const MSG_NO_STORAGE = 'Firebase Storage is not available. Deploy storage rules and reload.';
+  const LABEL_UPLOAD_TEMPLATE = '\u0631\u0641\u0639 \u0645\u0644\u0641 Task Template';
+  const LABEL_DOWNLOAD_TEMPLATE = '\u062a\u062d\u0645\u064a\u0644 \u0642\u0627\u0644\u0628 Task Template';
+  const LABEL_SECTION = 'Task Template - \u0642\u0633\u0645 \u0627\u0644\u0645\u062d\u062a\u0648\u0649';
+  const LABEL_NOT_UPLOADED = '\u0644\u0645 \u064a\u062a\u0645 \u0631\u0641\u0639 Task Template';
+
+  function clean(v){ try{ return normalizeText(v || ''); }catch(_){ return String(v || '').trim(); } }
+  function now(){ return new Date().toISOString(); }
+  function userLabel(){ try{ const u = getCurrentUserIdentity ? getCurrentUserIdentity() : getCurrentUser(); return u.email || u.name || u.uid || ''; }catch(_){ return ''; } }
+  function safeSeg(v){ try{ return safeStorageSegment(v || 'x'); }catch(_){ return String(v || 'x').replace(/[^A-Za-z0-9_-]+/g,'-').slice(0,100) || 'x'; } }
+  function storedUrl(o){ return o?.fileUrl || o?.downloadURL || o?.downloadUrl || o?.url || o?.storageUrl || ''; }
+  function rawTasks(campaign){
+    const raw = campaign?.departmentTasks;
+    if(Array.isArray(raw)) return raw.filter(Boolean);
+    if(raw && typeof raw === 'object'){
+      return Object.entries(raw).sort((a,b)=>String(a[0]).localeCompare(String(b[0]), undefined, {numeric:true})).map(([k,v]) => v && typeof v === 'object' ? {...v, __departmentTaskMapKey:k} : v).filter(Boolean);
+    }
+    return [];
+  }
+  function stripTask(t){
+    const base = typeof sanitizeTaskForFirestore === 'function' ? sanitizeTaskForFirestore(t || {}) : {...(t || {})};
+    delete base.__departmentTaskMapKey;
+    delete base.fileData;
+    if(base.structure && typeof base.structure === 'object'){
+      base.structure = {...base.structure};
+      delete base.structure.fileData;
+      if(Array.isArray(base.structure.sheetTables)){ try{ base.structure.sheetTablesJson = JSON.stringify(base.structure.sheetTables); }catch(_){ base.structure.sheetTablesJson = '[]'; } delete base.structure.sheetTables; }
+    }
+    ['taskTemplate','contentTaskTemplate','approvedContentTemplate'].forEach(k => {
+      if(base[k] && typeof base[k] === 'object'){
+        base[k] = {...base[k]};
+        delete base[k].fileData;
+        if(Array.isArray(base[k].sheetTables)) delete base[k].sheetTables;
+        if(base[k].raw && typeof base[k].raw === 'object') delete base[k].raw;
+      }
+    });
+    return base;
+  }
+  function fallbackTasks(campaign){ try{ return typeof fallbackTasksFromCampaign === 'function' ? (fallbackTasksFromCampaign(campaign) || []) : []; }catch(_){ return []; } }
+  function campaignTasksForSave(campaign){
+    const saved = rawTasks(campaign).map(t => normalizeCampaignTask ? normalizeCampaignTask(t, campaign) : t);
+    if(saved.length) return saved;
+    const fb = fallbackTasks(campaign).map(t => normalizeCampaignTask ? normalizeCampaignTask(t, campaign) : t);
+    return fb;
+  }
+  function sameTask(a, id, target){
+    if(!a) return false;
+    if(String(a.id || '') && String(a.id || '') === String(id || '')) return true;
+    if(String(a.taskId || '') && String(a.taskId || '') === String(id || '')) return true;
+    if(!target) return false;
+    const keys = ['taskNo','structureTaskNo','creativeInstanceId','creativeLinkCode','linkedExecutionPairKey','contentExecutionPairKey','taskIndex'];
+    for(const k of keys){ if(clean(a[k]) && clean(a[k]) === clean(target[k])) return true; }
+    const aUser = clean(a.userId || a.assignedToId || a.assigneeUid || a.assignedToUid || a.userName || a.assignedToName);
+    const tUser = clean(target.userId || target.assignedToId || target.assigneeUid || target.assignedToUid || target.userName || target.assignedToName);
+    if(clean(a.taskType) === clean(target.taskType) && aUser && aUser === tUser && clean(a.product || a.creative) === clean(target.product || target.creative)) return true;
+    return false;
+  }
+  function locateTask(taskId){
+    let targetTask = null, targetCampaign = null;
+    if(typeof findTaskById === 'function'){
+      targetTask = findTaskById(taskId);
+      targetCampaign = targetTask ? campaignForTask(targetTask) : null;
+    }
+    if(targetTask && targetCampaign) return {targetTask, targetCampaign};
+    for(const c of (campaigns || [])){
+      const arr = (typeof tasksForCampaign === 'function' ? tasksForCampaign(c) : campaignTasksForSave(c)) || [];
+      const found = arr.find(t => sameTask(t, taskId, targetTask));
+      if(found) return {targetTask:found, targetCampaign:c};
+    }
+    return {targetTask:null, targetCampaign:null};
+  }
+  async function writeTaskPatch(taskId, patch, options={}){
+    if(!mainDb || !taskId){ showToast('Firebase is not connected.'); return null; }
+    const located = locateTask(taskId);
+    const targetTask = located.targetTask;
+    const targetCampaign = located.targetCampaign;
+    if(!targetTask || !targetCampaign?.id){ showToast(MSG_NO_TASK); return null; }
+    const base = campaignTasksForSave(targetCampaign);
+    let matched = false, updatedTask = null;
+    const next = base.map(item => {
+      if(!matched && sameTask(item, taskId, targetTask)){
+        matched = true;
+        updatedTask = stripTask({...item, ...patch, id:item.id || targetTask.id || taskId, campaignId:targetCampaign.id, updatedAt:now()});
+        return updatedTask;
+      }
+      return stripTask(item);
+    });
+    if(!matched){
+      updatedTask = stripTask({...targetTask, ...patch, id:targetTask.id || taskId, campaignId:targetCampaign.id, updatedAt:now()});
+      next.push(updatedTask);
+    }
+    await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(targetCampaign.id).update({ departmentTasks: next, taskCount: next.length, updatedAt: serverTime() });
+    const ci = (campaigns || []).findIndex(c => c.id === targetCampaign.id);
+    if(ci >= 0) campaigns[ci] = {...campaigns[ci], departmentTasks: next, taskCount: next.length, updatedAt:now()};
+    if(!options.silent) showToast(options.message || MSG_UPDATED);
+    return updatedTask;
+  }
+
+  updateTaskOnFirebase = writeTaskPatch;
+
+  toggleTaskReceived = async function(taskId){
+    const task = findTaskById(taskId);
+    if(!task) return showToast(MSG_NO_TASK);
+    if(!isCurrentUserAdmin() && !currentUserMatchesTaskExact(task)) return;
+    const nextReceived = !(task.received || task.receivedConfirmed);
+    const patch = {
+      received: nextReceived,
+      receivedConfirmed: nextReceived,
+      receivedAt: nextReceived ? now() : '',
+      receivedBy: nextReceived ? userLabel() : ''
+    };
+    if(nextReceived && (!task.status || task.status === 'pending' || task.status === 'draft')) patch.status = 'in_progress';
+    if(!nextReceived && task.status === 'in_progress' && Number(task.progress || 0) <= 0) patch.status = 'pending';
+    if(Array.isArray(task.steps) && task.steps.length){
+      const steps = task.steps.map(s => ({...s}));
+      const idx = steps.findIndex(s => clean(s.label).includes(clean('\u0627\u0633\u062a\u0644\u0627\u0645')));
+      if(idx >= 0){
+        steps[idx].done = nextReceived;
+        patch.steps = steps;
+        patch.progress = Math.min(100, Math.round(steps.reduce((sum, s) => sum + (s.done ? Number(s.percent || 0) : 0), 0)));
+      }
+    }
+    await writeTaskPatch(task.id || taskId, patch, { message: nextReceived ? MSG_RECEIVED : MSG_NOT_RECEIVED });
+    try{ refreshOpenTaskModal(); }catch(_){ }
+    try{ renderAdminDashboard(); }catch(_){ }
+    try{ renderTasksPage(); }catch(_){ }
+  };
+
+  async function uploadStorage(file, task, kind){
+    if(!mainStorage) throw new Error(MSG_NO_STORAGE);
+    const c = campaignForTask(task) || {};
+    const campaignId = safeSeg(task?.campaignId || c.id || 'campaign');
+    const taskId = safeSeg(task?.id || task?.taskId || 'task');
+    const fileName = (typeof uniqueStorageFileName === 'function' ? uniqueStorageFileName(file) : (Date.now() + '-' + (file.name || 'file.xlsx')));
+    const root = kind === 'structure' ? 'campaign-structures' : 'task-templates';
+    const path = `${root}/${campaignId}/${taskId}/${Date.now()}-${fileName}`;
+    const ref = mainStorage.ref().child(path);
+    const snapshot = await ref.put(file, { contentType:file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', customMetadata:{ uploadKind:kind, campaignId, taskId, originalFileName:file.name || fileName, uploadedBy:userLabel() } });
+    const downloadURL = await snapshot.ref.getDownloadURL();
+    return { storageProvider:'firebase', storagePath:path, fileName:file.name || fileName, name:file.name || fileName, fileSize:file.size || 0, size:file.size || 0, mimeType:file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', downloadURL, downloadUrl:downloadURL, fileUrl:downloadURL, uploadedAt:now(), uploadedBy:userLabel() };
+  }
+  function sheetValue(aoa, label){
+    const wanted = clean(label);
+    for(let r=0; r<aoa.length; r++){
+      for(let c=0; c<(aoa[r] || []).length; c++){
+        const cell = clean(aoa[r][c]);
+        if(cell === wanted){
+          for(let x=c+1; x<(aoa[r] || []).length; x++){ const v = clean(aoa[r][x]); if(v) return v; }
+          for(let y=r+1; y<Math.min(aoa.length, r+4); y++){ const v = clean((aoa[y] || [])[c]); if(v && v !== wanted) return v; }
+        }
+      }
+    }
+    return '';
+  }
+  function parseTemplateFields(buffer){
+    if(!window.XLSX) return {fields:[], row:{}};
+    const wb = XLSX.read(buffer, {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    const defs = [
+      ['campaignName','\u0627\u0633\u0645 \u0627\u0644\u062d\u0645\u0644\u0629'], ['campaignCode','\u0631\u0642\u0645 \u0627\u0644\u062d\u0645\u0644\u0629'], ['campaignType','\u0646\u0648\u0639 \u0627\u0644\u062d\u0645\u0644\u0629'], ['taskNo','\u0631\u0642\u0645 \u0627\u0644\u062a\u0627\u0633\u0643'],
+      ['suggestedCreativeName','\u0627\u0644\u0627\u0633\u0645 \u0627\u0644\u0645\u0642\u062a\u0631\u062d \u0644\u0644\u0643\u0631\u064a\u064a\u062a\u064a\u0641'], ['contentType','\u0646\u0648\u0639 \u0627\u0644\u0645\u062d\u062a\u0648\u0649'], ['goal','\u0627\u0644\u0647\u062f\u0641'], ['message','\u0627\u0644\u0631\u0633\u0627\u0644\u0629 \u0627\u0644\u0623\u0633\u0627\u0633\u064a\u0629'],
+      ['hook','\u0627\u0644\u0647\u0648\u0643'], ['script','\u0627\u0644\u0633\u0643\u0631\u064a\u0628\u062a \u0627\u0644\u0623\u0633\u0627\u0633\u064a'], ['cta','CTA'], ['caption','\u0627\u0644\u0643\u0627\u0628\u0634\u0646'], ['hashtags','\u0647\u0627\u0634\u062a\u0627\u062c']
+    ];
+    const row = { raw:{} };
+    const fields = defs.map(([key,label]) => { const value = sheetValue(aoa, label); row[key] = value; row.raw[label] = value; return {key,label,value}; });
+    return {fields, row};
+  }
+  async function uploadTaskTemplateFile(file, taskId){
+    const task = findTaskById(taskId);
+    if(!task) return showToast(MSG_NO_TASK);
+    showToast(MSG_TEMPLATE_UPLOADING);
+    const buffer = await file.arrayBuffer();
+    let fields = [], row = {};
+    try{ const parsed = parseTemplateFields(buffer); fields = parsed.fields || []; row = parsed.row || {}; }catch(e){ console.warn(VERSION, 'parse template failed', e); }
+    const uploaded = await uploadStorage(file, task, 'task-template');
+    const prev = task.taskTemplate || task.contentTaskTemplate || {};
+    const tpl = {
+      ...prev, ...uploaded,
+      status:'pending_review', reviewStatus:'pending_review', reviewNote:'', templateKind:'content_task_template_storage_v141', taskTemplateFields:fields, parsedRows: fields.some(f => clean(f.value)) ? [row] : [], uploadedAt:now(), uploadedBy:userLabel()
+    };
+    delete tpl.fileData; delete tpl.sheetTables; delete tpl.sheetTablesJson;
+    await writeTaskPatch(task.id || taskId, { taskTemplate:tpl, contentTaskTemplate:tpl, taskTemplateStatus:'pending_review' }, { silent:true });
+    showToast(MSG_TEMPLATE_DONE);
+    try{ refreshOpenTaskModal(); }catch(_){ }
+    try{ renderAdminDashboard(); }catch(_){ }
+  }
+  function ensureTplInput(){
+    let input = document.getElementById('taskTemplateFileInputV141');
+    if(!input){
+      input = document.createElement('input'); input.type='file'; input.id='taskTemplateFileInputV141'; input.accept='.xlsx,.xls'; input.hidden=true; document.body.appendChild(input);
+      input.addEventListener('change', async function(e){ const file = e.target.files && e.target.files[0]; const taskId = e.target.dataset.taskId || ''; e.target.value=''; if(file && taskId){ try{ await uploadTaskTemplateFile(file, taskId); }catch(err){ console.error(VERSION, err); showToast(err?.message || '\u062a\u0639\u0630\u0631 \u0631\u0641\u0639 Task Template.'); } } });
+    }
+    return input;
+  }
+  window.addEventListener('click', function(event){
+    const btn = event.target && event.target.closest && event.target.closest('[data-upload-task-template]');
+    if(!btn) return;
+    event.preventDefault(); event.stopPropagation(); if(event.stopImmediatePropagation) event.stopImmediatePropagation();
+    const input = ensureTplInput(); input.dataset.taskId = btn.dataset.uploadTaskTemplate || ''; input.value=''; input.click();
+  }, true);
+
+  const oldBuild = typeof buildTaskDetailHtml === 'function' ? buildTaskDetailHtml : null;
+  if(oldBuild){
+    buildTaskDetailHtml = function(task){
+      let html = oldBuild(task);
+      try{
+        const role = normalizeDepartmentRole?.(task.departmentRole || task.assignedDepartmentId || task.contentSectionId || task.contentSectionName || '') || '';
+        const isStructure = typeof isCampaignStructureTask === 'function' && isCampaignStructureTask(task);
+        if(role === 'content' && !isStructure && !html.includes('data-upload-task-template')){
+          const tpl = task.taskTemplate || task.contentTaskTemplate || {};
+          const hasFile = !!(storedUrl(tpl) || tpl.fileName || tpl.fileSize);
+          const canUpload = !isCurrentUserAdmin() && (!tpl.status || ['not_uploaded','needs_changes','rejected','pending_review'].includes(clean(tpl.status)));
+          const section = `<div class="modal-section task-template-section task-template-section-v141"><div class="modal-section-title"><h3>${LABEL_SECTION}</h3><span>${escapeHtml(tpl.status || LABEL_NOT_UPLOADED)}</span></div><div class="structure-actions">${canUpload ? `<button class="btn btn-light" type="button" data-download-task-template="${escapeHtml(task.id)}">${LABEL_DOWNLOAD_TEMPLATE}</button><button class="btn btn-primary" type="button" data-upload-task-template="${escapeHtml(task.id)}">${LABEL_UPLOAD_TEMPLATE}</button>` : ''}${hasFile ? `<span class="structure-file-name structure-attached-label">${escapeHtml('\u062a\u0645 \u0631\u0641\u0639 Task Template')}</span>${tpl.fileName ? `<span class="structure-file-name">${escapeHtml(tpl.fileName)}</span>` : ''}` : `<span class="structure-file-name muted">${LABEL_NOT_UPLOADED}</span>`}${storedUrl(tpl) ? `<a class="btn btn-light" href="${escapeHtml(storedUrl(tpl))}" target="_blank" rel="noopener">${escapeHtml('\u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0645\u0644\u0641 \u0627\u0644\u0645\u0631\u0641\u0648\u0639')}</a>` : ''}</div></div>`;
+          html = html.replace('<div class="modal-section task-actions-section compact-actions-section">', section + '<div class="modal-section task-actions-section compact-actions-section">');
+        }
+      }catch(e){ console.warn(VERSION, 'template section inject failed', e); }
+      return html;
+    };
+  }
+})();
