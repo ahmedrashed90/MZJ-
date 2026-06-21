@@ -11506,7 +11506,7 @@ async function downloadStructureTemplateForTaskExact(task){
       <div class="structure-actions">
         ${canUpload ? `<button class="btn btn-light" type="button" data-download-task-template="${escapeHtml(task.id)}">تحميل قالب Task Template</button><button class="btn btn-primary" type="button" data-upload-task-template="${escapeHtml(task.id)}">رفع ملف Task Template</button>` : ''}
         ${hasFile ? `<span class="structure-file-name structure-attached-label">تم رفع Task Template</span>${tpl.fileName ? `<span class="structure-file-name">${escapeHtml(tpl.fileName)}</span>` : ''}` : '<span class="structure-file-name muted">لم يتم رفع Task Template</span>'}
-        ${tpl.fileData ? `<a class="btn btn-light" href="${escapeHtml(tpl.fileData)}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
+        ${(tpl.fileUrl || tpl.downloadURL || tpl.downloadUrl || tpl.fileData) ? `<a class="btn btn-light" href="${escapeHtml(tpl.fileUrl || tpl.downloadURL || tpl.downloadUrl || tpl.fileData)}" target="_blank" rel="noopener" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
         ${admin && hasFile ? `<button class="btn btn-primary" type="button" data-open-task-template-review="${escapeHtml(task.id)}">مراجعة Task Template</button>` : ''}
       </div>
       ${v172RenderTaskTemplateFields(tpl)}
@@ -11540,7 +11540,7 @@ async function downloadStructureTemplateForTaskExact(task){
         <div class="approved-template-group"><h4>ملخص المحتوى</h4><div class="approved-template-grid approved-template-brief-grid">${briefHtml}</div></div>
         <div class="approved-template-group"><h4>النصوص التنفيذية</h4><div class="approved-template-grid approved-template-long-grid">${longHtml}</div></div>
       </div>
-      ${tpl.fileData ? `<a class="btn btn-light approved-template-download-btn" href="${escapeHtml(tpl.fileData)}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل Task Template المعتمد</a>` : ''}
+      ${(tpl.fileUrl || tpl.downloadURL || tpl.downloadUrl || tpl.fileData) ? `<a class="btn btn-light approved-template-download-btn" href="${escapeHtml(tpl.fileUrl || tpl.downloadURL || tpl.downloadUrl || tpl.fileData)}" target="_blank" rel="noopener" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل Task Template المعتمد</a>` : ''}
     </div>`;
   }
   const previousBuildTaskDetailHtml = buildTaskDetailHtml;
@@ -11796,22 +11796,70 @@ async function downloadStructureTemplateForTaskExact(task){
     if(!fields.length) return '';
     return `<div class="task-template-fields-grid">${fields.map(field => `<div class="task-template-field"><span>${escapeHtml(field.label)}</span><strong>${escapeHtml(field.value || '—')}</strong></div>`).join('')}</div>`;
   }
+  async function v235UploadTaskTemplateFileToStorage(file, task){
+    if(!mainStorage) throw new Error('Firebase Storage غير متاح. تأكد من تحميل storage SDK.');
+    const current = getCurrentUserIdentity ? getCurrentUserIdentity() : getCurrentUser();
+    const campaignId = safeStorageSegment(task?.campaignId || campaignForTask(task)?.id || 'campaign');
+    const taskId = safeStorageSegment(task?.id || task?.taskId || 'task');
+    const fileName = uniqueStorageFileName(file);
+    const path = `task-templates/${campaignId}/${taskId}/${Date.now()}-${fileName}`;
+    const ref = mainStorage.ref().child(path);
+    const metadata = {
+      contentType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      customMetadata: {
+        uploadKind: 'task_template',
+        taskId: String(task?.id || task?.taskId || ''),
+        campaignId: String(task?.campaignId || campaignForTask(task)?.id || ''),
+        originalFileName: file.name || fileName,
+        uploadedBy: current.email || current.name || current.uid || ''
+      }
+    };
+    showToast('جاري رفع Task Template...');
+    const snapshot = await ref.put(file, metadata);
+    const downloadURL = await snapshot.ref.getDownloadURL();
+    return {
+      storageProvider: 'firebase',
+      storagePath: path,
+      fileName: file.name || fileName,
+      name: file.name || fileName,
+      fileSize: file.size || 0,
+      size: file.size || 0,
+      mimeType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      downloadURL,
+      downloadUrl: downloadURL,
+      fileUrl: downloadURL
+    };
+  }
+
   async function v171UploadTaskTemplate(file, taskId){
     const task = findTaskById(taskId);
     if(!task) return showToast('تعذر العثور على التاسك.');
     showToast('جاري قراءة Task Template...');
-    const fileData = await fileToDataUrl(file);
     const buffer = await file.arrayBuffer();
     let parsed = v172ParseTaskTemplateWorkbookBuffer(buffer, file.name);
     parsed = v177NormalizeRealTaskTemplate(parsed);
     // لا نستخدم بيانات هيكل الحملة كبديل هنا؛ Task Template لازم يتقرأ من ملفه الحقيقي فقط.
-    const hasRealTaskTemplateData = (parsed.taskTemplateFields || []).some(field => normalizeText(field.value || ''));
+    const fields = parsed.taskTemplateFields || v172TaskTemplateFieldsFromTemplate(parsed);
+    const hasRealTaskTemplateData = (fields || []).some(field => normalizeText(field.value || ''));
     if(!hasRealTaskTemplateData){
       showToast('تعذر قراءة بيانات Task Template من الملف. ارفع قالب Task Template الحقيقي بعد تعبئته.');
       return;
     }
+    const uploadedFile = await v235UploadTaskTemplateFileToStorage(file, task);
     const prev = task.taskTemplate || {};
-    const next = { ...prev, status:'pending_review', fileName:file.name, fileSize:file.size, fileData, parsedRows: parsed.parsedRows || [], sheetTables: parsed.sheetTables || [], taskTemplateFields: parsed.taskTemplateFields || v172TaskTemplateFieldsFromTemplate(parsed), templateKind:'content_task_template_v177', uploadedAt:new Date().toISOString(), uploadedBy:getCurrentUser().email || getCurrentUser().name || '' };
+    const next = {
+      ...prev,
+      status:'pending_review',
+      ...uploadedFile,
+      taskTemplateFields: fields,
+      parsedRows: [],
+      sheetTables: [],
+      templateKind:'content_task_template_v235_storage',
+      uploadedAt:new Date().toISOString(),
+      uploadedBy:getCurrentUser().email || getCurrentUser().name || ''
+    };
+    delete next.fileData;
+    delete next.sheetTablesJson;
     await updateTaskOnFirebase(task.id, { taskTemplate: encodeStructureWorkbookForFirestore(next), status:'pending_task_template_review' });
     showToast('تم رفع Task Template. في انتظار مراجعة الأدمن.');
     refreshOpenTaskModal();
@@ -11833,7 +11881,7 @@ async function downloadStructureTemplateForTaskExact(task){
       return `<tr><td>${escapeHtml(idx + 1)}</td><td>${escapeHtml(taskNo || '—')}</td><td>${escapeHtml(type || '—')}</td><td>${escapeHtml(msg || '—')}</td><td>${escapeHtml(cta || '—')}</td></tr>`;
     }).join('') : '';
     const fileName = normalizeText(tpl?.fileName || '');
-    return `<div class="task-template-review-view"><div class="task-template-review-summary"><div><h4>بيانات Task Template</h4><p>مراجعة ملف المحتوى المرفوع من كاتب المحتوى بصيغته الخاصة، بعيدًا عن شكل هيكل الحملة.</p></div>${fileName ? `<span class="task-template-review-file">${escapeHtml(fileName)}</span>` : ''}</div><div class="task-template-review-fields">${fieldHtml}</div>${rawRows ? `<div class="task-template-review-table-wrap"><table class="task-template-review-table"><thead><tr><th>#</th><th>رقم التاسك</th><th>نوع المحتوى</th><th>الرسالة الأساسية</th><th>CTA</th></tr></thead><tbody>${rawRows}</tbody></table></div>` : ''}${mergedTpl?.fileData ? `<a class="btn btn-light" href="${escapeHtml(mergedTpl.fileData)}" download="${escapeHtml(fileName || 'task-template.xlsx')}">تحميل ملف Task Template</a>` : ''}</div>`;
+    return `<div class="task-template-review-view"><div class="task-template-review-summary"><div><h4>بيانات Task Template</h4><p>مراجعة ملف المحتوى المرفوع من كاتب المحتوى بصيغته الخاصة، بعيدًا عن شكل هيكل الحملة.</p></div>${fileName ? `<span class="task-template-review-file">${escapeHtml(fileName)}</span>` : ''}</div><div class="task-template-review-fields">${fieldHtml}</div>${rawRows ? `<div class="task-template-review-table-wrap"><table class="task-template-review-table"><thead><tr><th>#</th><th>رقم التاسك</th><th>نوع المحتوى</th><th>الرسالة الأساسية</th><th>CTA</th></tr></thead><tbody>${rawRows}</tbody></table></div>` : ''}${(mergedTpl?.fileUrl || mergedTpl?.downloadURL || mergedTpl?.downloadUrl || mergedTpl?.fileData) ? `<a class="btn btn-light" href="${escapeHtml(mergedTpl.fileUrl || mergedTpl.downloadURL || mergedTpl.downloadUrl || mergedTpl.fileData)}" target="_blank" rel="noopener" download="${escapeHtml(fileName || 'task-template.xlsx')}">تحميل ملف Task Template</a>` : ''}</div>`;
   }
 
   function v171OpenTaskTemplateReview(taskId){
@@ -12053,7 +12101,7 @@ async function downloadStructureTemplateForTaskExact(task){
 
 /* v172 - task template exact file support */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v235'; }catch(_){ }
 })();
 
 /* v182 - keep normal task details as a vertical scrollable detail view, not the structure sheet layout */
@@ -12892,7 +12940,7 @@ async function downloadStructureTemplateForTaskExact(task){
       <div class="structure-actions">
         ${canUpload ? `<button class="btn btn-light" type="button" data-download-task-template="${escapeHtml(task.id)}">تحميل قالب Task Template</button><button class="btn btn-primary" type="button" data-upload-task-template="${escapeHtml(task.id)}">رفع ملف Task Template</button>` : ''}
         ${hasFile ? `<span class="structure-file-name structure-attached-label">تم رفع Task Template</span>${tpl.fileName ? `<span class="structure-file-name">${escapeHtml(tpl.fileName)}</span>` : ''}` : '<span class="structure-file-name muted">لم يتم رفع Task Template</span>'}
-        ${tpl.fileData ? `<a class="btn btn-light" href="${escapeHtml(tpl.fileData)}" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
+        ${(tpl.fileUrl || tpl.downloadURL || tpl.downloadUrl || tpl.fileData) ? `<a class="btn btn-light" href="${escapeHtml(tpl.fileUrl || tpl.downloadURL || tpl.downloadUrl || tpl.fileData)}" target="_blank" rel="noopener" download="${escapeHtml(tpl.fileName || 'task-template.xlsx')}">تحميل الملف المرفوع</a>` : ''}
         ${admin && hasFile ? `<button class="btn btn-primary" type="button" data-open-task-template-review="${escapeHtml(task.id)}">مراجعة Task Template</button>` : ''}
       </div>
       ${fieldsHtml}
@@ -14325,7 +14373,7 @@ if(false){(function(){
 
 
 /* v219 - robust Task Template field reparse from stored uploaded XLSX */
-try{ window.MZJ_APP_VERSION = 'v219'; }catch(_){ }
+try{ window.MZJ_APP_VERSION = 'v235'; }catch(_){ }
 
 /* v220 - Dashboard Task Template badges + content approval waiting state + owner color settings */
 (function(){
