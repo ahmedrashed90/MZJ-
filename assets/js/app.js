@@ -2980,12 +2980,12 @@ function mergeCampaignTasks(list){
 }
 function tasksForCampaign(campaign){
   // المصدر الأساسي للتاسكات هو marketing_campaigns > departmentTasks.
-  // ولو الحملة اتسجلت بالكريتيفات فقط لأي سبب، نولد نفس التاسكات من creatives عشان الداشبورد مايفضلش فاضي.
+  // لو departmentTasks اتفضت بالغلط، أو فيها جزء فقط، نكمل العرض من creatives بدون ما نخفي باقي التاسكات.
   const fromDepartmentTasks = Array.isArray(campaign.departmentTasks)
     ? campaign.departmentTasks.map(task => normalizeCampaignTask(task, campaign))
     : [];
   const fromCreativeRows = fallbackTasksFromCampaign(campaign).map(task => normalizeCampaignTask(task, campaign));
-  return mergeCampaignTasks(fromDepartmentTasks.length ? fromDepartmentTasks : fromCreativeRows);
+  return mergeCampaignTasks([...fromDepartmentTasks, ...fromCreativeRows]);
 }
 function groupTasksForKanban(tasks){
   const order = ['content','shooting','design','montage','publish','other'];
@@ -3567,7 +3567,41 @@ async function updateTaskOnFirebase(taskId, patch, options = {}){
       throw error;
     }
   }
-  if(taskId.startsWith('fallback-')){ showToast('التاسك غير محفوظ على Firebase بعد. احفظ الحملة مرة أخرى.'); return null; }
+  if(taskId.startsWith('fallback-')){
+    const fallbackTask = findTaskById(taskId, options.campaignId || '');
+    const campaignId = fallbackTask?.campaignId || options.campaignId || '';
+    const fallbackCampaignIndex = campaigns.findIndex(c => (c.id || c.docId || '') === campaignId);
+    if(fallbackTask && fallbackCampaignIndex >= 0){
+      const campaign = campaigns[fallbackCampaignIndex];
+      const existingTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks : [];
+      const restoredTask = sanitizeTaskForFirestore({
+        ...fallbackTask,
+        ...patch,
+        id: taskId,
+        campaignId: campaign.id || campaignId,
+        restoredFromFallback: true,
+        restoredAt: new Date().toISOString(),
+        source: fallbackTask.source || 'campaign-creatives-fallback',
+        updatedAt: new Date().toISOString()
+      });
+      const nextTasks = [...existingTasks, restoredTask].map(sanitizeTaskForFirestore);
+      try{
+        await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update({ departmentTasks: nextTasks, updatedAt: serverTime() });
+        campaigns[fallbackCampaignIndex] = { ...campaign, departmentTasks: nextTasks, updatedAt: new Date().toISOString() };
+        if(!options.silent) showToast('تم حفظ التاسك وتحديثه.');
+        if(activeTaskModalMeta && activeTaskModalMeta.taskId === taskId){
+          setTimeout(refreshOpenTaskModal, 30);
+        }
+        return restoredTask;
+      }catch(error){
+        console.error('Fallback task restore update error', error, restoredTask);
+        showToast('تعذر حفظ التاسك داخل الحملة.');
+        throw error;
+      }
+    }
+    showToast('تعذر ربط التاسك بالحملة المحفوظة.');
+    return null;
+  }
   showToast('تعذر تحديث التاسك: لم يتم العثور عليه داخل marketing_campaigns.');
   return null;
 }
