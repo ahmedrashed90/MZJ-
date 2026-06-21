@@ -11901,36 +11901,86 @@ async function downloadStructureTemplateForTaskExact(task){
     const note = normalizeText(document.querySelector('[data-task-template-review-note]')?.value || '');
     const tpl = task.taskTemplate || {};
     const status = decision === 'approved' ? 'approved' : (decision === 'needs_changes' ? 'needs_changes' : 'rejected');
+    const nowIso = new Date().toISOString();
+    const reviewer = getCurrentUser().email || getCurrentUser().name || '';
     const decidedTemplate = {
       ...v177NormalizeRealTaskTemplate(tpl),
       status,
       reviewNote: note,
-      reviewedAt: new Date().toISOString(),
-      reviewedBy: getCurrentUser().email || getCurrentUser().name || '',
-      ...(status === 'approved' ? { approvedAt:new Date().toISOString(), approvedBy:getCurrentUser().email || getCurrentUser().name || '' } : {})
+      reviewedAt: nowIso,
+      reviewedBy: reviewer,
+      ...(status === 'approved' ? { approvedAt: nowIso, approvedBy: reviewer } : {})
+    };
+    // v236: after Task Template moved to Storage, never write fileData/base64 back into marketing_campaigns.
+    delete decidedTemplate.fileData;
+    delete decidedTemplate.sheetTables;
+    delete decidedTemplate.sheetTablesJson;
+    const nextStatus = status === 'approved' ? 'task_template_approved' : (status === 'needs_changes' ? 'pending_task_template_changes' : 'task_template_rejected');
+    const campaignIndex = campaigns.findIndex(c => c && c.id === campaign.id);
+    const sourceTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks : [];
+    const taskIndex = sourceTasks.findIndex(item => (item?.id || '') === task.id);
+    if(taskIndex < 0) return showToast('تعذر العثور على التاسك داخل الحملة.');
+    const currentProgress = Number(sourceTasks[taskIndex]?.progress || task.progress || 0);
+    const updatePayload = {
+      [`departmentTasks.${taskIndex}.taskTemplate`]: encodeStructureWorkbookForFirestore(decidedTemplate),
+      [`departmentTasks.${taskIndex}.status`]: nextStatus,
+      [`departmentTasks.${taskIndex}.contentTemplateApproved`]: status === 'approved',
+      [`departmentTasks.${taskIndex}.progress`]: status === 'approved' ? Math.max(currentProgress, 20) : currentProgress,
+      [`departmentTasks.${taskIndex}.updatedAt`]: nowIso,
+      updatedAt: serverTime()
     };
     const pairKey = normalizeText(task.contentExecutionPairKey || task.linkedExecutionPairKey || tpl.linkedExecutionPairKey || '');
-    const nextTasks = (campaign.departmentTasks || []).map(item => {
-      const itemPair = normalizeText(item.contentExecutionPairKey || item.linkedExecutionPairKey || '');
-      if(item.id === task.id){
-        const nextStatus = status === 'approved' ? 'task_template_approved' : (status === 'needs_changes' ? 'pending_task_template_changes' : 'task_template_rejected');
-        return { ...item, taskTemplate: encodeStructureWorkbookForFirestore(decidedTemplate), status: nextStatus, contentTemplateApproved: status === 'approved', progress: status === 'approved' ? Math.max(Number(item.progress || 0), 20) : Number(item.progress || 0), updatedAt:new Date().toISOString() };
+    const summaryTemplate = {
+      status,
+      fileName: decidedTemplate.fileName || '',
+      fileUrl: decidedTemplate.fileUrl || decidedTemplate.downloadURL || decidedTemplate.downloadUrl || '',
+      downloadURL: decidedTemplate.downloadURL || decidedTemplate.fileUrl || decidedTemplate.downloadUrl || '',
+      downloadUrl: decidedTemplate.downloadUrl || decidedTemplate.downloadURL || decidedTemplate.fileUrl || '',
+      storagePath: decidedTemplate.storagePath || '',
+      linkedContentTemplateTaskId: task.id,
+      reviewedAt: nowIso,
+      reviewedBy: reviewer,
+      reviewNote: note
+    };
+    sourceTasks.forEach((item, idx) => {
+      if(idx === taskIndex) return;
+      const itemPair = normalizeText(item?.contentExecutionPairKey || item?.linkedExecutionPairKey || '');
+      if(pairKey && itemPair === pairKey){
+        updatePayload[`departmentTasks.${idx}.linkedContentTemplateStatus`] = status;
+        updatePayload[`departmentTasks.${idx}.linkedContentTemplateTaskId`] = task.id;
+        updatePayload[`departmentTasks.${idx}.linkedContentTemplateReviewNote`] = note;
+        updatePayload[`departmentTasks.${idx}.updatedAt`] = nowIso;
+        if(status === 'approved') updatePayload[`departmentTasks.${idx}.contentTaskTemplate`] = summaryTemplate;
       }
-      if(pairKey && itemPair === pairKey && item.id !== task.id){
-        if(status === 'approved'){
-          return { ...item, contentTaskTemplate: encodeStructureWorkbookForFirestore(decidedTemplate), linkedContentTemplateStatus:'approved', linkedContentTemplateTaskId: task.id, updatedAt:new Date().toISOString() };
-        }
-        return { ...item, linkedContentTemplateStatus: status, linkedContentTemplateTaskId: task.id, linkedContentTemplateReviewNote: note, updatedAt:new Date().toISOString() };
-      }
-      return item;
     });
-    await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update({ departmentTasks: nextTasks, updatedAt: serverTime() });
-    if(status === 'approved') showToast('تم اعتماد Task Template وظهرت بياناته تحت بيانات تاسك الهيكل والقسم المرتبط.');
-    else if(status === 'needs_changes') showToast('تم إرسال Task Template للتعديل، وكاتب المحتوى يقدر يرفعه من جديد.');
-    else showToast('تم رفض Task Template.');
-    closeStructureReviewPopup();
-    refreshOpenTaskModal();
+    try{
+      await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update(updatePayload);
+      const nextTaskLocal = { ...sourceTasks[taskIndex], taskTemplate: encodeStructureWorkbookForFirestore(decidedTemplate), status: nextStatus, contentTemplateApproved: status === 'approved', progress: status === 'approved' ? Math.max(currentProgress, 20) : currentProgress, updatedAt: nowIso };
+      if(campaignIndex >= 0){
+        const localTasks = (campaigns[campaignIndex].departmentTasks || []).map((item, idx) => {
+          if(idx === taskIndex) return nextTaskLocal;
+          const itemPair = normalizeText(item?.contentExecutionPairKey || item?.linkedExecutionPairKey || '');
+          if(pairKey && itemPair === pairKey){
+            const linked = { ...item, linkedContentTemplateStatus: status, linkedContentTemplateTaskId: task.id, linkedContentTemplateReviewNote: note, updatedAt: nowIso };
+            if(status === 'approved') linked.contentTaskTemplate = summaryTemplate;
+            return linked;
+          }
+          return item;
+        });
+        campaigns[campaignIndex] = { ...campaigns[campaignIndex], departmentTasks: localTasks, updatedAt: nowIso };
+      }
+      if(status === 'approved') showToast('تم اعتماد Task Template.');
+      else if(status === 'needs_changes') showToast('تم إرسال Task Template للتعديل، وكاتب المحتوى يقدر يرفعه من جديد.');
+      else showToast('تم رفض Task Template.');
+      closeStructureReviewPopup();
+      refreshOpenTaskModal();
+    }catch(error){
+      console.error('Task Template decision update failed', error);
+      showToast(error.message || 'تعذر حفظ قرار Task Template.');
+      throw error;
+    }
   }
+  window.mzjTaskTemplateDecision = v174SetTaskTemplateDecision;
 
   async function v171ApproveTaskTemplate(taskId){
     return v174SetTaskTemplateDecision(taskId, 'approved');
@@ -12090,18 +12140,18 @@ async function downloadStructureTemplateForTaskExact(task){
     const reviewTemplate = event.target.closest('[data-open-task-template-review]');
     if(reviewTemplate){ event.preventDefault(); event.stopPropagation(); v171OpenTaskTemplateReview(reviewTemplate.dataset.openTaskTemplateReview || ''); return; }
     const needsChangesTemplate = event.target.closest('[data-task-template-needs-changes]');
-    if(needsChangesTemplate){ event.preventDefault(); event.stopPropagation(); await v174SetTaskTemplateDecision(needsChangesTemplate.dataset.taskTemplateNeedsChanges || '', 'needs_changes'); return; }
+    if(needsChangesTemplate){ event.preventDefault(); event.stopPropagation(); if(event.stopImmediatePropagation) event.stopImmediatePropagation(); await v174SetTaskTemplateDecision(needsChangesTemplate.dataset.taskTemplateNeedsChanges || '', 'needs_changes'); return; }
     const rejectTemplate = event.target.closest('[data-task-template-reject]');
-    if(rejectTemplate){ event.preventDefault(); event.stopPropagation(); await v174SetTaskTemplateDecision(rejectTemplate.dataset.taskTemplateReject || '', 'rejected'); return; }
+    if(rejectTemplate){ event.preventDefault(); event.stopPropagation(); if(event.stopImmediatePropagation) event.stopImmediatePropagation(); await v174SetTaskTemplateDecision(rejectTemplate.dataset.taskTemplateReject || '', 'rejected'); return; }
     const approveTemplate = event.target.closest('[data-task-template-approve]');
-    if(approveTemplate){ event.preventDefault(); event.stopPropagation(); await v171ApproveTaskTemplate(approveTemplate.dataset.taskTemplateApprove || ''); return; }
+    if(approveTemplate){ event.preventDefault(); event.stopPropagation(); if(event.stopImmediatePropagation) event.stopImmediatePropagation(); await v171ApproveTaskTemplate(approveTemplate.dataset.taskTemplateApprove || ''); return; }
   }, true);
 })();
 
 
 /* v172 - task template exact file support */
 (function(){
-  try{ window.MZJ_APP_VERSION = 'v235'; }catch(_){ }
+  try{ window.MZJ_APP_VERSION = 'v236'; }catch(_){ }
 })();
 
 /* v182 - keep normal task details as a vertical scrollable detail view, not the structure sheet layout */
@@ -14373,7 +14423,7 @@ if(false){(function(){
 
 
 /* v219 - robust Task Template field reparse from stored uploaded XLSX */
-try{ window.MZJ_APP_VERSION = 'v235'; }catch(_){ }
+try{ window.MZJ_APP_VERSION = 'v236'; }catch(_){ }
 
 /* v220 - Dashboard Task Template badges + content approval waiting state + owner color settings */
 (function(){
