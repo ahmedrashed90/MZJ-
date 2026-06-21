@@ -9248,3 +9248,6 @@ body.has-user-dashboard-theme #dashboard.user-mode .task-card-progress{
   font-weight:900!important;
   text-align:center!important;
 }
+
+/* v133 exact visible approved-structure headers */
+#taskModal.has-structure-sheet-modal .structure-section-execution td.execution-fixed-header{background:#2f3d49!important;color:#fff!important;font-weight:900!important;text-align:center!important;}

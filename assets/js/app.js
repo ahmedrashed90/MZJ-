@@ -4246,14 +4246,23 @@ function structureSectionOrder(type){
 }
 
 function mzjApprovedStructureExecutionHeaderLabel(row, cellIndex, cell){
-  // v132: تعديل أسماء أعمدة Content Execution Direction فقط.
-  // بعد "الفكرة": وصف المحتوى ثم الرسالة. وبعد "المطلوب من الكاتب": CTA.
   const cells = Array.isArray(row) ? row : [];
   const values = cells.map(c => normalizeText(c?.value || ''));
   const rowText = values.join(' | ');
-  if(!rowText.includes('الفكرة') || !rowText.includes('المطلوب من الكاتب')) return '';
-
+  const sourceRow = Number(cell?.sourceRow);
   const sourceCol = Number(cell?.sourceCol);
+
+  // v133 exact fix: in the approved structure display we are rendering the real Excel template.
+  // Content Execution Direction header row is Excel row 36 (zero-based 35):
+  // G=الفكرة, H=وصف المحتوى, I=الرسالة, J=المطلوب من الكاتب, K=CTA.
+  // This avoids guessing from empty merged cells and only touches these 3 header cells.
+  if(sourceRow === 35){
+    if(sourceCol === 7) return 'وصف المحتوى';
+    if(sourceCol === 8) return 'الرسالة';
+    if(sourceCol === 10) return 'CTA';
+  }
+
+  if(!rowText.includes('الفكرة') || !rowText.includes('المطلوب من الكاتب')) return '';
   if(sourceCol === 7) return 'وصف المحتوى';
   if(sourceCol === 8) return 'الرسالة';
   if(sourceCol === 10) return 'CTA';
@@ -4274,20 +4283,17 @@ function mzjApprovedStructureExecutionHeaderLabel(row, cellIndex, cell){
   return '';
 }
 
+
 function renderMergedStructureSectionBlock(task, sheet, section, notes, marks, admin){
   const sectionRows = compactStructureSectionRows(filterStructureSectionRowsForDisplay(section.type, section.rows));
   const body = sectionRows.map((row) => `<tr>${row.map((cell, cellIndex) => {
     let val = normalizeText(cell.value || '');
     let forcedExecutionHeader = false;
     if((section?.type || '') === 'execution'){
-      const rowText = (row || []).map(c => normalizeText(c?.value || '')).join(' | ');
-      const isExecutionHeaderRow = rowText.includes('الفكرة') && rowText.includes('المطلوب من الكاتب');
-      if(isExecutionHeaderRow){
-        const fixedHeader = mzjApprovedStructureExecutionHeaderLabel(row, cellIndex, cell);
-        if(fixedHeader){
-          val = fixedHeader;
-          forcedExecutionHeader = true;
-        }
+      const fixedHeader = mzjApprovedStructureExecutionHeaderLabel(row, cellIndex, cell);
+      if(fixedHeader){
+        val = fixedHeader;
+        forcedExecutionHeader = true;
       }
     }
     const sourceRow = Number(cell.sourceRow);
@@ -19581,14 +19587,9 @@ try{ window.MZJ_APP_VERSION = 'v104-structure-cars-execution-direction'; window.
   }
 
   function v122EnsureDashboardAuditTools(){
-    var board = document.getElementById('adminDashboardBoard');
-    if(!board) return;
-    if(document.getElementById('campaignAuditDashboardTools')) return;
-    var wrap = document.createElement('div');
-    wrap.id = 'campaignAuditDashboardTools';
-    wrap.className = 'campaign-audit-tools';
-    wrap.innerHTML = '<button type="button" class="btn btn-light" id="uploadCampaignAuditSheetBtn" data-upload-campaign-audit>رفع شيت مراجعة حملة</button><input type="file" id="campaignAuditImportInput" accept=".xlsx,.xls" hidden>';
-    board.parentNode.insertBefore(wrap, board);
+    // v134: removed the dashboard "رفع شيت مراجعة حملة" tool.
+    var existing = document.getElementById('campaignAuditDashboardTools');
+    if(existing && existing.parentNode) existing.parentNode.removeChild(existing);
   }
 
   if(typeof renderAdminDashboard === 'function'){
