@@ -534,6 +534,16 @@ service cloud.firestore {
     }
 
 
+
+
+    match /campaign_structure_uploads/{docId} {
+      allow read, create, update, delete: if true;
+    }
+
+    match /campaign_task_templates/{docId} {
+      allow read, create, update, delete: if true;
+    }
+
     match /campaign_tasks/{docId} {
       allow read: if true;
       allow create, update: if campaignTaskKeysValid();
