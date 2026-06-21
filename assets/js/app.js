@@ -11898,36 +11898,43 @@ async function downloadStructureTemplateForTaskExact(task){
     const task = findTaskById(taskId);
     const campaign = campaignForTask(task);
     if(!task || !campaign?.id) return showToast('تعذر العثور على التاسك.');
+    const sourceTasks = Array.isArray(campaign.departmentTasks) ? campaign.departmentTasks : [];
+    const taskIndex = sourceTasks.findIndex(item => item && item.id === task.id);
+    if(taskIndex < 0){
+      console.error('Task Template decision blocked: task was not found inside campaign.departmentTasks', { taskId, campaignId: campaign.id });
+      return showToast('تم إيقاف الحفظ: لم يتم العثور على نفس التاسك داخل الحملة، ولم يتم تعديل أي تاسكات.');
+    }
     const note = normalizeText(document.querySelector('[data-task-template-review-note]')?.value || '');
     const tpl = task.taskTemplate || {};
     const status = decision === 'approved' ? 'approved' : (decision === 'needs_changes' ? 'needs_changes' : 'rejected');
-    const decidedTemplate = {
+    const nowIso = new Date().toISOString();
+    const decidedTemplate = encodeStructureWorkbookForFirestore({
       ...v177NormalizeRealTaskTemplate(tpl),
       status,
+      reviewStatus: status,
       reviewNote: note,
-      reviewedAt: new Date().toISOString(),
+      reviewedAt: nowIso,
       reviewedBy: getCurrentUser().email || getCurrentUser().name || '',
-      ...(status === 'approved' ? { approvedAt:new Date().toISOString(), approvedBy:getCurrentUser().email || getCurrentUser().name || '' } : {})
-    };
-    const pairKey = normalizeText(task.contentExecutionPairKey || task.linkedExecutionPairKey || tpl.linkedExecutionPairKey || '');
-    const nextTasks = (campaign.departmentTasks || []).map(item => {
-      const itemPair = normalizeText(item.contentExecutionPairKey || item.linkedExecutionPairKey || '');
-      if(item.id === task.id){
-        const nextStatus = status === 'approved' ? 'task_template_approved' : (status === 'needs_changes' ? 'pending_task_template_changes' : 'task_template_rejected');
-        return { ...item, taskTemplate: encodeStructureWorkbookForFirestore(decidedTemplate), status: nextStatus, contentTemplateApproved: status === 'approved', progress: status === 'approved' ? Math.max(Number(item.progress || 0), 20) : Number(item.progress || 0), updatedAt:new Date().toISOString() };
-      }
-      if(pairKey && itemPair === pairKey && item.id !== task.id){
-        if(status === 'approved'){
-          return { ...item, contentTaskTemplate: encodeStructureWorkbookForFirestore(decidedTemplate), linkedContentTemplateStatus:'approved', linkedContentTemplateTaskId: task.id, updatedAt:new Date().toISOString() };
-        }
-        return { ...item, linkedContentTemplateStatus: status, linkedContentTemplateTaskId: task.id, linkedContentTemplateReviewNote: note, updatedAt:new Date().toISOString() };
-      }
-      return item;
+      ...(status === 'approved' ? { approvedAt:nowIso, approvedBy:getCurrentUser().email || getCurrentUser().name || '' } : {})
     });
-    await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update({ departmentTasks: nextTasks, updatedAt: serverTime() });
-    if(status === 'approved') showToast('تم اعتماد Task Template وظهرت بياناته تحت بيانات تاسك الهيكل والقسم المرتبط.');
-    else if(status === 'needs_changes') showToast('تم إرسال Task Template للتعديل، وكاتب المحتوى يقدر يرفعه من جديد.');
-    else showToast('تم رفض Task Template.');
+    // v237 safe decision write: never rewrite departmentTasks and never change the task status here.
+    // This prevents task cards from disappearing after approve/reject/needs-changes.
+    const updatePayload = {
+      [`departmentTasks.${taskIndex}.taskTemplate`]: decidedTemplate,
+      [`departmentTasks.${taskIndex}.taskTemplateStatus`]: status,
+      [`departmentTasks.${taskIndex}.contentTemplateApproved`]: status === 'approved',
+      [`departmentTasks.${taskIndex}.updatedAt`]: nowIso,
+      updatedAt: serverTime()
+    };
+    await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update(updatePayload);
+    const campaignIndex = Array.isArray(campaigns) ? campaigns.findIndex(c => c && c.id === campaign.id) : -1;
+    if(campaignIndex >= 0){
+      const localTasks = (campaigns[campaignIndex].departmentTasks || []).map((item, idx) => idx === taskIndex ? { ...item, taskTemplate: decidedTemplate, taskTemplateStatus: status, contentTemplateApproved: status === 'approved', updatedAt: nowIso } : item);
+      campaigns[campaignIndex] = { ...campaigns[campaignIndex], departmentTasks: localTasks, updatedAt: nowIso };
+    }
+    if(status === 'approved') showToast('تم اعتماد Task Template.');
+    else if(status === 'needs_changes') showToast('تم تسجيل أن Task Template محتاج تعديل بدون إخفاء التاسك.');
+    else showToast('تم رفض Task Template بدون إخفاء التاسك.');
     closeStructureReviewPopup();
     refreshOpenTaskModal();
   }
@@ -12090,11 +12097,11 @@ async function downloadStructureTemplateForTaskExact(task){
     const reviewTemplate = event.target.closest('[data-open-task-template-review]');
     if(reviewTemplate){ event.preventDefault(); event.stopPropagation(); v171OpenTaskTemplateReview(reviewTemplate.dataset.openTaskTemplateReview || ''); return; }
     const needsChangesTemplate = event.target.closest('[data-task-template-needs-changes]');
-    if(needsChangesTemplate){ event.preventDefault(); event.stopPropagation(); await v174SetTaskTemplateDecision(needsChangesTemplate.dataset.taskTemplateNeedsChanges || '', 'needs_changes'); return; }
+    if(needsChangesTemplate){ event.preventDefault(); event.stopPropagation(); if(event.stopImmediatePropagation) event.stopImmediatePropagation(); await v174SetTaskTemplateDecision(needsChangesTemplate.dataset.taskTemplateNeedsChanges || '', 'needs_changes'); return; }
     const rejectTemplate = event.target.closest('[data-task-template-reject]');
-    if(rejectTemplate){ event.preventDefault(); event.stopPropagation(); await v174SetTaskTemplateDecision(rejectTemplate.dataset.taskTemplateReject || '', 'rejected'); return; }
+    if(rejectTemplate){ event.preventDefault(); event.stopPropagation(); if(event.stopImmediatePropagation) event.stopImmediatePropagation(); await v174SetTaskTemplateDecision(rejectTemplate.dataset.taskTemplateReject || '', 'rejected'); return; }
     const approveTemplate = event.target.closest('[data-task-template-approve]');
-    if(approveTemplate){ event.preventDefault(); event.stopPropagation(); await v171ApproveTaskTemplate(approveTemplate.dataset.taskTemplateApprove || ''); return; }
+    if(approveTemplate){ event.preventDefault(); event.stopPropagation(); if(event.stopImmediatePropagation) event.stopImmediatePropagation(); await v171ApproveTaskTemplate(approveTemplate.dataset.taskTemplateApprove || ''); return; }
   }, true);
 })();
 
