@@ -11904,29 +11904,36 @@ async function downloadStructureTemplateForTaskExact(task){
     const decidedTemplate = {
       ...v177NormalizeRealTaskTemplate(tpl),
       status,
+      reviewStatus: status,
       reviewNote: note,
       reviewedAt: new Date().toISOString(),
       reviewedBy: getCurrentUser().email || getCurrentUser().name || '',
       ...(status === 'approved' ? { approvedAt:new Date().toISOString(), approvedBy:getCurrentUser().email || getCurrentUser().name || '' } : {})
     };
-    const pairKey = normalizeText(task.contentExecutionPairKey || task.linkedExecutionPairKey || tpl.linkedExecutionPairKey || '');
-    const nextTasks = (campaign.departmentTasks || []).map(item => {
-      const itemPair = normalizeText(item.contentExecutionPairKey || item.linkedExecutionPairKey || '');
-      if(item.id === task.id){
-        const nextStatus = status === 'approved' ? 'task_template_approved' : (status === 'needs_changes' ? 'pending_task_template_changes' : 'task_template_rejected');
-        return { ...item, taskTemplate: encodeStructureWorkbookForFirestore(decidedTemplate), status: nextStatus, contentTemplateApproved: status === 'approved', progress: status === 'approved' ? Math.max(Number(item.progress || 0), 20) : Number(item.progress || 0), updatedAt:new Date().toISOString() };
+    delete decidedTemplate.fileData;
+    const nextStatus = status === 'approved' ? 'task_template_approved' : (status === 'needs_changes' ? 'pending_task_template_changes' : 'task_template_rejected');
+    await updateTaskOnFirebase(task.id, {
+      taskTemplate: encodeStructureWorkbookForFirestore(decidedTemplate),
+      taskTemplateStatus: status,
+      status: nextStatus,
+      contentTemplateApproved: status === 'approved',
+      ...(status === 'approved' ? { contentTaskTemplate: encodeStructureWorkbookForFirestore(decidedTemplate), approvedContentTemplate: encodeStructureWorkbookForFirestore(decidedTemplate), progress: Math.max(Number(task.progress || 0), 20) } : {})
+    }, { silent:true });
+    const pairKey = normalizeText(task.contentExecutionPairKey || task.linkedExecutionPairKey || tpl.linkedExecutionPairKey || decidedTemplate.linkedExecutionPairKey || '');
+    if(pairKey && typeof tasksForCampaign === 'function'){
+      const related = (tasksForCampaign(campaign) || []).filter(item => {
+        const itemPair = normalizeText(item.contentExecutionPairKey || item.linkedExecutionPairKey || item.linkedExecutionTaskId || '');
+        return item && item.id !== task.id && itemPair && itemPair === pairKey;
+      });
+      for(const item of related){
+        const linkedPatch = status === 'approved'
+          ? { contentTaskTemplate: encodeStructureWorkbookForFirestore(decidedTemplate), approvedContentTemplate: encodeStructureWorkbookForFirestore(decidedTemplate), linkedContentTemplateStatus:'approved', linkedContentTemplateTaskId: task.id }
+          : { linkedContentTemplateStatus: status, linkedContentTemplateTaskId: task.id, linkedContentTemplateReviewNote: note };
+        try{ await updateTaskOnFirebase(item.id, linkedPatch, { silent:true }); }catch(error){ console.warn('Task Template linked task update skipped', error); }
       }
-      if(pairKey && itemPair === pairKey && item.id !== task.id){
-        if(status === 'approved'){
-          return { ...item, contentTaskTemplate: encodeStructureWorkbookForFirestore(decidedTemplate), linkedContentTemplateStatus:'approved', linkedContentTemplateTaskId: task.id, updatedAt:new Date().toISOString() };
-        }
-        return { ...item, linkedContentTemplateStatus: status, linkedContentTemplateTaskId: task.id, linkedContentTemplateReviewNote: note, updatedAt:new Date().toISOString() };
-      }
-      return item;
-    });
-    await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update({ departmentTasks: nextTasks, updatedAt: serverTime() });
-    if(status === 'approved') showToast('تم اعتماد Task Template وظهرت بياناته تحت بيانات تاسك الهيكل والقسم المرتبط.');
-    else if(status === 'needs_changes') showToast('تم إرسال Task Template للتعديل، وكاتب المحتوى يقدر يرفعه من جديد.');
+    }
+    if(status === 'approved') showToast('تم اعتماد Task Template.');
+    else if(status === 'needs_changes') showToast('تم إرسال Task Template للتعديل.');
     else showToast('تم رفض Task Template.');
     closeStructureReviewPopup();
     refreshOpenTaskModal();
@@ -22163,5 +22170,205 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
       else if(finalStatus === 'needs_changes') showToast('تم حفظ الصفوف المطلوبة للتعديل. يقدر كاتب المحتوى يرفع الهيكل مرة أخرى.');
       else showToast('لا توجد صفوف مقبولة للتوزيع. اختار مقبول لصف واحد على الأقل أو راجع صفوف نوع المحتوى.');
     }
+  };
+})();
+
+
+/* v140 - explicit structure upload UI + array-only recovery for structure and Task Template storage */
+(function(){
+  const VERSION = 'v140';
+  try{ window.MZJ_APP_VERSION = VERSION; }catch(_){ }
+  const now = () => new Date().toISOString();
+  function clean(v){ try{ return normalizeText(v || ''); }catch(_){ return String(v || '').trim(); } }
+  function ident(v){ try{ return identityClean(v || ''); }catch(_){ return clean(v).toLowerCase(); } }
+  function getUserLabel(){
+    try{ const u = getCurrentUserIdentity ? getCurrentUserIdentity() : getCurrentUser(); return u?.email || u?.name || u?.uid || ''; }catch(_){ return ''; }
+  }
+  function urlFromStored(obj){ return clean(obj?.fileUrl || obj?.downloadURL || obj?.downloadUrl || obj?.url || ''); }
+  function stripLargeFileFields(obj){
+    if(!obj || typeof obj !== 'object') return obj;
+    const next = Array.isArray(obj) ? obj.map(stripLargeFileFields) : { ...obj };
+    delete next.fileData;
+    if(next.structure && typeof next.structure === 'object'){
+      next.structure = { ...next.structure };
+      delete next.structure.fileData;
+      if(Array.isArray(next.structure.sheetTables)){
+        try{ next.structure.sheetTablesJson = JSON.stringify(next.structure.sheetTables); }catch(_){ next.structure.sheetTablesJson = '[]'; }
+        delete next.structure.sheetTables;
+      }
+    }
+    ['taskTemplate','contentTaskTemplate','approvedContentTemplate'].forEach(key => {
+      if(next[key] && typeof next[key] === 'object'){
+        next[key] = { ...next[key] };
+        delete next[key].fileData;
+        if(Array.isArray(next[key].sheetTables)) delete next[key].sheetTables;
+      }
+    });
+    delete next.__departmentTaskMapKey;
+    return next;
+  }
+  function rawDepartmentTasksArray(campaign){
+    const raw = campaign?.departmentTasks;
+    if(Array.isArray(raw)) return raw.filter(Boolean);
+    if(raw && typeof raw === 'object'){
+      return Object.entries(raw)
+        .sort((a,b) => String(a[0]).localeCompare(String(b[0]), undefined, { numeric:true }))
+        .map(([key,val]) => val && typeof val === 'object' ? { ...val, __departmentTaskMapKey:key } : val)
+        .filter(Boolean);
+    }
+    return [];
+  }
+  function fallbackTasks(campaign){
+    try{ return typeof fallbackTasksFromCampaign === 'function' ? (fallbackTasksFromCampaign(campaign) || []) : []; }catch(_){ return []; }
+  }
+  function mergedTasksForSave(campaign){
+    const saved = rawDepartmentTasksArray(campaign).map(t => normalizeCampaignTask(t, campaign));
+    const fallback = fallbackTasks(campaign).map(t => normalizeCampaignTask(t, campaign));
+    const merged = typeof mergeCampaignTasks === 'function' ? mergeCampaignTasks([...saved, ...fallback]) : [...saved, ...fallback];
+    return merged.map(stripLargeFileFields);
+  }
+  function taskIsStructure(task){
+    if(!task) return false;
+    const txt = ident([task.taskType, task.product, task.creative, task.title, task.name, task.sourceRequestStep].filter(Boolean).join(' '));
+    const role = normalizeDepartmentRole?.(task.departmentRole || task.contentSectionId || task.assignedDepartmentId || task.contentSectionName || task.assignedDepartmentName || task.departmentName || '') || '';
+    const contentLike = role === 'content' || txt.includes(ident('قسم المحتوى')) || txt.includes('content');
+    return !!(task.needsStructureUpload || task.structureRequestTask || task.structureBundleTask || (contentLike && (txt.includes(ident('هيكل')) || txt.includes('structure'))));
+  }
+  const previousIsCampaignStructureTask = typeof isCampaignStructureTask === 'function' ? isCampaignStructureTask : null;
+  isCampaignStructureTask = function(task){
+    return taskIsStructure(task) || (previousIsCampaignStructureTask ? previousIsCampaignStructureTask(task) : false);
+  };
+  const previousTasksForCampaign = typeof tasksForCampaign === 'function' ? tasksForCampaign : null;
+  tasksForCampaign = function(campaign){
+    if(!campaign) return [];
+    const saved = rawDepartmentTasksArray(campaign).map(t => normalizeCampaignTask(t, campaign));
+    const fallback = fallbackTasks(campaign).map(t => normalizeCampaignTask(t, campaign));
+    return typeof mergeCampaignTasks === 'function' ? mergeCampaignTasks([...saved, ...fallback]) : [...saved, ...fallback];
+  };
+  function sameTask(a, taskId, target){
+    if(!a) return false;
+    if(String(a.id || '') === String(taskId || '')) return true;
+    if(target){
+      const keys = ['taskNo','structureTaskNo','creativeInstanceId','creativeLinkCode','linkedExecutionPairKey','contentExecutionPairKey'];
+      for(const key of keys){ if(clean(a[key]) && clean(a[key]) === clean(target[key])) return true; }
+      if(clean(a.taskType) === clean(target.taskType) && clean(a.userId || a.assignedToId) === clean(target.userId || target.assignedToId) && clean(a.product || a.creative) === clean(target.product || target.creative)) return true;
+    }
+    return false;
+  }
+  updateTaskOnFirebase = async function(taskId, patch, options = {}){
+    if(!mainDb || !taskId){ showToast('اتصال Firebase غير متاح.'); return null; }
+    let targetCampaign = null;
+    let targetTask = null;
+    for(const campaign of (campaigns || [])){
+      const candidates = tasksForCampaign(campaign) || [];
+      const found = candidates.find(t => sameTask(t, taskId, null));
+      if(found){ targetCampaign = campaign; targetTask = found; break; }
+    }
+    if(!targetTask && typeof findTaskById === 'function'){
+      targetTask = findTaskById(taskId);
+      targetCampaign = targetTask ? campaignForTask(targetTask) : null;
+    }
+    if(!targetCampaign?.id || !targetTask){
+      showToast('تعذر تحديث التاسك: لم يتم العثور عليه داخل الحملة.');
+      return null;
+    }
+    const baseTasks = mergedTasksForSave(targetCampaign);
+    let updatedTask = null;
+    let matched = false;
+    const nextTasks = baseTasks.map(item => {
+      if(!matched && sameTask(item, taskId, targetTask)){
+        matched = true;
+        updatedTask = stripLargeFileFields({ ...item, ...patch, id: item.id || targetTask.id || taskId, campaignId: targetCampaign.id, updatedAt: now() });
+        return updatedTask;
+      }
+      return stripLargeFileFields(item);
+    });
+    if(!matched){
+      updatedTask = stripLargeFileFields({ ...targetTask, ...patch, id: targetTask.id || taskId, campaignId: targetCampaign.id, updatedAt: now() });
+      nextTasks.push(updatedTask);
+    }
+    try{
+      await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(targetCampaign.id).update({ departmentTasks: nextTasks, taskCount: nextTasks.length, updatedAt: serverTime() });
+      const ci = campaigns.findIndex(c => c.id === targetCampaign.id);
+      if(ci >= 0) campaigns[ci] = { ...campaigns[ci], departmentTasks: nextTasks, taskCount: nextTasks.length, updatedAt: now() };
+      if(!options.silent) showToast('تم تحديث التاسك.');
+      if(activeTaskModalMeta && activeTaskModalMeta.taskId === taskId) setTimeout(refreshOpenTaskModal, 30);
+      return updatedTask;
+    }catch(error){
+      console.error(`${VERSION} updateTaskOnFirebase failed`, error, patch);
+      showToast(error?.message || 'تعذر تحديث التاسك داخل الحملة.');
+      throw error;
+    }
+  };
+  async function uploadToStorage(file, task, kind){
+    if(!mainStorage) throw new Error('Firebase Storage غير متاح. انشر Storage rules.');
+    const campaignId = safeStorageSegment(task?.campaignId || campaignForTask(task)?.id || 'campaign');
+    const taskId = safeStorageSegment(task?.id || 'task');
+    const fileName = uniqueStorageFileName(file);
+    const root = kind === 'structure' ? 'campaign-structures' : 'task-templates';
+    const path = `${root}/${campaignId}/${taskId}/${Date.now()}-${fileName}`;
+    const ref = mainStorage.ref().child(path);
+    const snapshot = await ref.put(file, { contentType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', customMetadata: { uploadKind:kind, campaignId, taskId, originalFileName:file.name || fileName, uploadedBy:getUserLabel() } });
+    const downloadURL = await snapshot.ref.getDownloadURL();
+    return { storageProvider:'firebase', storagePath:path, fileName:file.name || fileName, name:file.name || fileName, fileSize:file.size || 0, size:file.size || 0, mimeType:file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', downloadURL, downloadUrl:downloadURL, fileUrl:downloadURL, uploadedAt:now(), uploadedBy:getUserLabel() };
+  }
+  uploadStructureFileForTask = async function(file, taskId){
+    const task = findTaskById(taskId);
+    if(!task) return showToast('تعذر العثور على تاسك الهيكل.');
+    showToast('جاري رفع الهيكل على Storage...');
+    const parsed = await parseStructureWorkbook(file);
+    const uploaded = await uploadToStorage(file, task, 'structure');
+    const prev = taskStructure(task);
+    const nextStructure = {
+      ...prev,
+      ...uploaded,
+      status: (prev.status === 'needs_changes' || (Array.isArray(prev.notes) && prev.notes.length)) ? 'revised' : 'pending_review',
+      parsedRows: parsed.parsedRows || [],
+      sheetTablesJson: JSON.stringify(parsed.sheetTables || []),
+      approvedRows: [], rowReviewStatuses: {}, notes: [], marks: [], reviewedAt:'', reviewClearedAt:now(), uploadKind:'structure', templateKind:'campaign_structure_storage_v140'
+    };
+    delete nextStructure.fileData;
+    await updateTaskOnFirebase(task.id, { structure: nextStructure }, { silent:true });
+    showToast('تم رفع الهيكل وحفظه على Storage. في انتظار مراجعة الأدمن.');
+    refreshOpenTaskModal();
+  };
+  const oldRenderStructureWorkbookTable = typeof renderStructureWorkbookTable === 'function' ? renderStructureWorkbookTable : null;
+  renderStructureWorkbookTable = function(task, structure, admin){
+    const sheets = structureSheetTables(structure);
+    if(sheets.length && oldRenderStructureWorkbookTable) return oldRenderStructureWorkbookTable(task, structure, admin);
+    const url = urlFromStored(structure);
+    if(url){
+      return `<div class="structure-workbook-view missing-sheet-preview"><h4>محتوى الحملة</h4><div class="empty-state mini-empty">الهيكل محفوظ على Storage. اضغط لعرض الشيت من الملف المرفوع.</div><button class="btn btn-light" type="button" data-reload-structure-sheet="${escapeHtml(task.id)}">عرض الشيت من الملف المرفوع</button><a class="btn btn-light" href="${escapeHtml(url)}" target="_blank" rel="noopener" download="${escapeHtml(structure.fileName || 'campaign-structure.xlsx')}">تحميل ملف الهيكل</a></div>`;
+    }
+    return oldRenderStructureWorkbookTable ? oldRenderStructureWorkbookTable(task, structure, admin) : '';
+  };
+  // Make the structure upload button explicit in task details.
+  const oldRenderStructureSection = typeof renderStructureSection === 'function' ? renderStructureSection : null;
+  renderStructureSection = function(task){
+    const html = oldRenderStructureSection ? oldRenderStructureSection(task) : '';
+    if(html || !isCampaignStructureTask(task)) return html;
+    return `<div class="modal-section structure-section"><div class="modal-section-title"><h3>هيكل الحملة</h3><span>لم يتم رفع الهيكل</span></div><div class="structure-actions"><button class="btn btn-light" type="button" data-download-structure-template="${escapeHtml(task.id)}">تحميل قالب الهيكل بالأكواد</button><button class="btn btn-primary" type="button" data-upload-structure="${escapeHtml(task.id)}">رفع الهيكل</button><span class="structure-file-name muted">لم يتم رفع الهيكل</span></div></div>`;
+  };
+  reloadStructureSheetFromStoredFile = async function(taskId, silent = false){
+    const task = findTaskById(taskId);
+    if(!task) return;
+    const structure = taskStructure(task);
+    const url = urlFromStored(structure);
+    if(!url){ if(!silent) showToast('لا يوجد رابط ملف الهيكل.'); return; }
+    try{
+      if(!silent) showToast('جاري عرض الشيت من الملف المرفوع...');
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('download failed');
+      const parsed = await parseStructureWorkbookBuffer(await res.arrayBuffer());
+      await updateTaskOnFirebase(task.id, { structure: { ...structure, parsedRows: parsed.parsedRows || [], sheetTablesJson: JSON.stringify(parsed.sheetTables || []), reparsedAt:now() } }, { silent:true });
+      if(!silent) showToast('تم عرض الشيت كامل.');
+      refreshOpenTaskModal();
+    }catch(error){ console.error(`${VERSION} reload structure failed`, error); if(!silent) showToast('تعذر عرض الشيت من الملف المرفوع.'); }
+  };
+  ensureStructureSheetLoaded = function(taskId){
+    const task = findTaskById(taskId);
+    if(!task) return;
+    const structure = taskStructure(task);
+    if(urlFromStored(structure) && !structureSheetTables(structure).length) reloadStructureSheetFromStoredFile(taskId, true);
   };
 })();
