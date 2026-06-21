@@ -22422,23 +22422,68 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     return base;
   }
   function fallbackTasks(campaign){ try{ return typeof fallbackTasksFromCampaign === 'function' ? (fallbackTasksFromCampaign(campaign) || []) : []; }catch(_){ return []; } }
+  function isTaskLike(task){
+    if(!task || typeof task !== 'object') return false;
+    return !!(task.id || task.taskId || task.taskNo || task.structureTaskNo || task.taskType || task.creative || task.product || task.assignedToId || task.assigneeUid || task.userId || task.departmentRole || task.contentSectionId);
+  }
+  function normalizeForMatch(task, campaign){
+    try{ return normalizeCampaignTask ? normalizeCampaignTask(task, campaign) : task; }catch(_){ return task; }
+  }
+  function taskPrimaryNo(task){
+    try{ if(typeof actualTaskNo === 'function'){ const no = actualTaskNo(task); if(clean(no)) return clean(no); } }catch(_){ }
+    try{ if(typeof structureTaskNumber === 'function'){ const no = structureTaskNumber(task); if(clean(no)) return clean(no); } }catch(_){ }
+    return clean(task?.taskNo || task?.structureTaskNo || task?.taskNumber || '');
+  }
+  function taskIdentity(task){
+    if(!task) return '';
+    const no = taskPrimaryNo(task);
+    const user = clean(task.userId || task.userUid || task.assignedToId || task.assignedToUid || task.assigneeUid || task.userName || task.assignedToName || '');
+    const role = clean(task.departmentRole || task.assignedDepartmentId || task.contentSectionId || task.assignedDepartmentName || '');
+    const ci = clean(task.creativeInstanceId || task.creativeLinkCode || task.taskIndex || '');
+    const tt = clean(task.taskType || task.creative || task.product || '');
+    return [no, user, role, ci, tt].filter(Boolean).join('__');
+  }
   function campaignTasksForSave(campaign){
-    const saved = rawTasks(campaign).map(t => normalizeCampaignTask ? normalizeCampaignTask(t, campaign) : t);
-    if(saved.length) return saved;
-    const fb = fallbackTasks(campaign).map(t => normalizeCampaignTask ? normalizeCampaignTask(t, campaign) : t);
-    return fb;
+    const saved = rawTasks(campaign).filter(isTaskLike).map(t => normalizeForMatch(t, campaign));
+    const fb = fallbackTasks(campaign).filter(isTaskLike).map(t => normalizeForMatch(t, campaign));
+    const merged = [];
+    function add(task, preferExisting){
+      if(!isTaskLike(task)) return;
+      const id = clean(task.id || task.taskId || '');
+      const identity = taskIdentity(task);
+      const idx = merged.findIndex(item => {
+        if(id && clean(item.id || item.taskId || '') === id) return true;
+        const itemIdentity = taskIdentity(item);
+        return identity && itemIdentity && identity === itemIdentity;
+      });
+      if(idx < 0) merged.push(task);
+      else if(!preferExisting) merged[idx] = { ...merged[idx], ...task };
+    }
+    saved.forEach(t => add(t, true));
+    fb.forEach(t => add(t, true));
+    return merged;
   }
   function sameTask(a, id, target){
     if(!a) return false;
-    if(String(a.id || '') && String(a.id || '') === String(id || '')) return true;
-    if(String(a.taskId || '') && String(a.taskId || '') === String(id || '')) return true;
+    const idText = clean(id || '');
+    if(idText){
+      const candidates = [a.id, a.taskId, a.docId, a.taskNo, a.structureTaskNo, a.taskNumber].map(clean).filter(Boolean);
+      if(candidates.includes(idText)) return true;
+    }
     if(!target) return false;
+    const targetIds = [target.id, target.taskId, target.docId, target.taskNo, target.structureTaskNo, target.taskNumber].map(clean).filter(Boolean);
+    if(targetIds.some(v => [a.id, a.taskId, a.docId, a.taskNo, a.structureTaskNo, a.taskNumber].map(clean).includes(v))) return true;
     const keys = ['taskNo','structureTaskNo','creativeInstanceId','creativeLinkCode','linkedExecutionPairKey','contentExecutionPairKey','taskIndex'];
     for(const k of keys){ if(clean(a[k]) && clean(a[k]) === clean(target[k])) return true; }
-    const aUser = clean(a.userId || a.assignedToId || a.assigneeUid || a.assignedToUid || a.userName || a.assignedToName);
-    const tUser = clean(target.userId || target.assignedToId || target.assigneeUid || target.assignedToUid || target.userName || target.assignedToName);
-    if(clean(a.taskType) === clean(target.taskType) && aUser && aUser === tUser && clean(a.product || a.creative) === clean(target.product || target.creative)) return true;
-    return false;
+    const aNo = taskPrimaryNo(a), tNo = taskPrimaryNo(target);
+    if(aNo && tNo && aNo === tNo) return true;
+    const aUser = clean(a.userId || a.userUid || a.assignedToId || a.assigneeUid || a.assignedToUid || a.userName || a.assignedToName || '');
+    const tUser = clean(target.userId || target.userUid || target.assignedToId || target.assigneeUid || target.assignedToUid || target.userName || target.assignedToName || '');
+    const aRole = clean(a.departmentRole || a.assignedDepartmentId || a.contentSectionId || a.assignedDepartmentName || '');
+    const tRole = clean(target.departmentRole || target.assignedDepartmentId || target.contentSectionId || target.assignedDepartmentName || '');
+    if(clean(a.taskType) === clean(target.taskType) && aUser && aUser === tUser && (!aRole || !tRole || aRole === tRole) && clean(a.product || a.creative) === clean(target.product || target.creative)) return true;
+    const ai = taskIdentity(a), ti = taskIdentity(target);
+    return !!(ai && ti && ai === ti);
   }
   function locateTask(taskId){
     let targetTask = null, targetCampaign = null;
@@ -22448,11 +22493,15 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     }
     if(targetTask && targetCampaign) return {targetTask, targetCampaign};
     for(const c of (campaigns || [])){
-      const arr = (typeof tasksForCampaign === 'function' ? tasksForCampaign(c) : campaignTasksForSave(c)) || [];
+      const arr = campaignTasksForSave(c) || [];
       const found = arr.find(t => sameTask(t, taskId, targetTask));
       if(found) return {targetTask:found, targetCampaign:c};
     }
     return {targetTask:null, targetCampaign:null};
+  }
+  function stableMapKey(task, fallbackId){
+    const raw = task?.__departmentTaskMapKey || task?.id || task?.taskId || taskPrimaryNo(task) || taskIdentity(task) || fallbackId || `task-${Date.now()}`;
+    return String(raw || 'task').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0,140) || `task-${Date.now()}`;
   }
   async function writeTaskPatch(taskId, patch, options={}){
     if(!mainDb || !taskId){ showToast('Firebase is not connected.'); return null; }
@@ -22460,23 +22509,35 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const targetTask = located.targetTask;
     const targetCampaign = located.targetCampaign;
     if(!targetTask || !targetCampaign?.id){ showToast(MSG_NO_TASK); return null; }
-    const base = campaignTasksForSave(targetCampaign);
-    let matched = false, updatedTask = null;
-    const next = base.map(item => {
-      if(!matched && sameTask(item, taskId, targetTask)){
-        matched = true;
-        updatedTask = stripTask({...item, ...patch, id:item.id || targetTask.id || taskId, campaignId:targetCampaign.id, updatedAt:now()});
-        return updatedTask;
+    const raw = targetCampaign.departmentTasks;
+    let updatedTask = stripTask({...targetTask, ...patch, id:targetTask.id || taskId, campaignId:targetCampaign.id, updatedAt:now()});
+    if(Array.isArray(raw)){
+      const arr = raw.filter(Boolean);
+      let matched = false;
+      const next = arr.map(item => {
+        if(!matched && sameTask(item, taskId, targetTask)){
+          matched = true;
+          updatedTask = stripTask({...item, ...targetTask, ...patch, id:item.id || targetTask.id || taskId, campaignId:targetCampaign.id, updatedAt:now()});
+          return updatedTask;
+        }
+        return stripTask(item);
+      });
+      if(!matched) next.push(updatedTask);
+      await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(targetCampaign.id).update({ departmentTasks: next, taskCount: next.length, updatedAt: serverTime() });
+      const ci = (campaigns || []).findIndex(c => c.id === targetCampaign.id);
+      if(ci >= 0) campaigns[ci] = {...campaigns[ci], departmentTasks: next, taskCount: next.length, updatedAt:now()};
+    }else{
+      // لو departmentTasks اتكسرت وبقت map أو مش موجودة: نحدث التاسك المطلوب فقط ولا نلمس باقي الداتا.
+      const existing = (raw && typeof raw === 'object') ? raw : {};
+      let key = '';
+      for(const [k,v] of Object.entries(existing)){
+        if(isTaskLike(v) && sameTask(v, taskId, targetTask)){ key = k; updatedTask = stripTask({...v, ...targetTask, ...patch, id:v.id || targetTask.id || taskId, campaignId:targetCampaign.id, updatedAt:now()}); break; }
       }
-      return stripTask(item);
-    });
-    if(!matched){
-      updatedTask = stripTask({...targetTask, ...patch, id:targetTask.id || taskId, campaignId:targetCampaign.id, updatedAt:now()});
-      next.push(updatedTask);
+      if(!key) key = stableMapKey(updatedTask, taskId);
+      await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(targetCampaign.id).update({ [`departmentTasks.${key}`]: updatedTask, updatedAt: serverTime() });
+      const ci = (campaigns || []).findIndex(c => c.id === targetCampaign.id);
+      if(ci >= 0) campaigns[ci] = {...campaigns[ci], departmentTasks: { ...(existing || {}), [key]: updatedTask }, updatedAt:now()};
     }
-    await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(targetCampaign.id).update({ departmentTasks: next, taskCount: next.length, updatedAt: serverTime() });
-    const ci = (campaigns || []).findIndex(c => c.id === targetCampaign.id);
-    if(ci >= 0) campaigns[ci] = {...campaigns[ci], departmentTasks: next, taskCount: next.length, updatedAt:now()};
     if(!options.silent) showToast(options.message || MSG_UPDATED);
     return updatedTask;
   }
@@ -22592,7 +22653,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
       try{
         const role = normalizeDepartmentRole?.(task.departmentRole || task.assignedDepartmentId || task.contentSectionId || task.contentSectionName || '') || '';
         const isStructure = typeof isCampaignStructureTask === 'function' && isCampaignStructureTask(task);
-        if(role === 'content' && !isStructure && !html.includes('data-upload-task-template')){
+        if(!isStructure && !isCurrentUserAdmin() && !html.includes('data-upload-task-template')){
           const tpl = task.taskTemplate || task.contentTaskTemplate || {};
           const hasFile = !!(storedUrl(tpl) || tpl.fileName || tpl.fileSize);
           const canUpload = !isCurrentUserAdmin() && (!tpl.status || ['not_uploaded','needs_changes','rejected','pending_review'].includes(clean(tpl.status)));
@@ -22600,6 +22661,59 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
           html = html.replace('<div class="modal-section task-actions-section compact-actions-section">', section + '<div class="modal-section task-actions-section compact-actions-section">');
         }
       }catch(e){ console.warn(VERSION, 'template section inject failed', e); }
+      return html;
+    };
+  }
+})();
+
+
+/* v142 - targeted fix: non-content receive persistence + Task Template upload visibility, without changing campaign creation */
+(function(){
+  const VERSION = 'v142-targeted-task-persistence';
+  function txt(v){ try{ return normalizeText(v || ''); }catch(_){ return String(v || '').trim(); } }
+  function taskLike(t){ return !!(t && typeof t === 'object' && (t.id || t.taskId || t.taskNo || t.structureTaskNo || t.taskType || t.creative || t.product || t.assignedToId || t.assignedToUid || t.assigneeUid || t.userId || t.userName)); }
+  function rawList(c){
+    const raw = c && c.departmentTasks;
+    if(Array.isArray(raw)) return raw.filter(taskLike);
+    if(raw && typeof raw === 'object') return Object.entries(raw).map(([k,v]) => v && typeof v === 'object' ? {...v, __departmentTaskMapKey:k} : v).filter(taskLike);
+    return [];
+  }
+  function normalizeOne(t,c){ try{ return normalizeCampaignTask ? normalizeCampaignTask(t,c) : t; }catch(_){ return t; } }
+  function noOf(t){ try{ if(typeof actualTaskNo === 'function'){ const no = actualTaskNo(t); if(txt(no)) return txt(no); } }catch(_){ } return txt(t?.taskNo || t?.structureTaskNo || t?.id || ''); }
+  function identity(t){ return [noOf(t), txt(t?.userId || t?.assignedToId || t?.assigneeUid || t?.assignedToUid || t?.userName || t?.assignedToName), txt(t?.departmentRole || t?.assignedDepartmentId || t?.contentSectionId), txt(t?.creativeInstanceId || t?.creativeLinkCode || t?.taskIndex), txt(t?.taskType || t?.creative || t?.product)].filter(Boolean).join('__'); }
+  if(typeof tasksForCampaign === 'function'){
+    const oldFallback = typeof fallbackTasksFromCampaign === 'function' ? fallbackTasksFromCampaign : null;
+    tasksForCampaign = function(campaign){
+      const out = [];
+      function add(t){
+        if(!taskLike(t)) return;
+        const task = normalizeOne(t, campaign);
+        const id = txt(task.id || task.taskId || '');
+        const ident = identity(task);
+        const exists = out.find(x => (id && txt(x.id || x.taskId || '') === id) || (ident && identity(x) === ident));
+        if(!exists) out.push(task);
+      }
+      rawList(campaign).forEach(add);
+      try{ (oldFallback ? oldFallback(campaign) : []).forEach(add); }catch(_){ }
+      return (typeof mergeCampaignTasks === 'function') ? mergeCampaignTasks(out) : out;
+    };
+  }
+  const oldBuild = typeof buildTaskDetailHtml === 'function' ? buildTaskDetailHtml : null;
+  if(oldBuild){
+    buildTaskDetailHtml = function(task){
+      let html = oldBuild(task);
+      try{
+        const isStructure = typeof isCampaignStructureTask === 'function' && isCampaignStructureTask(task);
+        if(!isStructure && !isCurrentUserAdmin() && !html.includes('data-upload-task-template')){
+          const tpl = task.taskTemplate || task.contentTaskTemplate || {};
+          const url = tpl.fileUrl || tpl.downloadURL || tpl.downloadUrl || tpl.url || '';
+          const status = tpl.status || task.taskTemplateStatus || 'لم يتم رفع Task Template';
+          const hasFile = !!(url || tpl.fileName || tpl.fileSize || tpl.uploadedAt);
+          const canUpload = !['approved','معتمد'].includes(txt(tpl.status || ''));
+          const section = `<div class="modal-section task-template-section task-template-section-v142"><div class="modal-section-title"><h3>Task Template - قسم المحتوى</h3><span>${escapeHtml(status)}</span></div><div class="structure-actions">${canUpload ? `<button class="btn btn-light" type="button" data-download-task-template="${escapeHtml(task.id)}">تحميل قالب Task Template</button><button class="btn btn-primary" type="button" data-upload-task-template="${escapeHtml(task.id)}">رفع ملف Task Template</button>` : ''}${hasFile ? `<span class="structure-file-name structure-attached-label">تم رفع Task Template</span>${tpl.fileName ? `<span class="structure-file-name">${escapeHtml(tpl.fileName)}</span>` : ''}` : `<span class="structure-file-name muted">لم يتم رفع Task Template</span>`}${url ? `<a class="btn btn-light" href="${escapeHtml(url)}" target="_blank" rel="noopener">تحميل الملف المرفوع</a>` : ''}</div></div>`;
+          html = html.replace('<div class="modal-section task-actions-section compact-actions-section">', section + '<div class="modal-section task-actions-section compact-actions-section">');
+        }
+      }catch(e){ console.warn(VERSION, e); }
       return html;
     };
   }
