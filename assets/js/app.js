@@ -18211,7 +18211,7 @@ document.addEventListener('click', async event => {
   function v93OpenCreativeDraft(modal, creativeName){
     if(!modal || !creativeName) return;
     modal.querySelector('.v93-current-panel-wrap').innerHTML = creativeAssignmentPanelHtml(creativeName);
-    modal.querySelector('.v93-current-placeholder').style.display = 'none';
+    modal.querySelector('.v93-current-placeholder').style.setProperty('display','none','important');
     modal.querySelectorAll('.v93-current-panel-wrap .js-role-picker').forEach(refreshRolePicker);
     modal.querySelectorAll('.v93-current-panel-wrap .creative-assignment-panel').forEach(panel => { if(typeof refreshContentDependencyPickers === 'function') refreshContentDependencyPickers(panel); if(typeof updateCreativePanelCarVisibility === 'function') updateCreativePanelCarVisibility(panel); });
     setCreativePopupActive(modal, creativeName);
@@ -18327,12 +18327,25 @@ document.addEventListener('click', async event => {
     });
   };
 
+  document.addEventListener('pointerup', function(event){
+    const pick = event.target.closest('.v93-creative-pick');
+    if(pick && pick.closest('#creativeAssignmentPopup')){
+      const modal = pick.closest('#creativeAssignmentPopup');
+      if(!modal) return;
+      setTimeout(() => {
+        if(!modal.querySelector('.v93-current-panel-wrap .creative-assignment-panel')){
+          v93OpenCreativeDraft(modal, pick.dataset.v93CreativeName || pick.getAttribute('data-v93-creative-name') || '');
+        }
+      }, 0);
+    }
+  }, true);
+
   document.addEventListener('click', function(event){
     const pick = event.target.closest('.v93-creative-pick');
     if(pick){
       event.preventDefault();
       event.stopPropagation();
-      v93OpenCreativeDraft(pick.closest('#creativeAssignmentPopup'), pick.dataset.v93CreativeName || '');
+      v93OpenCreativeDraft(pick.closest('#creativeAssignmentPopup'), pick.dataset.v93CreativeName || pick.getAttribute('data-v93-creative-name') || '');
       return;
     }
     const saveBtn = event.target.closest('.js-v93-save-current-creative');
@@ -18356,7 +18369,7 @@ document.addEventListener('click', async event => {
         panel.remove();
         panel.classList.add('is-active');
         modal.querySelector('.v93-current-panel-wrap').innerHTML = panel.outerHTML;
-        modal.querySelector('.v93-current-placeholder').style.display = 'none';
+        modal.querySelector('.v93-current-placeholder').style.setProperty('display','none','important');
         modal.querySelectorAll('.v93-current-panel-wrap .js-role-picker').forEach(refreshRolePicker);
         modal.querySelectorAll('.v93-current-panel-wrap .creative-assignment-panel').forEach(item => { if(typeof refreshContentDependencyPickers === 'function') refreshContentDependencyPickers(item); if(typeof updateCreativePanelCarVisibility === 'function') updateCreativePanelCarVisibility(item); });
         v93RefreshSavedList(modal);
@@ -24427,4 +24440,503 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
 
   try{ if(typeof refreshDynamicSelects === 'function') refreshDynamicSelects(); if(typeof renderTasksPage === 'function') renderTasksPage(); if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); if(typeof updateTopbarUser === 'function') updateTopbarUser(); }catch(_){ }
   console.info(`${VERSION} loaded`);
+})();
+
+/* v411 - content dependency split: execution waiting tasks are scoped per content writer; v410 wizard UI reverted by building from v409 base. */
+(function(){
+  const VERSION = 'v411-content-writer-scoped-waiting-split';
+  try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; }catch(_){ }
+  function txt(v){ try{ return normalizeText(v || ''); }catch(_){ return String(v == null ? '' : v).trim(); } }
+  function key(v){ try{ return identityClean(v || ''); }catch(_){ return txt(v).replace(/[أإآٱ]/g,'ا').replace(/[ؤ]/g,'و').replace(/[ئ]/g,'ي').replace(/[ة]/g,'ه').replace(/[ى]/g,'ي').replace(/[ـ]/g,'').replace(/[^\u0600-\u06FFa-zA-Z0-9]+/g,'').toLowerCase(); } }
+  function arr(v){ return Array.isArray(v) ? v : []; }
+  function uniq(list){ const seen = new Set(); return (list || []).map(txt).filter(Boolean).filter(v => { const k = key(v); if(!k || seen.has(k)) return false; seen.add(k); return true; }); }
+  function roleOf(task){ try{ return normalizeDepartmentRole(task?.departmentRole || task?.assignedDepartmentRole || task?.contentSectionId || task?.assignedDepartmentId || task?.contentSectionName || task?.assignedDepartmentName || task?.departmentName || '') || ''; }catch(_){ return txt(task?.departmentRole || task?.contentSectionName || task?.assignedDepartmentName || ''); } }
+  function isExecutionRole(role){ return ['design','montage','shooting'].includes(roleOf({departmentRole:role}) || role); }
+  function contentIdentityFromUser(id, name){
+    const user = (typeof findUserByAnyIdentity === 'function' ? findUserByAnyIdentity([id, name]) : null) || {};
+    const finalId = txt(user.id || user.uid || id || user.email || name || '');
+    const finalName = txt((typeof userName === 'function' ? userName(user) : '') || user.name || user.displayName || name || id || finalId);
+    return { id: finalId, name: finalName, k: key(finalId || finalName) };
+  }
+  function dependencyContentLinks(task){
+    const out = [];
+    arr(task?.dependencyLinks).forEach(link => {
+      const item = contentIdentityFromUser(link?.contentUserId || link?.contentId || link?.userId || '', link?.contentUserName || link?.contentName || link?.userName || '');
+      if(item.k) out.push({ ...item, link });
+    });
+    const ids = arr(task?.dependsOnContentUserIds || task?.upstreamUserIds);
+    const names = arr(task?.dependsOnContentUserNames || task?.upstreamUserNames);
+    const max = Math.max(ids.length, names.length);
+    for(let i = 0; i < max; i += 1){
+      const item = contentIdentityFromUser(ids[i] || '', names[i] || '');
+      if(item.k) out.push(item);
+    }
+    const seen = new Set();
+    return out.filter(item => {
+      if(!item.k || seen.has(item.k)) return false;
+      seen.add(item.k);
+      return true;
+    });
+  }
+  function cloneForContentDependency(task, item, index){
+    const idPart = (item.k || String(index + 1)).replace(/[^a-zA-Z0-9\u0600-\u06FF_-]+/g,'').slice(0,28) || String(index + 1);
+    const oneLink = item.link ? [item.link] : arr(task.dependencyLinks).filter(link => key(link?.contentUserId || link?.contentUserName || '') === item.k);
+    return {
+      ...task,
+      id: `${txt(task.id || task.taskId || 'task')}-cw-${idPart}`,
+      sourceTaskId: task.id || task.taskId || '',
+      originalTaskId: task.originalTaskId || task.id || task.taskId || '',
+      contentDependencySplit: true,
+      contentDependencyIndex: index + 1,
+      contentDependencyKey: item.k,
+      linkedContentUserId: item.id,
+      linkedContentUserName: item.name,
+      upstreamUserIds: item.id ? [item.id] : [],
+      upstreamUserNames: item.name ? [item.name] : [],
+      upstreamUserLabel: item.name || item.id || '',
+      dependsOnContentUserIds: item.id ? [item.id] : [],
+      dependsOnContentUserNames: item.name ? [item.name] : [],
+      dependencyLinks: oneLink,
+      waitingForApproval: true,
+      waitingForApprovalLabel: task.waitingForApprovalLabel || 'في انتظار اعتماد الهيكل',
+      status: (task.status && task.status !== 'pending') ? task.status : 'waiting_structure',
+      taskIndex: `${txt(task.taskIndex || task.taskNo || '')}-cw-${index + 1}`
+    };
+  }
+  function splitContentDependencyTasks(list){
+    const result = [];
+    (list || []).forEach(task => {
+      const role = roleOf(task);
+      const waiting = !!(task?.waitingForApproval || txt(task?.status) === 'waiting_structure' || task?.structureLinkPending);
+      if(waiting && isExecutionRole(role)){
+        const links = dependencyContentLinks(task);
+        if(links.length > 1){
+          links.forEach((item, index) => result.push(cloneForContentDependency(task, item, index)));
+          return;
+        }
+        if(links.length === 1){
+          const item = links[0];
+          result.push({
+            ...task,
+            contentDependencyKey: item.k,
+            linkedContentUserId: item.id || task.linkedContentUserId || '',
+            linkedContentUserName: item.name || task.linkedContentUserName || '',
+            upstreamUserIds: item.id ? [item.id] : arr(task.upstreamUserIds),
+            upstreamUserNames: item.name ? [item.name] : arr(task.upstreamUserNames),
+            upstreamUserLabel: item.name || item.id || task.upstreamUserLabel || '',
+            dependsOnContentUserIds: item.id ? [item.id] : arr(task.dependsOnContentUserIds),
+            dependsOnContentUserNames: item.name ? [item.name] : arr(task.dependsOnContentUserNames),
+            dependencyLinks: item.link ? [item.link] : arr(task.dependencyLinks)
+          });
+          return;
+        }
+      }
+      result.push(task);
+    });
+    const seen = new Set();
+    return result.filter(task => {
+      const id = txt(task?.id || task?.taskId || JSON.stringify([task?.campaignId, task?.taskIndex, task?.contentDependencyKey, task?.assignedToId, task?.userId, task?.taskNo]));
+      if(!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }
+
+  const oldBuildDepartmentTasks411 = typeof buildDepartmentTasks === 'function' ? buildDepartmentTasks : null;
+  if(oldBuildDepartmentTasks411){
+    buildDepartmentTasks = function(campaignId, payload){
+      const built = oldBuildDepartmentTasks411.apply(this, arguments) || [];
+      const split = splitContentDependencyTasks(built);
+      // Preserve stable sequential ids for newly-created campaigns after splitting.
+      return split.map((task, index) => ({ ...task, id: `${campaignId}-task-${String(index + 1).padStart(3,'0')}`, campaignId }));
+    };
+  }
+
+  const oldTaskDependencyApproved411 = typeof taskDependencyApproved === 'function' ? taskDependencyApproved : null;
+  if(oldTaskDependencyApproved411){
+    taskDependencyApproved = function(task){
+      try{
+        const role = roleOf(task);
+        if(isExecutionRole(role) && (task?.contentDependencyKey || task?.linkedContentUserId || task?.linkedContentUserName)){
+          const linkedIds = uniq(arr(task.dependsOnContentUserIds).concat(task.linkedContentUserId || '')).map(key).filter(Boolean);
+          const linkedNames = uniq(arr(task.dependsOnContentUserNames).concat(task.linkedContentUserName || '')).map(key).filter(Boolean);
+          const campaign = typeof campaignForTask === 'function' ? campaignForTask(task) : null;
+          const all = campaign && typeof tasksForCampaign === 'function' ? tasksForCampaign(campaign) : [];
+          const matches = all.filter(item => {
+            if((item.id || '') === (task.id || '')) return false;
+            if(roleOf(item) !== 'content') return false;
+            const ids = [item.userId,item.userUid,item.assignedToId,item.assignedToUid,item.assigneeUid,item.assignedToEmail,item.userEmail,item.uid,item.id].map(key).filter(Boolean);
+            const names = [item.userName,item.assigneeName,item.assignedToName,item.displayName,item.name].map(key).filter(Boolean);
+            if(linkedIds.length && linkedIds.some(id => ids.includes(id))) return true;
+            if(linkedNames.length && linkedNames.some(name => names.includes(name))) return true;
+            return false;
+          });
+          if(matches.length){
+            return matches.some(item => {
+              const statusText = key(item.status || item.state || '');
+              const structure = (typeof taskStructure === 'function' ? taskStructure(item) : (item.structure || {})) || {};
+              const structureStatus = key(structure.status || structure.reviewStatus || '');
+              const finalUploaded = (typeof taskFiles === 'function' ? taskFiles(item) : arr(item.files || item.attachments)).some(file => file?.isFinal || file?.uploadKind === 'final' || file?.kind === 'final' || file?.purpose === 'final');
+              const adminApprovedStep = arr(item.steps).some(step => step.adminOnly && step.done);
+              const progressDone = typeof taskProgress === 'function' ? taskProgress(item) >= 100 : false;
+              return progressDone || finalUploaded || adminApprovedStep || ['approved','done','completed',key('معتمد'),key('مكتمل')].some(s => statusText.includes(s)) || ['approved','distributed',key('معتمد')].some(s => structureStatus.includes(s));
+            });
+          }
+        }
+      }catch(error){ console.warn(VERSION, 'dependency check fallback', error); }
+      return oldTaskDependencyApproved411.apply(this, arguments);
+    };
+  }
+
+  // Add a small non-invasive label so waiting cards show which content writer they are waiting for.
+  const oldRenderTaskCard411 = typeof renderTaskCard === 'function' ? renderTaskCard : null;
+  if(oldRenderTaskCard411){
+    renderTaskCard = function(task){
+      let html = oldRenderTaskCard411.apply(this, arguments);
+      try{
+        const label = txt(task?.upstreamUserLabel || task?.linkedContentUserName || '');
+        if(label && (task?.waitingForApproval || txt(task?.status) === 'waiting_structure') && !html.includes('data-content-waiting-label')){
+          const chip = `<div class="task-waiting-content-chip" data-content-waiting-label>مستني هيكل: ${typeof escapeHtml === 'function' ? escapeHtml(label) : label}</div>`;
+          html = html.replace(/<\/div>\s*$/i, chip + '</div>');
+        }
+      }catch(_){ }
+      return html;
+    };
+  }
+  if(!document.getElementById('v411-content-waiting-chip-style')){
+    const style = document.createElement('style');
+    style.id = 'v411-content-waiting-chip-style';
+    style.textContent = `.task-waiting-content-chip{margin-top:8px;padding:7px 10px;border-radius:999px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:12px;font-weight:800;display:inline-flex;align-items:center;gap:6px}`;
+    document.head.appendChild(style);
+  }
+  try{ if(typeof renderTasksPage === 'function') renderTasksPage(); if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(_){ }
+  console.info(`${VERSION} loaded`);
+})();
+
+
+/* MZJ v414 - Four-stage Campaign Builder + clean studio safeguards */
+(function(){
+  const clean = value => (typeof normalizeText === 'function' ? normalizeText(value || '') : String(value || '').trim());
+  const esc = value => (typeof escapeHtml === 'function' ? escapeHtml(value || '') : String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+  try{ window.MZJ_APP_VERSION = '414'; }catch(_){ }
+
+  function ensureBuilderMarkup(){
+    const nav = document.getElementById('campaignWizardNav');
+    if(nav){
+      const labels = [
+        ['1','بيانات الحملة وكتاب المحتوى'],
+        ['2','الكريتيفات + السيارات + ربط الأقسام'],
+        ['3','الميزانية'],
+        ['4','مراجعة وحفظ']
+      ];
+      nav.innerHTML = labels.map(([n,t]) => `<button class="campaign-wizard-step${n==='1'?' active':''}" data-campaign-wizard-target="${n}" type="button"><span>${n}</span><strong>${t}</strong></button>`).join('');
+    }
+    const step2 = document.querySelector('[data-campaign-wizard-step="2"]');
+    if(step2){
+      const h2 = step2.querySelector('h2'); if(h2) h2.textContent = 'الكريتيفات والسيارات وربط الأقسام';
+      const p = step2.querySelector('.section-toolbar p'); if(p) p.textContent = 'اختار الكريتيف، حدد السيارات، ثم اربط كل قسم تنفيذي بيوزراته وبكاتب المحتوى المسؤول. احفظ كل كريتيف كعنصر مستقل.';
+      const empty = step2.querySelector('#creativeRows .empty-state'); if(empty) empty.innerHTML = 'ابدأ من زر <strong>اختيار الكريتيفات واليوزرات</strong> لإنشاء الكريتيفات وربط السيارات والأقسام في Studio واحد واضح.';
+      const next = step2.querySelector('[data-campaign-wizard-next]'); if(next) next.textContent = 'التالي: الميزانية';
+    }
+    const step3 = document.querySelector('[data-campaign-wizard-step="3"]');
+    if(step3){
+      const saveBtn = step3.querySelector('#campaignWizardSaveShortcut');
+      if(saveBtn) saveBtn.textContent = 'التالي: مراجعة وحفظ';
+      if(saveBtn && !saveBtn.dataset.v414ReviewBtn){
+        saveBtn.dataset.v414ReviewBtn = '1';
+        saveBtn.removeAttribute('id');
+        saveBtn.setAttribute('data-campaign-wizard-next','');
+      }
+    }
+    const wizard = document.getElementById('campaignWizard');
+    if(wizard && !document.getElementById('campaignReviewPanel')){
+      const review = document.createElement('section');
+      review.id = 'campaignReviewPanel';
+      review.className = 'card campaign-section-card campaign-wizard-panel';
+      review.dataset.campaignWizardStep = '4';
+      review.innerHTML = `<div class="section-toolbar small-toolbar"><div><h2>مراجعة وحفظ</h2><p>راجع الحملة قبل الحفظ: بيانات الطلب، كتاب المحتوى، الكريتيفات المحفوظة، والميزانية.</p></div></div><div class="review-grid" id="campaignReviewGrid"></div><div class="campaign-wizard-actions"><button class="btn btn-light" data-campaign-wizard-prev type="button">السابق</button><button class="btn btn-primary" id="campaignWizardFinalSave" type="button">حفظ الحملة</button></div>`;
+      const bottom = wizard.querySelector('.builder-bottom-stacked');
+      if(bottom) bottom.insertAdjacentElement('afterend', review); else wizard.appendChild(review);
+    }
+  }
+
+  function requestWriterNames(){
+    const picker = document.querySelector('#campaignRequestForm .js-request-content-writers');
+    const names = [];
+    try{ if(typeof selectedOptionTexts === 'function') names.push(...selectedOptionTexts(picker)); }catch(_){ }
+    try{ if(typeof storedMultiValues === 'function') names.push(...storedMultiValues(picker,'selectedNames')); }catch(_){ }
+    if(picker) names.push(...[...picker.querySelectorAll('input[type="checkbox"]:checked')].map(i => clean(i.dataset.name || i.closest('label')?.textContent || i.value)));
+    return [...new Set(names.map(clean).filter(Boolean))];
+  }
+  function creativeNames(){
+    const out = [];
+    document.querySelectorAll('#creativeRows .creative-assignment-panel').forEach(panel => out.push(clean(panel.dataset.creativeName || '')));
+    try{ document.querySelectorAll('#creativeRows .creative-row-card').forEach(row => out.push(...selectedCreativeNames(row))); }catch(_){ }
+    return [...new Set(out.map(clean).filter(Boolean))];
+  }
+  function carCount(){
+    let count = 0;
+    document.querySelectorAll('#creativeRows .creative-assignment-panel').forEach(panel => {
+      try{ count += (selectedCarsFromCreativePanel(panel) || []).length; }catch(_){ }
+    });
+    return count;
+  }
+  function budgetTotal(){
+    const el = document.getElementById('budgetGrandTotalValue');
+    return clean(el?.textContent || '0') || '0';
+  }
+  function formValue(name){ return clean(document.querySelector(`#campaignRequestForm [name="${name}"]`)?.value || ''); }
+  function renderReview(){
+    const grid = document.getElementById('campaignReviewGrid');
+    if(!grid) return;
+    const writers = requestWriterNames();
+    const creatives = creativeNames();
+    grid.innerHTML = `
+      <article class="review-card"><h3>بيانات الحملة</h3><div class="review-list"><div>اسم الحملة: <strong>${esc(formValue('campaign_name') || 'غير محدد')}</strong></div><div>الكود: <strong>${esc(document.getElementById('campaignCodeInput')?.value || 'غير محدد')}</strong></div><div>بداية النشر: <strong>${esc(formValue('publish_start_date') || '-')}</strong></div><div>نهاية النشر: <strong>${esc(formValue('publish_end_date') || '-')}</strong></div></div></article>
+      <article class="review-card"><h3>كتاب المحتوى</h3><div>${writers.length ? writers.map(w=>`<span class="review-pill">${esc(w)}</span>`).join('') : '<div class="review-list">لم يتم اختيار كتاب محتوى.</div>'}</div></article>
+      <article class="review-card"><h3>الكريتيفات والربط</h3><div class="review-list"><div>عدد الكريتيفات المحفوظة: <strong>${creatives.length}</strong></div><div>عدد السيارات المختارة: <strong>${carCount()}</strong></div><div>${creatives.slice(0,8).map(c=>`<span class="review-pill">${esc(c)}</span>`).join('') || 'لم يتم حفظ كريتيفات بعد.'}</div></div></article>
+      <article class="review-card"><h3>الميزانية</h3><div class="review-list"><div>إجمالي الميزانية: <strong>${esc(budgetTotal())}</strong></div><div>يمكن حفظ الحملة الآن أو الرجوع لتعديل أي مرحلة.</div></div></article>`;
+  }
+
+  function setStep(step){
+    const target = String(step || '1');
+    document.querySelectorAll('[data-campaign-wizard-step]').forEach(panel => panel.classList.toggle('active', panel.dataset.campaignWizardStep === target));
+    document.querySelectorAll('[data-campaign-wizard-target]').forEach(btn => btn.classList.toggle('active', btn.dataset.campaignWizardTarget === target));
+    if(target === '2'){
+      try{ if(typeof createCampaignCreativeRow === 'function') createCampaignCreativeRow(false); }catch(_){ }
+    }
+    if(target === '4') renderReview();
+  }
+
+  const oldSet = typeof campaignWizardSetStep === 'function' ? campaignWizardSetStep : null;
+  campaignWizardSetStep = function(step){ ensureBuilderMarkup(); if(String(step || '') === '4'){ setStep(4); return; } return oldSet ? oldSet(step) : setStep(step); };
+  const oldMove = typeof campaignWizardMove === 'function' ? campaignWizardMove : null;
+  campaignWizardMove = function(delta){
+    ensureBuilderMarkup();
+    const active = document.querySelector('[data-campaign-wizard-target].active');
+    const current = Number(active?.dataset.campaignWizardTarget || 1);
+    const next = Math.max(1, Math.min(4, current + Number(delta || 0)));
+    setStep(next);
+  };
+
+  document.addEventListener('click', function(event){
+    const final = event.target.closest('#campaignWizardFinalSave');
+    if(final){ document.getElementById('saveCampaignDraft')?.click(); return; }
+    const target = event.target.closest('[data-campaign-wizard-target]');
+    if(target){ setTimeout(() => { if(String(target.dataset.campaignWizardTarget)==='4') renderReview(); }, 30); }
+  }, true);
+
+  function addStudioHints(){
+    const modal = document.getElementById('creativeAssignmentPopup');
+    if(!modal || modal.dataset.v414Hints) return;
+    modal.dataset.v414Hints = '1';
+    const head = modal.querySelector('.v93-popup-head p');
+    if(head) head.textContent = 'Studio كامل: اختار الكريتيف من اليمين، حدد السيارات، اربط الأقسام بكتاب المحتوى، ثم احفظ الكريتيف كعنصر مستقل.';
+    const save = modal.querySelector('[data-save-creative-assignment-popup]');
+    if(save) save.textContent = 'اعتماد الربط والرجوع للحملة';
+  }
+  const oldOpen = typeof openCreativeAssignmentPopup === 'function' ? openCreativeAssignmentPopup : null;
+  if(oldOpen){
+    openCreativeAssignmentPopup = function(){ const result = oldOpen.apply(this, arguments); setTimeout(addStudioHints, 40); return result; };
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureBuilderMarkup); else ensureBuilderMarkup();
+  setTimeout(ensureBuilderMarkup, 600);
+})();
+
+/* MZJ v417 - Creative Studio UX + wizard navigation hard fix */
+(function(){
+  try{ window.MZJ_APP_VERSION = '417'; }catch(_){ }
+  function q(sel, root){ return (root || document).querySelector(sel); }
+  function qa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
+  function currentWizardStep(){
+    const active = q('[data-campaign-wizard-target].active');
+    return Number(active?.dataset?.campaignWizardTarget || q('[data-campaign-wizard-step].active')?.dataset?.campaignWizardStep || 1) || 1;
+  }
+  function hardSetWizardStep(step){
+    const target = String(Math.max(1, Math.min(4, Number(step || 1))));
+    try{ if(typeof campaignWizardSetStep === 'function') campaignWizardSetStep(target); }catch(_){ }
+    qa('[data-campaign-wizard-step]').forEach(panel => panel.classList.toggle('active', panel.dataset.campaignWizardStep === target));
+    qa('[data-campaign-wizard-target]').forEach(btn => btn.classList.toggle('active', btn.dataset.campaignWizardTarget === target));
+    if(target === '4'){
+      try{ if(typeof renderReview === 'function') renderReview(); }catch(_){ }
+      try{ q('#campaignReviewGrid')?.dispatchEvent(new CustomEvent('mzj:review-open')); }catch(_){ }
+    }
+  }
+  document.addEventListener('click', function(event){
+    const next = event.target.closest('[data-campaign-wizard-next]');
+    const prev = event.target.closest('[data-campaign-wizard-prev]');
+    const target = event.target.closest('[data-campaign-wizard-target]');
+    if(next){ event.preventDefault(); event.stopPropagation(); hardSetWizardStep(currentWizardStep() + 1); return; }
+    if(prev){ event.preventDefault(); event.stopPropagation(); hardSetWizardStep(currentWizardStep() - 1); return; }
+    if(target){ setTimeout(() => hardSetWizardStep(Number(target.dataset.campaignWizardTarget || 1)), 0); return; }
+  }, true);
+
+  function improveStudio(){
+    const modal = q('#creativeAssignmentPopup');
+    if(!modal) return;
+    if(!modal.dataset.v417Ready){
+      modal.dataset.v417Ready = '1';
+      const actions = q('.creative-popup-actions', modal);
+      if(actions && !q('.v417-saved-toggle', actions)){
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'v417-saved-toggle';
+        btn.textContent = 'الكريتيفات المحفوظة';
+        btn.addEventListener('click', () => modal.classList.toggle('show-saved-creatives'));
+        actions.insertBefore(btn, actions.firstChild);
+      }
+    }
+    const search = q('.creative-popup-search, .v93-creative-column input[type="search"], .v93-creative-column input', modal);
+    const list = q('.v93-creative-list', modal);
+    if(search && list && !search.dataset.v417Search){
+      search.dataset.v417Search = '1';
+      search.addEventListener('input', () => {
+        const term = (search.value || '').trim().toLowerCase();
+        qa('.v93-creative-pick', list).forEach(card => {
+          const text = (card.textContent || '').toLowerCase();
+          card.style.display = !term || text.includes(term) ? '' : 'none';
+        });
+      });
+    }
+  }
+  const oldOpen = typeof openCreativeAssignmentPopup === 'function' ? openCreativeAssignmentPopup : null;
+  if(oldOpen){
+    openCreativeAssignmentPopup = function(){
+      const result = oldOpen.apply(this, arguments);
+      setTimeout(improveStudio, 60);
+      setTimeout(improveStudio, 300);
+      return result;
+    };
+  }
+  document.addEventListener('click', function(e){
+    if(e.target.closest('.open-creative-assignment-popup,[data-open-creative-assignment-popup],[data-campaign-wizard-target="2"]')) setTimeout(improveStudio, 120);
+  }, true);
+  setInterval(() => { if(q('#creativeAssignmentPopup.show')) improveStudio(); }, 1200);
+  console.info('v417 creative studio and wizard navigation fixes loaded');
+})();
+
+/* MZJ v418 - Creative Studio polish: full overlay, clean current header, search focus */
+(function(){
+  try{ window.MZJ_APP_VERSION = '418'; }catch(_){ }
+  function q(sel, root){ return (root || document).querySelector(sel); }
+  function qa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
+  function polishCreativeStudio(){
+    const modal = q('#creativeAssignmentPopup');
+    if(!modal) return;
+    modal.classList.add('v418-creative-studio');
+    const title = q('.v93-creative-column h3', modal);
+    if(title) title.textContent = 'اختيار الكريتيف';
+    const search = q('.creative-popup-search', modal);
+    if(search){
+      search.placeholder = 'ابحث عن كريتيف بالاسم أو النوع...';
+      search.setAttribute('autocomplete','off');
+    }
+    const headText = q('.v93-popup-head p', modal);
+    if(headText) headText.textContent = 'اختار الكريتيف أولاً، ثم حدد السيارات واربط الأقسام بكتاب المحتوى في نفس الشاشة. احفظ كل كريتيف كعنصر مستقل قبل الرجوع للحملة.';
+    const saveBtn = q('[data-save-creative-assignment-popup]', modal);
+    if(saveBtn) saveBtn.textContent = 'اعتماد الربط والرجوع للحملة';
+    const savedToggle = q('.v417-saved-toggle', modal);
+    if(savedToggle) savedToggle.textContent = 'عرض الكريتيفات المحفوظة';
+    qa('.v93-current-panel-wrap .creative-assignment-panel', modal).forEach(panel => {
+      const name = panel.dataset.creativeName || '';
+      const strong = q('.v93-active-head strong', panel);
+      if(strong && name) strong.textContent = name;
+    });
+  }
+  const oldOpen = typeof openCreativeAssignmentPopup === 'function' ? openCreativeAssignmentPopup : null;
+  if(oldOpen){
+    openCreativeAssignmentPopup = function(){
+      const result = oldOpen.apply(this, arguments);
+      setTimeout(polishCreativeStudio, 40);
+      setTimeout(polishCreativeStudio, 180);
+      setTimeout(polishCreativeStudio, 500);
+      return result;
+    };
+  }
+  document.addEventListener('click', function(e){
+    if(e.target.closest('.v93-creative-pick,.open-creative-assignment-popup,[data-open-creative-assignment-popup]')) setTimeout(polishCreativeStudio, 60);
+  }, true);
+  document.addEventListener('input', function(e){
+    if(e.target.matches('#creativeAssignmentPopup .creative-popup-search')) setTimeout(polishCreativeStudio, 0);
+  }, true);
+  setInterval(function(){ if(q('#creativeAssignmentPopup.show')) polishCreativeStudio(); }, 1000);
+  console.info('v418 creative studio polish loaded');
+})();
+
+/* MZJ v423 - Safe UI only: show selected creative details as 4 cards without touching save logic */
+(function(){
+  try{ window.MZJ_APP_VERSION = '424'; }catch(_){ }
+  const clean = value => (typeof normalizeText === 'function' ? normalizeText(value || '') : String(value || '').trim());
+  const esc = value => (typeof escapeHtml === 'function' ? escapeHtml(value) : String(value || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])));
+  const makeId = () => (typeof instanceId === 'function' ? instanceId() : `creative-${Date.now()}-${Math.random().toString(36).slice(2,7)}`);
+  function roleLabel(role){
+    if(typeof defaultRoleSectionName === 'function') return defaultRoleSectionName(role);
+    return ({ shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج' })[role] || role;
+  }
+  function orderedRolesForCreative(name){
+    const mainRole = typeof creativeDepartmentRole === 'function' ? creativeDepartmentRole(name) : 'montage';
+    const roles = ['shooting','design','montage'];
+    return [mainRole, ...roles.filter(role => role !== mainRole)];
+  }
+  function roleCardHtml(role, mainRole){
+    const hint = role === mainRole ? 'القسم الأساسي المرتبط بالكريتيف' : 'قسم إضافي مرتبط بالمسار التنفيذي';
+    const block = typeof roleAssignmentBlock === 'function' ? roleAssignmentBlock(role, roleLabel(role), hint) : '';
+    return `<section class="v423-creative-card v423-role-card${role === mainRole ? ' is-main-role' : ''}" data-v423-role-card="${esc(role)}">
+      <div class="v423-card-head"><span>${esc(role === mainRole ? 'القسم الأساسي' : 'قسم تنفيذي')}</span><strong>${esc(roleLabel(role))}</strong></div>
+      ${block}
+    </section>`;
+  }
+  function carListHtml(){
+    return typeof creativeCarCheckboxList === 'function' ? creativeCarCheckboxList() : '';
+  }
+  creativeAssignmentPanelHtml = function(creativeName){
+    const name = clean(creativeName);
+    const key = typeof creativeSafeKey === 'function' ? creativeSafeKey(name) : name.replace(/\W+/g, '-');
+    const mainRole = typeof creativeDepartmentRole === 'function' ? creativeDepartmentRole(name) : 'montage';
+    const roles = orderedRolesForCreative(name);
+    const roleCards = roles.map(role => roleCardHtml(role, mainRole)).join('');
+    return `<article class="creative-assignment-panel creative-assignment-panel-v93 v423-creative-cards-panel is-active" data-creative-name="${esc(name)}" data-creative-key="${esc(key)}" data-creative-main-role="${esc(mainRole)}" data-creative-instance-id="${esc(makeId())}">
+      <input class="js-creative-quantity" type="hidden" value="1" />
+      <div class="v423-selected-creative-head">
+        <div><span>الكريتيف المختار</span><strong>${esc(name)}</strong><small>رتبنا الاختيارات في 4 كروت واضحة بدون تغيير منطق الحفظ.</small></div>
+      </div>
+      <div class="v423-creative-work-grid">
+        <section class="v423-creative-card v423-car-card v93-car-column">
+          <div class="v423-card-head"><span>اختياري</span><strong>اختيار السيارة</strong></div>
+          <label class="creative-car-needed-field"><span>اختيار سيارة؟</span><select class="js-creative-car-needed"><option value="">اختر نعم أو لا</option><option value="yes">نعم</option><option value="no">لا</option></select></label>
+          <label class="creative-car-count-field is-hidden"><span>كام سيارة؟</span><input class="js-creative-car-count" type="number" min="1" max="50" inputmode="numeric" placeholder="اكتب عدد السيارات" /></label>
+          <div class="creative-stock-picker-hint">اختار نعم ثم اكتب عدد السيارات عشان يظهر اختيار سيارات الاستوك.</div>
+          <div class="creative-stock-picker-block is-hidden">
+            <input class="v93-car-search" type="search" placeholder="بحث في السيارات..." aria-label="بحث في السيارات" />
+            <div class="car-checkbox-grid creative-car-checkbox-grid">${carListHtml()}</div>
+          </div>
+          <label class="creative-panel-note-field"><span>ملاحظة للكريتيف</span><textarea class="js-creative-panel-note" rows="3" placeholder="ملاحظة خاصة بهذا الكريتيف... أو اتركها فارغة"></textarea></label>
+          <button class="btn btn-primary js-v93-save-current-creative" type="button">حفظ الكريتيف الحالي</button>
+        </section>
+        ${roleCards}
+      </div>
+    </article>`;
+  };
+  function markStudio(modal){
+    if(!modal) return;
+    modal.classList.add('v423-dynamic-cards-ui');
+    const help = modal.querySelector('.v93-popup-head p');
+    if(help) help.textContent = 'اختار كريتيف، هتظهر تحته 4 كروت: السيارة ثم الأقسام التنفيذية بترتيب ديناميكي حسب نوع الكريتيف.';
+  }
+  const oldOpen = typeof openCreativeAssignmentPopup === 'function' ? openCreativeAssignmentPopup : null;
+  if(oldOpen){
+    openCreativeAssignmentPopup = function(){
+      const result = oldOpen.apply(this, arguments);
+      setTimeout(() => markStudio(document.getElementById('creativeAssignmentPopup')), 60);
+      setTimeout(() => markStudio(document.getElementById('creativeAssignmentPopup')), 300);
+      return result;
+    };
+  }
+  document.addEventListener('click', function(event){
+    if(event.target.closest('#creativeAssignmentPopup .v93-creative-pick')){
+      setTimeout(() => markStudio(document.getElementById('creativeAssignmentPopup')), 50);
+    }
+  }, true);
+  console.info('v424 dynamic creative cards UI loaded');
 })();
