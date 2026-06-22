@@ -28341,3 +28341,161 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   try{ if(typeof renderTasksPage==='function') renderTasksPage(); if(typeof renderUserDashboard==='function') renderUserDashboard(); if(typeof renderAdminDashboard==='function') renderAdminDashboard(); }catch(_){ }
   console.info(`${VERSION} loaded`);
 })();
+
+/* MZJ v445 - restore user dashboard visibility with strict owner matching */
+(function(){
+  const VERSION = 'v445-user-dashboard-visible-owner-match';
+  try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; }catch(_){ }
+  const EXEC_ROLES = ['shooting','design','montage','publish'];
+  const LABELS = { content:'قسم المحتوى', shooting:'التصوير', design:'التصميم', montage:'المونتاج', publish:'النشر', other:'أخرى' };
+  function raw(v){ return String(v == null ? '' : v).trim(); }
+  function arr(v){ return Array.isArray(v) ? v : []; }
+  function flat(v){
+    if(v == null) return [];
+    if(Array.isArray(v)) return v.flatMap(flat);
+    if(typeof v === 'object') return [
+      v.id,v.uid,v.email,v.emailLower,v.name,v.displayName,v.username,
+      v.userId,v.userUid,v.userEmail,v.userName,
+      v.assigneeId,v.assigneeUid,v.assigneeEmail,v.assigneeName,
+      v.assignedToId,v.assignedToUid,v.assignedToEmail,v.assignedToName,
+      v.executorUserId,v.executorUserUid,v.executorUserEmail,v.executorUserName,
+      v.contentUserId,v.contentUserUid,v.contentUserEmail,v.contentUserName,
+      v.contentWriterId,v.contentWriterUid,v.contentWriterEmail,v.contentWriterName,
+      v.linkedContentUserId,v.linkedContentUserUid,v.linkedContentUserEmail,v.linkedContentUserName,
+      v.userIds,v.userNames,v.userEmails,
+      v.assigneeIds,v.assigneeNames,v.assigneeEmails,
+      v.assignedToIds,v.assignedToNames,v.assignedToEmails,
+      v.assignedUsers,v.assignees,v.users,v.assignedToSearch,v.searchKeys
+    ].flatMap(flat);
+    return [v];
+  }
+  function clean(v){
+    try{ if(typeof identityClean === 'function') return identityClean(v || ''); }catch(_){ }
+    return raw(v).replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآٱ]/g,'ا').replace(/[ؤ]/g,'و').replace(/[ئىي]/g,'ي').replace(/[ة]/g,'ه').replace(/[ـ]/g,'').replace(/[^\u0600-\u06FFa-zA-Z0-9@.]+/g,'').toLowerCase();
+  }
+  function uniq(v){ const seen = new Set(); return flat(v).map(raw).filter(Boolean).filter(x => { const k = clean(x); if(!k || seen.has(k)) return false; seen.add(k); return true; }); }
+  function overlaps(a,b){ const s = new Set(uniq(a).map(clean)); return uniq(b).some(x => s.has(clean(x))); }
+  function roleOf(task){
+    let r = '';
+    try{ if(typeof normalizeDepartmentRole === 'function') r = normalizeDepartmentRole(task?.departmentRole || task?.assignedDepartmentRole || task?.assignedDepartmentId || task?.departmentId || task?.contentSectionId || task?.departmentCode || task?.assignedDepartmentName || task?.departmentName || task?.contentSectionName || task?.department || ''); }catch(_){ }
+    r = r || clean(task?.departmentRole || task?.assignedDepartmentRole || task?.assignedDepartmentId || task?.departmentId || task?.contentSectionId || task?.departmentCode || task?.assignedDepartmentName || task?.departmentName || task?.contentSectionName || task?.department || '');
+    if(r === 'photography' || r === 'photo') return 'shooting';
+    if(r === 'editing') return 'montage';
+    return r || 'other';
+  }
+  function isStructure(task){
+    const text = clean([task?.taskType,task?.title,task?.structureTaskLabel,task?.sourceRequestStep,task?.product,task?.creative,task?.contentSectionName,task?.assignedDepartmentName].filter(Boolean).join(' '));
+    return roleOf(task) === 'content' && !!(task?.needsStructureUpload || task?.structureRequestTask || task?.structureBundleTask || task?.sourceRequestStep === 'campaign_request_data' || text.includes(clean('طلب هيكل')) || text.includes('structure'));
+  }
+  function isExec(task){ return EXEC_ROLES.includes(roleOf(task)); }
+  function structureApproved(task){
+    let st = {}; try{ st = typeof taskStructure === 'function' ? (taskStructure(task) || {}) : (task?.structure || {}); }catch(_){ st = task?.structure || {}; }
+    const s = clean([task?.status,task?.state,task?.structureStatus,task?.contentStructureStatus,st?.status,st?.reviewStatus].filter(Boolean).join(' '));
+    return !!(task?.structureApprovedAt || task?.approvedAt || st?.approvedAt || s.includes('approved') || s.includes('distributed') || s.includes(clean('معتمد')));
+  }
+  function taskOwnerTokens(task){
+    return uniq([
+      task?.assignedToId,task?.assignedToUid,task?.assignedToName,task?.assignedToEmail,
+      task?.assigneeId,task?.assigneeUid,task?.assigneeName,task?.assigneeEmail,
+      task?.userId,task?.userUid,task?.userName,task?.userEmail,
+      task?.assignedToIds,task?.assignedToNames,task?.assignedToEmails,
+      task?.assigneeIds,task?.assigneeNames,task?.assigneeEmails,
+      task?.userIds,task?.userNames,task?.userEmails,
+      task?.assignedUsers,task?.assignees,task?.users,task?.assignedToSearch,task?.searchKeys
+    ]);
+  }
+  function taskLinkedContentTokens(task){
+    return uniq([
+      task?.linkedContentUserId,task?.linkedContentUserUid,task?.linkedContentUserName,task?.linkedContentUserEmail,
+      task?.contentWriterId,task?.contentWriterUid,task?.contentWriterName,task?.contentWriterEmail,
+      task?.contentUserId,task?.contentUserUid,task?.contentUserName,task?.contentUserEmail,
+      task?.dependsOnContentUserIds,task?.dependsOnContentUserNames,task?.dependsOnContentUserEmails,
+      task?.upstreamUserIds,task?.upstreamUserNames,task?.upstreamUserEmails,task?.upstreamUserLabel
+    ]);
+  }
+  function currentTokens(){
+    let a={},b={},c={};
+    try{ a = typeof getCurrentUserIdentity === 'function' ? (getCurrentUserIdentity() || {}) : {}; }catch(_){ }
+    try{ b = typeof findCurrentUserRecord === 'function' ? (findCurrentUserRecord() || {}) : {}; }catch(_){ }
+    try{ c = (window.mainAuth?.currentUser || window.auth?.currentUser || window.currentUser || {}); }catch(_){ }
+    let exact=[]; try{ exact = typeof currentUserIdentityKeys === 'function' ? currentUserIdentityKeys() : []; }catch(_){ exact = []; }
+    return uniq([exact,a,b,c,localStorage.getItem('mzj_user') || '',localStorage.getItem('mzj_login_email') || '',localStorage.getItem('mzj_user_email') || '']);
+  }
+  function isMine(task, me){
+    try{ if(typeof currentUserMatchesTaskExact === 'function' && currentUserMatchesTaskExact(task)) return true; }catch(_){ }
+    return overlaps(taskOwnerTokens(task), me);
+  }
+  function campaignKeys(c, task){ return uniq([c?.id,c?.docId,c?.campaignId,c?.campaignCode,c?.campaign_code,c?.campaignName,c?.name,task?.campaignId,task?.campaignCode,task?.campaignName]).map(clean).filter(Boolean); }
+  const prevAdminTasks = typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign : null;
+  const prevVisibleTasks = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser : null;
+  function rawCampaignTasks(c){ return [...arr(c?.departmentTasks), ...arr(c?.tasks), ...arr(c?.taskDocs)]; }
+  function campaignTasks(c){
+    let built=[];
+    try{ if(prevAdminTasks) built = prevAdminTasks(c) || []; }catch(e){ console.warn(VERSION,'admin builder fallback',e); built=[]; }
+    if(!built.length) built = rawCampaignTasks(c);
+    return arr(built).filter(Boolean);
+  }
+  function dedupeTasks(tasks){
+    const seen = new Set();
+    return arr(tasks).filter(t => {
+      const k = [clean(t?.id || t?.taskId || ''), clean(t?.campaignId || t?.campaignCode || t?.campaignName || ''), roleOf(t), clean(t?.assignedToId || t?.userId || t?.assignedToName || t?.userName || ''), clean(t?.linkedContentUserId || t?.linkedContentUserName || t?.contentWriterId || t?.contentWriterName || ''), clean(t?.creative || t?.product || t?.taskType || '')].join('::');
+      if(seen.has(k)) return false; seen.add(k); return true;
+    });
+  }
+  getVisibleTasksForCurrentUser = function(){
+    try{ if(typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin()) return prevVisibleTasks ? (prevVisibleTasks.apply(this, arguments) || []) : []; }catch(_){ }
+    const me = currentTokens();
+    if(!me.length) return prevVisibleTasks ? (prevVisibleTasks.apply(this, arguments) || []) : [];
+    const result=[];
+    try{
+      const allCampaigns = arr(window.campaigns || (typeof campaigns !== 'undefined' ? campaigns : []));
+      allCampaigns.forEach(c => {
+        const built = campaignTasks(c);
+        const pendingOwnContent = new Set();
+        built.forEach(t => { if(isStructure(t) && isMine(t,me) && !structureApproved(t)) campaignKeys(c,t).forEach(k => pendingOwnContent.add(k)); });
+        built.forEach(t => {
+          if(!isMine(t,me)) return;
+          // لو نفس الشخص كاتب محتوى ولسه هيكله غير معتمد، امنع عليه تاسكات التنفيذ التابعة له فقط.
+          if(isExec(t) && campaignKeys(c,t).some(k => pendingOwnContent.has(k)) && overlaps(taskLinkedContentTokens(t), me)) return;
+          result.push(t);
+        });
+      });
+    }catch(e){ console.warn(VERSION,'visible rebuild failed',e); }
+    const finalResult = dedupeTasks(result);
+    if(finalResult.length){ try{ window.MZJ_V445_VISIBLE_TASK_CACHE = finalResult; window.MZJ_V444_VISIBLE_TASK_CACHE = finalResult; }catch(_){ } return finalResult; }
+    const fallback = prevVisibleTasks ? (prevVisibleTasks.apply(this, arguments) || []) : [];
+    return fallback;
+  };
+  if(typeof groupTasksForKanban === 'function'){
+    groupTasksForKanban = function(tasks){
+      const order = ['content','shooting','design','montage','publish','other'];
+      const mapped = arr(tasks).map(t => ({...t, departmentRole: roleOf(t), assignedDepartmentRole: roleOf(t), assignedDepartmentName: t.assignedDepartmentName || LABELS[roleOf(t)] || roleOf(t)}));
+      return order.map(role => ({ role, label: LABELS[role] || role, tasks: mapped.filter(t => (t.departmentRole || 'other') === role) })).filter(g => g.tasks.length);
+    };
+  }
+  if(typeof findTaskById === 'function'){
+    const prevFind = findTaskById;
+    findTaskById = function(taskId, campaignId=''){
+      let found = null; try{ found = prevFind.apply(this, arguments); }catch(_){ found = null; }
+      if(found) return found;
+      const wanted = raw(taskId); const cid = clean(campaignId || '');
+      const pools = [arr(window.MZJ_V445_VISIBLE_TASK_CACHE), arr(window.MZJ_V444_VISIBLE_TASK_CACHE), arr(window.MZJ_V444_TASK_REGISTRY)];
+      try{ arr(window.campaigns || (typeof campaigns !== 'undefined' ? campaigns : [])).forEach(c => pools.push(campaignTasks(c))); }catch(_){ }
+      for(const pool of pools){
+        const hit = arr(pool).find(t => raw(t?.id || t?.taskId || '') === wanted && (!cid || campaignKeys({},t).includes(cid) || clean(t?.campaignId || '') === cid));
+        if(hit) return hit;
+      }
+      for(const pool of pools){ const hit = arr(pool).find(t => raw(t?.id || t?.taskId || '') === wanted); if(hit) return hit; }
+      return null;
+    };
+  }
+  if(typeof renderTaskDetail === 'function'){
+    const prevDetail = renderTaskDetail;
+    renderTaskDetail = function(taskId, campaignId=''){
+      try{ const t = typeof findTaskById === 'function' ? findTaskById(taskId,campaignId) : null; if(t && typeof openTaskModal === 'function') return openTaskModal(t); }catch(e){ console.warn(VERSION,'detail fallback failed',e); }
+      return prevDetail.apply(this, arguments);
+    };
+  }
+  try{ if(typeof renderUserDashboard === 'function') renderUserDashboard(); if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(_){ }
+  console.info(`${VERSION} loaded`);
+})();
