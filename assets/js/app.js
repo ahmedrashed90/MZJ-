@@ -27237,3 +27237,173 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   try{ if(typeof renderUserDashboard === 'function') renderUserDashboard(); }catch(_){ }
   try{ console.info(`${VERSION} loaded`); }catch(_){ }
 })();
+
+/* MZJ v453 - hard patch executive detail writer field after render */
+(function(){
+  const VERSION = 'v453-exec-detail-writer-dom-authoritative';
+  try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; }catch(_){ }
+  const txt = v => String(v == null ? '' : v).trim();
+  const arr = v => Array.isArray(v) ? v : (v == null ? [] : [v]);
+  const norm = v => txt(v).toLowerCase().replace(/\s+/g,'').replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه');
+  function roleOf(task){ return norm(task?.assignedDepartmentRole || task?.departmentRole || task?.assignedDepartmentId || task?.contentSectionId || task?.departmentCode || ''); }
+  function isExec(task){ const r = roleOf(task); return !!task && r && !r.includes('content') && !task?.needsStructureUpload && !task?.structureRequestTask; }
+  function pairKey(task){ return txt(task?.linkedExecutionPairKey || task?.contentExecutionPairKey || task?.linkedExecutionTaskId || task?.contentPairKey || task?.pairKey || ''); }
+  function writerName(task){ return txt(task?.contentWriterName || task?.linkedContentUserName || task?.approvedContentWriterName || task?.structureApprovedFromName || arr(task?.dependsOnContentUserNames)[0] || arr(task?.upstreamUserNames)[0] || arr(task?.dependencyLinks)[0]?.contentUserName || arr(task?.dependencyLinks)[0]?.writerName || task?.upstreamUserLabel || ''); }
+  function writerId(task){ return txt(task?.contentWriterId || task?.contentWriterUid || task?.linkedContentUserId || task?.linkedContentUserUid || arr(task?.dependsOnContentUserIds)[0] || arr(task?.upstreamUserIds)[0] || arr(task?.dependencyLinks)[0]?.contentUserId || arr(task?.dependencyLinks)[0]?.writerId || ''); }
+  function forceTaskWriter(task){
+    if(!task || !isExec(task)) return task;
+    const name = writerName(task);
+    const id = writerId(task);
+    const pair = pairKey(task);
+    const fixed = { ...task };
+    if(name){
+      fixed.upstreamUserLabel = name;
+      fixed.upstreamUserNames = [name];
+      fixed.dependsOnContentUserNames = [name];
+      fixed.linkedContentUserName = name;
+      fixed.contentWriterName = name;
+      fixed.approvedContentWriterName = name;
+      fixed.structureApprovedFromName = name;
+    }
+    if(id){
+      fixed.upstreamUserIds = [id];
+      fixed.dependsOnContentUserIds = [id];
+      fixed.linkedContentUserId = id;
+      fixed.linkedContentUserUid = id;
+      fixed.contentWriterId = id;
+      fixed.contentWriterUid = id;
+    }
+    if(pair){ fixed.linkedExecutionPairKey = pair; fixed.contentExecutionPairKey = pair; }
+    fixed.dependencyLinks = [{
+      ...(arr(task.dependencyLinks)[0] || {}),
+      contentUserId: id || arr(task.dependencyLinks)[0]?.contentUserId || '',
+      contentUserName: name || arr(task.dependencyLinks)[0]?.contentUserName || '',
+      writerId: id || arr(task.dependencyLinks)[0]?.writerId || '',
+      writerName: name || arr(task.dependencyLinks)[0]?.writerName || ''
+    }];
+    return fixed;
+  }
+  function allCampaignTasks(){
+    const out = [];
+    try{ arr(window.campaigns || campaigns).forEach(c => arr(c?.departmentTasks).forEach(t => out.push(t))); }catch(_){ }
+    return out;
+  }
+  function taskKeys(task){
+    return [task?.id, task?.taskId, task?.docId, task?.taskNo, task?.structureTaskNo, task?.linkedExecutionPairKey, task?.contentExecutionPairKey, task?.linkedExecutionTaskId, task?.taskIndex, pairKey(task)].map(norm).filter(Boolean);
+  }
+  function exactKey(task){
+    return pairKey(task) || [
+      task?.campaignId || task?.campaignDocId || task?.campaignCode || '',
+      task?.creativeLinkCode || task?.campaignCreativeCode || task?.creativeShortCode || task?.creativeInstanceId || task?.creative || task?.product || '',
+      roleOf(task),
+      task?.assignedToId || task?.assignedToUid || task?.userId || task?.userUid || arr(task?.userIds)[0] || task?.assignedToName || task?.userName || '',
+      writerId(task) || writerName(task)
+    ].map(norm).filter(Boolean).join('__');
+  }
+  function findExact(key, campaignKey){
+    const wanted = norm(key); if(!wanted) return null;
+    let list = allCampaignTasks().filter(t => taskKeys(t).includes(wanted) || norm(exactKey(t)) === wanted);
+    const ck = norm(campaignKey || '');
+    if(ck) list = list.filter(t => !norm(t?.campaignId || t?.campaignCode || t?.campaignName || '') || [t?.campaignId,t?.campaignCode,t?.campaignName,t?.name].map(norm).includes(ck));
+    return list[0] || null;
+  }
+  function cardWriter(card){
+    const chip = card?.querySelector?.('.linked-content-chip-v449') || Array.from(card?.querySelectorAll?.('small,span,em,b,strong,p') || []).find(el => norm(el.textContent || '').includes(norm('تابع لمحتوى')));
+    return txt(chip?.textContent || '').replace(/^تابع\s*لمحتوى\s*[:：]?\s*/,'').trim();
+  }
+  function cardTitle(card){ return txt(card?.querySelector?.('p')?.textContent || ''); }
+  function findFromCard(btn){
+    const card = btn?.closest?.('.content-task-card');
+    const forcedWriter = cardWriter(card);
+    const title = cardTitle(card);
+    const key = btn?.dataset?.taskPair || btn?.dataset?.openTask || btn?.dataset?.taskId || '';
+    const byKey = findExact(key, btn?.dataset?.taskCampaign || '');
+    if(byKey && (!forcedWriter || norm(writerName(byKey)) === norm(forcedWriter))) return byKey;
+    const current = (() => { try{ return typeof getCurrentUser === 'function' ? getCurrentUser() : (typeof getCurrentUserIdentity === 'function' ? getCurrentUserIdentity() : {}); }catch(_){ return {}; } })();
+    const me = [current.uid,current.id,current.email,current.name].map(norm).filter(Boolean);
+    const list = allCampaignTasks().filter(isExec);
+    const ownerMatch = task => !me.length || [task.assignedToId,task.assignedToUid,task.userId,task.userUid,arr(task.userIds)[0],task.assignedToEmail,task.userEmail,task.assignedToName,task.userName].map(norm).some(v => me.includes(v));
+    const titleMatch = task => !title || norm([task.taskType,task.creative,task.product,task.creativeShortCode,task.campaignCreativeCode,task.creativeLinkCode].filter(Boolean).join(' ')).includes(norm(title)) || norm(title).includes(norm(task.taskType || task.creative || task.product || ''));
+    if(forcedWriter){
+      return list.find(t => ownerMatch(t) && titleMatch(t) && norm(writerName(t)) === norm(forcedWriter)) || list.find(t => ownerMatch(t) && norm(writerName(t)) === norm(forcedWriter)) || byKey;
+    }
+    return byKey;
+  }
+  function setForcedDetailMeta(task){
+    try{
+      const fixed = forceTaskWriter(task);
+      window.MZJ_FORCED_DETAIL_TASK = fixed;
+      window.MZJ_FORCED_DETAIL_PAIR = pairKey(fixed);
+      window.MZJ_FORCED_DETAIL_WRITER = writerName(fixed);
+      window.MZJ_FORCED_DETAIL_WRITER_ID = writerId(fixed);
+    }catch(_){ }
+  }
+  function patchRenderedDetail(task){
+    try{
+      const fixed = forceTaskWriter(task || window.MZJ_FORCED_DETAIL_TASK || {});
+      const name = writerName(fixed);
+      if(!name) return;
+      const root = document.querySelector('.task-detail-fullscreen') || document.querySelector('.task-modal') || document.body;
+      const boxes = Array.from(root.querySelectorAll('.brief-box, .campaign-info-box, .task-brief-row > div'));
+      boxes.forEach(box => {
+        const label = box.querySelector('span');
+        const strong = box.querySelector('strong');
+        if(label && strong && norm(label.textContent).includes(norm('تابع لمحتوى'))){ strong.textContent = name; }
+      });
+      Array.from(root.querySelectorAll('*')).forEach(el => {
+        if(el.childElementCount) return;
+        const s = txt(el.textContent || '');
+        if(/^تابع\s*لمحتوى\s*[:：]/.test(s)) el.textContent = `تابع لمحتوى: ${name}`;
+      });
+    }catch(_){ }
+  }
+  const prevOpen = typeof openTaskModal === 'function' ? openTaskModal : null;
+  if(prevOpen){
+    openTaskModal = function(task){
+      const fixed = forceTaskWriter(task);
+      setForcedDetailMeta(fixed);
+      const result = prevOpen.call(this, fixed);
+      setTimeout(() => patchRenderedDetail(fixed), 0);
+      setTimeout(() => patchRenderedDetail(fixed), 60);
+      setTimeout(() => patchRenderedDetail(fixed), 250);
+      return result;
+    };
+  }
+  const prevBuild = typeof buildTaskDetailHtml === 'function' ? buildTaskDetailHtml : null;
+  if(prevBuild){ buildTaskDetailHtml = function(task){ return prevBuild.call(this, forceTaskWriter(task || window.MZJ_FORCED_DETAIL_TASK)); }; }
+  const prevFind = typeof findTaskById === 'function' ? findTaskById : null;
+  if(prevFind){
+    findTaskById = function(taskId, campaignId){
+      const exact = findExact(taskId, campaignId);
+      if(exact) return forceTaskWriter(exact);
+      return prevFind.apply(this, arguments);
+    };
+  }
+  const prevDetail = typeof renderTaskDetail === 'function' ? renderTaskDetail : null;
+  if(prevDetail){
+    renderTaskDetail = function(taskId, campaignId){
+      const exact = findExact(taskId, campaignId);
+      if(exact && typeof openTaskModal === 'function') return openTaskModal(forceTaskWriter(exact));
+      return prevDetail.apply(this, arguments);
+    };
+  }
+  document.addEventListener('click', function(event){
+    const btn = event.target?.closest?.('.content-task-card [data-open-task], .content-task-card [data-task-pair]');
+    if(!btn) return;
+    const exact = findFromCard(btn);
+    if(!exact) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if(event.stopImmediatePropagation) event.stopImmediatePropagation();
+    const fixed = forceTaskWriter(exact);
+    setForcedDetailMeta(fixed);
+    try{
+      btn.dataset.openTask = pairKey(fixed) || txt(fixed.id || '');
+      btn.dataset.taskPair = pairKey(fixed);
+      btn.dataset.taskId = txt(fixed.id || '');
+      if(fixed.campaignId) btn.dataset.taskCampaign = txt(fixed.campaignId);
+    }catch(_){ }
+    if(typeof openTaskModal === 'function') openTaskModal(fixed);
+  }, true);
+  try{ console.info(`${VERSION} loaded`); }catch(_){ }
+})();
