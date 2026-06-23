@@ -10685,3 +10685,189 @@ body.creative-popup-open{overflow:hidden!important}
 @media (max-width: 1500px){
   #creativeAssignmentPopup.v423-dynamic-cards-ui .v423-creative-work-grid{grid-template-columns:repeat(2,minmax(260px,1fr))!important;}
 }
+
+/* MZJ v476 - protect admin dashboard four-card layout from long TASK cards */
+#dashboard.admin-mode .admin-dashboard-board,
+body:not(.has-user-dashboard-theme) #dashboard.admin-mode .admin-dashboard-board{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:12px!important;
+  align-items:start!important;
+  overflow:visible!important;
+}
+#dashboard.admin-mode .dashboard-pro-hero{grid-column:1/-1!important;min-width:0!important}
+#dashboard.admin-mode .admin-dash-col{min-width:0!important;max-width:100%!important;overflow:hidden!important;box-sizing:border-box!important}
+#dashboard.admin-mode .dash-task-receive-card,
+#dashboard.admin-mode .dash-campaign-card{min-width:0!important;max-width:100%!important;overflow:hidden!important;box-sizing:border-box!important}
+#dashboard.admin-mode .receive-list,
+#dashboard.admin-mode .receive-list div,
+#dashboard.admin-mode .task-line-v220,
+#dashboard.admin-mode .task-line-v221,
+#dashboard.admin-mode .task-line-v222,
+#dashboard.admin-mode .task-line-v223,
+#dashboard.admin-mode .task-main-row-v221{min-width:0!important;max-width:100%!important;overflow:hidden!important;box-sizing:border-box!important}
+#dashboard.admin-mode .receive-list div,
+#dashboard.admin-mode .task-main-row-v221{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr)!important;
+  gap:7px!important;
+  align-items:start!important;
+}
+#dashboard.admin-mode .receive-state-stack,
+#dashboard.admin-mode .inline-state-stack{display:flex!important;flex-wrap:wrap!important;gap:6px!important;justify-content:flex-start!important;max-width:100%!important;min-width:0!important}
+#dashboard.admin-mode .dash-card-top,
+#dashboard.admin-mode .dash-card-top strong,
+#dashboard.admin-mode .dash-card-top span,
+#dashboard.admin-mode .task-title-v221,
+#dashboard.admin-mode .task-title-v221 b,
+#dashboard.admin-mode .receive-list b,
+#dashboard.admin-mode .receive-list em,
+#dashboard.admin-mode .task-owner-name{
+  min-width:0!important;
+  max-width:100%!important;
+  white-space:normal!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  overflow-wrap:anywhere!important;
+  word-break:break-word!important;
+}
+#dashboard.admin-mode .task-title-v221 b,
+#dashboard.admin-mode .receive-list div span:first-child b{
+  display:-webkit-box!important;
+  -webkit-line-clamp:2!important;
+  -webkit-box-orient:vertical!important;
+}
+#dashboard.admin-mode .state-chip{max-width:100%!important;white-space:normal!important;text-align:center!important;line-height:1.35!important}
+@media(max-width:1300px){#dashboard.admin-mode .admin-dashboard-board{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:760px){#dashboard.admin-mode .admin-dashboard-board{grid-template-columns:1fr!important}}
+
+/* MZJ v477 - final admin dashboard grid stability */
+#dashboard:not(.user-mode) #adminDashboardBoard.admin-dashboard-board,
+#dashboard.admin-mode #adminDashboardBoard.admin-dashboard-board,
+body.has-user-dashboard-theme #dashboard:not(.user-mode) #adminDashboardBoard.admin-dashboard-board,
+body.has-user-dashboard-theme #dashboard.admin-mode #adminDashboardBoard.admin-dashboard-board{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(240px,1fr))!important;
+  grid-auto-flow:row!important;
+  align-items:start!important;
+  gap:14px!important;
+  margin:14px 0 0!important;
+  padding:0!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  overflow:visible!important;
+  clear:both!important;
+}
+#dashboard:not(.user-mode) #adminDashboardBoard .dashboard-pro-hero,
+#dashboard.admin-mode #adminDashboardBoard .dashboard-pro-hero{
+  grid-column:1 / -1!important;
+  width:100%!important;
+  min-width:0!important;
+}
+#dashboard:not(.user-mode) #adminDashboardBoard .admin-dash-col,
+#dashboard.admin-mode #adminDashboardBoard .admin-dash-col{
+  width:auto!important;
+  min-width:0!important;
+  max-width:100%!important;
+  overflow:hidden!important;
+  position:relative!important;
+  box-sizing:border-box!important;
+}
+#dashboard:not(.user-mode) #adminDashboardBoard .dash-task-receive-card,
+#dashboard:not(.user-mode) #adminDashboardBoard .dash-campaign-card,
+#dashboard.admin-mode #adminDashboardBoard .dash-task-receive-card,
+#dashboard.admin-mode #adminDashboardBoard .dash-campaign-card{
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  overflow:hidden!important;
+  box-sizing:border-box!important;
+}
+#dashboard:not(.user-mode) #adminDashboardBoard .receive-list div,
+#dashboard.admin-mode #adminDashboardBoard .receive-list div{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr)!important;
+  justify-items:stretch!important;
+  align-items:start!important;
+}
+#dashboard:not(.user-mode) #adminDashboardBoard .receive-list *,
+#dashboard:not(.user-mode) #adminDashboardBoard .dash-card-top *,
+#dashboard.admin-mode #adminDashboardBoard .receive-list *,
+#dashboard.admin-mode #adminDashboardBoard .dash-card-top *{
+  min-width:0!important;
+  max-width:100%!important;
+  overflow-wrap:anywhere!important;
+  word-break:break-word!important;
+  white-space:normal!important;
+}
+#dashboard:not(.user-mode) #adminDashboardBoard .state-chip,
+#dashboard.admin-mode #adminDashboardBoard .state-chip{
+  max-width:100%!important;
+  white-space:normal!important;
+  line-height:1.35!important;
+  text-align:center!important;
+}
+@media(max-width:1500px){
+  #dashboard:not(.user-mode) #adminDashboardBoard.admin-dashboard-board,
+  #dashboard.admin-mode #adminDashboardBoard.admin-dashboard-board{grid-template-columns:repeat(2,minmax(260px,1fr))!important;}
+}
+@media(max-width:800px){
+  #dashboard:not(.user-mode) #adminDashboardBoard.admin-dashboard-board,
+  #dashboard.admin-mode #adminDashboardBoard.admin-dashboard-board{grid-template-columns:1fr!important;}
+}
+
+/* MZJ v478 - admin dashboard full width + prevent content-user duplicate execution cards */
+#dashboard.admin-mode,
+#dashboard:not(.user-mode){
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  overflow:visible!important;
+}
+#dashboard.admin-mode #adminDashboardBoard.admin-dashboard-board,
+#dashboard:not(.user-mode) #adminDashboardBoard.admin-dashboard-board,
+body.has-user-dashboard-theme #dashboard.admin-mode #adminDashboardBoard.admin-dashboard-board,
+body.has-user-dashboard-theme #dashboard:not(.user-mode) #adminDashboardBoard.admin-dashboard-board{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  grid-auto-flow:row!important;
+  gap:14px!important;
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  margin:14px 0 0!important;
+  padding:0!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  overflow:visible!important;
+  align-items:start!important;
+}
+#dashboard.admin-mode #adminDashboardBoard>.dashboard-pro-hero,
+#dashboard:not(.user-mode) #adminDashboardBoard>.dashboard-pro-hero{grid-column:1/-1!important;width:100%!important;min-width:0!important}
+#dashboard.admin-mode #adminDashboardBoard>.admin-dash-col,
+#dashboard:not(.user-mode) #adminDashboardBoard>.admin-dash-col{min-width:0!important;max-width:100%!important;width:auto!important;overflow:hidden!important;box-sizing:border-box!important;position:relative!important}
+#dashboard.admin-mode #adminDashboardBoard .dash-task-receive-card,
+#dashboard.admin-mode #adminDashboardBoard .dash-campaign-card,
+#dashboard:not(.user-mode) #adminDashboardBoard .dash-task-receive-card,
+#dashboard:not(.user-mode) #adminDashboardBoard .dash-campaign-card{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important;box-sizing:border-box!important}
+#dashboard.admin-mode #adminDashboardBoard .receive-list *,
+#dashboard:not(.user-mode) #adminDashboardBoard .receive-list *,
+#dashboard.admin-mode #adminDashboardBoard .dash-card-top *,
+#dashboard:not(.user-mode) #adminDashboardBoard .dash-card-top *{min-width:0!important;max-width:100%!important;overflow-wrap:anywhere!important;word-break:break-word!important;white-space:normal!important}
+@media(max-width:1180px){
+  #dashboard.admin-mode #adminDashboardBoard.admin-dashboard-board,
+  #dashboard:not(.user-mode) #adminDashboardBoard.admin-dashboard-board{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+}
+@media(max-width:760px){
+  #dashboard.admin-mode #adminDashboardBoard.admin-dashboard-board,
+  #dashboard:not(.user-mode) #adminDashboardBoard.admin-dashboard-board{grid-template-columns:1fr!important;}
+}
