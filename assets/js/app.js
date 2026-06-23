@@ -28339,26 +28339,37 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     }catch(_){ }
     return prevTaskStructure458 ? (prevTaskStructure458.apply(this, arguments) || task?.structure || {}) : (task?.structure || {});
   };
+  function campaignFromTaskId(taskId){
+    const id = txt(taskId || '');
+    if(!id) return '';
+    const marker = '-task-';
+    const idx = id.indexOf(marker);
+    if(idx > 0) return id.slice(0, idx);
+    return '';
+  }
   function closestTaskContext(btn){
     if(!btn) return {taskId:'', campaignId:''};
     const direct = txt(btn.dataset.toggleReceived || btn.dataset.taskId || btn.dataset.openTask || btn.dataset.receiveTaskId || '');
-    const directCampaign = txt(btn.dataset.taskCampaign || btn.dataset.campaignId || btn.dataset.campaign || '');
+    let directCampaign = txt(btn.dataset.taskCampaign || btn.dataset.campaignId || btn.dataset.campaign || '');
+    if(direct && !directCampaign) directCampaign = campaignFromTaskId(direct);
     if(direct) return {taskId:direct, campaignId:directCampaign};
     const ancestors=[]; let n=btn;
     for(let i=0; n && i<9; i++, n=n.parentElement) ancestors.push(n);
     for(const a of ancestors){
       const t = txt(a.dataset?.taskId || a.dataset?.toggleReceived || a.dataset?.openTask || '');
       const c = txt(a.dataset?.taskCampaign || a.dataset?.campaignId || '');
-      if(t) return {taskId:t, campaignId:c};
+      if(t) return {taskId:t, campaignId:c || campaignFromTaskId(t)};
       const d = a.querySelector?.('[data-open-task],[data-toggle-received],[data-task-id]');
       const dt = txt(d?.dataset?.openTask || d?.dataset?.toggleReceived || d?.dataset?.taskId || '');
       const dc = txt(d?.dataset?.taskCampaign || d?.dataset?.campaignId || '');
-      if(dt) return {taskId:dt, campaignId:dc};
+      if(dt) return {taskId:dt, campaignId:dc || campaignFromTaskId(dt)};
     }
     // Last resort: closest visible card shares campaign/title and has a details button nearby.
     const all = [...document.querySelectorAll('[data-open-task]')];
     const near = all.find(el => el.closest('article, .content-task-card, .task-card, .dash-card') === btn.closest('article, .content-task-card, .task-card, .dash-card'));
-    return {taskId:txt(near?.dataset?.openTask || ''), campaignId:txt(near?.dataset?.taskCampaign || near?.dataset?.campaignId || '')};
+    const nearTaskId = txt(near?.dataset?.openTask || '');
+    const nearCampaignId = txt(near?.dataset?.taskCampaign || near?.dataset?.campaignId || '') || campaignFromTaskId(nearTaskId);
+    return {taskId:nearTaskId, campaignId:nearCampaignId};
   }
   function locateDepartmentTask(taskId, campaignId){
     const found=findLocalTask(taskId,campaignId);
@@ -28390,6 +28401,8 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   async function receiveTaskFromButton(btn){
     const ctx=closestTaskContext(btn);
     if(!ctx.taskId){ try{ showToast('تعذر العثور على التاسك داخل الحملة.'); }catch(_){ } return; }
+    if(!ctx.campaignId) ctx.campaignId = campaignFromTaskId(ctx.taskId);
+    try{ console.info('v459 receive context', {taskId:ctx.taskId, campaignId:ctx.campaignId}); }catch(_){ }
     const loc=locateDepartmentTask(ctx.taskId,ctx.campaignId);
     const current=!!(loc.task?.received || loc.task?.receivedConfirmed);
     const next=!current;
@@ -28463,4 +28476,10 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   if(prevBuild458){ buildTaskDetailHtml=function(task){ const html=prevBuild458.apply(this,arguments); if(!isStructureTask(task)) return html; const own=localOwnStructure(task); if(!own || !(own.fileUrl||own.downloadURL||own.fileName||own.parsedRows||own.approvedRows)) return String(html).replace(/تم إرفاق الهيكل/g,'لم يتم إرفاق الهيكل').replace(/مراجعة الهيكل/g,'مراجعة الهيكل'); return html; }; }
   try{ decorateReceiveButtons458(); renderUserDashboard(); renderAdminDashboard(); renderTasksPage(); }catch(_){ }
   try{ console.info(`${VERSION} loaded`); }catch(_){ }
+})();
+
+
+/* MZJ v459 - receive button campaign id from task id */
+(function(){
+  try{ window.MZJ_APP_VERSION='v459-receive-campaign-from-task-id'; window.MZJ_LAST_PATCH='v459-receive-campaign-from-task-id'; console.info('v459-receive-campaign-from-task-id loaded'); }catch(_){ }
 })();
