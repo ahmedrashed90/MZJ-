@@ -28500,3 +28500,147 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
 
 
 (function(){try{window.MZJ_APP_VERSION='v460-receive-current-campaigns-locator-fix';window.MZJ_LAST_PATCH='v460-receive-current-campaigns-locator-fix';console.info('v460-receive-current-campaigns-locator-fix loaded');}catch(_){}})();
+
+/* MZJ v461 - hard override receive content task from current campaigns */
+(function(){
+  const VERSION = 'v461-receive-toggle-current-campaigns-direct';
+  function txt(v){ return String(v == null ? '' : v).trim(); }
+  function norm(v){ return txt(v).toLowerCase(); }
+  function campaignFromTaskId(taskId){
+    const raw = txt(taskId);
+    const marker = '-task-';
+    const idx = raw.indexOf(marker);
+    return idx > 0 ? raw.slice(0, idx) : '';
+  }
+  function campaignList(){
+    try{ if(Array.isArray(campaigns)) return campaigns; }catch(_){ }
+    try{ if(Array.isArray(window.campaigns)) return window.campaigns; }catch(_){ }
+    return [];
+  }
+  function campaignKeys(c){
+    return [c && c.id, c && c.docId, c && c.campaignId, c && c.campaignDocId, c && c.__id]
+      .map(txt).filter(Boolean);
+  }
+  function departmentTasksArray(c){
+    if(!c) return [];
+    if(Array.isArray(c.departmentTasks)) return c.departmentTasks;
+    if(c.departmentTasks && typeof c.departmentTasks === 'object'){
+      return Object.entries(c.departmentTasks).map(([key, value]) => value && typeof value === 'object' ? {...value, __departmentTaskMapKey:key} : null).filter(Boolean);
+    }
+    return [];
+  }
+  function sameTask(t, taskId){
+    const id = norm(taskId);
+    return !!(id && [t && t.id, t && t.taskId, t && t.docId].map(norm).includes(id));
+  }
+  function findCampaignAndTask(taskId, campaignId){
+    const wantedCampaign = txt(campaignId || campaignFromTaskId(taskId));
+    const wantedCampaignNorm = norm(wantedCampaign);
+    const list = campaignList();
+    let loose = null;
+    for(const c of list){
+      const keys = campaignKeys(c);
+      const tasks = departmentTasksArray(c);
+      const keyMatch = !wantedCampaignNorm || keys.map(norm).includes(wantedCampaignNorm);
+      const containsTask = tasks.some(t => sameTask(t, taskId));
+      if(!keyMatch && !containsTask) continue;
+      const index = tasks.findIndex(t => sameTask(t, taskId));
+      if(index >= 0){
+        return {campaign:c, task:tasks[index], index, tasks, docId: keys[0] || wantedCampaign};
+      }
+      if(!loose) loose = {campaign:c, task:null, index:-1, tasks, docId: keys[0] || wantedCampaign};
+    }
+    return loose || {campaign:null, task:null, index:-1, tasks:[], docId:wantedCampaign};
+  }
+  function serverStamp(){
+    try{ if(typeof serverTime === 'function') return serverTime(); }catch(_){ }
+    try{ if(window.firebase && window.firebase.firestore && window.firebase.firestore.FieldValue) return window.firebase.firestore.FieldValue.serverTimestamp(); }catch(_){ }
+    return new Date();
+  }
+  function finishRerender(){
+    try{ if(typeof refreshOpenTaskModal === 'function') refreshOpenTaskModal(); }catch(_){ }
+    try{ if(typeof renderUserDashboard === 'function') renderUserDashboard(); }catch(_){ }
+    try{ if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(_){ }
+    try{ if(typeof renderTasksPage === 'function') renderTasksPage(); }catch(_){ }
+  }
+  async function updateCampaignDepartmentTasks(docId, nextTasks){
+    if(typeof safeCollection === 'function'){
+      return safeCollection('marketing_campaigns').doc(docId).update({departmentTasks: nextTasks, updatedAt: serverStamp()});
+    }
+    if(window.firebase && window.firebase.firestore){
+      const db = window.firebase.firestore();
+      return db.collection('marketing_campaigns').doc(docId).update({departmentTasks: nextTasks, updatedAt: serverStamp()});
+    }
+    throw new Error('Firestore update helper is not available');
+  }
+  async function receiveCurrentCampaignTask(taskId, campaignId){
+    taskId = txt(taskId);
+    campaignId = txt(campaignId || campaignFromTaskId(taskId));
+    const loc = findCampaignAndTask(taskId, campaignId);
+    if(!loc.campaign || !loc.task || loc.index < 0){
+      console.warn('v461 receive locate failed', {taskId, campaignId, loc});
+      try{ if(typeof showToast === 'function') showToast('تعذر العثور على التاسك داخل الحملة.'); }catch(_){ }
+      return false;
+    }
+    const current = loc.task;
+    const nextFlag = !(current.received || current.receivedConfirmed);
+    const steps = Array.isArray(current.steps) ? current.steps.map(step => ({...step})) : [];
+    const receiveIndex = steps.findIndex(step => {
+      const label = norm(step && step.label);
+      return label.includes(norm('استلام')) || label.includes(norm('نموذج المحتوى')) || label.includes(norm('نموذج المحتوي'));
+    });
+    if(receiveIndex >= 0) steps[receiveIndex].done = nextFlag;
+    const progress = steps.length
+      ? Math.min(100, Math.round(steps.reduce((sum, step) => sum + (step.done ? Number(step.percent || 0) : 0), 0)))
+      : Number(current.progress || 0);
+    const patch = {
+      received: nextFlag,
+      receivedConfirmed: nextFlag,
+      receivedAt: nextFlag ? new Date().toISOString() : '',
+      receivedBy: nextFlag ? txt((typeof currentUserObject === 'function' && currentUserObject().uid) || (typeof currentUserObject === 'function' && currentUserObject().email) || (typeof currentUserObject === 'function' && currentUserObject().name) || '') : '',
+      status: nextFlag ? 'received' : 'pending',
+      steps,
+      progress,
+      updatedAt: new Date().toISOString()
+    };
+    const nextTask = {...current, ...patch, id: current.id || taskId, campaignId: loc.docId || campaignId};
+    const nextTasks = loc.tasks.map((task, index) => index === loc.index ? nextTask : task);
+    await updateCampaignDepartmentTasks(loc.docId || campaignId, nextTasks);
+    loc.campaign.departmentTasks = nextTasks;
+    console.info('v461 receive patched task', {taskId, campaignId: loc.docId || campaignId, index: loc.index, received: nextFlag});
+    try{ if(typeof showToast === 'function') showToast(nextFlag ? 'تم تأكيد الاستلام.' : 'تم إلغاء الاستلام.'); }catch(_){ }
+    finishRerender();
+    return true;
+  }
+  const previousToggleTaskReceived = typeof toggleTaskReceived === 'function' ? toggleTaskReceived : null;
+  window.MZJ_V461_RECEIVE_TASK = receiveCurrentCampaignTask;
+  toggleTaskReceived = function(taskId, campaignId){
+    return receiveCurrentCampaignTask(taskId, campaignId).catch(error => {
+      console.error('v461 receive failed', error);
+      if(previousToggleTaskReceived) return previousToggleTaskReceived.apply(this, arguments);
+      try{ if(typeof showToast === 'function') showToast('تعذر تحديث حالة الاستلام.'); }catch(_){ }
+      return false;
+    });
+  };
+  try{ window.toggleTaskReceived = toggleTaskReceived; }catch(_){ }
+  if(!window.MZJ_V461_RECEIVE_CLICK_BOUND){
+    window.MZJ_V461_RECEIVE_CLICK_BOUND = true;
+    document.addEventListener('click', function(event){
+      const btn = event.target && event.target.closest ? event.target.closest('[data-action="receive-content-task"], [data-toggle-received]') : null;
+      if(!btn) return;
+      const taskId = txt(btn.dataset.taskId || btn.dataset.toggleReceived || btn.dataset.receiveTaskId || '');
+      if(!taskId) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      receiveCurrentCampaignTask(taskId, txt(btn.dataset.campaignId || btn.dataset.taskCampaign || '')).catch(error => {
+        console.error('v461 receive click failed', error);
+        try{ if(typeof showToast === 'function') showToast('تعذر تحديث حالة الاستلام.'); }catch(_){ }
+      });
+    }, true);
+  }
+  try{
+    window.MZJ_APP_VERSION = VERSION;
+    window.MZJ_LAST_PATCH = VERSION;
+    console.info(VERSION + ' loaded');
+  }catch(_){ }
+})();
