@@ -27935,3 +27935,331 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   try{ renderUserDashboard(); renderAdminDashboard(); renderTasksPage(); }catch(_){ }
   try{ console.info(`${VERSION} loaded`); }catch(_){ }
 })();
+
+/* MZJ v457 - canonical writer-owned structures and per-task template documents */
+(function(){
+  const VERSION = 'v457-canonical-writer-structure-task-template-flow';
+  try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; }catch(_){ }
+  const STRUCTURES_COLLECTION = 'campaign_structure_uploads';
+  const TEMPLATES_COLLECTION = 'campaign_task_templates';
+  const txt = v => String(v == null ? '' : v).trim();
+  const arr = v => Array.isArray(v) ? v : (v == null ? [] : [v]);
+  const norm = v => txt(v).toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const safeId = v => (txt(v) || 'item').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,180) || 'item';
+  const now = () => new Date().toISOString();
+  const esc = v => (typeof escapeHtml === 'function' ? escapeHtml(v) : txt(v).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])));
+  const getUser = () => { try{ return typeof getCurrentUser === 'function' ? (getCurrentUser() || {}) : (typeof getCurrentUserIdentity === 'function' ? (getCurrentUserIdentity() || {}) : {}); }catch(_){ return {}; } };
+  const roleOf = t => norm(t?.assignedDepartmentRole || t?.departmentRole || t?.assignedDepartmentId || t?.contentSectionId || t?.departmentCode || t?.assignedDepartmentName || t?.contentSectionName || '');
+  const isContentRole = t => roleOf(t).includes('content') || roleOf(t).includes(norm('قسم المحتوى'));
+  const isStructureTask = t => !!(t && isContentRole(t) && (t.needsStructureUpload || t.structureRequestTask || t.structureBundleTask));
+  const isTemplateTask = t => !!(t && (t.contentTemplateTask || t.source === VERSION || t.source === 'campaign_task_templates' || norm(t.status).includes('template') || norm(t.taskType).includes(norm('Task Template'))));
+  function ownerId(t){ return txt(t?.contentWriterId || t?.contentWriterUid || t?.linkedContentUserId || t?.linkedContentUserUid || t?.assignedToId || t?.assignedToUid || t?.assigneeUid || t?.userId || t?.userUid || arr(t?.userIds)[0] || ''); }
+  function ownerName(t){ return txt(t?.contentWriterName || t?.linkedContentUserName || t?.assignedToName || t?.assigneeName || t?.userName || t?.displayName || arr(t?.userNames)[0] || ''); }
+  function ownerCode(t){ return txt(t?.contentWriterCode || t?.userCode || arr(t?.userCodes)[0] || ''); }
+  function campaignIdOf(obj, campaign){ return txt(obj?.campaignId || obj?.campaignDocId || obj?.campaign_id || campaign?.id || campaign?.docId || ''); }
+  function campaignCodeOf(obj, campaign){ return txt(obj?.campaignCode || obj?.campaign_code || campaign?.campaignCode || campaign?.campaign_code || ''); }
+  function allCampaigns(){ try{ return Array.isArray(campaigns) ? campaigns : []; }catch(_){ return []; } }
+  function campaignTasksRaw(c){ const raw=c?.departmentTasks; if(Array.isArray(raw)) return raw.filter(Boolean); if(raw && typeof raw === 'object') return Object.entries(raw).map(([k,v]) => v && typeof v === 'object' ? ({...v,__departmentTaskMapKey:k}) : null).filter(Boolean); return []; }
+  function allTasks(c){ return [...campaignTasksRaw(c), ...arr(c?.tasks), ...arr(c?.taskList)].filter(Boolean); }
+  function findCampaign(campaignId){ const k=norm(campaignId); return allCampaigns().find(c => norm(c.id||c.docId||c.campaignId||c.campaignCode||c.campaign_code) === k) || null; }
+  function findTaskLocal(taskId, campaignId){
+    const id=norm(taskId); const cid=norm(campaignId);
+    for(const c of allCampaigns()){
+      if(cid && ![c.id,c.docId,c.campaignId,c.campaignCode,c.campaign_code].map(norm).includes(cid)) continue;
+      const tasks=allTasks(c);
+      const t=tasks.find(x => [x.id,x.taskId,x.docId,x.taskNo,x.structureTaskNo,x.taskIndex,x.linkedExecutionPairKey,x.contentExecutionPairKey].map(norm).includes(id));
+      if(t) return {campaign:c, task:t};
+    }
+    return {campaign:null, task:null};
+  }
+  function structureDocId(task, campaign){ return safeId([campaignIdOf(task,campaign), txt(task?.id || task?.taskId || task?.originalTaskId || 'task'), ownerId(task) || ownerName(task)].join('_')); }
+  function rowKey(row, index, upload){ return txt(row?.rowKey || row?.reviewKey || row?.taskNo || row?.taskNumber || row?.raw?.['رقم التاسك'] || '') || `${campaignIdOf(upload)}__${ownerId(upload)||ownerCode(upload)}__row-${index+1}`; }
+  function templateDocId(upload, row, index){ return safeId([campaignIdOf(upload), ownerId(upload)||ownerCode(upload), rowKey(row,index,upload)].join('__')); }
+  function rowStatus(structure, row, index){ const k=rowKey(row,index,structure); const m=structure?.rowReviewStatuses || structure?.rowStatuses || {}; return txt(row?.reviewStatus || row?.status || m[k] || m[String(index)] || ''); }
+  function isApprovedRow(structure, row, index){ const s=norm(rowStatus(structure,row,index)); if(s) return s.includes('approved') || s.includes(norm('مقبول')) || s.includes(norm('معتمد')); const st=norm(structure?.reviewStatus || structure?.status || ''); return st.includes('approved') || st.includes(norm('معتمد')) || st.includes('distributed'); }
+  function compactStructureMeta(task, structure, campaign){
+    const me=getUser();
+    const cId=campaignIdOf(task,campaign);
+    const wid=ownerId(task) || txt(structure?.contentWriterId || structure?.uploadedById || me.uid || me.id || '');
+    const wname=ownerName(task) || txt(structure?.contentWriterName || structure?.uploadedByName || me.name || me.displayName || '');
+    return {
+      id: structureDocId({...task, contentWriterId:wid, contentWriterName:wname}, campaign),
+      campaignId:cId,
+      campaignName:txt(task?.campaignName || campaign?.campaignName || campaign?.name || ''),
+      campaignCode:campaignCodeOf(task,campaign),
+      kind:'structure',
+      originalTaskId:txt(task?.id || task?.taskId || structure?.originalTaskId || ''),
+      structureTaskId:txt(task?.id || task?.taskId || structure?.originalTaskId || ''),
+      contentWriterId:wid,
+      contentWriterName:wname,
+      contentWriterCode:ownerCode(task) || txt(structure?.contentWriterCode || ''),
+      fileName:txt(structure?.fileName || structure?.name || ''),
+      fileUrl:txt(structure?.fileUrl || structure?.downloadURL || structure?.downloadUrl || ''),
+      downloadURL:txt(structure?.downloadURL || structure?.fileUrl || structure?.downloadUrl || ''),
+      downloadUrl:txt(structure?.downloadUrl || structure?.downloadURL || structure?.fileUrl || ''),
+      fileSize:structure?.fileSize || structure?.size || 0,
+      storagePath:txt(structure?.storagePath || ''),
+      mimeType:txt(structure?.mimeType || ''),
+      parsedRows:arr(structure?.parsedRows),
+      approvedRows:arr(structure?.approvedRows),
+      sheetTables:arr(structure?.sheetTables),
+      rowReviewStatuses:structure?.rowReviewStatuses || {},
+      marks:arr(structure?.marks),
+      notes:arr(structure?.notes),
+      reviewStatus:txt(structure?.reviewStatus || structure?.status || 'pending_review'),
+      status:txt(structure?.status || structure?.reviewStatus || 'pending_review'),
+      uploadedAt:txt(structure?.uploadedAt || now()),
+      uploadedById:txt(structure?.uploadedById || me.uid || me.id || wid),
+      uploadedByName:txt(structure?.uploadedByName || me.name || me.displayName || wname),
+      updatedAt:now()
+    };
+  }
+  function isSameStructure(upload, task){
+    if(!upload || !task) return false;
+    const tid=norm(task.id || task.taskId || task.originalTaskId); const uid=norm(ownerId(task));
+    const uTid=norm(upload.originalTaskId || upload.structureTaskId || upload.taskId); const uUid=norm(upload.contentWriterId || upload.userId || upload.uploadedById || upload.contentWriterName);
+    return !!(tid && uid && uTid === tid && (uUid === uid || (!upload.contentWriterId && norm(upload.contentWriterName) === norm(ownerName(task)))));
+  }
+  window.MZJ_STRUCTURE_UPLOADS = window.MZJ_STRUCTURE_UPLOADS || [];
+  window.MZJ_TASK_TEMPLATE_DOCS = window.MZJ_TASK_TEMPLATE_DOCS || [];
+  function initListeners(){
+    if(window.MZJ_V457_LISTENERS_READY || typeof safeCollection !== 'function') return;
+    window.MZJ_V457_LISTENERS_READY = true;
+    try{ safeCollection(STRUCTURES_COLLECTION).onSnapshot(s => { window.MZJ_STRUCTURE_UPLOADS = s.docs.map(d => ({id:d.id, ...d.data()})); try{ renderUserDashboard(); renderAdminDashboard(); }catch(_){}; }, e => console.warn(`${VERSION} structures listener`, e)); }catch(e){ console.warn(`${VERSION} structures init`, e); }
+    try{ safeCollection(TEMPLATES_COLLECTION).onSnapshot(s => { window.MZJ_TASK_TEMPLATE_DOCS = s.docs.map(d => ({id:d.id, ...d.data()})); try{ renderUserDashboard(); renderAdminDashboard(); }catch(_){}; }, e => console.warn(`${VERSION} templates listener`, e)); }catch(e){ console.warn(`${VERSION} templates init`, e); }
+  }
+  initListeners();
+
+  async function saveStructureUploadDoc(task, structure, campaign){
+    if(typeof safeCollection !== 'function' || !task || !structure) return null;
+    const meta=compactStructureMeta(task, structure, campaign || (typeof campaignForTask === 'function' ? campaignForTask(task) : null));
+    const id=safeId(meta.id);
+    try{
+      await safeCollection(STRUCTURES_COLLECTION).doc(id).set({...meta, id, updatedAt:now()}, {merge:true});
+      const old=arr(window.MZJ_STRUCTURE_UPLOADS).filter(x => x.id !== id);
+      window.MZJ_STRUCTURE_UPLOADS = [...old, {...meta,id}];
+      return {...meta,id};
+    }catch(error){ console.warn(`${VERSION} save structure upload`, error); return null; }
+  }
+  function ownedStructureFromCollection(task){
+    if(!task) return null;
+    const exact=arr(window.MZJ_STRUCTURE_UPLOADS).filter(u => isSameStructure(u, task)).sort((a,b)=>(Date.parse(b.updatedAt||b.uploadedAt||0)||0)-(Date.parse(a.updatedAt||a.uploadedAt||0)||0))[0];
+    return exact || null;
+  }
+  const prevTaskStructure = typeof taskStructure === 'function' ? taskStructure : null;
+  if(prevTaskStructure){
+    taskStructure = function(task){
+      const base = prevTaskStructure.apply(this, arguments) || task?.structure || {};
+      try{ const owned=ownedStructureFromCollection(task); if(owned) return {...base, ...owned}; }catch(_){ }
+      return base;
+    };
+  }
+  const prevUpdate = typeof updateTaskOnFirebase === 'function' ? updateTaskOnFirebase : null;
+  if(prevUpdate){
+    updateTaskOnFirebase = async function(taskId, patch, options={}){
+      const res = await prevUpdate.apply(this, arguments);
+      try{
+        if(patch && patch.structure){
+          const t = (typeof findTaskById === 'function' ? findTaskById(taskId, options?.campaignId) : null) || findTaskLocal(taskId, options?.campaignId).task;
+          const c = t ? (typeof campaignForTask === 'function' ? campaignForTask(t) : findTaskLocal(taskId, options?.campaignId).campaign) : null;
+          if(t && isStructureTask(t)) await saveStructureUploadDoc(t, patch.structure, c);
+        }
+      }catch(error){ console.warn(`${VERSION} update structure side-save`, error); }
+      return res;
+    };
+  }
+
+  // Robust receive button: if the button has no task id, inherit it from nearest card/detail button.
+  function findReceiveContext(btn){
+    const direct=txt(btn?.dataset?.toggleReceived || btn?.dataset?.taskId || btn?.dataset?.openTask || '');
+    const directCampaign=txt(btn?.dataset?.taskCampaign || btn?.dataset?.campaignId || '');
+    if(direct) return {taskId:direct, campaignId:directCampaign};
+    const card = btn?.closest?.('.content-task-card,.inline-task-row,.task-list-item,.dash-task-receive-card,article,div');
+    const detail = card?.querySelector?.('[data-open-task],[data-task-id],[data-toggle-received]');
+    const taskId = txt(detail?.dataset?.openTask || detail?.dataset?.taskId || detail?.dataset?.toggleReceived || card?.dataset?.taskId || card?.dataset?.openTask || '');
+    const campaignId = txt(detail?.dataset?.taskCampaign || detail?.dataset?.campaignId || card?.dataset?.taskCampaign || card?.dataset?.campaignId || '');
+    return {taskId,campaignId};
+  }
+  function decorateReceiveButtons(){
+    try{
+      document.querySelectorAll('button').forEach(btn => {
+        const text=norm(btn.textContent || '');
+        if(!(text.includes(norm('تم الاستلام')) || text.includes(norm('لم يستلم')) || text.includes(norm('تأكيد الاستلام')))) return;
+        const ctx=findReceiveContext(btn);
+        if(ctx.taskId && !btn.dataset.toggleReceived) btn.dataset.toggleReceived=ctx.taskId;
+        if(ctx.taskId && !btn.dataset.taskId) btn.dataset.taskId=ctx.taskId;
+        if(ctx.campaignId && !btn.dataset.taskCampaign) btn.dataset.taskCampaign=ctx.campaignId;
+        if(!btn.dataset.action) btn.dataset.action='receive-content-task';
+      });
+    }catch(_){ }
+  }
+  const prevRenderUser = typeof renderUserDashboard === 'function' ? renderUserDashboard : null;
+  if(prevRenderUser){ renderUserDashboard = function(){ const r=prevRenderUser.apply(this, arguments); setTimeout(decorateReceiveButtons,0); return r; }; }
+  document.addEventListener('click', function(event){
+    const btn=event.target?.closest?.('button'); if(!btn) return;
+    const text=norm(btn.textContent || '');
+    if(!(text.includes(norm('تم الاستلام')) || text.includes(norm('لم يستلم')) || text.includes(norm('تأكيد الاستلام')) || btn.dataset.action === 'receive-content-task')) return;
+    const ctx=findReceiveContext(btn);
+    if(!ctx.taskId) return;
+    event.preventDefault(); event.stopPropagation(); if(event.stopImmediatePropagation) event.stopImmediatePropagation();
+    if(typeof toggleTaskReceived === 'function') toggleTaskReceived(ctx.taskId, ctx.campaignId);
+  }, true);
+
+  // Convert collection template docs to dashboard tasks.
+  function templateDocToTask(doc){
+    const id=txt(doc.id || templateDocId(doc, doc, 0));
+    const writerId=txt(doc.contentWriterId || doc.userId || '');
+    const writerName=txt(doc.contentWriterName || doc.userName || 'كاتب المحتوى');
+    return {
+      ...doc,
+      id,
+      taskId:id,
+      campaignId:txt(doc.campaignId || ''),
+      campaignName:txt(doc.campaignName || ''),
+      campaignCode:txt(doc.campaignCode || ''),
+      contentTemplateTask:true,
+      source:'campaign_task_templates',
+      assignedDepartmentId:'content', assignedDepartmentName:'قسم المحتوى', assignedDepartmentRole:'content', departmentRole:'content', departmentCode:'CONTENT',
+      taskType:txt(doc.taskType || `Task Template - ${doc.contentType || doc.creativeShortCode || 'محتوى'}`),
+      product:txt(doc.product || doc.contentType || doc.creativeShortCode || ''),
+      creative:txt(doc.creative || doc.contentType || doc.creativeShortCode || ''),
+      userId:writerId, userUid:writerId, userName:writerName, displayName:writerName,
+      assignedToId:writerId, assignedToUid:writerId, assignedToName:writerName,
+      assigneeUid:writerId, assigneeName:writerName,
+      contentWriterId:writerId, contentWriterName:writerName,
+      searchKeys:[writerId, writerName, doc.contentWriterEmail, doc.contentWriterCode].filter(Boolean),
+      assignedToSearch:[writerId, writerName, doc.contentWriterEmail, doc.contentWriterCode].filter(Boolean),
+      status:txt(doc.status || 'waiting_writer_upload'),
+      progress:Number(doc.progress || 0),
+      received:!!doc.received,
+      receivedConfirmed:!!doc.receivedConfirmed,
+      taskTemplate: doc.taskTemplate || { status:doc.templateReviewStatus || doc.reviewStatus || 'not_uploaded', fileUrl:doc.templateFileUrl || doc.fileUrl || '', fileName:doc.templateFileName || doc.fileName || '', taskTemplateFields:doc.taskTemplateFields || [], parsedRows:doc.parsedRows || [] },
+      sourceStructureUploadId:txt(doc.sourceStructureUploadId || ''),
+      sourceStructureTaskId:txt(doc.sourceStructureTaskId || ''),
+      sourceStructureRowKey:txt(doc.sourceStructureRowKey || '')
+    };
+  }
+  function externalTemplateTasksForCampaign(c){ return arr(window.MZJ_TASK_TEMPLATE_DOCS).filter(d => norm(d.campaignId) === norm(c?.id || c?.docId || c?.campaignId)).map(templateDocToTask); }
+  const prevTasksForCampaign = typeof tasksForCampaign === 'function' ? tasksForCampaign : null;
+  if(prevTasksForCampaign){
+    tasksForCampaign = function(c){
+      const base=arr(prevTasksForCampaign.apply(this, arguments));
+      const by=new Map();
+      [...base, ...externalTemplateTasksForCampaign(c)].forEach(t => { const k=norm(t.id || t.taskId || t.sourceStructureRowKey || t.taskNo); if(k && !by.has(k)) by.set(k,t); else if(!k) by.set(`x${by.size}`,t); });
+      return [...by.values()].map(t => ({...t, taskCount:by.size}));
+    };
+  }
+  const prevVisible = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser : null;
+  if(prevVisible){
+    getVisibleTasksForCurrentUser = function(){
+      const base=arr(prevVisible.apply(this, arguments));
+      const me=getUser(); const keys=[me.uid,me.id,me.email,me.name,me.displayName].map(norm).filter(Boolean);
+      const extra=arr(window.MZJ_TASK_TEMPLATE_DOCS).map(templateDocToTask).filter(t => [t.contentWriterId,t.contentWriterName,t.userId,t.userName,t.assignedToId,t.assignedToName,t.contentWriterEmail,t.contentWriterCode].map(norm).some(v => keys.includes(v)));
+      const by=new Map(); [...base,...extra].forEach(t => { const k=norm(t.id || t.taskId || t.sourceStructureRowKey || t.taskNo); if(k && !by.has(k)) by.set(k,t); else if(!k) by.set(`x${by.size}`,t); });
+      return [...by.values()];
+    };
+  }
+  const prevFindTask = typeof findTaskById === 'function' ? findTaskById : null;
+  findTaskById = function(taskId, campaignId){
+    const id=norm(taskId);
+    const fromTemplate=arr(window.MZJ_TASK_TEMPLATE_DOCS).find(d => [d.id,d.taskId,d.taskNo,d.sourceStructureRowKey].map(norm).includes(id));
+    if(fromTemplate) return templateDocToTask(fromTemplate);
+    return prevFindTask ? prevFindTask.apply(this, arguments) : findTaskLocal(taskId,campaignId).task;
+  };
+
+  // Saving/approving a structure should update writer-owned upload doc.
+  const prevSetStructureStatus = typeof setStructureStatus === 'function' ? setStructureStatus : null;
+  if(prevSetStructureStatus){
+    setStructureStatus = async function(taskId, status){
+      const res=await prevSetStructureStatus.apply(this, arguments);
+      try{
+        const task=findTaskById(taskId); const campaign=task && (typeof campaignForTask === 'function' ? campaignForTask(task) : findTaskLocal(taskId).campaign);
+        if(task && isStructureTask(task)){
+          const structure=(typeof taskStructure === 'function' ? taskStructure(task) : task.structure || {});
+          await saveStructureUploadDoc(task, {...structure, status, reviewStatus:status, reviewedAt:now(), approvedAt:norm(status).includes('approved') ? now() : (structure.approvedAt || '')}, campaign);
+        }
+      }catch(error){ console.warn(`${VERSION} structure status side-save`, error); }
+      return res;
+    };
+  }
+  async function upsertTemplateDoc(doc){
+    if(typeof safeCollection !== 'function') return null;
+    const id=safeId(doc.id || templateDocId(doc, doc, 0));
+    const payload={...doc,id,updatedAt:now()};
+    await safeCollection(TEMPLATES_COLLECTION).doc(id).set(payload,{merge:true});
+    window.MZJ_TASK_TEMPLATE_DOCS = [...arr(window.MZJ_TASK_TEMPLATE_DOCS).filter(x => x.id !== id), payload];
+    return payload;
+  }
+  function templateFromRow(upload, row, index){
+    const taskNo=txt(row?.taskNo || row?.taskNumber || row?.reviewKey || row?.raw?.['رقم التاسك'] || rowKey(row,index,upload));
+    const id=templateDocId(upload,row,index);
+    const contentType=txt(row?.contentType || row?.raw?.['نوع المحتوى'] || row?.creative || '');
+    const templateData={ suggestedCreativeName:'', goal:'', mainMessage:'', hook:'', mainScript:'', cta:'', caption:'', hashtags:'' };
+    return {
+      id, campaignId:campaignIdOf(upload), campaignName:txt(upload.campaignName||''), campaignCode:campaignCodeOf(upload), campaignType:txt(upload.campaignType||''),
+      sourceStructureUploadId:txt(upload.id||''), sourceStructureTaskId:txt(upload.originalTaskId||upload.structureTaskId||''), sourceStructureRowKey:rowKey(row,index,upload),
+      contentWriterId:txt(upload.contentWriterId||''), contentWriterName:txt(upload.contentWriterName||''), contentWriterCode:txt(upload.contentWriterCode || row?.contentWriterCode || row?.raw?.['كود كاتب المحتوى'] || ''),
+      taskNo, taskType:`Task Template - ${contentType || txt(row?.creativeShortCode || '')}`, contentType, creativeShortCode:txt(row?.creativeShortCode || row?.raw?.['كود الكرييتيف المختصر'] || ''), departmentCode:txt(row?.departmentCode || row?.raw?.['كود القسم'] || ''), userCode:txt(row?.userCode || row?.userCodes || row?.raw?.['كود اليوزر'] || ''),
+      idea:txt(row?.idea||row?.raw?.['الفكرة']||''), message:txt(row?.message||row?.raw?.['الرسالة']||row?.raw?.['الرسالة الأساسية']||''), description:txt(row?.description||row?.raw?.['وصف المحتوى']||''), cta:txt(row?.cta||row?.raw?.['CTA']||''), car:txt(row?.car||row?.raw?.['السيارة']||''), writerRequest:txt(row?.writerRequest||row?.raw?.['المطلوب من الكاتب']||''),
+      status:'waiting_writer_upload', reviewStatus:'pending', templateReviewStatus:'not_uploaded', templateData, createdAt:now(), updatedAt:now(), source:VERSION
+    };
+  }
+  const prevSaveDistribution = typeof saveStructureDistribution === 'function' ? saveStructureDistribution : null;
+  saveStructureDistribution = async function(taskId){
+    const task=findTaskById(taskId); const campaign=task && (typeof campaignForTask === 'function' ? campaignForTask(task) : findTaskLocal(taskId).campaign);
+    if(!task || !campaign?.id){ try{ showToast('تعذر العثور على التاسك.'); }catch(_){} return; }
+    const structure=(typeof taskStructure === 'function' ? taskStructure(task) : task.structure || {});
+    const upload=await saveStructureUploadDoc(task, {...structure, status:'approved', reviewStatus:'approved', approvedAt:structure.approvedAt || now()}, campaign) || compactStructureMeta(task, structure, campaign);
+    const rows=arr(upload.approvedRows).length ? arr(upload.approvedRows) : arr(upload.parsedRows);
+    let created=0;
+    for(let i=0;i<rows.length;i++){
+      const row=rows[i];
+      if(!isApprovedRow(upload,row,i)) continue;
+      await upsertTemplateDoc(templateFromRow(upload,row,i)); created++;
+    }
+    // Keep old distribution logic for execution waiting cards, but do not rely on it for content templates.
+    try{ if(prevSaveDistribution) await prevSaveDistribution.apply(this, arguments); }catch(error){ console.warn(`${VERSION} legacy distribution skipped`, error); }
+    try{ showToast(created ? `تم تجهيز ${created} Task Template لقسم المحتوى.` : 'لم يتم العثور على صفوف معتمدة لإنشاء Task Template.'); }catch(_){ }
+    try{ renderUserDashboard(); renderAdminDashboard(); renderTasksPage(); }catch(_){ }
+  };
+
+  // Uploading a Task Template document should update campaign_task_templates, not only departmentTasks.
+  async function uploadStorageV457(file, task, kind){
+    if(!mainStorage) throw new Error('Firebase Storage غير متصل.');
+    const cId=safeId(task?.campaignId || 'campaign'); const tId=safeId(task?.id || task?.taskId || 'task');
+    const fileName=`${Date.now()}-${file.name || 'template.xlsx'}`;
+    const root=kind === 'structure' ? 'campaign-structures' : 'task-templates';
+    const path=`${root}/${cId}/${tId}/${fileName}`;
+    const ref=mainStorage.ref().child(path);
+    const snapshot=await ref.put(file,{contentType:file.type||'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=await snapshot.ref.getDownloadURL();
+    return {fileName:file.name||fileName, templateFileName:file.name||fileName, fileSize:file.size||0, mimeType:file.type||'', storagePath:path, fileUrl:url, downloadURL:url, downloadUrl:url, templateFileUrl:url, uploadedAt:now()};
+  }
+  async function uploadTemplateDocFile(file, taskId){
+    const task=findTaskById(taskId);
+    if(!task || !isTemplateTask(task)) return false;
+    try{ showToast('جاري رفع Task Template...'); }catch(_){ }
+    const uploaded=await uploadStorageV457(file, task, 'task-template');
+    const fields=[]; let row={};
+    try{ if(typeof parseTemplateFields === 'function'){ const buffer=await file.arrayBuffer(); const parsed=parseTemplateFields(buffer); row=parsed.row||{}; (parsed.fields||[]).forEach(f=>fields.push(f)); } }catch(e){ console.warn(`${VERSION} parse task template`, e); }
+    const doc={...task, ...uploaded, status:'pending_admin_review', reviewStatus:'pending', templateReviewStatus:'pending_admin_review', taskTemplateFields:fields, parsedRows:fields.length ? [row] : arr(task.parsedRows), taskTemplate:{...(task.taskTemplate||{}), ...uploaded, status:'pending_admin_review', reviewStatus:'pending', taskTemplateFields:fields, parsedRows:fields.length?[row]:[]}};
+    await upsertTemplateDoc(doc);
+    try{ showToast('تم رفع Task Template وفي انتظار مراجعة الأدمن.'); refreshOpenTaskModal(); renderUserDashboard(); renderAdminDashboard(); }catch(_){ }
+    return true;
+  }
+  function ensureTemplateInput(){
+    let input=document.getElementById('taskTemplateFileInputV457');
+    if(!input){ input=document.createElement('input'); input.type='file'; input.accept='.xlsx,.xls'; input.hidden=true; input.id='taskTemplateFileInputV457'; document.body.appendChild(input); input.addEventListener('change', async e => { const file=e.target.files&&e.target.files[0]; const taskId=e.target.dataset.taskId||''; e.target.value=''; if(file&&taskId){ try{ await uploadTemplateDocFile(file,taskId); }catch(error){ console.error(VERSION,error); try{ showToast(error?.message || 'تعذر رفع Task Template.'); }catch(_){} } } }); }
+    return input;
+  }
+  document.addEventListener('click', function(event){
+    const btn=event.target?.closest?.('[data-upload-task-template]'); if(!btn) return;
+    const taskId=txt(btn.dataset.uploadTaskTemplate || btn.dataset.taskId || ''); const task=findTaskById(taskId);
+    if(!task || !isTemplateTask(task)) return;
+    event.preventDefault(); event.stopPropagation(); if(event.stopImmediatePropagation) event.stopImmediatePropagation();
+    const input=ensureTemplateInput(); input.dataset.taskId=taskId; input.value=''; input.click();
+  }, true);
+
+  try{ decorateReceiveButtons(); renderUserDashboard(); renderAdminDashboard(); renderTasksPage(); }catch(_){ }
+  try{ console.info(`${VERSION} loaded`); }catch(_){ }
+})();
