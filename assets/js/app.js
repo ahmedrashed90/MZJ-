@@ -28644,3 +28644,788 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     console.info(VERSION + ' loaded');
   }catch(_){ }
 })();
+
+/* MZJ v462 - hard isolate campaign structure uploads per content writer */
+(function(){
+  const VERSION = 'v462-writer-owned-structure-hard-isolation';
+  const STRUCTURES_COLLECTION = 'campaign_structure_uploads';
+  const CAMPAIGNS_COLLECTION = (window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns');
+  const txt = v => String(v == null ? '' : v).trim();
+  const arr = v => Array.isArray(v) ? v : [];
+  const norm = v => txt(v).toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g,'')
+    .replace(/[أإآٱ]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/ى/g,'ي').replace(/ة/g,'ه')
+    .replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const safeId = v => (txt(v) || 'item').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,180) || 'item';
+  const storageSafe = v => (txt(v) || 'item').replace(/[^A-Za-z0-9._-]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'') || 'item';
+  const now = () => new Date().toISOString();
+  function getUser(){ try{ return (typeof getCurrentUser === 'function' && getCurrentUser()) || (typeof currentUserObject === 'function' && currentUserObject()) || {}; }catch(_){ return {}; } }
+  function userIdOf(u){ return txt(u.uid || u.id || u.userId || u.email || u.name || u.displayName || ''); }
+  function userNameOf(u){ return txt(u.name || u.displayName || u.email || u.uid || u.id || ''); }
+  function campaignFromTaskId(taskId){ const id = txt(taskId); const marker = '-task-'; const idx = id.indexOf(marker); return idx > 0 ? id.slice(0, idx) : ''; }
+  function campaignList(){ try{ return Array.isArray(campaigns) ? campaigns : (Array.isArray(window.campaigns) ? window.campaigns : []); }catch(_){ return []; } }
+  function campaignIdOf(task, campaign){ return txt(task?.campaignId || task?.campaignDocId || task?.campaign_id || campaign?.id || campaign?.docId || campaign?.campaignId || campaignFromTaskId(task?.id || task?.taskId || '') || ''); }
+  function campaignNameOf(task, campaign){ return txt(task?.campaignName || campaign?.campaignName || campaign?.name || ''); }
+  function campaignCodeOf(task, campaign){ return txt(task?.campaignCode || task?.campaign_code || campaign?.campaignCode || campaign?.campaign_code || campaign?.code || ''); }
+  function taskArray(campaign){
+    const raw = campaign?.departmentTasks;
+    if(Array.isArray(raw)) return raw.filter(x => x && typeof x === 'object');
+    if(raw && typeof raw === 'object') return Object.entries(raw).map(([key,value]) => value && typeof value === 'object' ? {...value,__departmentTaskMapKey:key} : null).filter(Boolean);
+    return [];
+  }
+  function taskMatches(task, taskId){ const id = norm(taskId); return !!(id && [task?.id, task?.taskId, task?.docId, task?.originalTaskId, task?.structureTaskId].map(norm).includes(id)); }
+  function locateTask(taskId, campaignId){
+    const wantedC = norm(campaignId || campaignFromTaskId(taskId));
+    for(const campaign of campaignList()){
+      const cKeys = [campaign?.id, campaign?.docId, campaign?.campaignId, campaign?.campaignCode, campaign?.campaign_code].map(norm).filter(Boolean);
+      const tasks = taskArray(campaign);
+      if(wantedC && !cKeys.includes(wantedC) && !tasks.some(t => taskMatches(t, taskId))) continue;
+      const index = tasks.findIndex(t => taskMatches(t, taskId));
+      if(index >= 0) return {campaign, task:tasks[index], index, tasks, docId:txt(campaign.id || campaign.docId || campaign.campaignId || campaignId || campaignFromTaskId(taskId))};
+    }
+    return {campaign:null, task:null, index:-1, tasks:[], docId:txt(campaignId || campaignFromTaskId(taskId))};
+  }
+  function roleOf(task){ try{ return normalizeDepartmentRole(task?.departmentRole || task?.assignedDepartmentRole || task?.assignedDepartmentId || task?.contentSectionId || task?.departmentCode || task?.assignedDepartmentName || task?.contentSectionName || task?.departmentName || '') || ''; }catch(_){ return norm(task?.departmentRole || task?.assignedDepartmentName || task?.departmentName || ''); } }
+  function isContentStructureTask(task){
+    const role = roleOf(task);
+    const text = norm([task?.taskType, task?.structureTaskLabel, task?.sourceRequestStep, task?.creative, task?.product].filter(Boolean).join(' '));
+    return !!(task && (role === 'content' || norm(role).includes('content') || norm(role).includes(norm('قسم المحتوى'))) && (task.needsStructureUpload || task.structureRequestTask || task.structureBundleTask || text.includes(norm('طلب هيكل')) || text.includes(norm('هيكل حملة'))));
+  }
+  function ownerId(task){ return txt(task?.contentWriterId || task?.contentWriterUid || task?.linkedContentUserId || task?.linkedContentUserUid || task?.assignedToId || task?.assignedToUid || task?.assigneeUid || task?.userId || task?.userUid || arr(task?.userIds)[0] || ''); }
+  function ownerName(task){ return txt(task?.contentWriterName || task?.linkedContentUserName || task?.assignedToName || task?.assigneeName || task?.userName || task?.displayName || arr(task?.userNames)[0] || ''); }
+  function ownerEmail(task){ return txt(task?.contentWriterEmail || task?.assignedToEmail || task?.assigneeEmail || task?.userEmail || ''); }
+  function ownerCode(task){ return txt(task?.contentWriterCode || task?.userCode || task?.assigneeCode || ''); }
+  function taskOwnerTokens(task){ return [ownerId(task), ownerName(task), ownerEmail(task), ownerCode(task)].map(norm).filter(Boolean); }
+  function uploadOwnerTokens(upload){ return [
+    upload?.contentWriterId, upload?.contentWriterUid, upload?.contentWriterName, upload?.contentWriterEmail, upload?.contentWriterCode,
+    upload?.uploadedById, upload?.uploadedByUid, upload?.uploadedByEmail, upload?.uploadedByName, upload?.uploadedBy,
+    upload?.userId, upload?.userUid, upload?.userEmail, upload?.userName, upload?.assignedToId, upload?.assignedToName, upload?.writerId, upload?.writerName
+  ].map(norm).filter(Boolean); }
+  function sameOwner(upload, task){
+    const a = uploadOwnerTokens(upload);
+    const b = taskOwnerTokens(task);
+    return !!(a.length && b.length && a.some(x => b.includes(x)));
+  }
+  function taskKey(task){ return norm(task?.id || task?.taskId || task?.originalTaskId || task?.structureTaskId || ''); }
+  function uploadTaskKey(upload){ return norm(upload?.originalTaskId || upload?.structureTaskId || upload?.taskId || upload?.taskDocId || ''); }
+  function hasStructureFile(upload){ return !!(upload && (upload.fileUrl || upload.downloadURL || upload.downloadUrl || upload.fileName || upload.storagePath || upload.uploadedAt || arr(upload.parsedRows).length || arr(upload.approvedRows).length)); }
+  function exactOwnedUpload(upload, task){
+    if(!hasStructureFile(upload) || !sameOwner(upload, task)) return false;
+    const tk = taskKey(task), uk = uploadTaskKey(upload);
+    if(tk && uk && tk !== uk) return false;
+    const tc = norm(campaignIdOf(task));
+    const uc = norm(upload?.campaignId || upload?.campaignDocId || '');
+    if(tc && uc && tc !== uc) return false;
+    return true;
+  }
+  function sortTime(a,b){ return (Date.parse(b?.updatedAt || b?.reviewedAt || b?.uploadedAt || b?.createdAt || 0) || 0) - (Date.parse(a?.updatedAt || a?.reviewedAt || a?.uploadedAt || a?.createdAt || 0) || 0); }
+  function ownedStructure(task){
+    if(!task || !isContentStructureTask(task)) return null;
+    const pool = [];
+    arr(window.MZJ_STRUCTURE_UPLOADS).forEach(x => pool.push(x));
+    arr(task.structureUploads).forEach(x => pool.push(x));
+    arr(task.campaignStructureUploads).forEach(x => pool.push(x));
+    if(task.structureUpload) pool.push(task.structureUpload);
+    if(task.structure) pool.push(task.structure);
+    const exact = pool.filter(x => exactOwnedUpload(x, task)).sort(sortTime)[0];
+    return exact || null;
+  }
+  function emptyStructure(base){
+    const clean = {...(base || {})};
+    ['fileName','name','fileUrl','downloadURL','downloadUrl','url','fileData','storagePath','uploadedAt','reviewedAt','approvedAt'].forEach(k => { clean[k] = ''; });
+    clean.parsedRows = [];
+    clean.approvedRows = [];
+    clean.sheetTables = [];
+    clean.sheetTablesJson = '[]';
+    clean.status = '';
+    clean.reviewStatus = '';
+    clean.__hiddenForeignStructure = true;
+    return clean;
+  }
+  const prevTaskStructure = typeof taskStructure === 'function' ? taskStructure : null;
+  taskStructure = function(task){
+    if(isContentStructureTask(task)){
+      const own = ownedStructure(task);
+      if(own) return {...own, status: own.status || own.reviewStatus || 'pending_review'};
+      return emptyStructure({});
+    }
+    return prevTaskStructure ? (prevTaskStructure.apply(this, arguments) || task?.structure || {}) : (task?.structure || {});
+  };
+  const prevTaskStructureAttached = typeof taskStructureAttached === 'function' ? taskStructureAttached : null;
+  taskStructureAttached = function(task){
+    if(isContentStructureTask(task)) return !!ownedStructure(task);
+    return prevTaskStructureAttached ? prevTaskStructureAttached.apply(this, arguments) : hasStructureFile(task?.structure);
+  };
+  const prevTaskStructureAttachedBadge = typeof taskStructureAttachedBadge === 'function' ? taskStructureAttachedBadge : null;
+  taskStructureAttachedBadge = function(task){
+    if(isContentStructureTask(task)) return ownedStructure(task) ? '<b class="state-chip is-structure-attached">تم إرفاق الهيكل</b>' : '';
+    return prevTaskStructureAttachedBadge ? prevTaskStructureAttachedBadge.apply(this, arguments) : '';
+  };
+  const prevFindTaskById = typeof findTaskById === 'function' ? findTaskById : null;
+  if(prevFindTaskById){
+    findTaskById = function(taskId, campaignId){
+      const task = prevFindTaskById.apply(this, arguments);
+      if(task && isContentStructureTask(task)) return {...task, structure: taskStructure(task)};
+      return task;
+    };
+  }
+  const prevTasksForCampaign = typeof tasksForCampaign === 'function' ? tasksForCampaign : null;
+  if(prevTasksForCampaign){
+    tasksForCampaign = function(campaign){ return arr(prevTasksForCampaign.apply(this, arguments)).map(task => isContentStructureTask(task) ? {...task, structure:taskStructure(task)} : task); };
+  }
+  function structureDocId(task, campaign){ return safeId([campaignIdOf(task,campaign), txt(task?.id || task?.taskId || task?.originalTaskId || 'task'), ownerId(task) || ownerName(task) || 'writer'].join('_')); }
+  function buildUploadMeta(task, campaign, structure){
+    const user = getUser();
+    const wid = ownerId(task) || userIdOf(user);
+    const wname = ownerName(task) || userNameOf(user);
+    return {
+      ...structure,
+      id: structureDocId({...task, contentWriterId:wid, contentWriterName:wname}, campaign),
+      kind:'structure',
+      campaignId:campaignIdOf(task,campaign), campaignDocId:campaignIdOf(task,campaign), campaignName:campaignNameOf(task,campaign), campaignCode:campaignCodeOf(task,campaign),
+      originalTaskId:txt(task?.id || task?.taskId || ''), structureTaskId:txt(task?.id || task?.taskId || ''), taskId:txt(task?.id || task?.taskId || ''),
+      contentWriterId:wid, contentWriterUid:wid, contentWriterName:wname, contentWriterEmail:ownerEmail(task), contentWriterCode:ownerCode(task),
+      uploadedById:txt(user.uid || user.id || user.userId || wid), uploadedByUid:txt(user.uid || user.id || user.userId || wid), uploadedByEmail:txt(user.email || ownerEmail(task)), uploadedByName:txt(user.name || user.displayName || wname), uploadedBy:txt(user.email || user.name || user.displayName || wname),
+      updatedAt:now()
+    };
+  }
+  async function saveUploadDoc(task, campaign, structure){
+    if(typeof safeCollection !== 'function') return null;
+    const meta = buildUploadMeta(task, campaign, structure);
+    const id = safeId(meta.id);
+    await safeCollection(STRUCTURES_COLLECTION).doc(id).set({...meta, id}, {merge:true});
+    window.MZJ_STRUCTURE_UPLOADS = [...arr(window.MZJ_STRUCTURE_UPLOADS).filter(x => x.id !== id), {...meta, id}];
+    return {...meta, id};
+  }
+  async function patchCampaignTask(loc, patch){
+    if(!loc?.campaign || !loc?.task || !loc.docId) throw new Error('تعذر العثور على تاسك الهيكل داخل الحملة.');
+    const current = loc.task;
+    const updated = {...current, ...patch, updatedAt:now()};
+    const raw = loc.campaign.departmentTasks;
+    if(Array.isArray(raw)){
+      const next = loc.tasks.map((task, index) => index === loc.index ? updated : task);
+      await safeCollection(CAMPAIGNS_COLLECTION).doc(loc.docId).update({departmentTasks:next, taskCount:next.length, updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())});
+      loc.campaign.departmentTasks = next;
+    }else if(raw && typeof raw === 'object'){
+      const key = current.__departmentTaskMapKey || current.id || current.taskId;
+      await safeCollection(CAMPAIGNS_COLLECTION).doc(loc.docId).update({[`departmentTasks.${key}`]:updated, updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())});
+      loc.campaign.departmentTasks = {...raw, [key]:updated};
+    }
+    return updated;
+  }
+  const prevUploadStructureFileForTask = typeof uploadStructureFileForTask === 'function' ? uploadStructureFileForTask : null;
+  uploadStructureFileForTask = async function(file, taskId){
+    const loc = locateTask(taskId);
+    const task = loc.task || (typeof findTaskById === 'function' ? findTaskById(taskId) : null);
+    const campaign = loc.campaign || null;
+    if(!task || !isContentStructureTask(task)){
+      return prevUploadStructureFileForTask ? prevUploadStructureFileForTask.apply(this, arguments) : null;
+    }
+    if(!window.XLSX || typeof parseStructureWorkbook !== 'function') throw new Error('مكتبة Excel لم يتم تحميلها.');
+    if(!mainStorage) throw new Error('Firebase Storage غير متاح.');
+    try{ if(typeof showToast === 'function') showToast('جاري رفع الهيكل...'); }catch(_){ }
+    const parsed = await parseStructureWorkbook(file);
+    const cId = storageSafe(campaignIdOf(task,campaign) || 'campaign');
+    const tId = storageSafe(task.id || task.taskId || 'task');
+    const wId = storageSafe(ownerId(task) || ownerName(task) || userIdOf(getUser()) || 'writer');
+    const original = storageSafe(file?.name || 'structure.xlsx');
+    const path = `campaign-structures/${cId}/${tId}/${wId}/${Date.now()}-${original}`;
+    const ref = mainStorage.ref().child(path);
+    const snapshot = await ref.put(file, {contentType:file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', customMetadata:{uploadKind:'structure', campaignId:cId, taskId:tId, contentWriterId:wId, originalFileName:file.name || original}});
+    const downloadURL = await snapshot.ref.getDownloadURL();
+    const structure = buildUploadMeta(task, campaign, {
+      storageProvider:'firebase', storagePath:path, fileName:file.name || original, name:file.name || original, fileSize:file.size || 0, size:file.size || 0, mimeType:file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      downloadURL, downloadUrl:downloadURL, fileUrl:downloadURL, uploadedAt:now(), status:'pending_review', reviewStatus:'pending_review', parsedRows:parsed.parsedRows || [], sheetTablesJson:JSON.stringify(parsed.sheetTables || []), approvedRows:[], rowReviewStatuses:{}, notes:[], marks:[], reviewedAt:'', reviewClearedAt:now(), templateKind:'campaign_structure_writer_owned_v462'
+    });
+    delete structure.fileData;
+    delete structure.sheetTables;
+    const savedDoc = await saveUploadDoc(task, campaign, structure).catch(error => { console.warn(`${VERSION} save upload doc`, error); return structure; });
+    const oldUploads = arr(task.structureUploads).filter(u => !(norm(u?.contentWriterId || u?.uploadedById || u?.contentWriterName || u?.uploadedByName) && sameOwner(u, task)));
+    const savedTask = await patchCampaignTask(loc, {structure:savedDoc || structure, structureUploads:[...oldUploads, savedDoc || structure]});
+    try{ if(typeof showToast === 'function') showToast('تم رفع الهيكل لهذا الكاتب فقط. في انتظار مراجعة الأدمن.'); }catch(_){ }
+    try{ if(typeof refreshOpenTaskModal === 'function') refreshOpenTaskModal(); if(typeof renderUserDashboard === 'function') renderUserDashboard(); if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); if(typeof renderTasksPage === 'function') renderTasksPage(); }catch(_){ }
+    return savedTask;
+  };
+  try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; console.info(`${VERSION} loaded`); }catch(_){ }
+})();
+
+/* MZJ v463 - guarantee content Task Template visibility after approved structure distribution */
+(function(){
+  const VERSION = 'v463-content-task-template-visible-after-distribution';
+  const TEMPLATES_COLLECTION = 'campaign_task_templates';
+  const CAMPAIGNS_COLLECTION = window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns';
+  const txt = v => String(v == null ? '' : v).trim();
+  const arr = v => Array.isArray(v) ? v : (v == null ? [] : [v]);
+  const norm = v => txt(v).toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g,'')
+    .replace(/[أإآٱ]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/ى/g,'ي').replace(/ة/g,'ه')
+    .replace(/ـ/g,'').replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const now = () => new Date().toISOString();
+  const safeId = v => (txt(v) || 'item').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,190) || 'item';
+  const uniq = values => {
+    const out = [];
+    const seen = new Set();
+    arr(values).flat(Infinity).forEach(value => {
+      const raw = txt(value);
+      const key = norm(raw);
+      if(raw && key && !seen.has(key)){ seen.add(key); out.push(raw); }
+    });
+    return out;
+  };
+  function campaignsList(){ try{ return Array.isArray(campaigns) ? campaigns : (Array.isArray(window.campaigns) ? window.campaigns : []); }catch(_){ return []; } }
+  function campaignIdFromTaskId(taskId){ const id = txt(taskId); const idx = id.indexOf('-task-'); return idx > 0 ? id.slice(0, idx) : ''; }
+  function campaignIdOf(c){ return txt(c && (c.id || c.docId || c.campaignId || c.campaignDocId || c.__id || c.campaignCode || c.campaign_code)); }
+  function campaignKeys(c){ return uniq([c?.id,c?.docId,c?.campaignId,c?.campaignDocId,c?.__id,c?.campaignCode,c?.campaign_code]); }
+  function taskList(c){
+    const raw = c?.departmentTasks;
+    if(Array.isArray(raw)) return raw.filter(Boolean);
+    if(raw && typeof raw === 'object') return Object.entries(raw).map(([key,value]) => value && typeof value === 'object' ? ({...value,__departmentTaskMapKey:key}) : null).filter(Boolean);
+    return [];
+  }
+  function taskMatches(t, taskId){
+    const id = norm(taskId);
+    return !!(id && [t?.id,t?.taskId,t?.docId,t?.originalTaskId,t?.structureTaskId,t?.taskNo,t?.structureTaskNo].map(norm).includes(id));
+  }
+  function locate(taskId, campaignId){
+    const wantedCampaign = norm(campaignId || campaignIdFromTaskId(taskId));
+    for(const campaign of campaignsList()){
+      const tasks = taskList(campaign);
+      const cMatch = !wantedCampaign || campaignKeys(campaign).map(norm).includes(wantedCampaign) || tasks.some(t => norm(t?.campaignId || t?.campaignDocId || '').includes(wantedCampaign) || norm(t?.id || '').startsWith(wantedCampaign));
+      if(!cMatch) continue;
+      const index = tasks.findIndex(t => taskMatches(t, taskId));
+      if(index >= 0) return {campaign, tasks, index, task:tasks[index], docId:txt(campaign.id || campaign.docId || campaign.campaignId || campaignId || campaignIdFromTaskId(taskId))};
+    }
+    return {campaign:null,tasks:[],index:-1,task:null,docId:txt(campaignId || campaignIdFromTaskId(taskId))};
+  }
+  function ownerId(task, upload){ return txt(upload?.contentWriterId || upload?.contentWriterUid || task?.contentWriterId || task?.contentWriterUid || task?.linkedContentUserId || task?.assignedToId || task?.assignedToUid || task?.assigneeUid || task?.userId || task?.userUid || arr(task?.userIds)[0] || ''); }
+  function ownerName(task, upload){ return txt(upload?.contentWriterName || upload?.uploadedByName || task?.contentWriterName || task?.linkedContentUserName || task?.assignedToName || task?.assigneeName || task?.userName || task?.displayName || arr(task?.userNames)[0] || 'كاتب المحتوى'); }
+  function ownerEmail(task, upload){ return txt(upload?.contentWriterEmail || upload?.uploadedByEmail || task?.contentWriterEmail || task?.assignedToEmail || task?.assigneeEmail || task?.userEmail || arr(task?.userEmails)[0] || ''); }
+  function ownerCode(task, upload){ return txt(upload?.contentWriterCode || task?.contentWriterCode || task?.userCode || arr(task?.userCodes)[0] || ''); }
+  function ownerTokens(task, upload){ return uniq([ownerId(task,upload), ownerName(task,upload), ownerEmail(task,upload), ownerCode(task,upload), task?.assignedToSearch, task?.searchKeys]); }
+  function hasFile(st){ return !!(st && (st.fileUrl || st.downloadURL || st.downloadUrl || st.fileName || st.storagePath || arr(st.parsedRows).length || arr(st.approvedRows).length)); }
+  function sameOwner(upload, task){
+    const u = uniq([upload?.contentWriterId, upload?.contentWriterUid, upload?.contentWriterName, upload?.contentWriterEmail, upload?.contentWriterCode, upload?.uploadedById, upload?.uploadedByName, upload?.uploadedByEmail]).map(norm);
+    const t = ownerTokens(task, upload).map(norm);
+    return !!(u.length && t.length && u.some(x => t.includes(x)));
+  }
+  function findOwnedStructure(task){
+    const pool = [];
+    try{ pool.push(...arr(window.MZJ_STRUCTURE_UPLOADS)); }catch(_){ }
+    pool.push(...arr(task?.structureUploads), ...arr(task?.campaignStructureUploads));
+    if(task?.structureUpload) pool.push(task.structureUpload);
+    if(task?.structure) pool.push(task.structure);
+    const tId = norm(task?.id || task?.taskId || task?.originalTaskId || task?.structureTaskId || '');
+    const cId = norm(task?.campaignId || task?.campaignDocId || campaignIdFromTaskId(task?.id || task?.taskId || ''));
+    const matches = pool.filter(upload => {
+      if(!hasFile(upload)) return false;
+      const uTask = norm(upload?.originalTaskId || upload?.structureTaskId || upload?.taskId || upload?.taskDocId || '');
+      if(tId && uTask && tId !== uTask) return false;
+      const uCampaign = norm(upload?.campaignId || upload?.campaignDocId || '');
+      if(cId && uCampaign && cId !== uCampaign) return false;
+      return sameOwner(upload, task) || (!uTask && !uCampaign && upload === task?.structure);
+    }).sort((a,b)=>(Date.parse(b.updatedAt||b.reviewedAt||b.uploadedAt||b.createdAt||0)||0)-(Date.parse(a.updatedAt||a.reviewedAt||a.uploadedAt||a.createdAt||0)||0));
+    if(matches[0]) return matches[0];
+    try{ const st = typeof taskStructure === 'function' ? taskStructure(task) : null; if(hasFile(st)) return st; }catch(_){ }
+    return null;
+  }
+  function reviewRows(structure){
+    try{ if(typeof structureDistributionRows === 'function'){ const rows = structureDistributionRows(structure); if(rows && rows.length) return rows; } }catch(_){ }
+    try{ if(typeof structureRowsWithReviewStatus === 'function'){ const rows = structureRowsWithReviewStatus(structure); if(rows && rows.length) return rows; } }catch(_){ }
+    return arr(structure?.approvedRows).length ? arr(structure.approvedRows) : arr(structure?.parsedRows);
+  }
+  function rowKey(row,index,upload){ return txt(row?.reviewKey || row?.rowKey || row?.taskNo || row?.structureTaskNo || row?.taskNumber || row?.raw?.['رقم التاسك'] || row?.raw?.['كود تاسك الهيكل']) || `${txt(upload?.campaignId || '')}__${txt(upload?.contentWriterId || upload?.contentWriterName || '')}__row-${index+1}`; }
+  function isApprovedRow(structure,row,index){
+    const map = structure?.rowReviewStatuses || structure?.rowStatuses || {};
+    const status = norm(row?.reviewStatus || row?.status || map[rowKey(row,index,structure)] || map[String(index)] || '');
+    if(status) return status.includes('approved') || status.includes(norm('مقبول')) || status.includes(norm('معتمد'));
+    const st = norm(structure?.status || structure?.reviewStatus || '');
+    return !st || st.includes('approved') || st.includes('distributed') || st.includes(norm('معتمد'));
+  }
+  function campaignName(c,task,upload){ return txt(upload?.campaignName || task?.campaignName || c?.campaignName || c?.name || ''); }
+  function campaignCode(c,task,upload){ return txt(upload?.campaignCode || task?.campaignCode || c?.campaignCode || c?.campaign_code || ''); }
+  function rowText(row, keys){ for(const k of keys){ const v = txt(row?.[k] || row?.raw?.[k]); if(v) return v; } return ''; }
+  function templateId(upload,row,index,task,campaign){ return safeId([txt(upload?.campaignId || task?.campaignId || campaignIdOf(campaign)), ownerId(task,upload) || ownerCode(task,upload) || ownerName(task,upload), rowKey(row,index,upload)].join('__')); }
+  function templateDoc(campaign, task, upload, row, index){
+    const id = templateId(upload,row,index,task,campaign);
+    const type = txt(row?.contentType || row?.contentName || rowText(row,['نوع المحتوى','نوع المحتوي']) || row?.creative || row?.idea || 'محتوى');
+    const wid = ownerId(task, upload);
+    const wname = ownerName(task, upload);
+    const wemail = ownerEmail(task, upload);
+    const wcode = ownerCode(task, upload);
+    const keys = ownerTokens(task, upload);
+    return {
+      id, taskId:id, campaignId:txt(upload?.campaignId || task?.campaignId || campaignIdOf(campaign)), campaignName:campaignName(campaign,task,upload), campaignCode:campaignCode(campaign,task,upload),
+      contentTemplateTask:true, source:'campaign_task_templates', sourceVersion:VERSION,
+      assignedDepartmentId:'content', assignedDepartmentName:'قسم المحتوى', assignedDepartmentRole:'content', departmentRole:'content', departmentCode:'CONTENT',
+      contentWriterId:wid, contentWriterUid:wid, contentWriterName:wname, contentWriterEmail:wemail, contentWriterCode:wcode,
+      userId:wid, userUid:wid, userName:wname, userEmail:wemail,
+      assignedToId:wid, assignedToUid:wid, assignedToName:wname, assignedToEmail:wemail,
+      assigneeUid:wid, assigneeName:wname, assigneeEmail:wemail, displayName:wname,
+      assignedToSearch:keys, searchKeys:keys,
+      sourceStructureUploadId:txt(upload?.id || ''), sourceStructureTaskId:txt(upload?.originalTaskId || upload?.structureTaskId || task?.id || ''), sourceStructureRowKey:rowKey(row,index,upload),
+      linkedStructureTaskId:txt(task?.id || task?.taskId || ''),
+      taskNo:txt(row?.taskNo || row?.structureTaskNo || row?.taskNumber || rowText(row,['رقم التاسك','كود تاسك الهيكل'])),
+      taskType:`Task Template - ${type}`, structureTaskLabel:`Task Template - ${type}`, contentType:type, product:type, creative:txt(row?.creative || row?.creativeShortCode || rowText(row,['كود الكرييتيف المختصر']) || type),
+      idea:txt(row?.idea || rowText(row,['الفكرة'])), description:txt(row?.description || rowText(row,['وصف المحتوى','وصف المحتوي'])), message:txt(row?.message || rowText(row,['الرسالة','الرسالة الأساسية'])), cta:txt(row?.cta || rowText(row,['CTA','cta'])), writerRequest:txt(row?.writerRequest || rowText(row,['المطلوب من الكاتب'])),
+      status:'waiting_writer_upload', reviewStatus:'pending', templateReviewStatus:'not_uploaded', received:false, receivedConfirmed:false, progress:0,
+      steps:(typeof taskStepTemplate === 'function' ? taskStepTemplate('content') : []),
+      taskTemplate:{status:'not_uploaded', linkedStructureTaskId:txt(task?.id || task?.taskId || ''), sourceStructureRowKey:rowKey(row,index,upload)},
+      createdAt:now(), updatedAt:now()
+    };
+  }
+  async function upsertTemplate(doc){
+    const id = safeId(doc.id);
+    const payload = {...doc, id, taskId:id, updatedAt:now()};
+    if(typeof safeCollection === 'function') await safeCollection(TEMPLATES_COLLECTION).doc(id).set(payload,{merge:true});
+    window.MZJ_TASK_TEMPLATE_DOCS = uniqDocs([...(arr(window.MZJ_TASK_TEMPLATE_DOCS)), payload]);
+    return payload;
+  }
+  function uniqDocs(list){ const m = new Map(); arr(list).forEach(item => { const key = norm(item?.id || item?.taskId || item?.sourceStructureRowKey || Math.random()); if(key) m.set(key,item); }); return [...m.values()]; }
+  function isTemplateTask(t){ return !!(t && (t.contentTemplateTask || norm(t.source).includes('campaigntasktemplates') || norm(t.status).includes('template') || norm(t.taskType).includes('tasktemplate'))); }
+  function sameTemplate(a,b){
+    const ak = norm(a?.id || a?.taskId || a?.sourceStructureRowKey || '');
+    const bk = norm(b?.id || b?.taskId || b?.sourceStructureRowKey || '');
+    if(ak && bk && ak === bk) return true;
+    return !!(norm(a?.contentWriterId||a?.assignedToId) === norm(b?.contentWriterId||b?.assignedToId) && norm(a?.sourceStructureRowKey) && norm(a?.sourceStructureRowKey) === norm(b?.sourceStructureRowKey));
+  }
+  async function patchCampaignTemplateTasks(loc, additions){
+    if(!loc?.campaign || !loc.docId || !additions.length || typeof safeCollection !== 'function') return;
+    const raw = loc.campaign.departmentTasks;
+    const existing = taskList(loc.campaign);
+    const next = existing.slice();
+    additions.forEach(addition => {
+      const idx = next.findIndex(t => isTemplateTask(t) && sameTemplate(t, addition));
+      if(idx >= 0) next[idx] = {...next[idx], ...addition, id:next[idx].id || addition.id, updatedAt:now()};
+      else next.push(addition);
+    });
+    if(Array.isArray(raw)){
+      await safeCollection(CAMPAIGNS_COLLECTION).doc(loc.docId).update({departmentTasks:next, taskCount:next.length, updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())});
+      loc.campaign.departmentTasks = next;
+    }else if(raw && typeof raw === 'object'){
+      const patch = {updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())};
+      next.forEach(item => { patch[`departmentTasks.${safeId(item.id || item.taskId)}`] = item; });
+      await safeCollection(CAMPAIGNS_COLLECTION).doc(loc.docId).update(patch);
+      loc.campaign.departmentTasks = Object.fromEntries(next.map(item => [safeId(item.id || item.taskId), item]));
+    }else{
+      await safeCollection(CAMPAIGNS_COLLECTION).doc(loc.docId).update({departmentTasks:next, taskCount:next.length, updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())});
+      loc.campaign.departmentTasks = next;
+    }
+  }
+  async function ensureTaskTemplatesForStructure(taskId, campaignId){
+    const loc = locate(taskId, campaignId);
+    if(!loc.task || !loc.campaign) return 0;
+    const upload = findOwnedStructure(loc.task);
+    if(!upload || !hasFile(upload)) return 0;
+    const rows = reviewRows(upload).filter((row,index) => isApprovedRow(upload,row,index));
+    const additions = [];
+    for(let i=0;i<rows.length;i+=1){
+      const doc = templateDoc(loc.campaign, loc.task, upload, rows[i], i);
+      additions.push(await upsertTemplate(doc));
+    }
+    await patchCampaignTemplateTasks(loc, additions);
+    try{ if(typeof renderUserDashboard === 'function') renderUserDashboard(); if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); if(typeof renderTasksPage === 'function') renderTasksPage(); }catch(_){ }
+    return additions.length;
+  }
+  const previousSaveStructureDistribution = typeof saveStructureDistribution === 'function' ? saveStructureDistribution : null;
+  saveStructureDistribution = async function(taskId, campaignId){
+    let previousResult;
+    if(previousSaveStructureDistribution){ previousResult = await previousSaveStructureDistribution.apply(this, arguments); }
+    try{
+      const count = await ensureTaskTemplatesForStructure(taskId, campaignId);
+      if(count && typeof showToast === 'function') showToast(`تم تجهيز ${count} Task Template وظهورها لكاتب المحتوى.`);
+      else if(typeof showToast === 'function') showToast('تم حفظ التوزيع، ولم يتم العثور على صفوف هيكل معتمدة لإنشاء Task Template.');
+    }catch(error){ console.error(`${VERSION} ensure templates`, error); try{ if(typeof showToast === 'function') showToast(error?.message || 'تعذر تجهيز Task Template لقسم المحتوى.'); }catch(_){ } }
+    return previousResult;
+  };
+  try{ window.saveStructureDistribution = saveStructureDistribution; }catch(_){ }
+  const previousVisible = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser : null;
+  if(previousVisible){
+    getVisibleTasksForCurrentUser = function(){
+      const base = arr(previousVisible.apply(this, arguments));
+      const u = (typeof getCurrentUserIdentity === 'function' ? getCurrentUserIdentity() : (typeof getCurrentUser === 'function' ? getCurrentUser() : {})) || {};
+      const keys = uniq([u.uid,u.id,u.email,u.name,u.displayName,u.username,u.code,u.userCode]).map(norm);
+      const extra = arr(window.MZJ_TASK_TEMPLATE_DOCS).filter(isTemplateTask).filter(t => ownerTokens(t,t).map(norm).some(k => keys.includes(k)));
+      return uniqDocs([...base, ...extra]);
+    };
+  }
+  try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; console.info(`${VERSION} loaded`); }catch(_){ }
+})();
+
+/* MZJ v464 - approved structure owner is authoritative for Task Template distribution */
+(function(){
+  const VERSION = 'v464-approved-structure-owner-authoritative-templates';
+  const CAMPAIGNS_COLLECTION = window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns';
+  const TEMPLATES_COLLECTION = 'campaign_task_templates';
+  const txt = v => String(v == null ? '' : v).trim();
+  const arr = v => Array.isArray(v) ? v : (v == null ? [] : [v]);
+  const norm = v => txt(v).toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g,'')
+    .replace(/[أإآٱ]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/ى/g,'ي').replace(/ة/g,'ه')
+    .replace(/ـ/g,'').replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const uniq = values => {
+    const out = [];
+    const seen = new Set();
+    arr(values).flat(Infinity).forEach(value => {
+      if(value && typeof value === 'object'){
+        ['uid','id','userId','userUid','email','emailLower','name','displayName','username','userCode','code','assignedToId','assignedToUid','assignedToEmail','assignedToName','assigneeUid','assigneeEmail','assigneeName','uploadedById','uploadedByUid','uploadedByEmail','uploadedByName','writerId','writerUid','writerEmail','writerName','contentWriterId','contentWriterUid','contentWriterEmail','contentWriterName','linkedContentUserId','linkedContentUserUid','linkedContentUserEmail','linkedContentUserName'].forEach(k => { if(value[k] != null) out.push(value[k]); });
+        ['assignedToSearch','searchKeys','userIds','userNames','userEmails','dependsOnContentUserIds','dependsOnContentUserNames','upstreamUserIds','upstreamUserNames'].forEach(k => { if(value[k] != null) arr(value[k]).forEach(x => out.push(x)); });
+        return;
+      }
+      const raw = txt(value);
+      const key = norm(raw);
+      if(raw && key && !seen.has(key)){ seen.add(key); out.push(raw); }
+    });
+    return out;
+  };
+  const safeId = v => (txt(v) || 'item').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,190) || 'item';
+  const now = () => new Date().toISOString();
+  function overlap(a,b){ const set = new Set(uniq(a).map(norm)); return uniq(b).some(x => set.has(norm(x))); }
+  function campaignsList(){ try{ return Array.isArray(window.campaigns) ? window.campaigns : (Array.isArray(campaigns) ? campaigns : []); }catch(_){ return []; } }
+  function campaignIdOf(c){ return txt(c?.id || c?.docId || c?.campaignId || c?.campaignDocId || c?.__id || c?.campaignCode || c?.campaign_code || ''); }
+  function campaignKeys(c){ return uniq([c?.id,c?.docId,c?.campaignId,c?.campaignDocId,c?.__id,c?.campaignCode,c?.campaign_code,c?.name,c?.campaignName]); }
+  function taskList(c){ const raw = c?.departmentTasks; if(Array.isArray(raw)) return raw.filter(Boolean); if(raw && typeof raw === 'object') return Object.entries(raw).map(([key,value]) => value && typeof value === 'object' ? ({...value,__departmentTaskMapKey:key}) : null).filter(Boolean); return []; }
+  function taskCampaignId(t){ return txt(t?.campaignId || t?.campaignDocId || t?.campaignCode || ''); }
+  function isContentRole(t){ const s = norm([t?.departmentRole,t?.assignedDepartmentRole,t?.assignedDepartmentId,t?.assignedDepartmentName,t?.contentSectionId,t?.contentSectionName,t?.departmentCode].join(' ')); return s.includes('content') || s.includes(norm('قسم المحتوى')); }
+  function isTemplateTask(t){ return !!(t && (t.contentTemplateTask || norm(t.source).includes('campaigntasktemplates') || norm(t.source).includes('campaignstructurecontenttemplate') || norm(t.taskType).includes('tasktemplate') || norm(t.structureTaskLabel).includes('tasktemplate') || norm(t.status).includes('template'))); }
+  function isStructureTask(t){ const s = norm([t?.taskType,t?.structureTaskLabel,t?.product,t?.creative,t?.source,t?.sourceRequestStep].join(' ')); return !!(t && isContentRole(t) && !isTemplateTask(t) && (t.needsStructureUpload || t.structureRequestTask || t.structureBundleTask || s.includes(norm('طلب هيكل')) || s.includes(norm('هيكل')))); }
+  function hasFile(st){ return !!(st && (st.fileUrl || st.downloadURL || st.downloadUrl || st.fileName || st.storagePath || st.fileData || arr(st.parsedRows).length || arr(st.approvedRows).length || arr(st.structureRows).length)); }
+  function isApproved(st){ const s = norm([st?.status,st?.reviewStatus,st?.structureStatus,st?.templateReviewStatus].join(' ')); return !!(s.includes('approved') || s.includes('distributed') || s.includes(norm('معتمد')) || s.includes(norm('تمالتوزيع')) || st?.approvedAt || st?.reviewedAt); }
+  function ownerTokensFromTask(t){ return uniq([t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.linkedContentUserId,t?.linkedContentUserUid,t?.linkedContentUserEmail,t?.linkedContentUserName,t?.assignedToId,t?.assignedToUid,t?.assignedToEmail,t?.assignedToName,t?.assigneeUid,t?.assigneeEmail,t?.assigneeName,t?.userId,t?.userUid,t?.userEmail,t?.userName,t?.displayName,t?.assignedToSearch,t?.searchKeys,t?.userIds,t?.userNames,t?.userEmails]); }
+  function ownerTokensFromUpload(u){ return uniq([u?.contentWriterId,u?.contentWriterUid,u?.contentWriterEmail,u?.contentWriterName,u?.uploadedById,u?.uploadedByUid,u?.uploadedByEmail,u?.uploadedByName,u?.writerId,u?.writerUid,u?.writerEmail,u?.writerName,u?.assignedToId,u?.assignedToUid,u?.assignedToEmail,u?.assignedToName,u?.userId,u?.userUid,u?.userEmail,u?.userName,u?.assignedToSearch,u?.searchKeys]); }
+  function writerIdFromUploadOrTask(u,t){ return txt(u?.contentWriterId || u?.contentWriterUid || u?.uploadedById || u?.uploadedByUid || u?.writerId || t?.contentWriterId || t?.contentWriterUid || t?.linkedContentUserId || t?.assignedToId || t?.assignedToUid || t?.userId || ''); }
+  function writerNameFromUploadOrTask(u,t){ return txt(u?.contentWriterName || u?.uploadedByName || u?.writerName || t?.contentWriterName || t?.linkedContentUserName || t?.assignedToName || t?.assigneeName || t?.userName || t?.displayName || 'كاتب المحتوى'); }
+  function writerEmailFromUploadOrTask(u,t){ return txt(u?.contentWriterEmail || u?.uploadedByEmail || u?.writerEmail || t?.contentWriterEmail || t?.linkedContentUserEmail || t?.assignedToEmail || t?.userEmail || ''); }
+  function uploadBelongsToTaskOwner(u,t){ const uploadKeys = ownerTokensFromUpload(u).map(norm); const taskKeys = ownerTokensFromTask(t).map(norm); return !!(uploadKeys.length && taskKeys.length && uploadKeys.some(x => taskKeys.includes(x))); }
+  function structurePool(t){ const out = []; try{ out.push(...arr(window.MZJ_STRUCTURE_UPLOADS)); }catch(_){} out.push(...arr(t?.structureUploads), ...arr(t?.campaignStructureUploads)); if(t?.structureUpload) out.push(t.structureUpload); if(t?.structure) out.push(t.structure); return out.filter(Boolean); }
+  function uploadMatchesTask(u,t,c){
+    if(!hasFile(u) || !isApproved(u)) return false;
+    const tk = norm(t?.id || t?.taskId || t?.originalTaskId || t?.structureTaskId || '');
+    const uk = norm(u?.originalTaskId || u?.structureTaskId || u?.taskId || u?.taskDocId || '');
+    if(tk && uk && tk !== uk) return false;
+    const ck = new Set(campaignKeys(c).map(norm));
+    const uc = norm(u?.campaignId || u?.campaignDocId || u?.campaignCode || '');
+    if(uc && ck.size && !ck.has(uc)) return false;
+    return uploadBelongsToTaskOwner(u,t) || (!ownerTokensFromUpload(u).length && hasFile(t?.structure) && u === t.structure);
+  }
+  function approvedStructureUploads(campaign){
+    const out = [];
+    taskList(campaign).filter(isStructureTask).forEach(task => {
+      structurePool(task).forEach(upload => {
+        if(!uploadMatchesTask(upload, task, campaign)) return;
+        const tokens = uniq([ownerTokensFromUpload(upload), ownerTokensFromTask(task)]);
+        out.push({task, upload, tokens, key:norm(tokens[0] || writerNameFromUploadOrTask(upload,task)), id:writerIdFromUploadOrTask(upload,task), name:writerNameFromUploadOrTask(upload,task), email:writerEmailFromUploadOrTask(upload,task)});
+      });
+    });
+    const map = new Map();
+    out.forEach(item => { const key = norm(item.id || item.email || item.name || item.tokens[0]); if(key && !map.has(key)) map.set(key,item); });
+    return [...map.values()];
+  }
+  function approvedOwnerTokens(campaign){ return approvedStructureUploads(campaign).map(x => x.tokens); }
+  function taskOwnerTokens(t){ return uniq([ownerTokensFromTask(t), t?.linkedContentUserId,t?.linkedContentUserName,t?.contentWriterId,t?.contentWriterName,t?.assignedToId,t?.assignedToName]); }
+  function isForApprovedOwner(campaign,t){ const owners = approvedOwnerTokens(campaign); if(!owners.length) return !isTemplateTask(t); if(!isTemplateTask(t)) return true; return owners.some(tokens => overlap(tokens, taskOwnerTokens(t))); }
+  function rowText(row, keys){ for(const k of keys){ const v = txt(row?.[k] || row?.raw?.[k]); if(v) return v; } return ''; }
+  function rowKey(row,index,upload){ return txt(row?.reviewKey || row?.rowKey || row?.taskNo || row?.structureTaskNo || row?.taskNumber || rowText(row,['رقم التاسك','كود تاسك الهيكل'])) || `row-${index+1}`; }
+  function reviewRows(upload){
+    try{ if(typeof structureDistributionRows === 'function'){ const rows = structureDistributionRows(upload); if(rows && rows.length) return rows; } }catch(_){}
+    try{ if(typeof structureRowsWithReviewStatus === 'function'){ const rows = structureRowsWithReviewStatus(upload); if(rows && rows.length) return rows; } }catch(_){}
+    return arr(upload?.approvedRows).length ? arr(upload.approvedRows) : arr(upload?.parsedRows || upload?.structureRows);
+  }
+  function isApprovedRow(upload,row,index){
+    const map = upload?.rowReviewStatuses || upload?.rowStatuses || {};
+    const s = norm(row?.reviewStatus || row?.status || map[rowKey(row,index,upload)] || map[String(index)] || '');
+    if(s) return s.includes('approved') || s.includes(norm('مقبول')) || s.includes(norm('معتمد'));
+    return true;
+  }
+  function templateId(campaign,item,row,index){ return safeId([campaignIdOf(campaign), item.id || item.email || item.name, rowKey(row,index,item.upload)].join('__')); }
+  function templateDoc(campaign,item,row,index){
+    const task = item.task, upload = item.upload;
+    const id = templateId(campaign,item,row,index);
+    const type = txt(row?.contentType || row?.contentName || rowText(row,['نوع المحتوى','نوع المحتوي']) || row?.creative || row?.idea || 'محتوى');
+    const keys = uniq([item.tokens,item.id,item.name,item.email]);
+    return {
+      id, taskId:id, campaignId:campaignIdOf(campaign), campaignName:txt(upload?.campaignName || task?.campaignName || campaign?.campaignName || campaign?.name || ''), campaignCode:txt(upload?.campaignCode || task?.campaignCode || campaign?.campaignCode || campaign?.campaign_code || ''),
+      contentTemplateTask:true, source:'campaign_task_templates', sourceVersion:VERSION,
+      assignedDepartmentId:'content', assignedDepartmentName:'قسم المحتوى', assignedDepartmentRole:'content', departmentRole:'content', departmentCode:'CONTENT', contentSectionId:'content', contentSectionName:'قسم المحتوى',
+      contentWriterId:item.id, contentWriterUid:item.id, contentWriterName:item.name, contentWriterEmail:item.email,
+      linkedContentUserId:item.id, linkedContentUserName:item.name, userId:item.id, userUid:item.id, userName:item.name, userEmail:item.email,
+      assignedToId:item.id, assignedToUid:item.id, assignedToName:item.name, assignedToEmail:item.email, assigneeUid:item.id, assigneeName:item.name, assigneeEmail:item.email, displayName:item.name,
+      assignedToSearch:keys, searchKeys:keys,
+      sourceStructureUploadId:txt(upload?.id || ''), sourceStructureTaskId:txt(upload?.originalTaskId || upload?.structureTaskId || task?.id || task?.taskId || ''), sourceStructureRowKey:rowKey(row,index,upload), linkedStructureTaskId:txt(task?.id || task?.taskId || ''),
+      taskNo:txt(row?.taskNo || row?.structureTaskNo || row?.taskNumber || rowText(row,['رقم التاسك','كود تاسك الهيكل'])),
+      taskType:`Task Template - ${type}`, structureTaskLabel:`Task Template - ${type}`, contentType:type, product:type, creative:txt(row?.creative || row?.creativeShortCode || rowText(row,['كود الكرييتيف المختصر']) || type),
+      idea:txt(row?.idea || rowText(row,['الفكرة'])), description:txt(row?.description || rowText(row,['وصف المحتوى','وصف المحتوي'])), writerRequest:txt(row?.writerRequest || rowText(row,['المطلوب من الكاتب'])),
+      status:'waiting_writer_upload', reviewStatus:'pending', templateReviewStatus:'not_uploaded', received:false, receivedConfirmed:false, progress:0,
+      steps:(typeof taskStepTemplate === 'function' ? taskStepTemplate('content') : []), taskTemplate:{status:'not_uploaded', linkedStructureTaskId:txt(task?.id || task?.taskId || ''), sourceStructureRowKey:rowKey(row,index,upload)},
+      createdAt:now(), updatedAt:now()
+    };
+  }
+  function sameTemplate(a,b){
+    const aid = norm(a?.id || a?.taskId || ''); const bid = norm(b?.id || b?.taskId || '');
+    if(aid && bid && aid === bid) return true;
+    return !!(norm(a?.sourceStructureRowKey) && norm(a?.sourceStructureRowKey) === norm(b?.sourceStructureRowKey) && overlap(taskOwnerTokens(a), taskOwnerTokens(b)));
+  }
+  function visibleTemplateDocsForCampaign(campaign){
+    const additions = [];
+    approvedStructureUploads(campaign).forEach(item => {
+      reviewRows(item.upload).filter((row,index) => isApprovedRow(item.upload,row,index)).forEach((row,index) => additions.push(templateDoc(campaign,item,row,index)));
+    });
+    return additions;
+  }
+  function sanitizeCampaignTasks(campaign, base){
+    const baseList = arr(base).filter(t => !isTemplateTask(t) || isForApprovedOwner(campaign,t));
+    const additions = visibleTemplateDocsForCampaign(campaign);
+    const next = baseList.slice();
+    additions.forEach(add => { const idx = next.findIndex(t => isTemplateTask(t) && sameTemplate(t,add)); if(idx >= 0) next[idx] = {...next[idx], ...add, id:next[idx].id || add.id, updatedAt:now()}; else next.push(add); });
+    return next.map(t => ({...t, taskCount:next.length}));
+  }
+  async function persistSanitizedTemplates(campaign){
+    if(!campaign || !campaignIdOf(campaign) || typeof safeCollection !== 'function') return 0;
+    const current = taskList(campaign);
+    const next = sanitizeCampaignTasks(campaign,current);
+    const changed = JSON.stringify(current.map(t => [t.id,t.taskId,t.source,t.contentWriterId,t.contentWriterName,t.taskType])) !== JSON.stringify(next.map(t => [t.id,t.taskId,t.source,t.contentWriterId,t.contentWriterName,t.taskType]));
+    for(const t of next.filter(isTemplateTask)){
+      try{ await safeCollection(TEMPLATES_COLLECTION).doc(safeId(t.id || t.taskId)).set({...t, id:safeId(t.id || t.taskId), taskId:safeId(t.id || t.taskId), updatedAt:now()},{merge:true}); }catch(error){ console.warn(`${VERSION} template upsert`, error); }
+    }
+    if(changed){
+      try{
+        await safeCollection(CAMPAIGNS_COLLECTION).doc(campaignIdOf(campaign)).update({departmentTasks:next, taskCount:next.length, updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())});
+        campaign.departmentTasks = next;
+      }catch(error){ console.warn(`${VERSION} campaign sanitize`, error); }
+    }
+    return next.filter(isTemplateTask).length;
+  }
+  const prevAdmin = typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign : null;
+  if(prevAdmin){ adminDashboardTasksForCampaign = function(campaign){ return sanitizeCampaignTasks(campaign, prevAdmin.apply(this, arguments) || taskList(campaign)); }; }
+  const prevTasks = typeof tasksForCampaign === 'function' ? tasksForCampaign : null;
+  if(prevTasks){ tasksForCampaign = function(campaign){ return sanitizeCampaignTasks(campaign, prevTasks.apply(this, arguments) || taskList(campaign)); }; }
+  function currentKeys(){ const out = []; try{ out.push(typeof currentUserIdentityKeys === 'function' ? currentUserIdentityKeys() : []); }catch(_){} try{ out.push(typeof getCurrentUserIdentity === 'function' ? getCurrentUserIdentity() : {}); }catch(_){} try{ out.push(typeof getCurrentUser === 'function' ? getCurrentUser() : {}); }catch(_){} try{ out.push(typeof findCurrentUserRecord === 'function' ? findCurrentUserRecord() : {}); }catch(_){} try{ out.push(window.auth?.currentUser, window.mainAuth?.currentUser); }catch(_){} return uniq(out); }
+  function uniqTasks(list){ const m = new Map(); arr(list).forEach(t => { const key = norm(t?.id || t?.taskId || [t?.campaignId,t?.taskType,t?.contentWriterId,t?.contentWriterName,t?.sourceStructureRowKey].join('__')); if(key && !m.has(key)) m.set(key,t); }); return [...m.values()]; }
+  const prevVisible = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser : null;
+  getVisibleTasksForCurrentUser = function(){
+    const base = prevVisible ? arr(prevVisible.apply(this, arguments)) : [];
+    const me = currentKeys();
+    const extra = [];
+    campaignsList().forEach(campaign => sanitizeCampaignTasks(campaign, taskList(campaign)).filter(isTemplateTask).forEach(t => { if(overlap(taskOwnerTokens(t), me)) extra.push(t); }));
+    return uniqTasks([...base, ...extra]);
+  };
+  const prevSave = typeof saveStructureDistribution === 'function' ? saveStructureDistribution : null;
+  saveStructureDistribution = async function(taskId, campaignId){
+    let result;
+    if(prevSave) result = await prevSave.apply(this, arguments);
+    try{
+      let campaigns = campaignsList();
+      const cid = norm(campaignId || (txt(taskId).includes('-task-') ? txt(taskId).slice(0, txt(taskId).indexOf('-task-')) : ''));
+      if(cid) campaigns = campaigns.filter(c => campaignKeys(c).map(norm).includes(cid) || taskList(c).some(t => norm(t?.id || t?.taskId || '').startsWith(cid)));
+      let count = 0;
+      for(const c of campaigns) count += await persistSanitizedTemplates(c);
+      try{ if(typeof showToast === 'function') showToast(`تم ضبط Task Template حسب صاحب الهيكل المعتمد فقط (${count}).`); }catch(_){}
+      try{ if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); if(typeof renderUserDashboard === 'function') renderUserDashboard(); if(typeof renderTasksPage === 'function') renderTasksPage(); }catch(_){}
+    }catch(error){ console.error(`${VERSION} save sanitize`, error); try{ if(typeof showToast === 'function') showToast('تم الحفظ، لكن تعذر تنظيف تاسكات Task Template الخاطئة.'); }catch(_){} }
+    return result;
+  };
+  try{ window.saveStructureDistribution = saveStructureDistribution; window.getVisibleTasksForCurrentUser = getVisibleTasksForCurrentUser; window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; console.info(`${VERSION} loaded`); }catch(_){ }
+})();
+
+/* MZJ v465 - sync Task Template receive/upload state to admin dashboard */
+(function(){
+  const VERSION = 'v465-task-template-admin-state-sync';
+  const TEMPLATES_COLLECTION = 'campaign_task_templates';
+  const CAMPAIGNS_COLLECTION = window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns';
+  const txt = v => String(v == null ? '' : v).trim();
+  const arr = v => Array.isArray(v) ? v : (v == null ? [] : [v]);
+  const norm = v => txt(v).toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g,'')
+    .replace(/[أإآٱ]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/ـ/g,'')
+    .replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const safeId = v => (txt(v) || 'item').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,190) || 'item';
+  const now = () => new Date().toISOString();
+  const serverStamp = () => { try{ return typeof serverTime === 'function' ? serverTime() : new Date(); }catch(_){ return new Date(); } };
+  function campaignsList(){ try{ return Array.isArray(campaigns) ? campaigns : (Array.isArray(window.campaigns) ? window.campaigns : []); }catch(_){ return []; } }
+  function rawTasks(c){ const raw=c?.departmentTasks; if(Array.isArray(raw)) return raw.filter(Boolean); if(raw&&typeof raw==='object') return Object.entries(raw).map(([k,v])=>v&&typeof v==='object'?{...v,__departmentTaskMapKey:k}:null).filter(Boolean); return []; }
+  function isTemplateTask(t){ const s=norm([t?.contentTemplateTask,t?.source,t?.taskType,t?.structureTaskLabel,t?.status].join(' ')); return !!(t && (t.contentTemplateTask || s.includes('tasktemplate') || s.includes('contenttemplate') || s.includes('campaigntasktemplates') || s.includes('pendingtasktemplate') || t.taskTemplate)); }
+  function ownerTokens(t){ return [t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.assignedToId,t?.assignedToUid,t?.assignedToEmail,t?.assignedToName,t?.userId,t?.userUid,t?.userEmail,t?.userName,t?.assigneeUid,t?.assigneeName,t?.displayName,t?.contentWriterCode,t?.userCode,t?.searchKeys,t?.assignedToSearch].flatMap(arr).map(norm).filter(Boolean); }
+  function hasOverlap(a,b){ return a.some(x => b.includes(x)); }
+  function rowKey(t){ return norm(t?.sourceStructureRowKey || t?.taskNo || t?.structureTaskNo || t?.taskNumber || t?.taskType || t?.structureTaskLabel || ''); }
+  function templateKeys(t){ return [
+    t?.id, t?.taskId, t?.docId,
+    t?.linkedExecutionPairKey, t?.contentExecutionPairKey, t?.linkedExecutionTaskId,
+    [t?.campaignId,t?.sourceStructureTaskId,t?.sourceStructureRowKey,t?.contentWriterId || t?.assignedToId || t?.userId].join('__'),
+    [t?.campaignId,rowKey(t),t?.contentWriterId || t?.assignedToId || t?.userId || t?.contentWriterName || t?.assignedToName || t?.userName].join('__')
+  ].map(norm).filter(Boolean); }
+  function sameTemplate(a,b){
+    if(!a || !b) return false;
+    const ak=templateKeys(a), bk=templateKeys(b);
+    if(ak.some(k => bk.includes(k))) return true;
+    const ar=rowKey(a), br=rowKey(b);
+    if(ar && br && ar===br){
+      const ac=norm(a.campaignId||''), bc=norm(b.campaignId||'');
+      if((!ac || !bc || ac===bc) && hasOverlap(ownerTokens(a), ownerTokens(b))) return true;
+    }
+    return false;
+  }
+  function templateDocs(){ return arr(window.MZJ_TASK_TEMPLATE_DOCS).filter(isTemplateTask); }
+  function taskTemplateFileObject(t){ return t?.taskTemplate && typeof t.taskTemplate === 'object' ? t.taskTemplate : {}; }
+  function hasTemplateFile(t){
+    const tpl = taskTemplateFileObject(t);
+    const status = norm([t?.status,t?.reviewStatus,t?.templateReviewStatus,tpl.status,tpl.reviewStatus].join(' '));
+    return !!(t?.templateFileUrl || t?.templateFileName || t?.fileUrl || t?.downloadURL || t?.downloadUrl || t?.fileName || tpl.fileUrl || tpl.downloadURL || tpl.downloadUrl || tpl.fileName || tpl.storagePath || tpl.uploadedAt || status.includes('pendingadminreview') || status.includes('pendingreview') || status.includes('uploaded') || status.includes('approved'));
+  }
+  function mergeTemplateState(base, state){
+    if(!state) return base;
+    const baseTpl = taskTemplateFileObject(base);
+    const stateTpl = taskTemplateFileObject(state);
+    const mergedTpl = { ...baseTpl, ...stateTpl };
+    ['fileUrl','downloadURL','downloadUrl','fileName','templateFileUrl','templateFileName','storagePath','uploadedAt','uploadedBy','fileSize','mimeType','taskTemplateFields','parsedRows'].forEach(k => {
+      if(state[k] && !mergedTpl[k]) mergedTpl[k] = state[k];
+    });
+    const out = { ...base, ...state, taskTemplate: mergedTpl };
+    // Keep structural/assignment identity from the generated campaign task, but preserve live state from uploaded collection docs.
+    ['id','taskId','campaignId','campaignName','campaignCode','taskType','structureTaskLabel','contentType','product','creative','contentWriterId','contentWriterName','contentWriterEmail','assignedToId','assignedToName','assignedToEmail','userId','userName','sourceStructureRowKey','sourceStructureTaskId','linkedStructureTaskId'].forEach(k => {
+      if(base[k]) out[k] = base[k];
+    });
+    if(state.received || state.receivedConfirmed || base.received || base.receivedConfirmed){
+      out.received = !!(state.received || state.receivedConfirmed || base.received || base.receivedConfirmed);
+      out.receivedConfirmed = out.received;
+      out.receivedAt = state.receivedAt || base.receivedAt || out.receivedAt || '';
+      out.receivedBy = state.receivedBy || base.receivedBy || out.receivedBy || '';
+    }
+    if(hasTemplateFile(state) || hasTemplateFile(out)){
+      out.taskTemplate = { ...out.taskTemplate, status: out.taskTemplate.status || state.templateReviewStatus || state.reviewStatus || 'pending_review' };
+      out.templateReviewStatus = out.templateReviewStatus || state.templateReviewStatus || state.reviewStatus || 'pending_admin_review';
+      if(!out.status || norm(out.status).includes('waitingwriterupload') || norm(out.status).includes('pendingtasktemplate')) out.status = state.status || 'pending_task_template_review';
+    }
+    out.contentTemplateTask = true;
+    return out;
+  }
+  function mergeTemplateDocsIntoList(list){
+    const docs = templateDocs();
+    const next = arr(list).map(t => {
+      if(!isTemplateTask(t)) return t;
+      const doc = docs.find(d => sameTemplate(t,d));
+      return doc ? mergeTemplateState(t, doc) : t;
+    });
+    docs.forEach(doc => { if(!next.some(t => isTemplateTask(t) && sameTemplate(t,doc))) next.push(mergeTemplateState(doc, doc)); });
+    return next;
+  }
+  function locateCampaignTask(taskId){
+    const id=norm(taskId);
+    for(const c of campaignsList()){
+      const tasks=rawTasks(c);
+      const idx=tasks.findIndex(t => [t?.id,t?.taskId,t?.docId].map(norm).includes(id));
+      if(idx>=0) return {campaign:c,tasks,index:idx,task:tasks[idx],docId:txt(c.id||c.docId||c.campaignId||'')};
+    }
+    return {campaign:null,tasks:[],index:-1,task:null,docId:''};
+  }
+  async function writeCampaignTasks(campaign, nextTasks){
+    if(!campaign) return;
+    const docId = txt(campaign.id || campaign.docId || campaign.campaignId || '');
+    if(!docId || typeof safeCollection !== 'function') return;
+    await safeCollection(CAMPAIGNS_COLLECTION).doc(docId).update({ departmentTasks: nextTasks, taskCount: nextTasks.length, updatedAt: serverStamp() });
+    campaign.departmentTasks = nextTasks;
+    campaign.taskCount = nextTasks.length;
+    campaign.updatedAt = now();
+  }
+  async function upsertTemplateCollection(task){
+    if(!task || typeof safeCollection !== 'function') return;
+    const id = safeId(task.id || task.taskId || templateKeys(task)[0] || Date.now());
+    const data = { ...task, id, taskId:id, contentTemplateTask:true, source: task.source || TEMPLATES_COLLECTION, updatedAt:now() };
+    await safeCollection(TEMPLATES_COLLECTION).doc(id).set(data, { merge:true });
+    const docs = arr(window.MZJ_TASK_TEMPLATE_DOCS);
+    const idx = docs.findIndex(d => sameTemplate(d, data));
+    if(idx >= 0) docs[idx] = mergeTemplateState(docs[idx], data); else docs.push(data);
+    window.MZJ_TASK_TEMPLATE_DOCS = docs;
+  }
+  async function mirrorTemplatePatch(taskId, patch){
+    const loc = locateCampaignTask(taskId);
+    let base = loc.task || (typeof findTaskById === 'function' ? findTaskById(taskId) : null) || templateDocs().find(d => templateKeys(d).includes(norm(taskId)));
+    if(!base) return null;
+    const updated = mergeTemplateState(base, patch || {});
+    if(loc.campaign && loc.index >= 0){
+      const nextTasks = loc.tasks.map((t,i)=> i===loc.index ? mergeTemplateState(t, updated) : t);
+      await writeCampaignTasks(loc.campaign, nextTasks);
+    }
+    await upsertTemplateCollection(updated);
+    return updated;
+  }
+
+  const prevAdmin = typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign : null;
+  if(prevAdmin){ adminDashboardTasksForCampaign = function(campaign){ return mergeTemplateDocsIntoList(prevAdmin.apply(this, arguments) || rawTasks(campaign)); }; }
+  const prevTasks = typeof tasksForCampaign === 'function' ? tasksForCampaign : null;
+  if(prevTasks){ tasksForCampaign = function(campaign){ return mergeTemplateDocsIntoList(prevTasks.apply(this, arguments) || rawTasks(campaign)); }; }
+  const prevVisible = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser : null;
+  if(prevVisible){ getVisibleTasksForCurrentUser = function(){
+    const base = mergeTemplateDocsIntoList(prevVisible.apply(this, arguments) || []);
+    const me = (()=>{ try{ const u=(typeof getCurrentUserIdentity==='function'?getCurrentUserIdentity():null) || (typeof getCurrentUser==='function'?getCurrentUser():null) || window.auth?.currentUser || window.mainAuth?.currentUser || {}; return ownerTokens(u); }catch(_){ return []; } })();
+    const extra = templateDocs().filter(d => hasOverlap(ownerTokens(d), me));
+    const map = new Map();
+    [...base, ...extra].forEach(t => { const k = templateKeys(t)[0] || `${map.size}`; if(!map.has(k)) map.set(k,t); else map.set(k, mergeTemplateState(map.get(k), t)); });
+    return [...map.values()];
+  }; }
+  const prevFind = typeof findTaskById === 'function' ? findTaskById : null;
+  findTaskById = function(taskId, campaignId){
+    const base = prevFind ? prevFind.apply(this, arguments) : null;
+    if(base && isTemplateTask(base)){ const doc = templateDocs().find(d => sameTemplate(base,d)); return doc ? mergeTemplateState(base, doc) : base; }
+    const doc = templateDocs().find(d => templateKeys(d).includes(norm(taskId)) || sameTemplate(d,{id:taskId,taskId,campaignId}));
+    return doc || base;
+  };
+  if(typeof taskTemplateAttached === 'function'){
+    const prev = taskTemplateAttached;
+    taskTemplateAttached = function(task){ return hasTemplateFile(task) || prev.apply(this, arguments); };
+  }else{ window.taskTemplateAttached = hasTemplateFile; }
+  if(typeof taskTemplateBadge === 'function'){
+    const prevBadge = taskTemplateBadge;
+    taskTemplateBadge = function(task){ return hasTemplateFile(task) ? '<b class="state-chip is-task-template-attached-v220">تم إرفاق Task Template</b>' : prevBadge.apply(this, arguments); };
+  }
+
+  const prevUpdate = typeof updateTaskOnFirebase === 'function' ? updateTaskOnFirebase : null;
+  if(prevUpdate){ updateTaskOnFirebase = async function(taskId, patch, options={}){
+    const existing = (typeof findTaskById === 'function' ? findTaskById(taskId) : null);
+    if(isTemplateTask(existing) || isTemplateTask(patch) || patch?.taskTemplate){
+      const updated = await mirrorTemplatePatch(taskId, patch || {});
+      if(!options.silent){ try{ showToast('تم تحديث التاسك.'); }catch(_){} }
+      try{ refreshOpenTaskModal(); renderUserDashboard(); renderAdminDashboard(); renderTasksPage(); }catch(_){}
+      return updated;
+    }
+    return prevUpdate.apply(this, arguments);
+  }; }
+
+  const prevToggle = typeof toggleTaskReceived === 'function' ? toggleTaskReceived : null;
+  async function toggleTemplateReceived(taskId){
+    const task = (typeof findTaskById === 'function' ? findTaskById(taskId) : null);
+    if(!isTemplateTask(task)) return prevToggle ? prevToggle.apply(this, arguments) : null;
+    const next = !(task.received || task.receivedConfirmed);
+    const steps = arr(task.steps).map(s=>({...s}));
+    const idx = steps.findIndex(s => norm(s.label||'').includes(norm('استلام')) || norm(s.label||'').includes(norm('نموذج المحتوى')) || norm(s.label||'').includes(norm('نموذج المحتوي')));
+    if(idx >= 0) steps[idx].done = next;
+    const progress = steps.length ? Math.min(100, Math.round(steps.reduce((sum,s)=>sum+(s.done?Number(s.percent||0):0),0))) : (next ? Math.max(1, Number(task.progress||0)) : 0);
+    const patch = { received:next, receivedConfirmed:next, receivedAt:next?now():'', receivedBy:next?txt(((typeof getCurrentUser==='function'&&getCurrentUser())||{}).email || ((typeof getCurrentUser==='function'&&getCurrentUser())||{}).name || ''):'', status: next ? 'pending_task_template' : 'waiting_writer_upload', steps, progress, updatedAt:now() };
+    const updated = await mirrorTemplatePatch(taskId, patch);
+    try{ showToast(next ? 'تم تأكيد الاستلام.' : 'تم إلغاء الاستلام.'); refreshOpenTaskModal(); renderUserDashboard(); renderAdminDashboard(); renderTasksPage(); }catch(_){}
+    return updated;
+  }
+  toggleTaskReceived = toggleTemplateReceived;
+  try{ window.toggleTaskReceived = toggleTaskReceived; window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; console.info(`${VERSION} loaded`); }catch(_){ }
+  try{ renderUserDashboard(); renderAdminDashboard(); renderTasksPage(); }catch(_){ }
+})();
+
+/* MZJ v465b - preserve raw campaign Task Template state before virtual regeneration */
+(function(){
+  const VERSION = 'v465b-preserve-template-raw-state';
+  const txt = v => String(v == null ? '' : v).trim();
+  const arr = v => Array.isArray(v) ? v : (v == null ? [] : [v]);
+  const norm = v => txt(v).toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/ـ/g,'').replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  function rawTasks(c){ const raw=c?.departmentTasks; if(Array.isArray(raw)) return raw.filter(Boolean); if(raw&&typeof raw==='object') return Object.values(raw).filter(v=>v&&typeof v==='object'); return []; }
+  function isTemplate(t){ const s=norm([t?.contentTemplateTask,t?.source,t?.taskType,t?.structureTaskLabel,t?.status].join(' ')); return !!(t && (t.contentTemplateTask || s.includes('tasktemplate') || s.includes('contenttemplate') || s.includes('pendingtasktemplate') || t.taskTemplate)); }
+  function owner(t){ return [t?.contentWriterId,t?.contentWriterName,t?.assignedToId,t?.assignedToName,t?.userId,t?.userName,t?.searchKeys,t?.assignedToSearch].flatMap(arr).map(norm).filter(Boolean); }
+  function row(t){ return norm(t?.sourceStructureRowKey || t?.taskNo || t?.structureTaskNo || t?.taskType || t?.structureTaskLabel || ''); }
+  function keys(t){ return [t?.id,t?.taskId,t?.linkedExecutionPairKey,t?.contentExecutionPairKey,[t?.campaignId,row(t),t?.contentWriterId||t?.assignedToId||t?.userId||t?.contentWriterName||t?.assignedToName].join('__')].map(norm).filter(Boolean); }
+  function same(a,b){ const ak=keys(a), bk=keys(b); if(ak.some(k=>bk.includes(k))) return true; return !!(row(a)&&row(a)===row(b)&&owner(a).some(k=>owner(b).includes(k))); }
+  function hasFile(t){ const tpl=t?.taskTemplate||{}; const s=norm([t?.status,t?.reviewStatus,t?.templateReviewStatus,tpl.status].join(' ')); return !!(t?.fileUrl||t?.downloadURL||t?.downloadUrl||t?.fileName||t?.templateFileUrl||t?.templateFileName||tpl.fileUrl||tpl.downloadURL||tpl.downloadUrl||tpl.fileName||tpl.storagePath||tpl.uploadedAt||s.includes('pendingreview')||s.includes('pendingadminreview')||s.includes('approved')||s.includes('uploaded')); }
+  function merge(base,state){ if(!state) return base; const out={...base}; const tpl={...(base.taskTemplate||{}), ...(state.taskTemplate||{})}; ['received','receivedConfirmed','receivedAt','receivedBy','progress','status','reviewStatus','templateReviewStatus','steps','fileUrl','downloadURL','downloadUrl','fileName','templateFileUrl','templateFileName','storagePath','uploadedAt','uploadedBy','taskTemplateFields','parsedRows'].forEach(k=>{ if(state[k] !== undefined && state[k] !== '' && state[k] !== null) out[k]=state[k]; }); if(hasFile(state)) out.taskTemplate={...tpl,status:tpl.status||state.templateReviewStatus||state.reviewStatus||'pending_review'}; else out.taskTemplate=tpl; if(state.received||state.receivedConfirmed){ out.received=true; out.receivedConfirmed=true; } out.contentTemplateTask=true; return out; }
+  function mergeSources(list,campaign){ const sources=[...rawTasks(campaign).filter(isTemplate), ...arr(window.MZJ_TASK_TEMPLATE_DOCS).filter(isTemplate)]; return arr(list).map(t=>{ if(!isTemplate(t)) return t; const matches=sources.filter(s=>same(t,s)); return matches.reduce((acc,s)=>merge(acc,s),t); }); }
+  const prevAdmin=typeof adminDashboardTasksForCampaign==='function'?adminDashboardTasksForCampaign:null;
+  if(prevAdmin){ adminDashboardTasksForCampaign=function(campaign){ return mergeSources(prevAdmin.apply(this,arguments)||rawTasks(campaign), campaign); }; }
+  const prevTasks=typeof tasksForCampaign==='function'?tasksForCampaign:null;
+  if(prevTasks){ tasksForCampaign=function(campaign){ return mergeSources(prevTasks.apply(this,arguments)||rawTasks(campaign), campaign); }; }
+  try{ window.MZJ_APP_VERSION=VERSION; window.MZJ_LAST_PATCH=VERSION; console.info(`${VERSION} loaded`); }catch(_){}
+})();
