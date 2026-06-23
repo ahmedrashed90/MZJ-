@@ -28296,17 +28296,29 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function deptTasks(c){ const raw=c?.departmentTasks; if(Array.isArray(raw)) return raw.filter(Boolean); if(raw && typeof raw === 'object') return Object.entries(raw).map(([k,v]) => v && typeof v === 'object' ? ({...v,__departmentTaskMapKey:k}) : null).filter(Boolean); return []; }
   function taskArrays(c){ return [...deptTasks(c), ...arr(c?.tasks), ...arr(c?.taskList)].filter(Boolean); }
   function taskMatch(t, id){ const k=norm(id); return !!(k && [t?.id,t?.taskId,t?.docId,t?.taskNo,t?.structureTaskNo,t?.taskIndex,t?.linkedExecutionPairKey,t?.contentExecutionPairKey].map(norm).includes(k)); }
+  function campaignDocIdFromTaskId(taskId){
+    const raw = txt(taskId || '');
+    const marker = '-task-';
+    const idx = raw.indexOf(marker);
+    return idx > 0 ? raw.slice(0, idx) : '';
+  }
+  function campaignDocId(c, fallback){
+    return txt(c?.id || c?.docId || c?.campaignId || c?.campaignDocId || fallback || '');
+  }
   function findLocalTask(taskId, campaignId){
-    const cid=norm(campaignId); const id=norm(taskId);
+    const cid=norm(campaignId || campaignDocIdFromTaskId(taskId)); const id=norm(taskId);
     let loose=null;
     for(const c of campaignsList()){
-      if(cid && ![c.id,c.docId,c.campaignId,c.campaignCode,c.campaign_code].map(norm).includes(cid)) continue;
-      for(const t of taskArrays(c)){
-        if(taskMatch(t,id)) return {campaign:c, task:t};
-        if(!loose && id){ const keys=[t?.id,t?.taskId,t?.taskNo,t?.taskIndex].map(norm).filter(Boolean); if(keys.some(k=>k.includes(id)||id.includes(k))) loose={campaign:c, task:t}; }
+      const cKeys=[c?.id,c?.docId,c?.campaignId,c?.campaignDocId,c?.campaignCode,c?.campaign_code].map(norm).filter(Boolean);
+      const list=taskArrays(c);
+      const campaignMatches=!cid || cKeys.includes(cid) || list.some(t => norm(t?.campaignId || '') === cid || norm(t?.id || '').startsWith(cid + norm('-task-')));
+      if(!campaignMatches) continue;
+      for(const t of list){
+        if(taskMatch(t,id)) return {campaign:c, task:t, docId:campaignDocId(c, campaignId || campaignDocIdFromTaskId(taskId))};
+        if(!loose && id){ const keys=[t?.id,t?.taskId,t?.taskNo,t?.taskIndex].map(norm).filter(Boolean); if(keys.some(k=>k.includes(id)||id.includes(k))) loose={campaign:c, task:t, docId:campaignDocId(c, campaignId || campaignDocIdFromTaskId(taskId))}; }
       }
     }
-    return loose || {campaign:null, task:null};
+    return loose || {campaign:null, task:null, docId:''};
   }
   function structureDocId(task,campaign){ return safeId([campaignIdOf(task,campaign), txt(task?.id||task?.taskId||task?.originalTaskId||'task'), ownerId(task)||ownerName(task)].join('_')); }
   function exactStructureKey(upload, task){
@@ -28378,23 +28390,25 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   }
   async function patchDepartmentTask(taskId, campaignId, patch){
     const loc=locateDepartmentTask(taskId,campaignId);
-    if(!loc.campaign?.id || !loc.task){ try{ showToast('تعذر العثور على التاسك داخل الحملة.'); }catch(_){ } return false; }
-    const raw=loc.campaign.departmentTasks;
-    const nextTask={...loc.task,...patch,id:loc.task.id || taskId,campaignId:loc.campaign.id,updatedAt:now()};
+    const docId=campaignDocId(loc.campaign, loc.docId || campaignId || campaignDocIdFromTaskId(taskId));
+    if(!docId || !loc.task){ try{ showToast('تعذر العثور على التاسك داخل الحملة.'); }catch(_){ } return false; }
+    const raw=loc.campaign?.departmentTasks;
+    const nextTask={...loc.task,...patch,id:loc.task.id || taskId,campaignId:docId,updatedAt:now()};
     try{
       if(Array.isArray(raw)){
         const next=raw.map(t => taskMatch(t,loc.task.id || taskId) ? nextTask : t);
-        await safeCollection(CAMPAIGNS_COLLECTION).doc(loc.campaign.id).update({departmentTasks:next,updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())});
+        await safeCollection(CAMPAIGNS_COLLECTION).doc(docId).update({departmentTasks:next,updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())});
         loc.campaign.departmentTasks=next;
       }else if(raw && typeof raw === 'object'){
         const key=loc.task.__departmentTaskMapKey || loc.task.id || taskId;
-        await safeCollection(CAMPAIGNS_COLLECTION).doc(loc.campaign.id).update({[`departmentTasks.${key}`]:nextTask,updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())});
+        await safeCollection(CAMPAIGNS_COLLECTION).doc(docId).update({[`departmentTasks.${key}`]:nextTask,updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())});
         loc.campaign.departmentTasks={...raw,[key]:nextTask};
       }else{
         const next=taskArrays(loc.campaign).map(t => taskMatch(t,loc.task.id || taskId) ? nextTask : t);
-        await safeCollection(CAMPAIGNS_COLLECTION).doc(loc.campaign.id).update({departmentTasks:next,updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())});
-        loc.campaign.departmentTasks=next;
+        await safeCollection(CAMPAIGNS_COLLECTION).doc(docId).update({departmentTasks:next,updatedAt:(typeof serverTime === 'function' ? serverTime() : new Date())});
+        if(loc.campaign) loc.campaign.departmentTasks=next;
       }
+      try{ console.info('v460 receive patched task', {taskId, campaignId:docId}); }catch(_){ }
       return true;
     }catch(error){ console.error(`${VERSION} patch task`, error); try{ showToast(error?.message || 'تعذر تحديث التاسك.'); }catch(_){ } return false; }
   }
@@ -28483,3 +28497,6 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
 (function(){
   try{ window.MZJ_APP_VERSION='v459-receive-campaign-from-task-id'; window.MZJ_LAST_PATCH='v459-receive-campaign-from-task-id'; console.info('v459-receive-campaign-from-task-id loaded'); }catch(_){ }
 })();
+
+
+(function(){try{window.MZJ_APP_VERSION='v460-receive-current-campaigns-locator-fix';window.MZJ_LAST_PATCH='v460-receive-current-campaigns-locator-fix';console.info('v460-receive-current-campaigns-locator-fix loaded');}catch(_){}})();
