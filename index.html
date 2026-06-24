@@ -103,63 +103,58 @@
 <div class="card"><div class="filters"><input class="control" placeholder="ابحث عن حملة" type="search"/><select class="select"><option>كل الحالات</option></select></div><div class="campaign-list" id="campaignsList"><div class="empty-state">لا توجد حملات حتى الآن.</div></div></div>
 </section>
 <section class="view" data-title="إنشاء حملة" id="create-campaign">
-<div class="page-head campaign-builder-head">
-<div class="page-title">
-<h1>إنشاء حملة</h1>
-<p>أنشئ الحملة بنظام خطوات: طلب الهيكل واختيار كتاب المحتوى، تحديد الكريتيف المطلوب للهيكل وربط الأقسام، ثم الميزانية الاختيارية.</p>
+<div class="page-head campaign-builder-head v532-create-head">
+  <div class="page-title">
+    <h1>إنشاء حملة</h1>
+    <p>صفحة واحدة لإنشاء الحملة بنفس التصور المعتمد: طلب كاتب المحتوى، اختيار الكرييتيف، الميزانية، المراجعة.</p>
+  </div>
+  <div class="actions">
+    <button class="btn btn-light" id="resetCampaignBuilder" type="button">مسح النموذج</button>
+    <button class="btn btn-primary" id="saveCampaignDraft" type="button">إنشاء الحملة</button>
+  </div>
 </div>
-<div class="actions">
-<button class="btn btn-light" id="resetCampaignBuilder" type="button">مسح النموذج</button>
-<button class="btn btn-primary" id="saveCampaignDraft" type="button">حفظ الحملة</button>
-</div>
-</div>
-<div aria-label="خطوات إنشاء الحملة" class="campaign-wizard-nav" id="campaignWizardNav">
-<button class="campaign-wizard-step active" data-campaign-wizard-target="1" type="button"><span>1</span><strong>بيانات طلب كاتب المحتوى</strong></button>
-<button class="campaign-wizard-step" data-campaign-wizard-target="2" type="button"><span>2</span><strong>تحديد الكريتيف المطلوب للهيكل</strong></button>
-<button class="campaign-wizard-step" data-campaign-wizard-target="3" type="button"><span>3</span><strong>الميزانية</strong></button>
-</div>
-<div class="campaign-builder stacked" id="campaignWizard">
-<section class="request-panel card request-top campaign-wizard-panel active" data-campaign-wizard-step="1">
-<div class="panel-title">بيانات طلب كاتب المحتوى</div>
-<form class="form request-grid" id="campaignRequestForm">
-<label class="field"><span>تاريخ الحملة</span><input name="campaign_date" type="date"/></label>
-<label class="field"><span>بداية النشر</span><input id="publishStartDate" name="publish_start_date" type="date"/></label>
-<label class="field"><span>نهاية النشر</span><input id="publishEndDate" name="publish_end_date" type="date"/></label>
-<label class="field"><span>نوع الحملة</span><select class="js-campaign-type-select" id="campaignTypeSelect" name="campaign_type_id"><option value="">اختر نوع الحملة</option></select></label>
-<label class="field"><span>كود الحملة</span><input id="campaignCodeInput" name="campaign_code" placeholder="يظهر تلقائياً بعد اختيار نوع الحملة" readonly="" type="text"/></label>
-<label class="field"><span>اسم الحملة</span><input name="campaign_name" type="text"/></label>
-<label class="field field-wide"><span>هدف الحملة</span><textarea name="campaign_goal" placeholder="اكتب هدف الحملة الذي سيظهر داخل تفاصيل التاسكات لكل اليوزرات"></textarea></label>
-<label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief" placeholder="اكتب المطلوب الذي سيظهر لكاتب المحتوى في داش بورد رفع الهيكل"></textarea></label>
-<label class="field field-wide structure-content-writers-field"><span>يوزرات كتابة المحتوى لطلب الهيكل</span><div aria-label="يوزرات كتابة المحتوى" class="multi-dropdown js-role-picker js-request-content-writers" data-role="content"><button class="multi-toggle" type="button">اختيار يوزرات كتابة المحتوى</button><div class="multi-menu"></div></div><small class="field-hint">اليوزرات المختارة هنا سيظهر لهم تاسك طلب هيكل واحد للحملة، حتى لو اخترت أكثر من كريتيف في الخطوة الثانية.</small></label>
-<label class="field"><span>موعد تسليم الهيكل</span><input name="structure_deadline" type="date"/></label>
-</form>
-<div class="campaign-wizard-actions"><button class="btn btn-primary" data-campaign-wizard-next="" type="button">التالي: تحديد الكريتيف المطلوب للهيكل</button></div>
-</section>
-<div class="builder-workspace">
-<div class="card campaign-section-card campaign-wizard-panel" data-campaign-wizard-step="2">
-<div class="section-toolbar">
-<div>
-<h2>تحديد الكريتيف المطلوب للهيكل</h2>
-<p>اختار الكريتيف المطلوب في الهيكل، وحدد الأقسام التنفيذية التي ستنتظر اعتماد الهيكل ثم ترتبط تلقائيًا بالأكواد.</p>
-</div>
-</div>
-<div aria-label="كريتيفات ومهام الحملة" class="creative-rows-stack" id="creativeRows">
-<div class="empty-state">اضغط على خطوة الكريتيفات والمهام لفتح نافذة ربط الكريتيفات باليوزرات تلقائيًا.</div>
-</div>
-<div class="campaign-wizard-actions"><button class="btn btn-light" data-campaign-wizard-prev="" type="button">السابق</button><button class="btn btn-primary" data-campaign-wizard-next="" type="button">التالي: الميزانية</button></div>
-</div>
-<div class="builder-bottom-stacked campaign-wizard-panel" data-campaign-wizard-step="3">
-<div class="card campaign-section-card">
-<div class="section-toolbar small-toolbar">
-<div><h2>الميزانية</h2><p>إضافة الميزانية اختيارية أثناء إنشاء الحملة، ويمكن إضافتها أو تعديلها لاحقًا من صفحة إدارة الحملات. بند الكريتيف يعتمد على الكريتيفات المختارة في الخطوة الثانية.</p></div>
-<button class="btn btn-light" id="addBudgetRowBtn" type="button">＋ إضافة بند ميزانية</button>
-</div>
-<div class="budget-items" id="budgetRows"><div class="empty-state">لا توجد بنود ميزانية.</div></div>
-<div class="budget-grand-total"><span>إجمالي الميزانية</span><strong id="budgetGrandTotalValue">0</strong></div>
-</div>
-<div class="campaign-wizard-actions"><button class="btn btn-light" data-campaign-wizard-prev="" type="button">السابق</button><button class="btn btn-primary" id="campaignWizardSaveShortcut" type="button">حفظ الحملة</button></div>
-</div>
-</div>
+
+<div class="v532-create-page" id="campaignWizard" dir="rtl">
+  <section class="card v531-panel v532-request-panel campaign-wizard-panel active" data-campaign-wizard-step="1">
+    <div class="v531-panel-head"><div><h2>طلب كاتب المحتوى</h2></div></div>
+    <form class="form v531-grid" id="campaignRequestForm">
+      <label class="field"><span>تاريخ الحملة</span><input name="campaign_date" type="date" readonly></label>
+      <label class="field"><span>بداية النشر</span><input id="publishStartDate" name="publish_start_date" type="date"></label>
+      <label class="field"><span>نهاية النشر</span><input id="publishEndDate" name="publish_end_date" type="date"></label>
+      <label class="field"><span>نوع الحملة</span><select id="campaignTypeSelect" name="campaign_type_id" class="js-v531-campaign-type"></select></label>
+      <label class="field"><span>كود الحملة</span><input id="campaignCodeInput" name="campaign_code" type="text" readonly placeholder="يظهر تلقائي بعد اختيار نوع الحملة"></label>
+      <label class="field"><span>اسم الحملة</span><input name="campaign_name" type="text" placeholder="اكتب اسم الحملة"></label>
+      <label class="field field-wide"><span>هدف الحملة</span><textarea name="campaign_goal" placeholder="اكتب الهدف"></textarea></label>
+      <label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief" placeholder="اكتب المطلوب"></textarea></label>
+      <div class="field field-wide"><span>يوزرات كتابة المحتوى لطلب الهيكل</span><div id="v531ContentWriters" class="v531-check-grid"></div></div>
+      <label class="field"><span>موعد تسليم الهيكل</span><input name="structure_deadline" type="date"></label>
+    </form>
+  </section>
+
+  <section class="card v531-panel v532-creative-panel campaign-wizard-panel active" data-campaign-wizard-step="2">
+    <div class="v531-panel-head"><div><h2>اختيار الكرييتيف</h2></div></div>
+    <div class="v531-creative-layout">
+      <aside class="v531-creative-picker">
+        <label class="field"><span>بحث عن كرييتيف</span><input id="v531CreativeSearch" type="search" placeholder="ابحث عن كرييتيف بالاسم أو النوع..."></label>
+        <div id="v531CreativeList" class="v531-creative-list"></div>
+      </aside>
+      <main class="v531-creative-details">
+        <div id="v531SelectedCreatives" class="v531-selected-creatives"><div class="empty-state">اختار كرييتيف واحد أو أكثر.</div></div>
+      </main>
+    </div>
+  </section>
+
+  <section class="card v531-panel v532-budget-panel campaign-wizard-panel active" data-campaign-wizard-step="3">
+    <div class="v531-panel-head"><div><h2>الميزانية</h2></div><button class="btn btn-light" id="addBudgetRowBtn" type="button">＋ إضافة بند ميزانية</button></div>
+    <div class="budget-items v531-budget-list" id="budgetRows"><div class="empty-state">لا توجد بنود ميزانية.</div></div>
+    <div class="budget-grand-total"><span>إجمالي الميزانية</span><strong id="budgetGrandTotalValue">0</strong></div>
+  </section>
+
+  <section class="card v531-panel v532-review-panel campaign-wizard-panel active" data-campaign-wizard-step="4">
+    <div class="v531-panel-head"><div><h2>المراجعة</h2><p>عرض لكل حاجة اختارتها.</p></div></div>
+    <div class="review-grid v531-review-grid" id="campaignReviewGrid"></div>
+    <div class="campaign-wizard-actions v532-save-row"><button class="btn btn-primary" id="campaignWizardFinalSave" type="button">إنشاء الحملة</button></div>
+  </section>
 </div>
 </section>
 <section class="view" data-title="ربط المنصات" id="social-publisher">
@@ -1016,6 +1011,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="assets/js/jszip.min.js?v=160"></script>
-<script src="assets/js/app.js?v=530"></script>
+<script src="assets/js/app.js?v=532"></script>
 </input></input></input></input></body>
 </html>
