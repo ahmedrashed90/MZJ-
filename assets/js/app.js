@@ -33235,3 +33235,72 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   if(!document.getElementById('v528-template-style')){ const st=document.createElement('style'); st.id='v528-template-style'; st.textContent='.approved-content-template-section-v528{border-color:#cda58f;background:linear-gradient(180deg,#fffaf6,#fff)}.approved-content-fields-grid-v528{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.approved-content-field-v528{border:1px solid #ead0c1;background:#fffdfb;border-radius:16px;padding:13px 14px;min-height:84px}.approved-content-field-v528 b{display:block;color:#9b7668;font-size:12px;font-weight:900;margin-bottom:8px}.approved-content-field-v528 p{margin:0;white-space:pre-wrap;line-height:1.8;font-weight:800;color:#2e211d}'; document.head.appendChild(st); }
   try{ window.MZJ_APP_VERSION='528'; window.MZJ_LAST_PATCH=VERSION; if(typeof renderTasksPage==='function') renderTasksPage(); if(typeof renderAdminDashboard==='function') renderAdminDashboard(); console.info(VERSION,'loaded'); }catch(_){ }
 })();
+
+/* MZJ v529 - fix Task Template review buttons id binding */
+(function(){
+  const VERSION='v529-task-template-review-buttons-id-fix';
+  const S=v=>(v==null?'':String(v)).trim();
+  const norm=v=>S(v).toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/ـ/g,'').replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const esc=v=>{ try{return escapeHtml(v==null?'':String(v));}catch(_){return String(v==null?'':v).replace(/[&<>\"]/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]||s));} };
+  function toast(m){ try{ if(typeof showToast==='function') showToast(m); else console.info(m); }catch(_){ console.info(m); } }
+  function listCampaigns(){ try{return Array.isArray(window.campaigns)?window.campaigns:(Array.isArray(campaigns)?campaigns:[]);}catch(_){return [];} }
+  function tasksOf(c){ const raw=c&&c.departmentTasks; if(Array.isArray(raw)) return raw.filter(Boolean); if(raw&&typeof raw==='object') return Object.entries(raw).map(([k,v])=>v&&typeof v==='object'?({...v,__departmentTaskMapKey:k}):null).filter(Boolean); return []; }
+  function idOf(t){ return S(t&& (t.id||t.taskId||t.uid||t.docId||t.__departmentTaskMapKey||t.firebaseId)); }
+  function suffixFrom(v){ const s=S(v).toUpperCase(); if(!s) return ''; const parts=s.split(/[-_\s]+/).map(x=>x.replace(/[^A-Z0-9]/g,'')).filter(Boolean); for(let i=parts.length-1;i>=0;i--){ if(/^[A-Z]{1,4}\d{1,3}$/.test(parts[i]) && !/^C\d+$/i.test(parts[i])) return parts[i]; } const m=s.match(/(?:^|[-_\s])([A-Z]{1,4}\d{1,3})(?:$|[-_\s])/); return (m&&!/^C\d+$/i.test(m[1]))?m[1].toUpperCase():''; }
+  function taskNo(t){ const tpl=t&& (t.taskTemplate||t.contentTaskTemplate||t.approvedContentTemplate) || {}; const row=t&& (t.structureRow||{}) || {}; const raw=row.raw||t?.raw||{}; return S(t?.taskSuffix||t?.contentTaskSuffix||t?.userFacingTaskNo||t?.displayTaskCode||t?.shortTaskCode||t?.canonicalTaskCode||t?.taskNo||t?.structureTaskNo||tpl.taskSuffix||tpl.canonicalTaskCode||tpl.taskNo||tpl.structureTaskNo||row.taskSuffix||row.taskNo||raw['رقم التاسك']||''); }
+  function isTemplate(t){ const z=norm([t?.contentTemplateTask,t?.flowType,t?.source,t?.taskType,t?.structureTaskLabel,t?.id,t?.taskId,t?.collectionName].join(' ')); return !!(t&&(t.contentTemplateTask||t.flowType==='template'||z.includes('tasktemplate')||z.includes('contenttemplate')||z.includes('campaigntasktemplates')||z.includes(norm('Task Template')))); }
+  function locate(id){ const wanted=norm(id); for(const c of listCampaigns()){ for(const t of tasksOf(c)){ if(wanted && [idOf(t),t?.id,t?.taskId,t?.uid,t?.docId,t?.__departmentTaskMapKey].some(x=>norm(x)===wanted)) return {campaign:c,task:t,id:idOf(t)}; } } return {campaign:null,task:null,id:''}; }
+  function allTemplateTasks(){ const out=[]; for(const c of listCampaigns()) for(const t of tasksOf(c)) if(isTemplate(t)) out.push({campaign:c,task:t,id:idOf(t)}); return out; }
+  function resolveReviewTaskId(id){
+    if(S(id) && locate(id).task) return id;
+    const popup=document.querySelector('.task-template-review-popup');
+    const pId=S(popup?.dataset?.v529TaskId||popup?.dataset?.taskId||popup?.getAttribute?.('data-task-id')||'');
+    if(pId && locate(pId).task) return pId;
+    const btn=document.querySelector('.task-template-review-popup [data-task-template-approve],.task-template-review-popup [data-task-template-needs-changes],.task-template-review-popup [data-task-template-reject]');
+    const bId=S(btn?.dataset?.taskTemplateApprove||btn?.dataset?.taskTemplateNeedsChanges||btn?.dataset?.taskTemplateReject||'');
+    if(bId && locate(bId).task) return bId;
+    const title=S(document.querySelector('.task-template-review-popup .structure-review-head p')?.textContent||'');
+    const sfx=suffixFrom(title);
+    const candidates=allTemplateTasks();
+    if(sfx){ const hit=candidates.find(x=>suffixFrom(taskNo(x.task))===sfx || norm((typeof shortTaskName==='function'?shortTaskName(x.task):''))===norm(title)); if(hit) return hit.id; }
+    if(candidates.length===1) return candidates[0].id;
+    return id;
+  }
+  const oldOpen=typeof window.v171OpenTaskTemplateReview==='function'?window.v171OpenTaskTemplateReview:null;
+  if(oldOpen){
+    window.v171OpenTaskTemplateReview=function(taskId){
+      const realId=resolveReviewTaskId(taskId);
+      const res=oldOpen.call(this,realId||taskId);
+      setTimeout(()=>{
+        try{
+          const loc=locate(realId||taskId); const id=idOf(loc.task)||realId||taskId;
+          const popup=document.querySelector('.task-template-review-popup'); if(!popup||!id) return;
+          popup.dataset.v529TaskId=id; popup.dataset.taskId=id;
+          popup.querySelectorAll('[data-task-template-approve]').forEach(b=>b.dataset.taskTemplateApprove=id);
+          popup.querySelectorAll('[data-task-template-needs-changes]').forEach(b=>b.dataset.taskTemplateNeedsChanges=id);
+          popup.querySelectorAll('[data-task-template-reject]').forEach(b=>b.dataset.taskTemplateReject=id);
+        }catch(e){ console.warn(VERSION,'open patch failed',e); }
+      },0);
+      return res;
+    };
+    try{ v171OpenTaskTemplateReview=window.v171OpenTaskTemplateReview; }catch(_){ }
+  }
+  const prev=window.MZJ_v528_decideTaskTemplate||window.MZJ_v527_decideTaskTemplate||window.MZJ_v516_decideTaskTemplate||window.v174SetTaskTemplateDecision;
+  async function decide(id,decision){
+    const realId=resolveReviewTaskId(id);
+    if(!S(realId) || !locate(realId).task){ toast('تعذر تحديد Task Template الحالي. اقفل نافذة المراجعة وافتحها تاني.'); return; }
+    if(typeof prev==='function') return prev.call(this,realId,decision);
+    toast('تعذر تنفيذ الإجراء.');
+  }
+  window.MZJ_v529_decideTaskTemplate=decide;
+  window.MZJ_v528_decideTaskTemplate=decide;
+  window.MZJ_v527_decideTaskTemplate=decide;
+  window.MZJ_v526_decideTaskTemplate=decide;
+  window.MZJ_v525_decideTaskTemplate=decide;
+  window.MZJ_v524_decideTaskTemplate=decide;
+  window.MZJ_v516_decideTaskTemplate=decide;
+  window.v174SetTaskTemplateDecision=(id,decision)=>decide(id,decision);
+  window.v171ApproveTaskTemplate=id=>decide(id,'approved');
+  try{ v174SetTaskTemplateDecision=window.v174SetTaskTemplateDecision; v171ApproveTaskTemplate=window.v171ApproveTaskTemplate; }catch(_){ }
+  try{ window.MZJ_APP_VERSION='529'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
