@@ -32468,3 +32468,164 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   if(prevDetail){ buildTaskDetailHtml = function(task){ const safe = sanitizeExecTemplate(task,campaignForTaskLocal(task)); return prevDetail.call(this,safe); }; try{ window.buildTaskDetailHtml=buildTaskDetailHtml; }catch(_){ } }
   try{ window.MZJ_APP_VERSION='520'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
 })();
+
+/* v522 - structure approval releases same writer execution tasks; Task Template data is scoped by full task code suffix (B01/N01) */
+(function(){
+  const VERSION = 'v522-structure-release-code-scoped-template';
+  const S = v => (v == null ? '' : String(v)).trim();
+  const A = v => Array.isArray(v) ? v : (v == null ? [] : [v]);
+  const N = v => S(v).toLowerCase().replace(/[\s\u200f\u200e\-_/]+/g,'');
+  const nowIso = () => new Date().toISOString();
+  const uniq = list => Array.from(new Set(A(list).flat(Infinity).map(S).filter(Boolean)));
+  const toast = msg => { try{ if(typeof showToast === 'function') showToast(msg); }catch(_){} };
+  function ident(v){ try{ return typeof identityClean === 'function' ? identityClean(v || '') : N(v); }catch(_){ return N(v); } }
+  function roleOf(t){ try{ return normalizeDepartmentRole(t?.departmentRole || t?.assignedDepartmentRole || t?.assignedDepartmentName || t?.contentSectionName || t?.departmentName || t?.contentSectionId || '') || ''; }catch(_){ return N(t?.departmentRole || t?.assignedDepartmentRole || t?.assignedDepartmentName || t?.contentSectionName || t?.departmentName || ''); } }
+  function isStructureTask(t){ const text=N([t?.taskType,t?.structureTaskLabel,t?.sourceRequestStep,t?.creative,t?.product,t?.source].join(' ')); return !!(t?.needsStructureUpload || t?.structureRequestTask || t?.structureBundleTask || t?.sourceRequestStep === 'campaign_request_data' || text.includes(N('هيكل')) || text.includes('structuretask')); }
+  function isContentTemplateTask(t){ const text=N([t?.taskType,t?.source,t?.departmentRole,t?.assignedDepartmentRole,t?.contentSectionName,t?.assignedDepartmentName].join(' ')); return !!(t?.contentTemplateTask || t?.source === 'v516-content-template-after-structure-approval' || text.includes('tasktemplate')) && !isStructureTask(t); }
+  function isContentTask(t){ return roleOf(t) === 'content' || isStructureTask(t) || isContentTemplateTask(t); }
+  function isExecTask(t){ const r=roleOf(t); return !!t && !isContentTask(t) && ['design','montage','shooting','photography','publish'].includes(r || ''); }
+  function taskId(t){ return S(t?.id || t?.taskId || ''); }
+  function campaignIdOf(t,c){ return S(t?.campaignId || t?.campaignDocId || t?.campaignID || c?.id || c?.docId || c?.campaignId || ''); }
+  function campaignCodeOf(t,c){ return S(t?.campaignCode || t?.campaign_code || c?.campaignCode || c?.campaign_code || ''); }
+  function sameCampaign(a,b,c){ const x=ident(campaignIdOf(a,c) || campaignCodeOf(a,c)); const y=ident(campaignIdOf(b,c) || campaignCodeOf(b,c)); return !!x && !!y ? x === y : true; }
+  function campaignsList(){ try{ return Array.isArray(campaigns) ? campaigns : []; }catch(_){ return []; } }
+  function tasksOf(c){ const raw=c?.departmentTasks || c?.tasks; if(Array.isArray(raw)) return raw.filter(Boolean); if(raw && typeof raw === 'object') return Object.values(raw).filter(Boolean); return []; }
+  function collection(){ if(typeof safeCollection === 'function') return safeCollection(window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns'); if(window.mainDb) return window.mainDb.collection(window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns'); if(window.db) return window.db.collection(window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns'); throw new Error('Firestore غير متصل'); }
+  function server(){ try{ return typeof serverTime === 'function' ? serverTime() : new Date(); }catch(_){ return new Date(); } }
+  function cleanFirestoreValue(value){
+    if(value === undefined || typeof value === 'function') return undefined;
+    if(value === null) return null;
+    if(value instanceof Date) return value;
+    if(Array.isArray(value)) return value.map(cleanFirestoreValue).filter(v => v !== undefined);
+    if(value && typeof value === 'object'){
+      if(value._methodName || value.isEqual || value.toDate || (value.seconds !== undefined && value.nanoseconds !== undefined)) return value;
+      const out={}; Object.keys(value).forEach(k => { if(k === '__departmentTaskMapKey') return; const v=cleanFirestoreValue(value[k]); if(v !== undefined) out[k]=v; }); return out;
+    }
+    return value;
+  }
+  function saveLocal(campaign,tasks){ try{ const id=ident(campaignIdOf({},campaign)); const i=campaignsList().findIndex(c => ident(campaignIdOf({},c)) === id); if(i >= 0) campaigns[i] = {...campaigns[i], departmentTasks:tasks, taskCount:tasks.length, updatedAt:nowIso()}; campaign.departmentTasks=tasks; campaign.taskCount=tasks.length; }catch(_){} }
+  async function persist(campaign,tasks){ const id=campaignIdOf({},campaign); if(!id) throw new Error('missing campaign id'); const clean=cleanFirestoreValue(tasks) || []; saveLocal(campaign,clean); await collection().doc(id).update({departmentTasks:clean, taskCount:clean.length, updatedAt:server()}); }
+  function locateTask(taskId){ const key=ident(taskId); for(const c of campaignsList()){ const t=tasksOf(c).find(x => ident(taskId ? taskId : '') && ident(taskIdOfAny(x)) === key); if(t) return {campaign:c, task:t}; } try{ const t=typeof findTaskById === 'function' ? findTaskById(taskId) : null; const c=t && (typeof campaignForTask === 'function' ? campaignForTask(t) : null); if(t && c) return {campaign:c, task:t}; }catch(_){} return {campaign:null, task:null}; }
+  function taskIdOfAny(t){ return S(t?.id || t?.taskId || ''); }
+  function tplOf(t){ return (t && typeof t.approvedContentTemplate === 'object' && t.approvedContentTemplate) || (t && typeof t.contentTaskTemplate === 'object' && t.contentTaskTemplate) || (t && typeof t.taskTemplate === 'object' && t.taskTemplate) || null; }
+  function hasTemplateState(t){ return !!(t?.approvedContentTemplate || t?.contentTaskTemplate || t?.taskTemplate || t?.contentTemplateApproved || t?.taskTemplateApproved || t?.linkedContentTemplateTaskId || N(t?.linkedContentTemplateStatus).includes('approved')); }
+  function stripTemplateState(t){ const x={...t}; delete x.approvedContentTemplate; delete x.contentTaskTemplate; delete x.taskTemplate; delete x.contentTemplateApproved; delete x.taskTemplateApproved; delete x.linkedContentTemplateTaskId; delete x.linkedContentTemplateReviewNote; if(N(x.linkedContentTemplateStatus).includes('approved')) x.linkedContentTemplateStatus = x.structureApproved ? 'waiting_upload' : ''; return x; }
+  function taskNoCandidates(t){ const tpl=tplOf(t)||{}; const rows=A(tpl.parsedRows).concat(A(tpl.taskRows)).filter(Boolean); const fields=A(tpl.taskTemplateFields); const fieldTaskNos=fields.filter(f => N(f?.label || f?.key || '').includes(N('رقم التاسك')) || N(f?.label || f?.key || '').includes('taskno') || N(f?.label || f?.key || '').includes('taskcode')).map(f => f?.value);
+    return uniq([t?.taskNo,t?.taskNumber,t?.structureTaskNo,t?.code,t?.taskCode,t?.contentTaskNo,t?.contentTaskCode,t?.contentFlowTaskNo,t?.structureRow?.taskNo,t?.structureRow?.structureTaskNo,t?.structureRow?.taskCode,t?.taskTemplate?.taskNo,t?.taskTemplate?.structureTaskNo,t?.contentTaskTemplate?.taskNo,t?.approvedContentTemplate?.taskNo, tpl.taskNo,tpl.structureTaskNo,tpl.taskCode, rows.map(r => [r.taskNo,r.taskNumber,r.structureTaskNo,r.taskCode,r['رقم التاسك'],r['كود تاسك الهيكل']]), fieldTaskNos]); }
+  function taskNoSuffix(t){
+    const list=taskNoCandidates(t);
+    for(const raw of list){
+      const str=S(raw); if(!str) continue;
+      const parts=str.split('-').map(S).filter(Boolean);
+      for(let i=parts.length-1;i>=0;i--){ const p=parts[i].toUpperCase().replace(/[^A-Z0-9]/g,''); if(/^[A-Z]{1,4}\d{1,3}$/.test(p)) return p; }
+      const m=str.toUpperCase().match(/(?:^|[-_\s])([A-Z]{1,4}\d{1,3})(?:$|[-_\s])/); if(m) return m[1];
+    }
+    return '';
+  }
+  function fullTaskNoKey(t){ const first=taskNoCandidates(t).find(Boolean); return ident(first || ''); }
+  function pairKey(t){ return S(t?.contentFlowKey || t?.linkedExecutionPairKey || t?.contentExecutionPairKey || t?.linkedContentTemplatePairKey || t?.approvedContentTemplatePairKey || t?.taskTemplate?.linkedExecutionPairKey || t?.taskTemplate?.contentFlowKey || t?.approvedContentTemplate?.linkedExecutionPairKey || t?.approvedContentTemplate?.contentFlowKey || ''); }
+  function contentOwnerTokens(t){
+    const contentLike = isContentTask(t);
+    const row=t?.structureRow || {}; const tpl=tplOf(t)||{};
+    const tokens=[t?.contentWriterId,t?.contentWriterName,t?.contentWriterEmail,t?.linkedContentUserId,t?.linkedContentUserName,t?.linkedContentUserEmail,t?.dependsOnContentUserIds,t?.dependsOnContentUserNames,t?.upstreamUserIds,t?.upstreamUserNames,t?.parentContentUserId,t?.parentContentUserName,row.contentWriterCode,row.writerCode,row['كود كاتب المحتوى'],tpl.contentWriterId,tpl.contentWriterName,tpl.contentWriterCode];
+    if(contentLike) tokens.push(t?.userId,t?.userUid,t?.userName,t?.assignedToId,t?.assignedToUid,t?.assignedToName,t?.assigneeUid,t?.assigneeName,t?.displayName);
+    const suffix=taskNoSuffix(t); if(suffix) tokens.push(suffix.replace(/\d+$/,''));
+    return uniq(tokens).map(ident).filter(Boolean);
+  }
+  function sameOwner(a,b){ const ax=contentOwnerTokens(a); const bx=contentOwnerTokens(b); if(!ax.length || !bx.length) return false; const set=new Set(ax); return bx.some(x => set.has(x)); }
+  function creativeKey(t){ return ident([t?.creativeIndex ?? t?.structureRow?.creativeIndex ?? '', t?.taskCopyIndex || t?.contentCopyIndex || t?.creativeCopyIndex || t?.unitIndex || t?.structureRow?.taskCopyIndex || '', t?.creativeShortCode || t?.structureRow?.creativeShortCode || '', t?.creative || t?.product || t?.structureRow?.contentType || ''].join('|')); }
+  function strictMatch(templateTask, exec, campaign){
+    if(!templateTask || !exec || !isExecTask(exec) || !sameCampaign(templateTask, exec, campaign) || !sameOwner(templateTask, exec)) return false;
+    const s1=taskNoSuffix(templateTask); const s2=taskNoSuffix(exec);
+    if(s1 && s2) return s1 === s2;
+    const f1=fullTaskNoKey(templateTask); const f2=fullTaskNoKey(exec); if(f1 && f2 && f1 === f2) return true;
+    const p1=ident(pairKey(templateTask)); const p2=ident(pairKey(exec)); if(p1 && p2) return p1 === p2;
+    const c1=creativeKey(templateTask); const c2=creativeKey(exec); return !!(c1 && c2 && c1 === c2);
+  }
+  function approvedTemplates(campaign){ return tasksOf(campaign).filter(t => isContentTemplateTask(t) && (t.contentTemplateApproved || t.taskTemplateApproved || N([t.status,t.taskTemplateStatus,t.templateReviewStatus,t.reviewStatus,tplOf(t)?.status,tplOf(t)?.reviewStatus].join(' ')).includes('approved')) && tplOf(t)); }
+  function approvedTemplateForExec(exec,campaign){ return approvedTemplates(campaign).find(t => strictMatch(t, exec, campaign)) || null; }
+  function sanitizeExec(t,campaign){ if(!isExecTask(t)) return t; const src=approvedTemplateForExec(t,campaign); if(src){ const tpl={...(tplOf(src)||{}), status:'approved', reviewStatus:'approved', templateReviewStatus:'approved'}; return {...t, approvedContentTemplate:tpl, contentTaskTemplate:tpl, linkedContentTemplateStatus:'approved', linkedContentTemplateTaskId:taskId(src), contentTemplateApproved:true, taskTemplateApproved:true}; } return hasTemplateState(t) ? stripTemplateState(t) : t; }
+  function sanitizeList(list,campaign){ return A(list).map(t => sanitizeExec(t,campaign)); }
+  function structureRows(task){ let st={}; try{ st=typeof taskStructure === 'function' ? taskStructure(task) : (task.structure || {}); }catch(_){ st=task.structure || {}; } let rows=[]; try{ rows=typeof structureRowsWithReviewStatus === 'function' ? structureRowsWithReviewStatus(st).filter(r => { try{ return typeof normalizeStructureRowReviewStatus === 'function' ? normalizeStructureRowReviewStatus(r.reviewStatus)==='approved' : N(r.reviewStatus).includes('approved'); }catch(_){ return N(r.reviewStatus).includes('approved'); } }) : []; }catch(_){} if(!rows.length) rows=A(st.approvedRows); if(!rows.length){ try{ rows=typeof structureDistributionRows === 'function' ? structureDistributionRows(st) : []; }catch(_){} } if(!rows.length) rows=A(st.parsedRows); return rows.filter(Boolean); }
+  function releaseExecPatch(exec, structureTask, row, stamp){ const next=stripTemplateState(exec); const structureRow={...(exec.structureRow||{}), ...(row||{}), taskNo:S(row?.taskNo || row?.structureTaskNo || exec.structureRow?.taskNo || exec.taskNo || ''), contentType:S(row?.contentType || row?.contentName || exec.structureRow?.contentType || exec.creative || exec.taskType || ''), car:S(row?.car || row?.selectedCar || exec.structureRow?.car || exec.selectedCar || '')}; return {...next, structureRow, structureApproved:true, structureApprovedAt:stamp, waitingForApproval:false, waitingForTaskTemplate:false, waitingQueue:false, isWaitingQueue:false, waitingList:false, inWaitingList:false, waitingForContent:false, waitingForContentApproval:false, waitingForAdminReview:false, waitingForApprovalLabel:'', linkedContentTemplateStatus:next.linkedContentTemplateStatus || 'waiting_upload', status:'pending', taskStatus:'جاهز للتنفيذ', dashboardStatusLabel:'جاهز للتنفيذ', received:false, receivedConfirmed:false, updatedAt:stamp}; }
+  async function approveStructureV522(taskIdValue){
+    try{
+      const located=locateTask(taskIdValue); const task=located.task; const campaign=located.campaign;
+      if(!task || !campaign) return toast('تعذر العثور على تاسك الهيكل.');
+      const stamp=nowIso(); const tasks=tasksOf(campaign); const rows=structureRows(task); const items=A(task.structureItems);
+      const existingTemplateKeys=new Set(tasks.filter(isContentTemplateTask).map(t => ident(pairKey(t) || fullTaskNoKey(t) || taskNoSuffix(t) || taskId(t))).filter(Boolean));
+      const additions=[];
+      const next=tasks.map(t => {
+        if(ident(taskId(t)) === ident(taskId(task) || taskIdValue)){
+          let st={}; try{ st=typeof taskStructure === 'function' ? taskStructure(t) : (t.structure || {}); }catch(_){ st=t.structure || {}; }
+          return {...t, structure:{...st, status:'approved', reviewStatus:'approved', approvedRows:rows, approvedAt:stamp, reviewedAt:stamp}, structureApprovedAt:stamp, approvalStatus:'structure_approved', progress:100, status:'done', taskStatus:'منتهي', completedAt:stamp, deliveredAt:stamp, updatedAt:stamp};
+        }
+        if(isExecTask(t) && sameOwner(t,task)){
+          let matchRow=null;
+          const p=ident(pairKey(t)); if(p) matchRow=rows.find(r => ident(r.contentFlowKey || r.flowKey || r.linkedExecutionPairKey || r.taskNo || r.structureTaskNo) === p) || null;
+          const suf=taskNoSuffix(t); if(!matchRow && suf) matchRow=rows.find(r => taskNoSuffix({structureRow:r, taskNo:r.taskNo || r.structureTaskNo}) === suf) || null;
+          const ck=creativeKey(t); if(!matchRow && ck) matchRow=rows.find((r,idx) => creativeKey({structureRow:r, creativeIndex:items[idx]?.creativeIndex, taskCopyIndex:items[idx]?.taskCopyIndex, creativeShortCode:r.creativeShortCode, creative:r.contentType || r.creative}) === ck) || null;
+          if(matchRow || p || suf || ck) return releaseExecPatch(t, task, matchRow || t.structureRow || {}, stamp);
+        }
+        return t;
+      });
+      const count=Math.max(items.length, rows.length);
+      for(let i=0;i<count;i++){
+        const item=items[i] || {}; const row=rows[i] || {}; const fkey=S(item.flowKey || item.contentFlowKey || row.contentFlowKey || row.flowKey || ''); const key=ident(fkey || row.taskNo || row.structureTaskNo || `${taskId(task)}-${i}`); if(existingTemplateKeys.has(key)) continue;
+        let template=null;
+        if(typeof normalizeCampaignTask === 'function'){
+          const writerId=S(task.contentWriterId || task.userId || task.assignedToId || ''); const writerName=S(task.contentWriterName || task.userName || task.assignedToName || '');
+          const structureRow={...(item.structureRow||{}),...row, taskNo:S(row.taskNo || row.structureTaskNo || item.taskNo || item.structureRow?.taskNo || ''), contentType:S(row.contentType || row.contentName || item.creative || item.product || '')};
+          template=normalizeCampaignTask({id:`${campaignIdOf({},campaign)}-content-template-${key}`.slice(0,180), campaignId:campaignIdOf({},campaign), campaignName:S(campaign.campaignName || campaign.name || ''), campaignCode:S(campaign.campaignCode || campaign.campaign_code || ''), contentTemplateTask:true, source:'v522-content-template-after-structure-approval', parentStructureTaskId:taskId(task), contentFlowKey:fkey || item.flowKey, linkedExecutionPairKey:fkey || item.flowKey, contentExecutionPairKey:fkey || item.flowKey, creative:item.creative || row.contentType || row.creative, product:item.product || item.creative || row.contentType || row.creative, creativeIndex:item.creativeIndex ?? i, taskCopyIndex:item.taskCopyIndex || i+1, taskNo:structureRow.taskNo || item.taskNo || '', structureTaskNo:structureRow.taskNo || item.taskNo || '', structureRow, selectedCar:structureRow.car || item.selectedCar || '', selectedCars:item.selectedCars || [], contentSectionId:'content', contentSectionName:'قسم المحتوى', assignedDepartmentId:'content', assignedDepartmentName:'قسم المحتوى', assignedDepartmentRole:'content', departmentRole:'content', departmentCode:'CONTENT', taskType:`Task Template - ${S(item.creative || row.contentType || 'محتوى')}`, userId:writerId, userUid:writerId, userName:writerName, assigneeUid:writerId, assigneeName:writerName, assignedToUid:writerId, assignedToId:writerId, assignedToName:writerName, displayName:writerName, contentWriterId:writerId, contentWriterName:writerName, status:'pending_task_template', dashboardStatusLabel:'في انتظار رفع Task Template', received:false, receivedConfirmed:false, progress:0, steps:(typeof taskStepTemplate==='function'?taskStepTemplate('content'):[]), attachments:[], taskTemplate:{status:'not_uploaded', linkedExecutionPairKey:fkey || item.flowKey}, createdAt:stamp, updatedAt:stamp}, campaign);
+        }
+        if(template){ additions.push(template); existingTemplateKeys.add(key); }
+      }
+      await persist(campaign,[...next,...additions]);
+      try{ if(typeof closeStructureReviewPopup === 'function') closeStructureReviewPopup(); if(typeof refreshOpenTaskModal === 'function') refreshOpenTaskModal(); if(typeof renderUserDashboard === 'function') renderUserDashboard(); if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); if(typeof renderTasksPage === 'function') renderTasksPage(); }catch(_){}
+      toast(`تم اعتماد الهيكل وخروج تاسكات نفس كاتب المحتوى من قائمة الانتظار.`);
+    }catch(err){ console.error(VERSION,'approve structure failed',err); toast(err?.message || 'تعذر اعتماد الهيكل.'); }
+  }
+  function approvedExecPatch(exec, templateTask, decided, stamp){ return {...exec, approvedContentTemplate:decided, contentTaskTemplate:decided, linkedContentTemplateStatus:'approved', linkedContentTemplateTaskId:taskId(templateTask), contentTemplateApproved:true, taskTemplateApproved:true, waitingForApproval:false, waitingForTaskTemplate:false, waitingQueue:false, isWaitingQueue:false, waitingList:false, inWaitingList:false, waitingForContent:false, waitingForContentApproval:false, waitingForAdminReview:false, waitingForApprovalLabel:'', dependencyRole:'', status:'pending', taskStatus:'جاهز للتنفيذ', dashboardStatusLabel:'جاهز للتنفيذ', received:false, receivedConfirmed:false, updatedAt:stamp}; }
+  async function decideTemplateV522(taskIdValue, decision){
+    try{
+      const located=locateTask(taskIdValue); const task=located.task; const campaign=located.campaign; if(!task || !campaign) return toast('تعذر العثور على Task Template.');
+      const status=decision === 'approved' ? 'approved' : (decision === 'needs_changes' ? 'needs_changes' : 'rejected'); const stamp=nowIso(); const note=S(document.querySelector('[data-task-template-review-note]')?.value || '');
+      const base={...(task.taskTemplate || task.contentTaskTemplate || task.approvedContentTemplate || {})}; const decided={...base, status, reviewStatus:status, templateReviewStatus:status, reviewNote:note || base.reviewNote || '', reviewedAt:stamp, ...(status==='approved'?{approvedAt:stamp}: {})};
+      const main=ident(taskId(task) || taskIdValue); const mainDedupe=[campaignIdOf(task,campaign)||campaignCodeOf(task,campaign), contentOwnerTokens(task)[0]||'', taskNoSuffix(task)||pairKey(task)||creativeKey(task)].map(ident).join('__');
+      const next=tasksOf(campaign).map(t => {
+        const isMain=ident(taskId(t)) === main;
+        const sameContentDuplicate=!isMain && isContentTemplateTask(t) && [campaignIdOf(t,campaign)||campaignCodeOf(t,campaign), contentOwnerTokens(t)[0]||'', taskNoSuffix(t)||pairKey(t)||creativeKey(t)].map(ident).join('__') === mainDedupe;
+        if(isMain){ return {...t, taskTemplate:decided, contentTaskTemplate:status==='approved'?decided:t.contentTaskTemplate, approvedContentTemplate:status==='approved'?decided:t.approvedContentTemplate, taskTemplateStatus:status, templateReviewStatus:status, reviewStatus:status, contentTemplateApproved:status==='approved', taskTemplateApproved:status==='approved', waitingForApproval:status!=='approved', waitingForTaskTemplate:false, waitingQueue:false, isWaitingQueue:false, status:status==='approved'?'done':(status==='needs_changes'?'pending_task_template_changes':'task_template_rejected'), taskStatus:status==='approved'?'منتهي':t.taskStatus, progress:status==='approved'?100:Number(t.progress||0), completedAt:status==='approved'?(t.completedAt||stamp):t.completedAt, updatedAt:stamp}; }
+        if(sameContentDuplicate){ return {...t, hidden:true, __hiddenDuplicateTemplateTask:true, archivedDuplicate:true, updatedAt:stamp}; }
+        if(strictMatch(task,t,campaign)){ if(status==='approved') return approvedExecPatch(stripTemplateState(t), task, decided, stamp); return {...stripTemplateState(t), linkedContentTemplateStatus:status, linkedContentTemplateTaskId:taskId(task), linkedContentTemplateReviewNote:note, waitingForApproval:false, waitingForTaskTemplate:false, waitingForApprovalLabel:'', status:'pending', updatedAt:stamp}; }
+        if(isExecTask(t) && hasTemplateState(t)){ const linked=ident(t.linkedContentTemplateTaskId || ''); const sameSig=linked && linked === ident(taskId(task)); if(sameSig || !strictMatch(task,t,campaign)) return stripTemplateState(t); }
+        return t;
+      });
+      await persist(campaign,next);
+      try{ if(typeof closeStructureReviewPopup === 'function') closeStructureReviewPopup(); if(typeof refreshOpenTaskModal === 'function') refreshOpenTaskModal(); if(typeof renderUserDashboard === 'function') renderUserDashboard(); if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); if(typeof renderTasksPage === 'function') renderTasksPage(); }catch(_){}
+      toast(status==='approved'?'تم اعتماد Task Template وربطه بالتاسك المطابق فقط.':(status==='needs_changes'?'تم إرسال Task Template للتعديل.':'تم رفض Task Template.'));
+    }catch(err){ console.error(VERSION,'decide template failed',err); toast(err?.message || 'تعذر تنفيذ الإجراء.'); }
+  }
+  try{
+    window.MZJ_v516_approveStructure = approveStructureV522;
+    window.MZJ_v522_approveStructure = approveStructureV522;
+    window.MZJ_v516_decideTaskTemplate = decideTemplateV522;
+    window.MZJ_v522_decideTaskTemplate = decideTemplateV522;
+    window.MZJ_v520_approveTaskTemplate = decideTemplateV522;
+    v171ApproveTaskTemplate = id => decideTemplateV522(id,'approved');
+    v174SetTaskTemplateDecision = (id,decision) => decideTemplateV522(id,decision);
+    window.v171ApproveTaskTemplate = v171ApproveTaskTemplate;
+    window.v174SetTaskTemplateDecision = v174SetTaskTemplateDecision;
+  }catch(_){}
+  const prevTasksForCampaign = typeof tasksForCampaign === 'function' ? tasksForCampaign : null;
+  if(prevTasksForCampaign){ tasksForCampaign = function(campaign){ return sanitizeList(prevTasksForCampaign.apply(this,arguments)||[], campaign).filter(t => !t?.hidden && !t?.__hiddenDuplicateTemplateTask); }; try{ window.tasksForCampaign=tasksForCampaign; }catch(_){} }
+  const prevAdminTasks = typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign : null;
+  if(prevAdminTasks){ adminDashboardTasksForCampaign = function(campaign){ return sanitizeList(prevAdminTasks.apply(this,arguments)||[], campaign).filter(t => !t?.hidden && !t?.__hiddenDuplicateTemplateTask); }; try{ window.adminDashboardTasksForCampaign=adminDashboardTasksForCampaign; }catch(_){} }
+  const prevVisible = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser : null;
+  if(prevVisible){ getVisibleTasksForCurrentUser = function(){ return sanitizeList(prevVisible.apply(this,arguments)||[], null).filter(t => !t?.hidden && !t?.__hiddenDuplicateTemplateTask); }; try{ window.getVisibleTasksForCurrentUser=getVisibleTasksForCurrentUser; }catch(_){} }
+  const prevFind = typeof findTaskById === 'function' ? findTaskById : null;
+  if(prevFind){ findTaskById = function(id){ const t=prevFind.apply(this,arguments); if(!t) return t; let c=null; try{ c=typeof campaignForTask === 'function' ? campaignForTask(t) : null; }catch(_){} return sanitizeExec(t,c); }; try{ window.findTaskById=findTaskById; }catch(_){} }
+  const prevWait = typeof isTaskWaitingForDependency === 'function' ? isTaskWaitingForDependency : null;
+  isTaskWaitingForDependency = function(task){ if(isExecTask(task) && task?.structureApproved && !task?.waitingForApproval && !task?.waitingQueue && !task?.isWaitingQueue && N(task?.status) !== 'waitingtasktemplate') return false; return prevWait ? prevWait.apply(this,arguments) : false; };
+  try{ window.isTaskWaitingForDependency=isTaskWaitingForDependency; window.MZJ_APP_VERSION='522'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){}
+})();
