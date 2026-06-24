@@ -33304,3 +33304,35 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   try{ v174SetTaskTemplateDecision=window.v174SetTaskTemplateDecision; v171ApproveTaskTemplate=window.v171ApproveTaskTemplate; }catch(_){ }
   try{ window.MZJ_APP_VERSION='529'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
 })();
+
+/* MZJ v530 - define campaign collection global for Task Template approval handlers */
+(function(){
+  const VERSION='v530-campaigns-collection-global-fix';
+  try{
+    window.MZJ_CAMPAIGNS_COLLECTION = window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns';
+    window.CAMPAIGNS_COLLECTION = window.MZJ_CAMPAIGNS_COLLECTION;
+    try{ CAMPAIGNS_COLLECTION = window.MZJ_CAMPAIGNS_COLLECTION; }catch(_){ }
+    const base = window.MZJ_v529_decideTaskTemplate || window.MZJ_v528_decideTaskTemplate || window.MZJ_v516_decideTaskTemplate || window.v174SetTaskTemplateDecision;
+    async function decide(id, decision){
+      window.MZJ_CAMPAIGNS_COLLECTION = window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns';
+      window.CAMPAIGNS_COLLECTION = window.MZJ_CAMPAIGNS_COLLECTION;
+      try{ CAMPAIGNS_COLLECTION = window.MZJ_CAMPAIGNS_COLLECTION; }catch(_){ }
+      if(typeof base === 'function') return base.call(this, id, decision);
+      try{ if(typeof showToast==='function') showToast('تعذر تنفيذ قرار Task Template.'); }catch(_){ }
+    }
+    window.MZJ_v530_decideTaskTemplate = decide;
+    window.MZJ_v529_decideTaskTemplate = decide;
+    window.MZJ_v528_decideTaskTemplate = decide;
+    window.MZJ_v527_decideTaskTemplate = decide;
+    window.MZJ_v526_decideTaskTemplate = decide;
+    window.MZJ_v525_decideTaskTemplate = decide;
+    window.MZJ_v524_decideTaskTemplate = decide;
+    window.MZJ_v516_decideTaskTemplate = decide;
+    window.v174SetTaskTemplateDecision = (id, decision) => decide(id, decision);
+    window.v171ApproveTaskTemplate = id => decide(id, 'approved');
+    try{ v174SetTaskTemplateDecision = window.v174SetTaskTemplateDecision; v171ApproveTaskTemplate = window.v171ApproveTaskTemplate; }catch(_){ }
+    window.MZJ_APP_VERSION='530';
+    window.MZJ_LAST_PATCH=VERSION;
+    console.info(VERSION,'loaded');
+  }catch(e){ console.warn(VERSION,'failed',e); }
+})();
