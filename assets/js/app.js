@@ -32022,3 +32022,236 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   try{ if(typeof renderUserDashboard === 'function') renderUserDashboard(); if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); if(typeof renderTasksPage === 'function') renderTasksPage(); }catch(_){ }
   try{ console.info(VERSION, 'loaded'); }catch(_){ }
 })();
+
+/* MZJ v513 - persist and render approved structure execution row details on every execution task */
+(function(){
+  const VERSION = 'v513-execution-structure-details-display';
+  const arr = v => Array.isArray(v) ? v : (v == null ? [] : [v]);
+  const txt = v => String(v == null ? '' : v).trim();
+  const esc = v => (typeof escapeHtml === 'function' ? escapeHtml(txt(v)) : txt(v).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])));
+  const norm = v => txt(v).toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g,'')
+    .replace(/[أإآٱ]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/ـ/g,'')
+    .replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const uniq = list => Array.from(new Set(arr(list).flat(Infinity).map(txt).filter(Boolean)));
+  function pick(obj, keys){
+    for(const key of keys){
+      const v = obj && obj[key];
+      if(txt(v)) return txt(v);
+    }
+    return '';
+  }
+  function roleOf(task){
+    try{ if(typeof normalizeDepartmentRole === 'function') return normalizeDepartmentRole(task?.departmentRole || task?.assignedDepartmentRole || task?.assignedDepartmentName || task?.contentSectionName || task?.departmentCode || task?.assignedDepartmentId || task?.contentSectionId || '') || ''; }catch(_){ }
+    const s = norm([task?.departmentRole, task?.assignedDepartmentRole, task?.assignedDepartmentName, task?.contentSectionName, task?.departmentCode].join(' '));
+    if(s.includes('montage') || s.includes('مونتاج')) return 'montage';
+    if(s.includes('design') || s.includes('تصميم')) return 'design';
+    if(s.includes('shoot') || s.includes('photo') || s.includes('تصوير')) return 'shooting';
+    if(s.includes('publish') || s.includes('نشر')) return 'publish';
+    if(s.includes('content') || s.includes('محتوي') || s.includes('محتوى')) return 'content';
+    return s;
+  }
+  function isExecutionTask(task){
+    if(!task || typeof task !== 'object') return false;
+    const source = norm(task.source || task.sourceType || '');
+    const r = roleOf(task);
+    if(task.structureGenerated || task.parentStructureTaskId || source.includes('campaignstructuredistribution') || source.includes('structureexecution')) return true;
+    return ['montage','design','shooting','photography','photo','publish'].includes(r);
+  }
+  function codeFromTaskNo(taskNo, part){
+    const text = txt(taskNo).toUpperCase();
+    if(!text) return '';
+    if(part === 'creative'){
+      try{ if(typeof extractCreativeShortCodeFromTaskNo === 'function') return txt(extractCreativeShortCodeFromTaskNo(text)).toUpperCase(); }catch(_){ }
+      const m = text.match(/-C(\d{2})\b/); return m ? `C${m[1]}` : '';
+    }
+    if(part === 'department'){
+      try{ if(typeof extractDepartmentCodeFromTaskNo === 'function') return txt(extractDepartmentCodeFromTaskNo(text)).toUpperCase(); }catch(_){ }
+      const m = text.match(/-(M|D|S|P|O)\d{2}\b/); return m ? m[0].slice(1).toUpperCase() : '';
+    }
+    return '';
+  }
+  function taskNoOf(x){ return txt(x?.structureTaskNo || x?.taskNo || x?.taskNumber || x?.taskCode || x?.structureRow?.taskNo || x?.raw?.['رقم التاسك'] || x?.raw?.['كود تاسك الهيكل'] || ''); }
+  function creativeCodeOf(x){ return txt(x?.creativeShortCode || x?.linkedCreativeShortCode || x?.structureRow?.creativeShortCode || codeFromTaskNo(taskNoOf(x), 'creative')).toUpperCase(); }
+  function deptCodeOf(x){ return txt(x?.departmentCode || x?.linkedExecutionDepartmentCode || x?.executionDepartmentCode || x?.structureRow?.departmentCode || codeFromTaskNo(taskNoOf(x), 'department')).toUpperCase(); }
+  function carText(task, row){
+    try{ if(typeof window !== 'undefined' && typeof window.mzjStructureTaskCarsText === 'function'){ const v = window.mzjStructureTaskCarsText(task, row || task?.structureRow || {}); if(txt(v)) return txt(v); } }catch(_){ }
+    const direct = pick(row || {}, ['car','cars','selectedCar','السيارة','السيارات']) || pick((row || {}).raw || {}, ['السيارة','السيارات','car','cars']) || pick(task || {}, ['selectedCar','carName','car','cars']);
+    if(direct) return direct;
+    return uniq(arr(task?.selectedCars).map(car => typeof car === 'string' ? car : (car?.label || car?.name || car?.carName || car?.title || car?.id))).join('، ');
+  }
+  function normalizeStructureDetailRow(row, task){
+    const raw = (row && typeof row.raw === 'object') ? row.raw : {};
+    const out = {
+      contentType: pick(row, ['contentType','contentName','type','creative','product']) || pick(raw, ['نوع المحتوى','نوع المحتوي','content type']) || pick(task, ['contentType','structureTaskLabel','taskType']),
+      car: carText(task, row),
+      taskNo: pick(row, ['taskNo','structureTaskNo','taskNumber','taskCode']) || pick(raw, ['رقم التاسك','كود تاسك الهيكل','task no','task code']) || taskNoOf(task),
+      goal: pick(row, ['goal']) || pick(raw, ['الهدف','goal']) || pick(task, ['structureGoal','goal']),
+      tangibleGoal: pick(row, ['tangibleGoal','tangible_goal']) || pick(raw, ['الهدف الملموس','tangible goal']) || pick(task, ['structureTangibleGoal','tangibleGoal']),
+      idea: pick(row, ['idea','contentIdea']) || pick(raw, ['الفكرة','idea']) || pick(task, ['structureIdea','idea']),
+      description: pick(row, ['description','contentDescription']) || pick(raw, ['وصف المحتوى','وصف المحتوي','description']) || pick(task, ['structureDescription','description','brief']),
+      message: pick(row, ['message']) || pick(raw, ['الرسالة','message']) || pick(task, ['structureMessage','message']),
+      writerRequest: pick(row, ['writerRequest','requiredFromWriter']) || pick(raw, ['المطلوب من الكاتب','required from writer','writer request']) || pick(task, ['structureWriterRequest','writerRequest']),
+      cta: pick(row, ['cta','CTA']) || pick(raw, ['CTA','cta','الدعوة لاتخاذ إجراء','الدعوه لاتخاذ اجراء']) || pick(task, ['structureCta','cta']),
+      contentAngle: pick(row, ['contentAngle']) || pick(raw, ['زاوية المحتوى','زاوية المحتوي','content angle']),
+      highlight: pick(row, ['highlight']) || pick(raw, ['ما يجب إبرازه','ما يجب ابرازه','highlight']),
+      highlightTranslation: pick(row, ['highlightTranslation']) || pick(raw, ['الترجمة التنفيذية لما يجب إبرازه','الترجمة التنفيذية لما يجب ابرازه']),
+      avoid: pick(row, ['avoid']) || pick(raw, ['ما يجب تجنبه','ما يجب تجنبة','avoid']),
+      creativeShortCode: pick(row, ['creativeShortCode']) || creativeCodeOf(task),
+      departmentCode: pick(row, ['departmentCode']) || deptCodeOf(task)
+    };
+    out.taskNo = out.taskNo || taskNoOf(out);
+    return Object.fromEntries(Object.entries(out).filter(([,v]) => txt(v)));
+  }
+  function campaignForTaskSafe(task){
+    try{ if(typeof campaignForTask === 'function'){ const c = campaignForTask(task); if(c) return c; } }catch(_){ }
+    try{ if(typeof campaignRecordForTask === 'function'){ const c = campaignRecordForTask(task); if(c) return c; } }catch(_){ }
+    const key = norm(task?.campaignId || task?.campaignDocId || task?.campaignCode || task?.campaign_code || '');
+    try{ return (Array.isArray(campaigns) ? campaigns : []).find(c => norm(c.id || c.docId || c.campaignId || c.campaignCode || c.campaign_code || '') === key) || null; }catch(_){ return null; }
+  }
+  function rowsFromStructure(structure){
+    if(!structure || typeof structure !== 'object') return [];
+    try{ if(typeof structureDistributionRows === 'function'){ const rows = structureDistributionRows(structure); if(rows && rows.length) return rows; } }catch(_){ }
+    try{ if(typeof structureRowsWithReviewStatus === 'function'){ const rows = structureRowsWithReviewStatus(structure).filter(r => !r.reviewStatus || norm(r.reviewStatus).includes('approved') || norm(r.reviewStatus).includes(norm('مقبول'))); if(rows.length) return rows; } }catch(_){ }
+    return arr(structure.approvedRows).length ? arr(structure.approvedRows) : arr(structure.parsedRows || structure.structureRows || structure.rows);
+  }
+  function allApprovedRowsForCampaign(campaign){
+    const tasks = arr(campaign?.departmentTasks).concat(arr(campaign?.tasks));
+    return tasks.flatMap(t => {
+      const st = t?.structure || t?.structureUpload || null;
+      const status = norm([st?.status, st?.reviewStatus, t?.structureStatus, t?.status].join(' '));
+      const approvedLike = status.includes('approved') || status.includes('distributed') || status.includes(norm('معتمد')) || t?.structureApproved || t?.approved;
+      const rows = rowsFromStructure(st);
+      if(!rows.length || !approvedLike) return [];
+      return rows.map((row, index) => ({ row, parent:t, index }));
+    });
+  }
+  function rowScoreForTask(task, rowPack){
+    const row = rowPack.row || {};
+    let score = 0;
+    const tnTask = norm(taskNoOf(task));
+    const tnRow = norm(taskNoOf(row));
+    if(tnTask && tnRow && tnTask === tnRow) score += 1000;
+    const cTask = creativeCodeOf(task); const cRow = creativeCodeOf(row);
+    if(cTask && cRow && cTask === cRow) score += 220;
+    const dTask = deptCodeOf(task); const dRow = deptCodeOf(row);
+    if(dTask && dRow && dTask === dRow) score += 180;
+    const rowType = norm(row.contentType || row.contentName || row.idea || row.description || '');
+    const taskType = norm(task.contentType || task.structureTaskLabel || task.taskType || task.product || task.creative || '');
+    if(rowType && taskType && (rowType.includes(taskType) || taskType.includes(rowType))) score += 80;
+    const carA = norm(carText(task, task?.structureRow || {}));
+    const carB = norm(carText(task, row));
+    if(carA && carB && (carA.includes(carB) || carB.includes(carA))) score += 30;
+    return score;
+  }
+  function matchedStructureRow(task){
+    if(task?.structureRow && Object.keys(task.structureRow || {}).some(k => txt(task.structureRow[k]))) return normalizeStructureDetailRow(task.structureRow, task);
+    const campaign = campaignForTaskSafe(task);
+    const rows = allApprovedRowsForCampaign(campaign);
+    if(!rows.length) return null;
+    const ranked = rows.map(pack => ({ pack, score: rowScoreForTask(task, pack) })).filter(x => x.score > 0).sort((a,b) => b.score - a.score);
+    if(!ranked.length) return null;
+    return normalizeStructureDetailRow(ranked[0].pack.row, task);
+  }
+  function enrichStructureDetails(task){
+    if(!isExecutionTask(task)) return task;
+    const row = matchedStructureRow(task);
+    if(!row || !Object.keys(row).length) return task;
+    const next = { ...task, structureGenerated: task.structureGenerated || true, structureRow: { ...(task.structureRow || {}), ...row } };
+    next.taskNo = next.taskNo || row.taskNo || '';
+    next.structureTaskNo = next.structureTaskNo || row.taskNo || '';
+    next.structureTaskLabel = next.structureTaskLabel || [row.taskNo, row.contentType].filter(Boolean).join(' - ');
+    next.contentType = next.contentType || row.contentType || '';
+    next.selectedCar = next.selectedCar || row.car || '';
+    if(row.car && (!Array.isArray(next.selectedCars) || !next.selectedCars.length)) next.selectedCars = [{ label: row.car }];
+    next.structureGoal = next.structureGoal || row.goal || '';
+    next.structureTangibleGoal = next.structureTangibleGoal || row.tangibleGoal || '';
+    next.structureIdea = next.structureIdea || row.idea || '';
+    next.structureDescription = next.structureDescription || row.description || '';
+    next.structureMessage = next.structureMessage || row.message || '';
+    next.structureWriterRequest = next.structureWriterRequest || row.writerRequest || '';
+    next.structureCta = next.structureCta || row.cta || '';
+    return next;
+  }
+  function structureDetailsHtml(task){
+    if(!isExecutionTask(task)) return '';
+    const row = normalizeStructureDetailRow(task?.structureRow || matchedStructureRow(task) || {}, task);
+    const hasAny = ['contentType','car','taskNo','goal','tangibleGoal','idea','description','message','writerRequest','cta'].some(k => txt(row[k]));
+    if(!hasAny) return '';
+    const fields = [
+      ['نوع المحتوى', row.contentType],
+      ['السيارة', row.car],
+      ['رقم التاسك', row.taskNo],
+      ['الهدف', row.goal],
+      ['الهدف الملموس', row.tangibleGoal],
+      ['الفكرة', row.idea],
+      ['وصف المحتوى', row.description],
+      ['الرسالة', row.message],
+      ['المطلوب من الكاتب', row.writerRequest],
+      ['CTA', row.cta]
+    ];
+    return `<div class="modal-section structure-task-data mzj-v513-structure-task-data"><div class="modal-section-title"><h3>بيانات تاسك الهيكل</h3><span>من الهيكل المعتمد</span></div><div class="structure-task-grid">${fields.map(([label,value]) => `<div><span>${esc(label)}</span><strong>${esc(value || '—')}</strong></div>`).join('')}</div></div>`;
+  }
+  const oldBuildStructureTaskFromRow = typeof buildStructureTaskFromRow === 'function' ? buildStructureTaskFromRow : null;
+  if(oldBuildStructureTaskFromRow && !oldBuildStructureTaskFromRow.__v513Details){
+    buildStructureTaskFromRow = function(campaign, parentTask, row, assigneeId, rowIndex, publishMeta){
+      const built = oldBuildStructureTaskFromRow.apply(this, arguments);
+      return enrichStructureDetails({ ...built, structureRow: normalizeStructureDetailRow(row || built?.structureRow || {}, built || parentTask || {}) });
+    };
+    buildStructureTaskFromRow.__v513Details = true;
+    try{ window.buildStructureTaskFromRow = buildStructureTaskFromRow; }catch(_){ }
+  }
+  const oldMergeStructureAddition = typeof mergeStructureAdditionIntoExistingTask === 'function' ? mergeStructureAdditionIntoExistingTask : null;
+  if(oldMergeStructureAddition && !oldMergeStructureAddition.__v513Details){
+    mergeStructureAdditionIntoExistingTask = function(existing, addition, parentTask){
+      const merged = oldMergeStructureAddition.apply(this, arguments);
+      return enrichStructureDetails({ ...merged, structureRow: normalizeStructureDetailRow(addition?.structureRow || existing?.structureRow || {}, merged || addition || existing || {}) });
+    };
+    mergeStructureAdditionIntoExistingTask.__v513Details = true;
+    try{ window.mergeStructureAdditionIntoExistingTask = mergeStructureAdditionIntoExistingTask; }catch(_){ }
+  }
+  function enrichList(list){ return arr(list).map(item => enrichStructureDetails(item)); }
+  const oldTasksForCampaign = typeof tasksForCampaign === 'function' ? tasksForCampaign : null;
+  if(oldTasksForCampaign && !oldTasksForCampaign.__v513Details){
+    tasksForCampaign = function(campaign){ return enrichList(oldTasksForCampaign.apply(this, arguments)); };
+    tasksForCampaign.__v513Details = true;
+    try{ window.tasksForCampaign = tasksForCampaign; }catch(_){ }
+  }
+  const oldAdminTasks = typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign : null;
+  if(oldAdminTasks && !oldAdminTasks.__v513Details){
+    adminDashboardTasksForCampaign = function(campaign){ return enrichList(oldAdminTasks.apply(this, arguments)); };
+    adminDashboardTasksForCampaign.__v513Details = true;
+    try{ window.adminDashboardTasksForCampaign = adminDashboardTasksForCampaign; }catch(_){ }
+  }
+  const oldVisibleTasks = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser : null;
+  if(oldVisibleTasks && !oldVisibleTasks.__v513Details){
+    getVisibleTasksForCurrentUser = function(){ return enrichList(oldVisibleTasks.apply(this, arguments)); };
+    getVisibleTasksForCurrentUser.__v513Details = true;
+    try{ window.getVisibleTasksForCurrentUser = getVisibleTasksForCurrentUser; }catch(_){ }
+  }
+  const oldFindTask = typeof findTaskById === 'function' ? findTaskById : null;
+  if(oldFindTask && !oldFindTask.__v513Details){
+    findTaskById = function(){ return enrichStructureDetails(oldFindTask.apply(this, arguments)); };
+    findTaskById.__v513Details = true;
+    try{ window.findTaskById = findTaskById; }catch(_){ }
+  }
+  const oldBuildDetail = typeof buildTaskDetailHtml === 'function' ? buildTaskDetailHtml : null;
+  if(oldBuildDetail && !oldBuildDetail.__v513Details){
+    buildTaskDetailHtml = function(task){
+      const enriched = enrichStructureDetails(task);
+      let html = oldBuildDetail.call(this, enriched);
+      const details = structureDetailsHtml(enriched);
+      if(!details) return html;
+      if(/<div class="modal-section structure-task-data[\s\S]*?<\/div>\s*<\/div>/.test(html)){
+        return html.replace(/<div class="modal-section structure-task-data[\s\S]*?<\/div>\s*<\/div>/, details);
+      }
+      if(html.includes('<div class="modal-section task-actions-section')) return html.replace('<div class="modal-section task-actions-section', details + '<div class="modal-section task-actions-section');
+      return html + details;
+    };
+    buildTaskDetailHtml.__v513Details = true;
+    try{ window.buildTaskDetailHtml = buildTaskDetailHtml; }catch(_){ }
+  }
+  try{ window.MZJ_v513_enrichStructureDetails = enrichStructureDetails; window.MZJ_v513_structureDetailsHtml = structureDetailsHtml; window.MZJ_APP_VERSION = '513'; window.MZJ_LAST_PATCH = VERSION; }catch(_){ }
+  try{ if(typeof renderUserDashboard === 'function') renderUserDashboard(); if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); if(typeof renderTasksPage === 'function') renderTasksPage(); }catch(_){ }
+  try{ console.info(VERSION, 'loaded'); }catch(_){ }
+})();
