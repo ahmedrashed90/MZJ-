@@ -32629,3 +32629,201 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   isTaskWaitingForDependency = function(task){ if(isExecTask(task) && task?.structureApproved && !task?.waitingForApproval && !task?.waitingQueue && !task?.isWaitingQueue && N(task?.status) !== 'waitingtasktemplate') return false; return prevWait ? prevWait.apply(this,arguments) : false; };
   try{ window.isTaskWaitingForDependency=isTaskWaitingForDependency; window.MZJ_APP_VERSION='522'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){}
 })();
+
+/* v523 - unified task-code templates + exact approved template scope + exec stays active, not completed */
+(function(){
+  const VERSION = 'v523-unified-code-template-scope';
+  const S = v => (v == null ? '' : String(v)).trim();
+  const A = v => Array.isArray(v) ? v : (v == null ? [] : [v]);
+  const N = v => S(v).toLowerCase().replace(/[\s\u200f\u200e\-_/]+/g,'');
+  const esc = v => { try{ return typeof escapeHtml === 'function' ? escapeHtml(v) : S(v).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }catch(_){ return S(v); } };
+  const nowIso = () => new Date().toISOString();
+  const uniq = list => Array.from(new Set(A(list).flat(Infinity).map(S).filter(Boolean)));
+  const toast = msg => { try{ if(typeof showToast === 'function') showToast(msg); }catch(_){} };
+  function ident(v){ try{ return typeof identityClean === 'function' ? identityClean(v || '') : N(v); }catch(_){ return N(v); } }
+  function roleOf(t){ try{ return normalizeDepartmentRole(t?.departmentRole || t?.assignedDepartmentRole || t?.assignedDepartmentName || t?.contentSectionName || t?.departmentName || t?.contentSectionId || '') || ''; }catch(_){ return N(t?.departmentRole || t?.assignedDepartmentRole || t?.assignedDepartmentName || t?.contentSectionName || t?.departmentName || ''); } }
+  function isStructureTask(t){ const text=N([t?.taskType,t?.structureTaskLabel,t?.sourceRequestStep,t?.creative,t?.product,t?.source].join(' ')); return !!(t?.needsStructureUpload || t?.structureRequestTask || t?.structureBundleTask || t?.sourceRequestStep === 'campaign_request_data' || text.includes(N('هيكل')) || text.includes('structuretask')); }
+  function isContentTemplateTask(t){ const text=N([t?.taskType,t?.source,t?.departmentRole,t?.assignedDepartmentRole,t?.contentSectionName,t?.assignedDepartmentName].join(' ')); return !!(t?.contentTemplateTask || text.includes('tasktemplate')) && !isStructureTask(t); }
+  function isContentSide(t){ return roleOf(t) === 'content' || isStructureTask(t) || isContentTemplateTask(t); }
+  function isExecTask(t){ const r=roleOf(t); return !!t && !isContentSide(t) && ['design','montage','shooting','photography','publish'].includes(r || ''); }
+  function taskId(t){ return S(t?.id || t?.taskId || ''); }
+  function campaignsList(){ try{ return Array.isArray(campaigns) ? campaigns : []; }catch(_){ return []; } }
+  function tasksOf(c){ const raw=c?.departmentTasks || c?.tasks; if(Array.isArray(raw)) return raw.filter(Boolean); if(raw && typeof raw === 'object') return Object.values(raw).filter(Boolean); return []; }
+  function campaignIdOf(t,c){ return S(t?.campaignId || t?.campaignDocId || t?.campaignID || c?.id || c?.docId || c?.campaignId || ''); }
+  function campaignCodeOf(t,c){ return S(t?.campaignCode || t?.campaign_code || c?.campaignCode || c?.campaign_code || ''); }
+  function sameCampaign(a,b,c){ const x=ident(campaignIdOf(a,c) || campaignCodeOf(a,c)); const y=ident(campaignIdOf(b,c) || campaignCodeOf(b,c)); return !!x && !!y ? x === y : true; }
+  function collection(){ if(typeof safeCollection === 'function') return safeCollection(window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns'); if(window.mainDb) return window.mainDb.collection(window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns'); if(window.db) return window.db.collection(window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns'); throw new Error('Firestore غير متصل'); }
+  function server(){ try{ return typeof serverTime === 'function' ? serverTime() : new Date(); }catch(_){ return new Date(); } }
+  function cleanFirestoreValue(value){
+    if(value === undefined || typeof value === 'function') return undefined;
+    if(value === null) return null;
+    if(value instanceof Date) return value;
+    if(Array.isArray(value)) return value.map(cleanFirestoreValue).filter(v => v !== undefined);
+    if(value && typeof value === 'object'){
+      if(value._methodName || value.isEqual || value.toDate || (value.seconds !== undefined && value.nanoseconds !== undefined)) return value;
+      const out={}; Object.keys(value).forEach(k => { if(k === '__departmentTaskMapKey') return; const v=cleanFirestoreValue(value[k]); if(v !== undefined) out[k]=v; }); return out;
+    }
+    return value;
+  }
+  function saveLocal(campaign,tasks){ try{ const id=ident(campaignIdOf({},campaign)); const i=campaignsList().findIndex(c => ident(campaignIdOf({},c)) === id); if(i >= 0) campaigns[i] = {...campaigns[i], departmentTasks:tasks, taskCount:tasks.length, updatedAt:nowIso()}; campaign.departmentTasks=tasks; campaign.taskCount=tasks.length; }catch(_){} }
+  async function persist(campaign,tasks){ const id=campaignIdOf({},campaign); if(!id) throw new Error('missing campaign id'); const clean=cleanFirestoreValue(tasks) || []; saveLocal(campaign,clean); await collection().doc(id).update({departmentTasks:clean, taskCount:clean.length, updatedAt:server()}); }
+  function locateTask(taskIdValue){ const key=ident(taskIdValue); for(const c of campaignsList()){ const t=tasksOf(c).find(x => ident(taskId(x)) === key); if(t) return {campaign:c, task:t}; } try{ const t=typeof findTaskById === 'function' ? findTaskById(taskIdValue) : null; const c=t && (typeof campaignForTask === 'function' ? campaignForTask(t) : null); if(t && c) return {campaign:c, task:t}; }catch(_){} return {campaign:null, task:null}; }
+  function tplOf(t){ return (t && typeof t.approvedContentTemplate === 'object' && t.approvedContentTemplate) || (t && typeof t.contentTaskTemplate === 'object' && t.contentTaskTemplate) || (t && typeof t.taskTemplate === 'object' && t.taskTemplate) || null; }
+  function taskNoCandidates(t){
+    const tpl=tplOf(t)||{}; const rows=A(tpl.parsedRows).concat(A(tpl.taskRows)).filter(Boolean); const fields=A(tpl.taskTemplateFields);
+    const fieldTaskNos=fields.filter(f => N(f?.label || f?.key || '').includes(N('رقم التاسك')) || N(f?.label || f?.key || '').includes('taskno') || N(f?.label || f?.key || '').includes('taskcode')).map(f => f?.value);
+    return uniq([t?.taskNo,t?.taskNumber,t?.structureTaskNo,t?.code,t?.taskCode,t?.contentTaskNo,t?.contentTaskCode,t?.contentFlowTaskNo,t?.fullTaskCode,t?.displayTaskCode,t?.structureRow?.taskNo,t?.structureRow?.structureTaskNo,t?.structureRow?.taskCode,t?.raw?.['رقم التاسك'],t?.raw?.['كود تاسك الهيكل'],t?.taskTemplate?.taskNo,t?.taskTemplate?.structureTaskNo,t?.contentTaskTemplate?.taskNo,t?.approvedContentTemplate?.taskNo,tpl.taskNo,tpl.structureTaskNo,tpl.taskCode, rows.map(r => [r.taskNo,r.taskNumber,r.structureTaskNo,r.taskCode,r['رقم التاسك'],r['كود تاسك الهيكل'],r.raw?.['رقم التاسك'],r.raw?.['كود تاسك الهيكل']]), fieldTaskNos]);
+  }
+  function taskNoSuffixFromValue(raw){ const str=S(raw); if(!str) return ''; const parts=str.split('-').map(S).filter(Boolean); for(let i=parts.length-1;i>=0;i--){ const p=parts[i].toUpperCase().replace(/[^A-Z0-9]/g,''); if(/^[A-Z]{1,4}\d{1,3}$/.test(p)) return p; } const m=str.toUpperCase().match(/(?:^|[-_\s])([A-Z]{1,4}\d{1,3})(?:$|[-_\s])/); return m ? m[1] : ''; }
+  function taskNoSuffix(t){ for(const c of taskNoCandidates(t)){ const s=taskNoSuffixFromValue(c); if(s) return s; } return ''; }
+  function fullTaskNoCandidate(t){
+    const suffix=taskNoSuffix(t);
+    const best=taskNoCandidates(t).find(v => { const s=S(v); return s && suffix && s.toUpperCase().includes(suffix) && s.includes('-') && /C\d{1,3}/i.test(s); });
+    if(best) return S(best).replace(/\s+/g,'').toUpperCase();
+    return '';
+  }
+  function contentOwnerTokens(t){
+    const row=t?.structureRow || {}; const tpl=tplOf(t)||{}; const contentLike=isContentSide(t);
+    const tokens=[t?.contentWriterId,t?.contentWriterName,t?.contentWriterEmail,t?.linkedContentUserId,t?.linkedContentUserName,t?.linkedContentUserEmail,t?.dependsOnContentUserIds,t?.dependsOnContentUserNames,t?.upstreamUserIds,t?.upstreamUserNames,t?.parentContentUserId,t?.parentContentUserName,row.contentWriterCode,row.writerCode,row['كود كاتب المحتوى'],tpl.contentWriterId,tpl.contentWriterName,tpl.contentWriterCode];
+    if(contentLike) tokens.push(t?.userId,t?.userUid,t?.userName,t?.assignedToId,t?.assignedToUid,t?.assignedToName,t?.assigneeUid,t?.assigneeName,t?.displayName);
+    const suffix=taskNoSuffix(t); if(suffix) tokens.push(suffix.replace(/\d+$/,''));
+    return uniq(tokens).map(ident).filter(Boolean);
+  }
+  function sameOwner(a,b){ const ax=contentOwnerTokens(a); const bx=contentOwnerTokens(b); if(!ax.length || !bx.length) return false; const set=new Set(ax); return bx.some(x => set.has(x)); }
+  function pairKey(t){ return S(t?.contentFlowKey || t?.linkedExecutionPairKey || t?.contentExecutionPairKey || t?.linkedContentTemplatePairKey || t?.approvedContentTemplatePairKey || t?.taskTemplate?.linkedExecutionPairKey || t?.taskTemplate?.contentFlowKey || t?.approvedContentTemplate?.linkedExecutionPairKey || t?.approvedContentTemplate?.contentFlowKey || ''); }
+  function creativeKey(t){ return ident([t?.creativeIndex ?? t?.structureRow?.creativeIndex ?? '', t?.taskCopyIndex || t?.contentCopyIndex || t?.creativeCopyIndex || t?.unitIndex || t?.structureRow?.taskCopyIndex || '', t?.creativeShortCode || t?.structureRow?.creativeShortCode || '', t?.creative || t?.product || t?.structureRow?.contentType || ''].join('|')); }
+  function strictMatch(templateTask, exec, campaign){
+    if(!templateTask || !exec || !isExecTask(exec) || !sameCampaign(templateTask, exec, campaign) || !sameOwner(templateTask, exec)) return false;
+    const s1=taskNoSuffix(templateTask), s2=taskNoSuffix(exec); if(s1 && s2) return s1 === s2;
+    const f1=ident(fullTaskNoCandidate(templateTask)), f2=ident(fullTaskNoCandidate(exec)); if(f1 && f2) return f1 === f2;
+    const p1=ident(pairKey(templateTask)), p2=ident(pairKey(exec)); if(p1 && p2) return p1 === p2;
+    return false;
+  }
+  function templateMatchesItsExecState(task,campaign){
+    if(!isExecTask(task) || !hasTemplateState(task)) return true;
+    const tpl=tplOf(task)||{}; const tplSuffix=taskNoSuffix({taskNo:tpl.taskNo, structureTaskNo:tpl.structureTaskNo, taskCode:tpl.taskCode, taskTemplate:tpl, approvedContentTemplate:tpl, contentTaskTemplate:tpl});
+    const ownSuffix=taskNoSuffix(task);
+    if(tplSuffix && ownSuffix && tplSuffix !== ownSuffix) return false;
+    const linked=ident(task.linkedContentTemplateTaskId || '');
+    if(linked){
+      const located=locateTask(linked); if(located.task) return strictMatch(located.task, task, located.campaign || campaign);
+    }
+    return true;
+  }
+  function hasTemplateState(t){ return !!(t?.approvedContentTemplate || t?.contentTaskTemplate || t?.contentTemplateApproved || t?.taskTemplateApproved || t?.linkedContentTemplateTaskId || N(t?.linkedContentTemplateStatus).includes('approved')); }
+  function stripTemplateState(t){ const x={...t}; delete x.approvedContentTemplate; delete x.contentTaskTemplate; delete x.contentTemplateApproved; delete x.taskTemplateApproved; delete x.linkedContentTemplateTaskId; delete x.linkedContentTemplateReviewNote; if(x.taskTemplate && N(x.taskTemplate.status).includes('approved')) x.taskTemplate={...x.taskTemplate,status:'not_uploaded'}; if(N(x.linkedContentTemplateStatus).includes('approved')) x.linkedContentTemplateStatus = x.structureApproved ? 'waiting_upload' : ''; return x; }
+  function hasFinalUpload(t){
+    const files=[...A(t?.attachments),...A(t?.files),...A(t?.finalFiles),...A(t?.submissions),...A(t?.uploadedFiles)];
+    return !!(t?.finalFile || t?.finalFileUrl || t?.finalUploadUrl || t?.finalUploaded || files.some(f => f?.isFinal || f?.uploadKind === 'final' || f?.kind === 'final' || f?.purpose === 'final'));
+  }
+  function clearFinalState(t){ const x={...t}; ['finalFile','finalFileUrl','finalUploadUrl','finalUpload','finalUploaded','finalUploadedAt','finalUploadAt','finalSubmittedAt','finalSubmission','finalSubmissionUrl'].forEach(k => { delete x[k]; }); return x; }
+  function executionReadyPatch(exec, templateTask, decided, stamp){
+    const clean=clearFinalState(stripTemplateState(exec));
+    const unified=canonicalTaskCode(templateTask, null) || taskNoSuffix(templateTask) || decided.taskNo || '';
+    const tpl={...decided, taskNo:unified, structureTaskNo:unified, canonicalTaskCode:unified, linkedExecutionTaskId:taskId(exec), linkedExecutionPairKey:pairKey(exec) || pairKey(templateTask), contentWriterId:templateTask.contentWriterId || templateTask.userId || '', contentWriterName:templateTask.contentWriterName || templateTask.userName || ''};
+    return {...clean, approvedContentTemplate:tpl, contentTaskTemplate:tpl, linkedContentTemplateStatus:'approved', linkedContentTemplateTaskId:taskId(templateTask), contentTemplateApproved:true, taskTemplateApproved:true, waitingForApproval:false, waitingForTaskTemplate:false, waitingQueue:false, isWaitingQueue:false, waitingList:false, inWaitingList:false, waitingForContent:false, waitingForContentApproval:false, waitingForAdminReview:false, waitingForApprovalLabel:'', dependencyRole:'', status:'in_progress', taskStatus:'قيد التنفيذ', dashboardStatusLabel:'جاهز للتنفيذ', progress:0, completedAt:'', completedBy:'', updatedAt:stamp};
+  }
+  function sanitizeExec(t,campaign){
+    if(!isExecTask(t)) return t;
+    let out={...t};
+    if(hasTemplateState(out) && !templateMatchesItsExecState(out,campaign)) out=stripTemplateState(out);
+    if(hasTemplateState(out) && !hasFinalUpload(out)){
+      out=clearFinalState(out);
+      if(Number(out.progress||0) >= 100 || N(out.status).includes('done') || N(out.taskStatus).includes(N('منتهي'))){
+        out={...out, status:'in_progress', taskStatus:'قيد التنفيذ', dashboardStatusLabel:'جاهز للتنفيذ', progress:0, completedAt:'', completedBy:''};
+      }
+    }
+    return out;
+  }
+  function sanitizeList(list,campaign){ return A(list).map(t => sanitizeExec(t,campaign)); }
+  function canonicalTaskCode(task, campaign){
+    const direct=fullTaskNoCandidate(task); if(direct) return direct;
+    const suffix=taskNoSuffix(task); if(!suffix) return '';
+    // Prefer the linked/strict matching execution task full code.
+    const c=campaign || (typeof campaignForTask === 'function' ? (()=>{try{return campaignForTask(task)||null;}catch(_){return null;}})() : null);
+    if(c){
+      const hit=tasksOf(c).find(x => x !== task && isExecTask(x) && sameOwner(task,x) && taskNoSuffix(x) === suffix && fullTaskNoCandidate(x));
+      if(hit) return fullTaskNoCandidate(hit);
+    }
+    for(const c2 of campaignsList()){
+      const hit=tasksOf(c2).find(x => x !== task && isExecTask(x) && sameOwner(task,x) && taskNoSuffix(x) === suffix && fullTaskNoCandidate(x));
+      if(hit) return fullTaskNoCandidate(hit);
+    }
+    const code=S(campaignCodeOf(task,c) || campaignCodeOf({},c));
+    const creative=S(task?.creativeShortCode || task?.structureRow?.creativeShortCode || task?.creative || task?.product || '').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+    return [code, creative, suffix].filter(Boolean).join('-').toUpperCase();
+  }
+  function visibleTaskNo(task){ const suffix=taskNoSuffix(task); return suffix || S(task?.taskNo || task?.structureTaskNo || ''); }
+  function visibleType(task){ return S(task?.structureRow?.contentType || task?.structureRow?.contentName || task?.contentType || task?.creative || task?.product || task?.taskType || '').replace(/^Task\s*Template\s*-\s*/i,'').replace(/\bMZJ[-_A-Z0-9]+\b/g,'').trim().toUpperCase(); }
+  // Generate every Task Template file with one canonical task code, not sometimes N01 and sometimes a full code.
+  if(typeof v194TaskTemplateSeedValues === 'function'){
+    const oldSeed=v194TaskTemplateSeedValues;
+    v194TaskTemplateSeedValues=function(task){
+      const seed=oldSeed.apply(this,arguments)||{};
+      const c=(typeof campaignForTask === 'function' ? (()=>{try{return campaignForTask(task)||null;}catch(_){return null;}})() : null);
+      const unified=canonicalTaskCode(task,c) || seed.taskNo || taskNoSuffix(task);
+      return {...seed, taskNo:unified};
+    };
+    try{ window.v194TaskTemplateSeedValues=v194TaskTemplateSeedValues; }catch(_){}
+  }
+  // Also keep structureTaskNumber user-facing short, while file generation uses canonical code above.
+  const oldStructureTaskNumber=(typeof structureTaskNumber === 'function') ? structureTaskNumber : null;
+  structureTaskNumber=function(task){ return visibleTaskNo(task) || (oldStructureTaskNumber ? oldStructureTaskNumber.apply(this,arguments) : ''); };
+  try{ window.structureTaskNumber=structureTaskNumber; }catch(_){}
+  const oldShortTaskName=(typeof shortTaskName === 'function') ? shortTaskName : null;
+  shortTaskName=function(task){
+    try{ const no=visibleTaskNo(task); const type=visibleType(task); if(no && type) return esc(`${no} - ${type}`); if(no) return esc(no); }catch(_){}
+    const v=oldShortTaskName ? oldShortTaskName.apply(this,arguments) : (task?.taskType || task?.creative || 'تاسك');
+    return S(v).replace(/[A-Za-z0-9]{8,}[-_]?/g,'').replace(/\s{2,}/g,' ');
+  };
+  try{ window.shortTaskName=shortTaskName; }catch(_){}
+  async function decideTemplateV523(taskIdValue, decision){
+    try{
+      const located=locateTask(taskIdValue); const task=located.task; const campaign=located.campaign; if(!task || !campaign) return toast('تعذر العثور على Task Template.');
+      const status=decision === 'approved' ? 'approved' : (decision === 'needs_changes' ? 'needs_changes' : 'rejected'); const stamp=nowIso(); const note=S(document.querySelector('[data-task-template-review-note]')?.value || '');
+      const base={...(task.taskTemplate || task.contentTaskTemplate || task.approvedContentTemplate || {})};
+      const unified=canonicalTaskCode(task,campaign) || taskNoSuffix(task) || base.taskNo || '';
+      const decided={...base, taskNo:unified, structureTaskNo:unified, canonicalTaskCode:unified, status, reviewStatus:status, templateReviewStatus:status, reviewNote:note || base.reviewNote || '', reviewedAt:stamp, ...(status==='approved'?{approvedAt:stamp}: {})};
+      const main=ident(taskId(task) || taskIdValue); const mainDedupe=[campaignIdOf(task,campaign)||campaignCodeOf(task,campaign), contentOwnerTokens(task)[0]||'', taskNoSuffix(task)||pairKey(task)||creativeKey(task)].map(ident).join('__');
+      const next=tasksOf(campaign).map(t => {
+        const isMain=ident(taskId(t)) === main;
+        const tDedupe=[campaignIdOf(t,campaign)||campaignCodeOf(t,campaign), contentOwnerTokens(t)[0]||'', taskNoSuffix(t)||pairKey(t)||creativeKey(t)].map(ident).join('__');
+        const sameContentDuplicate=!isMain && isContentTemplateTask(t) && tDedupe === mainDedupe;
+        if(isMain){
+          return {...t, taskNo:unified || t.taskNo, structureTaskNo:unified || t.structureTaskNo, taskTemplate:decided, contentTaskTemplate:status==='approved'?decided:t.contentTaskTemplate, approvedContentTemplate:status==='approved'?decided:t.approvedContentTemplate, taskTemplateStatus:status, templateReviewStatus:status, reviewStatus:status, contentTemplateApproved:status==='approved', taskTemplateApproved:status==='approved', waitingForApproval:status!=='approved', waitingForTaskTemplate:false, waitingQueue:false, isWaitingQueue:false, status:status==='approved'?'done':(status==='needs_changes'?'pending_task_template_changes':'task_template_rejected'), taskStatus:status==='approved'?'منتهي':t.taskStatus, progress:status==='approved'?100:Number(t.progress||0), completedAt:status==='approved'?(t.completedAt||stamp):t.completedAt, updatedAt:stamp};
+        }
+        if(sameContentDuplicate){ return {...t, hidden:true, __hiddenDuplicateTemplateTask:true, archivedDuplicate:true, updatedAt:stamp}; }
+        if(strictMatch(task,t,campaign)){
+          if(status==='approved') return executionReadyPatch(t, task, decided, stamp);
+          const clean=stripTemplateState(t); return {...clean, linkedContentTemplateStatus:status, linkedContentTemplateTaskId:taskId(task), linkedContentTemplateReviewNote:note, waitingForApproval:false, waitingForTaskTemplate:false, waitingQueue:false, isWaitingQueue:false, waitingForApprovalLabel:'', status:'in_progress', taskStatus:'قيد التنفيذ', dashboardStatusLabel:'جاهز للتنفيذ', progress:0, updatedAt:stamp};
+        }
+        return sanitizeExec(t,campaign);
+      });
+      await persist(campaign,next);
+      try{ if(typeof closeStructureReviewPopup === 'function') closeStructureReviewPopup(); if(typeof refreshOpenTaskModal === 'function') refreshOpenTaskModal(); if(typeof renderUserDashboard === 'function') renderUserDashboard(); if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); if(typeof renderTasksPage === 'function') renderTasksPage(); }catch(_){}
+      toast(status==='approved'?'تم اعتماد Task Template وربطه بالتاسك المطابق فقط.':(status==='needs_changes'?'تم إرسال Task Template للتعديل.':'تم رفض Task Template.'));
+    }catch(err){ console.error(VERSION,'decide template failed',err); toast(err?.message || 'تعذر تنفيذ الإجراء.'); }
+  }
+  try{
+    window.MZJ_v516_decideTaskTemplate=decideTemplateV523;
+    window.MZJ_v520_approveTaskTemplate=decideTemplateV523;
+    window.MZJ_v522_decideTaskTemplate=decideTemplateV523;
+    window.MZJ_v523_decideTaskTemplate=decideTemplateV523;
+    v171ApproveTaskTemplate = id => decideTemplateV523(id,'approved');
+    v174SetTaskTemplateDecision = (id,decision) => decideTemplateV523(id,decision);
+    window.v171ApproveTaskTemplate=v171ApproveTaskTemplate;
+    window.v174SetTaskTemplateDecision=v174SetTaskTemplateDecision;
+  }catch(_){}
+  const prevTasksForCampaign=typeof tasksForCampaign === 'function' ? tasksForCampaign : null;
+  if(prevTasksForCampaign){ tasksForCampaign=function(campaign){ return sanitizeList(prevTasksForCampaign.apply(this,arguments)||[], campaign).filter(t => !t?.hidden && !t?.__hiddenDuplicateTemplateTask); }; try{ window.tasksForCampaign=tasksForCampaign; }catch(_){} }
+  const prevAdminTasks=typeof adminDashboardTasksForCampaign === 'function' ? adminDashboardTasksForCampaign : null;
+  if(prevAdminTasks){ adminDashboardTasksForCampaign=function(campaign){ return sanitizeList(prevAdminTasks.apply(this,arguments)||[], campaign).filter(t => !t?.hidden && !t?.__hiddenDuplicateTemplateTask); }; try{ window.adminDashboardTasksForCampaign=adminDashboardTasksForCampaign; }catch(_){} }
+  const prevVisible=typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser : null;
+  if(prevVisible){ getVisibleTasksForCurrentUser=function(){ return sanitizeList(prevVisible.apply(this,arguments)||[], null).filter(t => !t?.hidden && !t?.__hiddenDuplicateTemplateTask); }; try{ window.getVisibleTasksForCurrentUser=getVisibleTasksForCurrentUser; }catch(_){} }
+  const prevFind=typeof findTaskById === 'function' ? findTaskById : null;
+  if(prevFind){ findTaskById=function(id){ const t=prevFind.apply(this,arguments); if(!t) return t; let c=null; try{ c=typeof campaignForTask === 'function' ? campaignForTask(t) : null; }catch(_){} return sanitizeExec(t,c); }; try{ window.findTaskById=findTaskById; }catch(_){} }
+  const prevWorkflow=typeof taskWorkflowStatus === 'function' ? taskWorkflowStatus : null;
+  taskWorkflowStatus=function(task){ if(isExecTask(task) && hasTemplateState(task) && !hasFinalUpload(task)) return 'active'; return prevWorkflow ? prevWorkflow.apply(this,arguments) : 'waiting'; };
+  try{ window.taskWorkflowStatus=taskWorkflowStatus; }catch(_){}
+  try{ window.MZJ_APP_VERSION='523'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){}
+})();
