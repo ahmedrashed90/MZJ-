@@ -18,7 +18,7 @@
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&amp;display=swap" rel="stylesheet"/>
-<link href="assets/css/style.css?v=418" rel="stylesheet">
+<link href="assets/css/style.css?v=535" rel="stylesheet">
 <link href="assets/favicon.png" rel="icon" type="image/x-icon"/>
 </link></head>
 <body>
@@ -103,10 +103,10 @@
 <div class="card"><div class="filters"><input class="control" placeholder="ابحث عن حملة" type="search"/><select class="select"><option>كل الحالات</option></select></div><div class="campaign-list" id="campaignsList"><div class="empty-state">لا توجد حملات حتى الآن.</div></div></div>
 </section>
 <section class="view" data-title="إنشاء حملة" id="create-campaign">
-<div class="page-head campaign-builder-head v532-create-head">
+<div class="page-head campaign-builder-head v533-create-head">
   <div class="page-title">
     <h1>إنشاء حملة</h1>
-    <p>صفحة واحدة لإنشاء الحملة بنفس التصور المعتمد: طلب كاتب المحتوى، اختيار الكرييتيف، الميزانية، المراجعة.</p>
+    <p>تصور موحد لإنشاء الحملة: طلب كاتب المحتوى، اختيار الكرييتيف، الميزانية، المراجعة.</p>
   </div>
   <div class="actions">
     <button class="btn btn-light" id="resetCampaignBuilder" type="button">مسح النموذج</button>
@@ -114,10 +114,10 @@
   </div>
 </div>
 
-<div class="v532-create-page" id="campaignWizard" dir="rtl">
-  <section class="card v531-panel v532-request-panel campaign-wizard-panel active" data-campaign-wizard-step="1">
-    <div class="v531-panel-head"><div><h2>طلب كاتب المحتوى</h2></div></div>
-    <form class="form v531-grid" id="campaignRequestForm">
+<div class="v533-create-page" id="campaignWizard" dir="rtl">
+  <section class="card v531-panel v533-panel v533-request-panel" data-v533-panel="request">
+    <div class="v531-panel-head v533-panel-head"><div class="v533-title"><span class="v533-icon">👥</span><h2>طلب كاتب المحتوى</h2></div></div>
+    <form class="form v531-grid v533-request-grid" id="campaignRequestForm">
       <label class="field"><span>تاريخ الحملة</span><input name="campaign_date" type="date" readonly></label>
       <label class="field"><span>بداية النشر</span><input id="publishStartDate" name="publish_start_date" type="date"></label>
       <label class="field"><span>نهاية النشر</span><input id="publishEndDate" name="publish_end_date" type="date"></label>
@@ -126,37 +126,38 @@
       <label class="field"><span>اسم الحملة</span><input name="campaign_name" type="text" placeholder="اكتب اسم الحملة"></label>
       <label class="field field-wide"><span>هدف الحملة</span><textarea name="campaign_goal" placeholder="اكتب الهدف"></textarea></label>
       <label class="field field-wide"><span>المطلوب من كاتب المحتوى</span><textarea name="content_writer_brief" placeholder="اكتب المطلوب"></textarea></label>
-      <div class="field field-wide"><span>يوزرات كتابة المحتوى لطلب الهيكل</span><div id="v531ContentWriters" class="v531-check-grid"></div></div>
+      <div class="field field-wide"><span>يوزرات كتابة المحتوى لطلب الهيكل</span><div id="v531ContentWriters" class="v531-check-grid v533-content-users"></div></div>
       <label class="field"><span>موعد تسليم الهيكل</span><input name="structure_deadline" type="date"></label>
     </form>
   </section>
 
-  <section class="card v531-panel v532-creative-panel campaign-wizard-panel active" data-campaign-wizard-step="2">
-    <div class="v531-panel-head"><div><h2>اختيار الكرييتيف</h2></div></div>
-    <div class="v531-creative-layout">
-      <aside class="v531-creative-picker">
+  <section class="card v531-panel v533-panel v533-creative-panel" data-v533-panel="creative">
+    <div class="v531-panel-head v533-panel-head"><div class="v533-title"><span class="v533-icon">🖼️</span><h2>اختيار الكرييتيف</h2></div></div>
+    <div class="v531-creative-layout v533-creative-layout">
+      <aside class="v531-creative-picker v533-creative-picker">
         <label class="field"><span>بحث عن كرييتيف</span><input id="v531CreativeSearch" type="search" placeholder="ابحث عن كرييتيف بالاسم أو النوع..."></label>
-        <div id="v531CreativeList" class="v531-creative-list"></div>
+        <div id="v531CreativeList" class="v531-creative-list v533-creative-list"></div>
       </aside>
-      <main class="v531-creative-details">
-        <div id="v531SelectedCreatives" class="v531-selected-creatives"><div class="empty-state">اختار كرييتيف واحد أو أكثر.</div></div>
+      <main class="v531-creative-details v533-creative-details">
+        <div id="v531SelectedCreatives" class="v531-selected-creatives v533-selected-creatives"><div class="empty-state">اختار كرييتيف واحد أو أكثر.</div></div>
       </main>
     </div>
   </section>
 
-  <section class="card v531-panel v532-budget-panel campaign-wizard-panel active" data-campaign-wizard-step="3">
-    <div class="v531-panel-head"><div><h2>الميزانية</h2></div><button class="btn btn-light" id="addBudgetRowBtn" type="button">＋ إضافة بند ميزانية</button></div>
-    <div class="budget-items v531-budget-list" id="budgetRows"><div class="empty-state">لا توجد بنود ميزانية.</div></div>
-    <div class="budget-grand-total"><span>إجمالي الميزانية</span><strong id="budgetGrandTotalValue">0</strong></div>
+  <section class="card v531-panel v533-panel v533-budget-panel" data-v533-panel="budget">
+    <div class="v531-panel-head v533-panel-head"><div class="v533-title"><span class="v533-icon">💼</span><h2>الميزانية</h2></div><button class="btn btn-light" id="addBudgetRowBtn" type="button">＋ إضافة بند ميزانية</button></div>
+    <div class="budget-items v531-budget-list v533-budget-list" id="budgetRows"><div class="empty-state">لا توجد بنود ميزانية.</div></div>
+    <div class="budget-grand-total v533-grand-total"><span>إجمالي الميزانية</span><strong id="budgetGrandTotalValue">0</strong></div>
   </section>
 
-  <section class="card v531-panel v532-review-panel campaign-wizard-panel active" data-campaign-wizard-step="4">
-    <div class="v531-panel-head"><div><h2>المراجعة</h2><p>عرض لكل حاجة اختارتها.</p></div></div>
-    <div class="review-grid v531-review-grid" id="campaignReviewGrid"></div>
-    <div class="campaign-wizard-actions v532-save-row"><button class="btn btn-primary" id="campaignWizardFinalSave" type="button">إنشاء الحملة</button></div>
+  <section class="card v531-panel v533-panel v533-review-panel" data-v533-panel="review">
+    <div class="v531-panel-head v533-panel-head"><div class="v533-title"><span class="v533-icon">✅</span><h2>المراجعة</h2></div><p>عرض لكل حاجة اختارتها.</p></div>
+    <div class="review-grid v531-review-grid v533-review-grid" id="campaignReviewGrid"></div>
+    <div class="campaign-wizard-actions v533-save-row"><button class="btn btn-primary" id="campaignWizardFinalSave" type="button">إنشاء الحملة</button></div>
   </section>
 </div>
 </section>
+
 <section class="view" data-title="ربط المنصات" id="social-publisher">
 <div class="page-head social-publisher-head">
 <div class="page-title">
@@ -1011,6 +1012,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="assets/js/jszip.min.js?v=160"></script>
-<script src="assets/js/app.js?v=532"></script>
+<script src="assets/js/app.js?v=534"></script>
 </input></input></input></input></body>
 </html>
