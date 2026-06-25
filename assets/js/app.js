@@ -34405,3 +34405,225 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{setTimeout(cleanup,250);setTimeout(cleanup,1000);}); else {setTimeout(cleanup,250);setTimeout(cleanup,1000);}
   try{ window.MZJ_APP_VERSION='553'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
 })();
+
+/* MZJ v557 - reliable car search and marketing_campaigns save guard */
+(function(){
+  const VERSION='v557-reliable-car-search-marketing-save';
+  const q=(s,r=document)=>r.querySelector(s);
+  const qa=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  const S=v=>String(v==null?'':v);
+  function norm(v){
+    return S(v)
+      .toLowerCase()
+      .replace(/[\u064B-\u065F\u0670]/g,'')
+      .replace(/[أإآٱا]/g,'ا')
+      .replace(/ة/g,'ه')
+      .replace(/ى/g,'ي')
+      .replace(/ئ/g,'ي')
+      .replace(/ؤ/g,'و')
+      .replace(/گ/g,'ك')
+      .replace(/[ـ_\-–—،,.؛:()\[\]{}\/\\]+/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+  function carCardText(card){
+    const input=card.querySelector('input');
+    const bits=[card.textContent||'', input?.dataset?.label||'', input?.dataset?.name||'', input?.value||'', card.getAttribute('title')||'', card.getAttribute('aria-label')||''];
+    return norm(bits.join(' '));
+  }
+  function carCards(list){
+    return qa('label',list).filter(el=>el.querySelector('.v531-car-check,.v543-car-check,input[type="checkbox"]') && !el.classList.contains('v557-no-car-results'));
+  }
+  function matchesAllWords(hay,term){
+    if(!term) return true;
+    const words=term.split(' ').filter(Boolean);
+    return words.every(w=>hay.includes(w));
+  }
+  function filterCarBox(box){
+    if(!box) return;
+    const input=q('.v557-car-search,.v556-car-search',box);
+    const list=q('.v531-car-options,.v543-car-options',box);
+    if(!input || !list) return;
+    box.dataset.mzjCarSearchTerm = input.value || '';
+    const term=norm(input.value);
+    let shown=0;
+    const cards=carCards(list);
+    cards.forEach(card=>{
+      const ok=!term || matchesAllWords(carCardText(card),term);
+      card.style.setProperty('display', ok ? '' : 'none', ok ? '' : 'important');
+      card.hidden = !ok;
+      if(ok) shown++;
+    });
+    let empty=q('.v557-no-car-results,.v556-no-car-results',list);
+    if(!empty){
+      empty=document.createElement('div');
+      empty.className='empty-state mini-empty v557-no-car-results';
+      empty.textContent='لا توجد سيارات مطابقة للبحث';
+      list.appendChild(empty);
+    }
+    empty.style.setProperty('display',(term && shown===0)?'block':'none','important');
+  }
+  function ensureCarSearch(root=document){
+    const main=q('#create-campaign',root)||q('#create-campaign');
+    if(!main) return;
+    qa('.v531-car-box,.v543-car-box',main).forEach(box=>{
+      const list=q('.v531-car-options,.v543-car-options',box);
+      if(!list) return;
+      let input=q('.v557-car-search,.v556-car-search',box);
+      if(!input){
+        const wrap=document.createElement('div');
+        wrap.className='v557-car-search-wrap';
+        wrap.innerHTML='<input class="v557-car-search" type="search" autocomplete="off" inputmode="search" placeholder="ابحث باسم السيارة أو اللون..." aria-label="بحث باسم السيارة">';
+        list.parentNode.insertBefore(wrap,list);
+        input=q('.v557-car-search',box);
+      }else{
+        input.classList.add('v557-car-search');
+      }
+      if(box.dataset.mzjCarSearchTerm && input.value!==box.dataset.mzjCarSearchTerm) input.value=box.dataset.mzjCarSearchTerm;
+      filterCarBox(box);
+    });
+  }
+  function installStyle(){
+    let st=q('#v557CarSearchStyle');
+    if(!st){ st=document.createElement('style'); st.id='v557CarSearchStyle'; document.head.appendChild(st); }
+    st.textContent=`
+      #create-campaign .v557-car-search-wrap{display:block!important;width:100%!important;margin:8px 0!important;}
+      #create-campaign .v557-car-search,
+      #create-campaign .v556-car-search{display:block!important;width:100%!important;box-sizing:border-box!important;border:1px solid rgba(155,88,71,.38)!important;border-radius:12px!important;background:#fff!important;padding:9px 12px!important;font-family:inherit!important;font-size:12px!important;font-weight:400!important;color:#2d1b16!important;outline:none!important;}
+      #create-campaign .v557-car-search:focus,
+      #create-campaign .v556-car-search:focus{border-color:#9b5847!important;box-shadow:0 0 0 3px rgba(155,88,71,.08)!important;}
+      #create-campaign .v557-no-car-results{padding:14px!important;text-align:center!important;font-size:12px!important;color:#9b7468!important;border:1px dashed rgba(198,151,125,.34)!important;border-radius:12px!important;background:#fffaf7!important;margin-top:8px!important;}
+    `;
+  }
+  function cleanUndefined(value){
+    if(value===undefined) return null;
+    if(value===null) return null;
+    if(Array.isArray(value)) return value.map(cleanUndefined);
+    if(value && Object.prototype.toString.call(value)==='[object Object]'){
+      const out={}; Object.keys(value).forEach(k=>{ out[k]=cleanUndefined(value[k]); }); return out;
+    }
+    return value;
+  }
+  function installSaveGuard(){
+    try{ window.MZJ_CAMPAIGNS_COLLECTION='marketing_campaigns'; window.CAMPAIGNS_COLLECTION='marketing_campaigns'; }catch(_){ }
+    try{
+      const fs=window.firebase && firebase.firestore;
+      const proto=fs && fs.DocumentReference && fs.DocumentReference.prototype;
+      if(proto && !proto.__mzj_v557_clean_write){
+        const oldSet=proto.set, oldUpdate=proto.update;
+        proto.set=function(data,options){ return oldSet.call(this,cleanUndefined(data),options); };
+        proto.update=function(){ if(arguments.length===1) return oldUpdate.call(this,cleanUndefined(arguments[0])); return oldUpdate.apply(this,arguments); };
+        proto.__mzj_v557_clean_write=true;
+      }
+    }catch(e){ console.warn(VERSION,'firestore clean guard failed',e); }
+    try{
+      const oldSave=window.saveCampaignToFirebase || (typeof saveCampaignToFirebase==='function'?saveCampaignToFirebase:null);
+      if(oldSave && !oldSave.__mzj_v557_marketing_campaigns){
+        const wrapped=async function(){
+          window.MZJ_CAMPAIGNS_COLLECTION='marketing_campaigns';
+          window.CAMPAIGNS_COLLECTION='marketing_campaigns';
+          try{ CAMPAIGNS_COLLECTION='marketing_campaigns'; }catch(_){ }
+          return oldSave.apply(this,arguments);
+        };
+        wrapped.__mzj_v557_marketing_campaigns=true;
+        window.saveCampaignToFirebase=wrapped;
+        try{ saveCampaignToFirebase=wrapped; }catch(_){ }
+      }
+    }catch(e){ console.warn(VERSION,'save guard failed',e); }
+  }
+  function boot(){ installStyle(); installSaveGuard(); ensureCarSearch(); }
+  function scheduleFilter(box){ [0,40,120,260,520].forEach(ms=>setTimeout(()=>{ ensureCarSearch(); filterCarBox(box); },ms)); }
+  ['input','keyup','change','search','paste','cut','compositionend'].forEach(type=>{
+    document.addEventListener(type,function(e){
+      if(!q('#create-campaign')?.contains(e.target)) return;
+      if(e.target?.matches?.('.v557-car-search,.v556-car-search')){
+        const box=e.target.closest('.v531-car-box,.v543-car-box');
+        if(box) box.dataset.mzjCarSearchTerm=e.target.value||'';
+        scheduleFilter(box);
+      }
+    },true);
+  });
+  ['click','change'].forEach(type=>document.addEventListener(type,function(e){
+    if(q('#create-campaign')?.contains(e.target)) setTimeout(boot,90);
+  },true));
+  const oldRender=typeof renderRoute==='function'?renderRoute:null;
+  if(oldRender){ renderRoute=function(){ const r=oldRender.apply(this,arguments); setTimeout(boot,160); setTimeout(boot,700); return r; }; }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{ setTimeout(boot,200); setTimeout(boot,900); }); else { setTimeout(boot,200); setTimeout(boot,900); }
+  try{
+    const mo=new MutationObserver(()=>{ if(q('#create-campaign')) setTimeout(ensureCarSearch,60); });
+    mo.observe(document.body,{childList:true,subtree:true});
+  }catch(_){ }
+  try{ window.MZJ_APP_VERSION='557'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
+
+/* MZJ v558 - single campaign save guard: prevent duplicate marketing_campaigns writes */
+(function(){
+  const VERSION='v558-single-create-campaign-save';
+  const S=v=>String(v==null?'':v);
+  function toast(msg){ try{ if(typeof showToast==='function') showToast(msg); else console.log(msg); }catch(_){ console.log(msg); } }
+  function inCreateCampaign(target){ try{ return !!(target && target.closest && target.closest('#create-campaign')); }catch(_){ return false; } }
+  function isSaveTarget(target){ try{ return !!(target && target.closest && target.closest('#saveCampaignDraft,#campaignWizardFinalSave,[data-create-campaign-save],[data-save-campaign]')); }catch(_){ return false; } }
+  let originalSaveFn = null;
+  function currentSaveFn(){
+    if(typeof originalSaveFn === 'function') return originalSaveFn;
+    try{ if(typeof saveCampaignToFirebase==='function' && !saveCampaignToFirebase.__mzj_v558_single_save) return saveCampaignToFirebase; }catch(_){ }
+    try{ if(typeof window.saveCampaignToFirebase==='function' && !window.saveCampaignToFirebase.__mzj_v558_single_save) return window.saveCampaignToFirebase; }catch(_){ }
+    return null;
+  }
+  async function runSingleSave(){
+    if(window.__MZJ_CREATE_CAMPAIGN_SAVING__){
+      toast('جاري حفظ الحملة...');
+      return;
+    }
+    const fn=currentSaveFn();
+    if(typeof fn!=='function'){
+      toast('تعذر حفظ الحملة: دالة الحفظ غير موجودة.');
+      return;
+    }
+    window.__MZJ_CREATE_CAMPAIGN_SAVING__=true;
+    try{
+      window.MZJ_CAMPAIGNS_COLLECTION='marketing_campaigns';
+      window.CAMPAIGNS_COLLECTION='marketing_campaigns';
+      try{ CAMPAIGNS_COLLECTION='marketing_campaigns'; }catch(_){ }
+      await Promise.resolve(fn.call(window));
+    }catch(error){
+      console.error(VERSION,'save failed',error);
+      toast(error && error.code==='permission-denied' ? 'تعذر حفظ الحملة: راجع قواعد Firestore.' : 'تعذر حفظ الحملة.');
+    }finally{
+      setTimeout(()=>{ window.__MZJ_CREATE_CAMPAIGN_SAVING__=false; }, 1800);
+    }
+  }
+
+  window.addEventListener('click', function(event){
+    if(!inCreateCampaign(event.target) || !isSaveTarget(event.target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    runSingleSave();
+  }, true);
+
+  window.addEventListener('submit', function(event){
+    if(!inCreateCampaign(event.target)) return;
+    const submitter = event.submitter || document.activeElement;
+    if(submitter && isSaveTarget(submitter)){
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      runSingleSave();
+    }
+  }, true);
+
+  // Wrap the global save too, so any programmatic call still cannot create duplicates.
+  setTimeout(function(){
+    const fn=currentSaveFn();
+    if(typeof fn==='function' && !fn.__mzj_v558_single_save){
+      originalSaveFn = fn;
+      const wrapped=async function(){ return runSingleSave(); };
+      wrapped.__mzj_v558_single_save=true;
+      try{ window.saveCampaignToFirebase=wrapped; }catch(_){ }
+      try{ saveCampaignToFirebase=wrapped; }catch(_){ }
+    }
+  }, 500);
+
+  try{ window.MZJ_APP_VERSION='558'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
