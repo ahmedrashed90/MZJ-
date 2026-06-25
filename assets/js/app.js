@@ -33422,43 +33422,77 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function renderCreativeList(){
     const box = q('#v531CreativeList'); if(!box) return;
     const term = (q('#v531CreativeSearch')?.value || '').toLowerCase().trim();
-    const chosen = new Set(qa('.v531-creative-panel').map(p => p.dataset.creativeId));
-    const list = A(creatives).filter(c => !term || creativeName(c).toLowerCase().includes(term) || S(c.type || c.category || '').toLowerCase().includes(term));
+    const list = A(creatives).filter(c => !term || creativeName(c).toLowerCase().includes(term) || S(c.type || c.category || c.code || c.shortCode || '').toLowerCase().includes(term));
     box.innerHTML = list.length ? list.map((c,i) => {
       const id = S(c.id || creativeName(c) || i);
-      return `<button class="v531-creative-card${chosen.has(id)?' active':''}" type="button" data-v531-toggle-creative="${esc(id)}"><span><strong>${esc(creativeName(c))}</strong><small>${esc(c.type || c.category || '')}</small></span><span class="plus">${chosen.has(id)?'✓':'+'}</span></button>`;
+      const info = creativeCodeInfo(c, creativeName(c));
+      return `<button class="v531-creative-card" type="button" data-v531-toggle-creative="${esc(id)}"><span><strong>${esc(creativeName(c))}</strong><small>${esc(info.code || c.type || c.category || '')}</small></span><span class="plus">+</span></button>`;
     }).join('') : '<div class="empty-state">لا توجد كرييتيفات مطابقة.</div>';
   }
+
+  function creativeNorm(v){ return S(v).toLowerCase().replace(/[أإآا]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/ئ/g,'ي').replace(/ؤ/g,'و').replace(/[ـ]/g,'').replace(/\s+/g,' ').trim(); }
+  const MZJ_CREATIVE_PRIMARY_RULES = [
+    ['REEL - مواصفات كامله - STUDIO','M-RL-SPEC-ST','montage'],['REEL - اهم المواصفات - STUDIO','M-RL-TOP-ST','montage'],['REEL - SHORT/TREND - SHOWROOM','M-RL-TRD-SR','montage'],['REEL - UGC - SHOWROOM','M-RL-UGC-SR','montage'],['REEL - حملات - SHOWROOM','M-RL-CMP-SR','montage'],['REEL - معارضنا - SHOWROOM','M-RL-SHOW-SR','montage'],['REEL - تجربه عميل - SHOWROOM','M-RL-CUST-SR','montage'],['VIDEO - مواصفات - STUDIO','M-VD-SPEC-ST','montage'],['VIDEO - فيلم سياره - STUDIO','M-VD-CAR-ST','montage'],['VIDEO - فيلم - STUDIO','M-VD-FILM-ST','montage'],['VIDEO - مواصفات - SHOWROOM','M-VD-SPEC-SR','montage'],['VIDEO - فيلم - SHOWROOM','M-VD-FILM-SR','montage'],['VIDEO - معارضنا - SHOWROOM','M-VD-SHOW-SR','montage'],['STORY - جاهزة الان - STUDIO','M-ST-READY-ST','montage'],['STORY - سعرها اليوم - STUDIO','M-ST-PRICE-ST','montage'],['STORY - قسطها الان - STUDIO','M-ST-INST-ST','montage'],['STORY - معرضنا - SHOWROOM','M-ST-SHOW-SR','montage'],['STORY - جاهزة الان - SHOWROOM','M-ST-READY-SR','montage'],['STORY - سعرها اليوم - SHOWROOM','M-ST-PRICE-SR','montage'],['STORY - قسطها الان - SHOWROOM','M-ST-INST-SR','montage'],
+    ['POST','D-POST','design'],['CAROUSEL','D-CAROUSEL','design'],['PANNER','D-PANNER','design'],['BANNER','D-PANNER','design'],['MOTION','D-MOTION','design'],['GIF','D-GIF','design'],['PRINT','D-PRINT','design'],['MZJ-INTERIAL','D-INTERIAL','design'],
+    ['تصوير صور السياره','P-CAR-PHOTO','photography'],['تصوير ريل - مواصفات - STUDIO','P-RL-SPEC-ST','photography'],['تصوير ريل - SHORT/TREND - SHOWROOM','P-RL-TRD-SR','photography'],['تصوير ريل - UGC - SHOWROOM','P-RL-UGC-SR','photography'],['تصوير ريل - معارضنا - SHOWROOM','P-RL-SHOW-SR','photography'],['تصوير ريل - تجربه عميل - SHOWROOM','P-RL-CUST-SR','photography'],['تصوير فيديو - مواصفات - STUDIO','P-VD-SPEC-ST','photography'],['تصوير فيديو - مواصفات - SHOWROOM','P-VD-SPEC-SR','photography'],['تصوير فيديو - معارضنا - SHOWROOM','P-VD-SHOW-SR','photography'],['تصوير ستوري - سياره - STUDIO','P-ST-CAR-ST','photography'],['تصوير ستوري - معرضنا - SHOWROOM','P-ST-SHOW-SR','photography']
+  ];
+  function creativeCodeInfo(creative, name){
+    const rawCode=S(creative?.shortCode || creative?.code || creative?.creativeShortCode || creative?.key || '');
+    if(/^M-/i.test(rawCode)) return {code:rawCode.toUpperCase(), kind:'montage'};
+    if(/^D-/i.test(rawCode)) return {code:rawCode.toUpperCase(), kind:'design'};
+    if(/^P-/i.test(rawCode)) return {code:rawCode.toUpperCase(), kind:'photography'};
+    const n=creativeNorm(name || creativeName(creative));
+    let hit=MZJ_CREATIVE_PRIMARY_RULES.find(r=>creativeNorm(r[0])===n);
+    if(!hit) hit=MZJ_CREATIVE_PRIMARY_RULES.find(r=>n.includes(creativeNorm(r[0])) || creativeNorm(r[0]).includes(n));
+    if(hit) return {code:hit[1], kind:hit[2]};
+    const upper=S(name||'').toUpperCase();
+    if(/^M-/.test(upper)||/\b(REEL|VIDEO|STORY)\b/i.test(name)||/ريل|فيديو|ستوري/i.test(name)) return {code:rawCode, kind:'montage'};
+    if(/^D-/.test(upper)||/^(POST|CAROUSEL|PANNER|BANNER|MOTION|GIF|PRINT|MZJ)/i.test(S(name))) return {code:rawCode, kind:'design'};
+    if(/^P-/.test(upper)||/تصوير/i.test(name)) return {code:rawCode, kind:'photography'};
+    return {code:rawCode, kind:'design'};
+  }
+  function depForPrimaryKind(kind){
+    const tests={montage:[/مونتاج/i,/montage/i,/editing/i],design:[/تصميم/i,/design/i],photography:[/تصوير/i,/photography/i,/photo/i]}[kind]||[];
+    return A(departments).find(d=>tests.some(rx=>rx.test(S(d.name||d.slug||d.id)))) || nonContentDepartments()[0] || null;
+  }
+  function isPublishDepartment(dep){ return /نشر|publish|publishing/i.test(S(dep?.name || dep?.slug || dep?.id)); }
   function inferPrimaryDepartment(creative){
+    const info = creativeCodeInfo(creative, creativeName(creative));
+    const dep = depForPrimaryKind(info.kind);
+    if(dep) return S(dep.id || dep.name);
     const candidates = [creative?.primaryDepartmentId, creative?.mainDepartmentId, creative?.departmentId, creative?.primaryDepartment, creative?.mainDepartment, creative?.department].filter(Boolean);
-    for(const c of candidates){ const d=A(departments).find(x=>S(x.id)===S(c)||S(x.name)===S(c)); if(d && role(d.name)!=='content') return d.id; }
-    const design = A(departments).find(d => role(d.name || d.slug || d.id) === 'design' || /تصميم|design/i.test(S(d.name || d.slug || d.id)));
-    return S(design?.id || nonContentDepartments()[0]?.id || '');
+    for(const c of candidates){ const d=A(departments).find(x=>S(x.id)===S(c)||S(x.name)===S(c)); if(d && role(d.name)!=='content' && !isPublishDepartment(d)) return d.id; }
+    return S(nonContentDepartments().filter(d=>!isPublishDepartment(d))[0]?.id || '');
   }
   function addCreativePanel(creativeId){
     const wrap=q('#v531SelectedCreatives'); if(!wrap) return;
-    if(wrap.querySelector(`[data-creative-id="${CSS.escape(creativeId)}"]`)) return;
     const item=A(creatives).find(c=>S(c.id)===S(creativeId)||creativeName(c)===S(creativeId)) || {id:creativeId,name:creativeId};
     if(wrap.querySelector('.empty-state')) wrap.innerHTML='';
     const id=S(item.id || creativeName(item));
     const name=creativeName(item);
     const primary=inferPrimaryDepartment(item);
+    const info=creativeCodeInfo(item,name);
+    const instanceId = `${id}__${Date.now()}__${Math.random().toString(36).slice(2,7)}`;
     const panel=document.createElement('article');
     panel.className='v531-creative-panel';
-    panel.dataset.creativeId=id; panel.dataset.creativeName=name;
-    panel.innerHTML = creativePanelHtml(id,name,primary);
+    panel.dataset.creativeId=id; panel.dataset.creativeInstanceId=instanceId; panel.dataset.creativeName=name; panel.dataset.creativeCode=info.code || creativeShort(name);
+    panel.innerHTML = creativePanelHtml(id,name,primary,item);
     wrap.appendChild(panel);
     renderDepartmentSections(panel);
     renderCreativeList(); renderBudgetCreativeChecks(); renderReview();
   }
-  function creativePanelHtml(id,name,primary){
-    const depOpts = '<option value="">اختار القسم الأساسي</option>' + nonContentDepartments().map(d => `<option value="${esc(d.id)}"${S(d.id)===S(primary)?' selected':''}>${esc(d.name)}</option>`).join('');
-    const optional = nonContentDepartments().filter(d=>S(d.id)!==S(primary)).map(d => `<label class="v531-check-card"><input type="checkbox" class="v531-optional-dep" value="${esc(d.id)}"><span><strong>${esc(d.name)}</strong><small>قسم اختياري</small></span></label>`).join('') || '<div class="empty-state mini-empty">لا توجد أقسام اختيارية.</div>';
-    return `<div class="v531-creative-panel-head"><div><h3>${esc(name)}</h3><div class="v531-tag-row"><span class="v531-tag">${esc(creativeShort(name))}</span></div></div><button class="v531-remove-btn" type="button" data-v531-remove-creative="${esc(id)}">حذف</button></div>
-      <div class="v531-creative-config-grid">
-        <div class="v531-car-box"><label class="v531-check-card"><input type="checkbox" class="v531-enable-cars"><span><strong>اختيار السيارة</strong><small>علّم لو عاوز اختيار سيارة</small></span></label><div class="v531-car-options v531-hidden">${carOptionsHtml()}</div></div>
-        <div class="v531-department-box"><label class="field"><span>القسم الأساسي</span><select class="v531-primary-dep">${depOpts}</select></label><div class="field"><span>أقسام اختيارية</span><div class="v531-check-grid">${optional}</div></div></div>
-      </div><div class="v531-department-sections"></div>`;
+  function creativePanelHtml(id,name,primary, item={}){
+    const info=creativeCodeInfo(item,name);
+    const primaryDep=A(departments).find(d=>S(d.id)===S(primary)||S(d.name)===S(primary)) || depForPrimaryKind(info.kind) || {id:primary,name:primary||'القسم الأساسي'};
+    const primaryId=S(primaryDep.id || primaryDep.name || primary || '');
+    const primaryName=S(primaryDep.name || primaryDep.id || primary || 'القسم الأساسي');
+    const optional = nonContentDepartments().filter(d=>S(d.id)!==S(primaryId) && !isPublishDepartment(d)).map(d => `<label class="v531-check-card v543-optional-card"><input type="checkbox" class="v531-optional-dep" value="${esc(d.id)}"><span><strong>${esc(d.name)}</strong><small>قسم اختياري</small></span></label>`).join('') || '<div class="empty-state mini-empty">لا توجد أقسام اختيارية.</div>';
+    const code=info.code || creativeShort(name);
+    return `<div class="v531-creative-panel-head v543-creative-head"><div><h3>${esc(name)}</h3><div class="v531-tag-row"><span class="v531-tag">${esc(code)}</span></div></div><div class="v543-creative-actions"><button class="btn btn-light v543-save-creative" type="button" data-v543-save-creative>حفظ الكرييتيف</button><button class="v531-remove-btn" type="button" data-v531-remove-creative="${esc(id)}">حذف</button></div></div>
+      <div class="v543-creative-body">
+        <div class="v531-car-box v543-car-box"><label class="v531-check-card v543-car-toggle"><input type="checkbox" class="v531-enable-cars"><span><strong>اختيار السيارة</strong><small>علّم لو عاوز اختيار سيارة</small></span></label><div class="v531-car-options v531-hidden v543-car-options">${carOptionsHtml()}</div></div>
+        <div class="v531-department-box v543-department-box"><input type="hidden" class="v531-primary-dep" value="${esc(primaryId)}"><div class="v543-primary-card"><span class="v543-primary-label-title">القسم الأساسي</span><strong>${esc(primaryName)}</strong><small>${esc(code)}</small></div><div class="field v543-optional-area"><span>أقسام اختيارية</span><div class="v531-check-grid v543-optional-grid">${optional}</div></div></div>
+      </div><div class="v531-department-sections v543-department-sections"></div>`;
   }
   function carOptionsHtml(){
     let groups=[]; try{ groups = typeof buildStockGroups==='function' ? buildStockGroups().slice(0,80) : []; }catch(_){ groups=[]; }
@@ -33496,18 +33530,18 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
       const box=q('.v531-writer-deadlines',sec); if(!box) return;
       const selected=qa('.v531-section-writer:checked',sec).map(i=>({id:i.value,name:i.dataset.name||i.value}));
       const prev=Object.fromEntries(qa('.v531-writer-date',sec).map(i=>[i.dataset.writerId,i.value]));
-      box.innerHTML = selected.length ? selected.map(w=>`<label class="field"><span>موعد تسليم كتابة المحتوى - ${esc(w.name)}</span><input class="v531-writer-date" data-writer-id="${esc(w.id)}" type="date" value="${esc(prev[w.id]||'')}"></label>`).join('') : '<div class="empty-state mini-empty">اختار كاتب محتوى لعرض موعد التسليم داخل هذا القسم.</div>';
+      box.innerHTML = selected.length ? selected.map(w=>`<label class="field"><span>موعد تسليم كتابة المحتوى - ${esc(w.name)}</span><input class="v531-writer-date" data-writer-id="${esc(w.id)}" type="date" value="${esc(prev[w.id]||'')}"></label>`).join('') : '';
     });
   }
 
   function selectedCreativeNames(){ return qa('.v531-creative-panel').map(p => S(p.dataset.creativeName)).filter(Boolean); }
   function renderBudgetCreativeChecks(){ qa('.v531-budget-creatives').forEach(box => { const old=new Set(qa('input:checked',box).map(i=>i.value)); const list=selectedCreativeNames(); box.innerHTML = list.length ? list.map(n=>`<label class="v531-check-card"><input type="checkbox" class="v531-budget-creative" value="${esc(n)}"${old.has(n)?' checked':''}><span><strong>${esc(n)}</strong></span></label>`).join('') : '<div class="empty-state mini-empty">اختار كرييتيفات في الخطوة الثانية.</div>'; }); }
-  function platformChecksHtml(){ const list=A(platforms); return list.length ? list.map(p=>`<label class="v531-check-card"><input type="checkbox" class="v531-budget-platform" value="${esc(p.id || p.name)}" data-name="${esc(p.name || p.id)}"><span><strong>${esc(p.name || p.id)}</strong></span></label>`).join('') : '<div class="empty-state mini-empty">لا توجد منصات.</div>'; }
+  function platformChecksHtml(){ const seen=new Set(); const list=A(platforms).filter(p=>{ const key=(S(p.name||p.id)).toLowerCase(); if(!key||seen.has(key)) return false; seen.add(key); return true; }); return list.length ? list.map(p=>`<label class="v531-check-card"><input type="checkbox" class="v531-budget-platform" value="${esc(p.id || p.name)}" data-name="${esc(p.name || p.id)}"><span><strong>${esc(p.name || p.id)}</strong></span></label>`).join('') : '<div class="empty-state mini-empty">لا توجد منصات.</div>'; }
   function addBudgetRow(){
     const wrap=q('#budgetRows'); if(!wrap) return; const empty=q('.empty-state',wrap); if(empty) empty.remove();
     const card=document.createElement('article'); card.className='v531-budget-card budget-item-card';
     card.innerHTML = `<div class="v531-budget-card-head"><strong>بند ميزانية</strong><button class="v531-remove-btn" type="button" data-v531-remove-budget>حذف</button></div><div class="v531-budget-grid">
-      <label class="field"><span>اختار Funnel</span><input class="v531-budget-funnel" type="text" placeholder="اكتب أو اختار Funnel"></label>
+      <label class="field"><span>اختار Funnel</span><select class="v531-budget-funnel">${typeof funnelOptions === 'function' ? funnelOptions('') : '<option value="">اختر Funnel</option>'}</select></label>
       <div class="field"><span>اختار كريتيف أو أكثر</span><div class="v531-check-grid v531-budget-creatives"></div></div>
       <div class="field"><span>اختار منصة أو أكثر</span><div class="v531-check-grid v531-budget-platforms">${platformChecksHtml()}</div></div>
       <label class="field"><span>عدد الإعلانات</span><input class="v531-budget-ads" type="text"></label>
@@ -33639,7 +33673,36 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     if(event.target.closest('[data-campaign-wizard-prev]')){ event.preventDefault(); event.stopImmediatePropagation(); moveStep(-1); return; }
     if(event.target.closest('#saveCampaignDraft,#campaignWizardFinalSave')){ event.preventDefault(); event.stopImmediatePropagation(); saveCleanCampaign(); return; }
     if(event.target.closest('#resetCampaignBuilder')){ event.preventDefault(); event.stopImmediatePropagation(); q('#campaignRequestForm')?.reset(); q('#v531SelectedCreatives').innerHTML='<div class="empty-state">اختار كرييتيف واحد أو أكثر.</div>'; q('#budgetRows').innerHTML='<div class="empty-state">لا توجد بنود ميزانية.</div>'; q('#create-campaign').dataset.v531Ready=''; initCleanCreateCampaign(); setStep(1); return; }
-    const toggle=event.target.closest('[data-v531-toggle-creative]'); if(toggle){ event.preventDefault(); event.stopImmediatePropagation(); const id=toggle.dataset.v531ToggleCreative; const existing=q(`.v531-creative-panel[data-creative-id="${CSS.escape(id)}"]`); if(existing) existing.remove(); else addCreativePanel(id); if(!q('.v531-creative-panel')) q('#v531SelectedCreatives').innerHTML='<div class="empty-state">اختار كرييتيف واحد أو أكثر.</div>'; renderCreativeList(); renderBudgetCreativeChecks(); renderReview(); return; }
+    const toggle=event.target.closest('[data-v531-toggle-creative]'); if(toggle){ event.preventDefault(); event.stopImmediatePropagation(); const id=toggle.dataset.v531ToggleCreative; addCreativePanel(id); renderCreativeList(); renderBudgetCreativeChecks(); renderReview(); return; }
+    const saveCreative=event.target.closest('[data-v543-save-creative]'); if(saveCreative){
+      event.preventDefault(); event.stopImmediatePropagation();
+      const p=saveCreative.closest('.v531-creative-panel');
+      if(p){
+        p.classList.add('v543-creative-saved','v548-creative-saved','v548-collapsed','v550-saved-creative-item');
+        p.dataset.savedCreative='1';
+        const wrap=q('#v531SelectedCreatives');
+        let savedShell = wrap ? q('#v550SavedCreatives', wrap) : null;
+        if(wrap && !savedShell){
+          savedShell=document.createElement('section');
+          savedShell.id='v550SavedCreatives';
+          savedShell.className='v550-saved-creatives-box';
+          savedShell.innerHTML='<div class="v550-saved-creatives-head"><span>الكرييتيفات المحفوظة</span><small>اضغط على أي كرييتيف محفوظ لفتح بياناته</small></div><div class="v550-saved-creatives-list" id="v550SavedCreativeList"></div>';
+          wrap.insertBefore(savedShell, wrap.firstChild);
+        }
+        const list = wrap ? q('#v550SavedCreativeList', wrap) : null;
+        let brief=p.querySelector('.v548-saved-brief');
+        if(!brief){
+          brief=document.createElement('button'); brief.type='button'; brief.className='v548-saved-brief'; brief.setAttribute('data-v548-toggle-saved','1');
+          const nm=p.dataset.creativeName||p.querySelector('.v543-creative-head h3')?.textContent||'كرييتيف محفوظ';
+          brief.innerHTML=`<span>✅ محفوظ</span><strong>${esc(nm)}</strong><small>اضغط لفتح بيانات الكرييتيف</small>`;
+          const head=p.querySelector('.v543-creative-head,.v531-creative-panel-head'); if(head) head.insertAdjacentElement('afterend',brief); else p.prepend(brief);
+        }
+        if(list && p.parentElement!==list) list.appendChild(p);
+        saveCreative.textContent='تم حفظ الكرييتيف';
+        setTimeout(()=>{ if(saveCreative.isConnected) saveCreative.textContent='حفظ الكرييتيف'; },1200);
+      }
+      renderBudgetCreativeChecks(); renderReview(); return;
+    }
     const rem=event.target.closest('[data-v531-remove-creative]'); if(rem){ event.preventDefault(); event.stopImmediatePropagation(); rem.closest('.v531-creative-panel')?.remove(); if(!q('.v531-creative-panel')) q('#v531SelectedCreatives').innerHTML='<div class="empty-state">اختار كرييتيف واحد أو أكثر.</div>'; renderCreativeList(); renderBudgetCreativeChecks(); renderReview(); return; }
     if(event.target.closest('#addBudgetRowBtn')){ event.preventDefault(); event.stopImmediatePropagation(); addBudgetRow(); return; }
     if(event.target.closest('[data-v531-remove-budget]')){ event.preventDefault(); event.stopImmediatePropagation(); event.target.closest('.v531-budget-card')?.remove(); if(!q('.v531-budget-card')) q('#budgetRows').innerHTML='<div class="empty-state">لا توجد بنود ميزانية.</div>'; updateBudgetTotal(); renderReview(); return; }
@@ -33840,4 +33903,442 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(run,120)); else setTimeout(run,120);
   setTimeout(run,1000);
   try{ window.MZJ_APP_VERSION='534'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
+
+
+/* MZJ v543 - v537/v538 legacy create-campaign overrides removed; stable v543 logic below */
+
+/* MZJ v543 - stable creative selection from v538 source */
+(function(){
+  const VERSION='v543-stable-v538-creative-selection-repeat';
+  const S=v=>String(v??'').trim();
+  const q=(s,r=document)=>r.querySelector(s);
+  const qa=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  function injectStyle(){
+    const old=q('#v543CreateCampaignStableStyle'); if(old) old.remove();
+    const style=document.createElement('style'); style.id='v543CreateCampaignStableStyle';
+    style.textContent=`
+      #create-campaign{--v543-border:rgba(198,151,125,.34);--v543-soft:#fffaf6;--v543-ink:#3b2119;}
+      #create-campaign .v533-creative-layout{grid-template-columns:235px minmax(0,1fr)!important;gap:14px!important;}
+      #create-campaign .v533-selected-creatives{overflow-y:auto!important;overflow-x:hidden!important;max-height:calc(100vh - 210px)!important;padding:4px 6px 8px!important;}
+      #create-campaign .v531-creative-panel{overflow:visible!important;max-width:100%!important;min-width:0!important;padding:14px!important;border-radius:18px!important;}
+      #create-campaign .v543-creative-head{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:10px!important;}
+      #create-campaign .v543-creative-actions{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important;}
+      #create-campaign .v543-save-creative{min-height:36px!important;padding:8px 14px!important;border-radius:13px!important;font-size:12px!important;font-weight:900!important;}
+      #create-campaign .v543-creative-body{display:grid!important;grid-template-columns:minmax(220px,.9fr) minmax(260px,1.1fr)!important;gap:14px!important;align-items:start!important;overflow:visible!important;}
+      #create-campaign .v543-car-box,#create-campaign .v543-department-box{border:1px dashed var(--v543-border)!important;border-radius:17px!important;background:rgba(255,255,255,.72)!important;padding:12px!important;overflow:visible!important;}
+      #create-campaign .v543-car-options{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))!important;gap:8px!important;max-height:235px!important;overflow:auto!important;margin-top:10px!important;padding-inline-end:4px!important;}
+      #create-campaign .v543-car-options.v531-hidden{display:none!important;}
+      #create-campaign .v543-primary-card{border:1px solid rgba(198,151,125,.42)!important;border-radius:16px!important;background:linear-gradient(135deg,#fff,#fff7f1)!important;display:grid!important;grid-template-columns:auto 1fr!important;gap:6px 10px!important;align-items:center!important;padding:12px!important;margin-bottom:12px!important;}
+      #create-campaign .v543-primary-label-title{font-size:11px!important;font-weight:900!important;color:#9a6f62!important;grid-column:1/-1!important;}
+      #create-campaign .v543-primary-card strong{font-size:17px!important;line-height:1.25!important;color:#3b2119!important;font-weight:900!important;}
+      #create-campaign .v543-primary-card small{font-size:11px!important;color:#8d4a3b!important;background:#fff3ec!important;border:1px solid rgba(198,151,125,.32)!important;border-radius:999px!important;padding:5px 9px!important;justify-self:start!important;}
+      #create-campaign .v543-optional-area{margin:0!important;}
+      #create-campaign .v543-optional-grid{display:grid!important;grid-template-columns:1fr!important;gap:8px!important;}
+      #create-campaign .v543-optional-card{min-height:54px!important;}
+      #create-campaign .v543-department-sections{display:grid!important;grid-template-columns:1fr!important;gap:12px!important;margin-top:12px!important;overflow:visible!important;}
+      #create-campaign .v531-dept-section{overflow:visible!important;min-width:0!important;}
+      #create-campaign .v531-user-grid,#create-campaign .v531-check-grid{grid-template-columns:repeat(auto-fit,minmax(155px,1fr))!important;}
+      #create-campaign .v531-writer-deadlines:empty{display:none!important;}
+      #create-campaign .v531-creative-card strong,#create-campaign .v531-check-card strong{font-size:12.5px!important;}
+      #create-campaign .v531-creative-card small,#create-campaign .v531-check-card small,#create-campaign .field span{font-size:10.8px!important;}
+      #create-campaign .v531-tag{font-size:11px!important;padding:5px 9px!important;}
+      #create-campaign .v531-budget-funnel{width:100%!important;}
+      @media(max-width:1320px){#create-campaign .v543-creative-body{grid-template-columns:1fr!important;}#create-campaign .v533-creative-layout{grid-template-columns:210px minmax(0,1fr)!important;}}
+      @media(max-width:920px){#create-campaign .v533-creative-layout{grid-template-columns:1fr!important;}#create-campaign .v533-creative-picker{position:static!important;}}
+    `;
+    document.head.appendChild(style);
+  }
+  function cleanText(v){return S(v).toLowerCase().replace(/[أإآا]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/[ـ]/g,'').trim();}
+  function isPublishCard(card){return /نشر|publish|publishing/i.test(card?.textContent||'');}
+  function normalize(){
+    const root=q('#create-campaign'); if(!root) return;
+    root.classList.add('v543-create-campaign-root');
+    qa('.v543-optional-card,.v531-optional-dep',root).forEach(el=>{ const card=el.closest('.v531-check-card')||el; if(isPublishCard(card)) card.remove(); });
+    qa('.v531-writer-deadlines .empty-state',root).forEach(el=>{ if(/اختار كاتب محتوى لعرض موعد التسليم داخل هذا القسم/.test(el.textContent||'')) el.remove(); });
+    qa('.v531-enable-cars',root).forEach(ch=>{ const panel=ch.closest('.v531-creative-panel'); const box=q('.v531-car-options',panel); if(box) box.classList.toggle('v531-hidden', !ch.checked); });
+    qa('.v531-budget-platforms',root).forEach(box=>{ const seen=new Set(); qa('.v531-check-card',box).forEach(card=>{ const key=cleanText(q('input',card)?.dataset?.name || q('input',card)?.value || card.textContent); if(seen.has(key)) card.remove(); else if(key) seen.add(key); }); });
+  }
+  const oldRender=typeof renderRoute==='function'?renderRoute:null;
+  if(oldRender){ renderRoute=function(){ const r=oldRender.apply(this,arguments); setTimeout(()=>{injectStyle(); normalize();},120); return r; }; }
+  ['click','change','input'].forEach(type=>document.addEventListener(type,e=>{ if(q('#create-campaign')?.contains(e.target)) setTimeout(normalize,60); },true));
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{injectStyle(); setTimeout(normalize,200);}); else {injectStyle(); setTimeout(normalize,200);}
+  setTimeout(normalize,900);
+  try{ window.MZJ_APP_VERSION='543'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
+
+
+/* MZJ v545 - safe create campaign layout cleanup from v543 */
+(function(){
+  const VERSION='v545-create-campaign-safe-layout-cleanup';
+  const S=v=>String(v??'').trim();
+  const q=(s,r=document)=>r.querySelector(s);
+  const qa=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  function isPublishText(v){ return /قسم\s*النشر|\bpublish(?:ing)?\b|النشر/i.test(S(v)); }
+  function installStyle(){
+    const old=q('#v545CreateCampaignSafeStyle'); if(old) old.remove();
+    const style=document.createElement('style'); style.id='v545CreateCampaignSafeStyle';
+    style.textContent=`
+      #create-campaign{font-size:12.5px!important;}
+      #create-campaign .v531-panel,#create-campaign .v533-panel{font-size:12.5px!important;}
+      #create-campaign .field>span,
+      #create-campaign .v531-check-card small,
+      #create-campaign .v531-inline-muted,
+      #create-campaign .empty-state,
+      #create-campaign .v531-review-line span,
+      #create-campaign .v531-mini-table th,
+      #create-campaign .v531-mini-table td{font-size:10.8px!important;line-height:1.35!important;font-weight:400!important;}
+      #create-campaign input,#create-campaign select,#create-campaign textarea,#create-campaign button,
+      #create-campaign .v531-check-card,#create-campaign .v531-creative-card,#create-campaign .v531-tag,
+      #create-campaign .v531-review-line,#create-campaign .v531-budget-card{font-size:12px!important;line-height:1.4!important;font-weight:400!important;}
+      #create-campaign h1,#create-campaign h2,#create-campaign h3,
+      #create-campaign strong,#create-campaign b,#create-campaign .btn,#create-campaign .v531-check-card strong,
+      #create-campaign .v531-creative-card strong,#create-campaign .v531-dept-title strong,
+      #create-campaign .v531-review-card h3,#create-campaign .budget-grand-total strong{font-weight:500!important;}
+      #create-campaign .v543-department-box{display:none!important;}
+      #create-campaign .v545-optional-under-primary{margin-top:10px!important;border:1px dashed rgba(198,151,125,.26)!important;border-radius:15px!important;background:#fffaf6!important;padding:10px!important;}
+      #create-campaign .v545-optional-title{display:flex!important;align-items:center!important;gap:7px!important;margin-bottom:8px!important;color:#6f3b2f!important;font-size:12px!important;font-weight:500!important;}
+      #create-campaign .v545-optional-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important;gap:7px!important;}
+      #create-campaign .v545-optional-grid .v531-check-card{padding:8px 9px!important;min-height:44px!important;}
+      #create-campaign .v531-dept-section{padding:11px!important;border-radius:15px!important;}
+      #create-campaign .v531-user-grid,#create-campaign .v531-check-grid,#create-campaign .v531-writer-deadlines{gap:6px!important;}
+      #create-campaign .v531-check-card{padding:8px 9px!important;gap:7px!important;}
+      #create-campaign .v531-check-card input{width:16px!important;height:16px!important;}
+      #create-campaign textarea{min-height:76px!important;}
+      #create-campaign .v531-panel-head h2{font-size:24px!important;}
+      #create-campaign .v531-creative-panel-head h3{font-size:16px!important;}
+      #create-campaign .v543-save-creative{font-weight:500!important;font-size:11.5px!important;}
+    `;
+    document.head.appendChild(style);
+  }
+  function cssSafe(v){ try{return CSS.escape(v);}catch(_){return String(v).replace(/"/g,'\\"');} }
+  function removeReviewSaveDuplicate(){
+    const root=q('#create-campaign'); if(!root) return;
+    qa('h1,h2,h3',root).forEach(h=>{
+      if(S(h.textContent)==='مراجعة وحفظ'){
+        const card=h.closest('.card,.v531-panel,.v533-panel,section,article,div');
+        if(card && !card.classList.contains('v533-review-panel')) card.remove();
+      }
+    });
+    qa('p,div',root).forEach(el=>{
+      if(/راجع الحملة قبل الحفظ: بيانات الطلب، كتاب المحتوى، الكريتيفات المحفوظة، والميزانية/.test(S(el.textContent))){
+        const card=el.closest('.card,.v531-panel,.v533-panel,section,article');
+        if(card && !card.classList.contains('v533-review-panel')) card.remove();
+      }
+    });
+  }
+  function hiddenOptionalInputs(panel){
+    return qa('.v543-department-box .v531-optional-dep,.v531-department-box .v531-optional-dep',panel).filter(inp=>{
+      const card=inp.closest('.v531-check-card');
+      return card && !isPublishText(card.textContent||'');
+    });
+  }
+  function syncOptionalMirror(panel){
+    if(!panel) return;
+    const topBox=q('.v543-department-box,.v531-department-box',panel);
+    if(topBox){
+      qa('.v531-check-card',topBox).forEach(card=>{ if(isPublishText(card.textContent||'')) card.remove(); });
+    }
+    const primarySection=qa('.v531-dept-section',panel).find(sec=>S(sec.dataset.depKind)==='primary') || q('.v531-dept-section',panel);
+    if(!primarySection) return;
+    q('.v545-optional-under-primary',primarySection)?.remove();
+    const inputs=hiddenOptionalInputs(panel);
+    if(!inputs.length) return;
+    const note=q('.v531-section-note',primarySection);
+    const noteField=note ? note.closest('.field') : null;
+    const host=document.createElement('div');
+    host.className='v545-optional-under-primary';
+    host.innerHTML=`<div class="v545-optional-title"><span>☑️</span><span>أقسام اختيارية</span></div><div class="v545-optional-grid">${inputs.map(inp=>{
+      const card=inp.closest('.v531-check-card');
+      const title=S(card?.querySelector('strong')?.textContent || card?.textContent || inp.value);
+      const small=S(card?.querySelector('small')?.textContent || 'قسم اختياري');
+      return `<label class="v531-check-card"><input type="checkbox" class="v545-optional-dep" value="${esc(inp.value)}" ${inp.checked?'checked':''}><span><strong>${esc(title)}</strong><small>${esc(small)}</small></span></label>`;
+    }).join('')}</div>`;
+    if(noteField && noteField.parentNode) noteField.insertAdjacentElement('afterend',host); else primarySection.appendChild(host);
+  }
+  function normalize(){
+    const root=q('#create-campaign'); if(!root) return;
+    removeReviewSaveDuplicate();
+    qa('.v531-creative-panel',root).forEach(syncOptionalMirror);
+  }
+  document.addEventListener('change',function(e){
+    const mirror=e.target.closest && e.target.closest('.v545-optional-dep');
+    if(!mirror) return;
+    const panel=mirror.closest('.v531-creative-panel'); if(!panel) return;
+    const real=q(`.v543-department-box .v531-optional-dep[value="${cssSafe(mirror.value)}"],.v531-department-box .v531-optional-dep[value="${cssSafe(mirror.value)}"]`,panel);
+    if(real){
+      real.checked=mirror.checked;
+      real.dispatchEvent(new Event('change',{bubbles:true}));
+      setTimeout(normalize,40);
+    }
+  },true);
+  ['click','input','change'].forEach(type=>document.addEventListener(type,function(e){ if(q('#create-campaign')?.contains(e.target)) setTimeout(normalize,70); },true));
+  const oldRender=typeof renderRoute==='function'?renderRoute:null;
+  if(oldRender){ renderRoute=function(){ const r=oldRender.apply(this,arguments); setTimeout(()=>{installStyle(); normalize();},140); return r; }; }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{installStyle(); setTimeout(normalize,220);}); else {installStyle(); setTimeout(normalize,220);}
+  setTimeout(normalize,900);
+  try{ window.MZJ_APP_VERSION='545'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
+
+/* MZJ v546 - targeted create campaign visual cleanup from v545 */
+(function(){
+  const VERSION='v546-create-campaign-targeted-cleanup';
+  const S=v=>String(v??'').trim();
+  const q=(s,r=document)=>r.querySelector(s);
+  const qa=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  function installStyle(){
+    const old=q('#v546CreateCampaignTargetedStyle'); if(old) old.remove();
+    const style=document.createElement('style'); style.id='v546CreateCampaignTargetedStyle';
+    style.textContent=`
+      #create-campaign{font-size:12px!important;}
+      #create-campaign input,#create-campaign select,#create-campaign textarea,#create-campaign button,
+      #create-campaign .v531-check-card,#create-campaign .v531-creative-card,#create-campaign .v531-tag,
+      #create-campaign .v531-review-line,#create-campaign .v531-budget-card{font-size:11.5px!important;font-weight:400!important;line-height:1.35!important;}
+      #create-campaign h1,#create-campaign h2,#create-campaign h3,
+      #create-campaign strong,#create-campaign b,#create-campaign .btn,
+      #create-campaign .v531-check-card strong,#create-campaign .v531-creative-card strong,
+      #create-campaign .v531-dept-title strong,#create-campaign .v531-review-card h3,
+      #create-campaign .budget-grand-total strong{font-weight:500!important;}
+      #create-campaign .v531-creative-card small,
+      #create-campaign .v531-creative-panel-head .v531-tag-row,
+      #create-campaign .v531-creative-panel-head .v531-tag{display:none!important;}
+      #create-campaign .v531-creative-card{min-height:50px!important;padding:9px 10px!important;}
+      #create-campaign .v531-creative-card span:first-child{display:block!important;min-width:0!important;}
+      #create-campaign .v531-creative-card strong{display:block!important;white-space:normal!important;word-break:break-word!important;}
+      #create-campaign .v543-creative-body{grid-template-columns:1fr!important;gap:12px!important;overflow:visible!important;}
+      #create-campaign .v543-car-box{border:0!important;background:transparent!important;padding:0!important;margin:0!important;overflow:visible!important;}
+      #create-campaign .v543-car-toggle{min-height:50px!important;width:100%!important;box-sizing:border-box!important;border:1px solid rgba(198,151,125,.34)!important;border-radius:14px!important;background:#fff!important;padding:8px 10px!important;}
+      #create-campaign .v543-car-options{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important;gap:7px!important;max-height:230px!important;overflow:auto!important;margin-top:8px!important;border:1px dashed rgba(198,151,125,.25)!important;border-radius:14px!important;padding:8px!important;background:#fffaf6!important;}
+      #create-campaign .v543-car-options.v531-hidden{display:none!important;}
+      #create-campaign .v543-car-options .v531-check-card{min-height:48px!important;padding:8px 9px!important;}
+      #create-campaign .v531-department-sections{margin-top:10px!important;}
+      #create-campaign .campaign-wizard-panel:empty,
+      #create-campaign .card:empty,
+      #create-campaign .v531-panel:empty,
+      #create-campaign .v533-panel:empty{display:none!important;}
+    `;
+    document.head.appendChild(style);
+  }
+  function removeReviewSaveDuplicate(){
+    const root=q('#create-campaign'); if(!root) return;
+    const markers=[];
+    qa('h1,h2,h3,p,div,section,article',root).forEach(el=>{
+      const t=S(el.textContent);
+      if(t==='مراجعة وحفظ' || t.includes('راجع الحملة قبل الحفظ: بيانات الطلب، كتاب المحتوى، الكريتيفات المحفوظة، والميزانية')) markers.push(el);
+    });
+    markers.forEach(el=>{
+      const target=el.closest('.campaign-wizard-panel,.v531-review-save-panel,.v532-review-save-panel,.v533-review-save-panel,.card,.v531-panel,.v533-panel,section,article') || el;
+      if(target && !target.classList.contains('v533-review-panel') && target.id!=='campaignReviewGrid') target.remove();
+    });
+    qa('.card,.v531-panel,.v533-panel,section,article',root).forEach(card=>{
+      if(card.id==='campaignReviewGrid' || card.classList.contains('v533-review-panel')) return;
+      const text=S(card.textContent);
+      const hasInput=card.querySelector('input,select,textarea,button,table,.v531-review-card,.v531-creative-panel,.v531-budget-card');
+      if(!hasInput && (text==='' || text==='مراجعة وحفظ' || text.includes('راجع الحملة قبل الحفظ'))) card.remove();
+    });
+  }
+  function hideCreativeCodes(){
+    const root=q('#create-campaign'); if(!root) return;
+    qa('#v531CreativeList .v531-creative-card small',root).forEach(el=>el.remove());
+    qa('.v531-creative-panel-head .v531-tag-row',root).forEach(el=>el.remove());
+  }
+  function normalize(){
+    removeReviewSaveDuplicate();
+    hideCreativeCodes();
+  }
+  const oldRender=typeof renderRoute==='function'?renderRoute:null;
+  if(oldRender){ renderRoute=function(){ const r=oldRender.apply(this,arguments); setTimeout(()=>{installStyle(); normalize();},140); return r; }; }
+  ['click','input','change'].forEach(type=>document.addEventListener(type,function(e){ if(q('#create-campaign')?.contains(e.target)) setTimeout(normalize,70); },true));
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{installStyle(); setTimeout(normalize,220);}); else {installStyle(); setTimeout(normalize,220);}
+  setTimeout(normalize,900);
+  try{ window.MZJ_APP_VERSION='546'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
+
+
+/* MZJ v548 - saved creative cards and inline content-writer receiving dates */
+(function(){
+  const VERSION='v548-creative-save-inline-writer-dates';
+  const S=v=>String(v??'').trim();
+  const q=(s,r=document)=>r.querySelector(s);
+  const qa=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  function installStyle(){
+    const old=q('#v548CreateCampaignSaveStyle'); if(old) old.remove();
+    const style=document.createElement('style'); style.id='v548CreateCampaignSaveStyle';
+    style.textContent=`
+      #create-campaign .v548-creative-saved.v548-collapsed .v543-creative-body,
+      #create-campaign .v548-creative-saved.v548-collapsed .v531-department-sections{display:none!important;}
+      #create-campaign .v548-saved-brief{width:100%;border:1px dashed rgba(137,72,56,.28);background:#fffaf6;border-radius:14px;padding:9px 12px;margin:8px 0 0;display:flex;align-items:center;gap:10px;justify-content:flex-start;text-align:right;cursor:pointer;color:#4a261d;font-size:11.5px;font-weight:400;}
+      #create-campaign .v548-saved-brief strong{font-weight:500!important;font-size:12px!important;}
+      #create-campaign .v548-saved-brief small{font-size:10.5px!important;color:#9b7468;margin-inline-start:auto;}
+      #create-campaign .v548-writer-date-inline{display:block;margin-top:7px;padding-top:7px;border-top:1px dashed rgba(198,151,125,.22);}
+      #create-campaign .v548-writer-date-inline span{display:block;margin-bottom:5px;font-size:10.5px!important;color:#8d6b61;font-weight:400!important;}
+      #create-campaign .v548-writer-date-inline input{width:100%;min-height:34px;font-size:11px!important;}
+      #create-campaign .v531-writer-deadlines{display:none!important;}
+      #create-campaign .v531-section-writers .v531-check-card{align-items:flex-start!important;}
+      #create-campaign .v531-section-writers .v531-check-card>span{flex:1;min-width:0;}
+    `;
+    document.head.appendChild(style);
+  }
+  function normalizeInlineWriterDates(root=document){
+    const main=q('#create-campaign',root) || q('#create-campaign'); if(!main) return;
+    qa('.v531-dept-section',main).forEach(sec=>{
+      const previous={};
+      qa('.v531-writer-date',sec).forEach(inp=>{ if(inp.dataset.writerId && inp.value) previous[inp.dataset.writerId]=inp.value; });
+      qa('.v548-writer-date-inline',sec).forEach(el=>el.remove());
+      qa('.v531-section-writer:checked',sec).forEach(ch=>{
+        const card=ch.closest('.v531-check-card'); if(!card) return;
+        const span=card.querySelector('span') || card;
+        const id=ch.value; const name=ch.dataset.name || span.querySelector('strong')?.textContent || id;
+        const wrap=document.createElement('label');
+        wrap.className='v548-writer-date-inline';
+        wrap.innerHTML=`<span>تاريخ استلام ${esc(name)}</span><input class="v531-writer-date v548-inline-writer-date" data-writer-id="${esc(id)}" type="date" value="${esc(previous[id]||'')}">`;
+        span.appendChild(wrap);
+      });
+      const box=sec.querySelector('.v531-writer-deadlines'); if(box) box.innerHTML='';
+    });
+  }
+  function collapseSavedPanels(root=document){
+    const main=q('#create-campaign',root) || q('#create-campaign'); if(!main) return;
+    qa('.v531-creative-panel.v543-creative-saved,.v531-creative-panel[data-saved-creative="1"]',main).forEach(p=>{
+      p.classList.add('v548-creative-saved');
+      if(!p.querySelector('.v548-saved-brief')){
+        const b=document.createElement('button'); b.type='button'; b.className='v548-saved-brief'; b.setAttribute('data-v548-toggle-saved','1');
+        const nm=p.dataset.creativeName||p.querySelector('.v543-creative-head h3')?.textContent||'كرييتيف محفوظ';
+        b.innerHTML=`<span>✅ محفوظ</span><strong>${esc(nm)}</strong><small>اضغط لفتح بيانات الكرييتيف</small>`;
+        const head=p.querySelector('.v543-creative-head,.v531-creative-panel-head'); if(head) head.insertAdjacentElement('afterend',b);
+      }
+    });
+  }
+  function normalize(){ installStyle(); normalizeInlineWriterDates(); collapseSavedPanels(); }
+  document.addEventListener('click',function(e){
+    const btn=e.target.closest && e.target.closest('[data-v548-toggle-saved]');
+    if(btn && q('#create-campaign')?.contains(btn)){
+      e.preventDefault(); e.stopPropagation();
+      const p=btn.closest('.v531-creative-panel'); if(p) p.classList.toggle('v548-collapsed');
+    }
+  },true);
+  ['click','change','input'].forEach(type=>document.addEventListener(type,function(e){
+    if(!q('#create-campaign')?.contains(e.target)) return;
+    if(e.target?.matches?.('.v548-inline-writer-date[type="date"],.v531-writer-date[type="date"],.v551-date-ready')) return;
+    setTimeout(normalize,90);
+  },true));
+  const oldRender=typeof renderRoute==='function'?renderRoute:null;
+  if(oldRender){ renderRoute=function(){ const r=oldRender.apply(this,arguments); setTimeout(normalize,180); return r; }; }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(normalize,240)); else setTimeout(normalize,240);
+  setTimeout(normalize,1000);
+  try{ window.MZJ_APP_VERSION='548'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
+
+/* MZJ v550 - multiple saved creatives container */
+(function(){
+  const VERSION='v550-multiple-saved-creatives-container';
+  function q(s,r=document){return r.querySelector(s)}
+  function install(){
+    const old=q('#v550SavedCreativeStyle'); if(old) old.remove();
+    const st=document.createElement('style'); st.id='v550SavedCreativeStyle';
+    st.textContent=`
+      #create-campaign .v550-saved-creatives-box{border:1px dashed rgba(137,72,56,.22);background:#fffaf7;border-radius:16px;padding:10px;margin:0 0 12px;display:block;}
+      #create-campaign .v550-saved-creatives-head{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid rgba(137,72,56,.10);padding-bottom:8px;margin-bottom:8px;color:#4a261d;font-size:12px;font-weight:500;}
+      #create-campaign .v550-saved-creatives-head small{font-size:10.5px;color:#9b7468;font-weight:400;}
+      #create-campaign .v550-saved-creatives-list{display:grid;gap:8px;}
+      #create-campaign .v550-saved-creatives-list .v531-creative-panel{margin:0!important;}
+      #create-campaign .v550-saved-creatives-list .v548-saved-brief{margin-top:8px!important;}
+    `;
+    document.head.appendChild(st);
+    try{ window.MZJ_APP_VERSION='550'; window.MZJ_LAST_PATCH=VERSION; }catch(_){ }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
+})();
+
+/* MZJ v552 - stable inline writer receiving date picker */
+(function(){
+  const VERSION='v552-stable-writer-date-picker';
+  const q=(s,r=document)=>r.querySelector(s);
+  const qa=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  function installStyle(){
+    const old=q('#v551InlineWriterDateFixStyle'); if(old) old.remove();
+    const st=document.createElement('style'); st.id='v551InlineWriterDateFixStyle';
+    st.textContent=`
+      #create-campaign .v548-writer-date-inline,
+      #create-campaign .v551-writer-date-inline{
+        display:block!important;
+        width:100%!important;
+        margin-top:8px!important;
+        padding-top:8px!important;
+        border-top:1px dashed rgba(198,151,125,.24)!important;
+        cursor:default!important;
+      }
+      #create-campaign .v548-writer-date-inline span,
+      #create-campaign .v551-writer-date-inline span{
+        display:block!important;
+        margin-bottom:6px!important;
+        color:#8d6b61!important;
+        font-size:10.5px!important;
+        font-weight:400!important;
+        line-height:1.25!important;
+        cursor:default!important;
+      }
+      #create-campaign .v548-writer-date-inline input[type="date"],
+      #create-campaign .v551-writer-date-inline input[type="date"],
+      #create-campaign .v531-check-card .v548-inline-writer-date[type="date"],
+      #create-campaign .v531-check-card .v531-writer-date[type="date"]{
+        display:block!important;
+        width:100%!important;
+        max-width:100%!important;
+        min-width:0!important;
+        height:34px!important;
+        min-height:34px!important;
+        padding:5px 9px!important;
+        border:1px solid rgba(198,151,125,.36)!important;
+        border-radius:10px!important;
+        background:#fff!important;
+        color:#2d1b16!important;
+        font-family:inherit!important;
+        font-size:11px!important;
+        font-weight:400!important;
+        line-height:1.2!important;
+        box-sizing:border-box!important;
+        position:relative!important;
+        z-index:50!important;
+        pointer-events:auto!important;
+        opacity:1!important;
+        appearance:auto!important;
+        -webkit-appearance:auto!important;
+      }
+    `;
+    document.head.appendChild(st);
+  }
+  function unwrapNestedDateRows(root=document){
+    const main=q('#create-campaign',root)||q('#create-campaign'); if(!main) return;
+    qa('label.v548-writer-date-inline',main).forEach(label=>{
+      const div=document.createElement('div');
+      div.className=(label.className||'').replace('v548-writer-date-inline','v548-writer-date-inline v551-writer-date-inline');
+      div.innerHTML=label.innerHTML;
+      label.replaceWith(div);
+    });
+    qa('.v548-writer-date-inline input,.v551-writer-date-inline input',main).forEach(input=>{
+      if(input.type !== 'date') input.setAttribute('type','date');
+      input.classList.add('v551-date-ready');
+      input.removeAttribute('disabled');
+      input.style.pointerEvents='auto';
+    });
+  }
+  function normalize(){ installStyle(); unwrapNestedDateRows(); }
+  ['click','focus','input','change'].forEach(type=>document.addEventListener(type,function(e){
+    if(!q('#create-campaign')?.contains(e.target)) return;
+    if(e.target?.matches?.('.v548-inline-writer-date[type="date"],.v531-writer-date[type="date"],.v551-date-ready')) return;
+    setTimeout(normalize,60);
+  },true));
+  document.addEventListener('click',function(e){
+    if(e.target?.matches?.('.v548-writer-date-inline input[type="date"],.v551-writer-date-inline input[type="date"],.v551-date-ready')){
+      e.stopPropagation();
+    }
+  },true);
+  const oldRender=typeof renderRoute==='function'?renderRoute:null;
+  if(oldRender){ renderRoute=function(){ const r=oldRender.apply(this,arguments); setTimeout(normalize,180); return r; }; }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(normalize,240)); else setTimeout(normalize,240);
+  setTimeout(normalize,900);
+  try{ window.MZJ_APP_VERSION='552'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
 })();
