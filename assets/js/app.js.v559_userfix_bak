@@ -34631,18 +34631,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
 /* MZJ v559 - user dashboards/cards/details only (content + execution), keep theme/background intact */
 (function(){
   const VERSION = 'v559-user-cards-details-only';
-  const S = v => {
-    if(v == null) return '';
-    if(Array.isArray(v)) return v.map(S).filter(Boolean).join(' / ').trim();
-    if(typeof v === 'object'){
-      const keys = ['label','name','title','text','value','displayName','arabicName','creativeName','creativeTitle','contentType','contentName','creative','product','shortCode','creativeShortCode','code','carName','model','brand'];
-      for(const k of keys){
-        if(v[k] != null){ const out = S(v[k]); if(out) return out; }
-      }
-      return '';
-    }
-    return String(v).trim();
-  };
+  const S = v => String(v == null ? '' : v).trim();
   const H = v => { try{ return typeof escapeHtml === 'function' ? escapeHtml(v) : S(v).replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m])); }catch(_){ return S(v); } };
   const A = v => Array.isArray(v) ? v : [];
   const N = v => { try{ return identityClean(v || ''); }catch(_){ return S(v).replace(/[أإآٱ]/g,'ا').replace(/[ؤ]/g,'و').replace(/[ئ]/g,'ي').replace(/[ة]/g,'ه').replace(/[ى]/g,'ي').replace(/[ـ]/g,'').replace(/[^\u0600-\u06FFa-zA-Z0-9]+/g,'').toLowerCase(); } };
@@ -34738,14 +34727,9 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     ];
   }
   function contentCreatives(task, campaign){
-    const bad = v => { const n=N(v); return !n || n.includes(N('قسم المحتوى')) || n.includes(N('طلب هيكل')) || n.includes(N('هيكل الحملة')) || n.includes(N('تاسك الهيكل')) || n.includes(N('Task Template')); };
-    const fromItems = A(task?.structureItems).map(x => x?.creative || x?.contentType || x?.contentName || x?.product || x?.creativeShortCode).filter(Boolean);
-    let struct = {}; try{ struct = typeof taskStructure === 'function' ? (taskStructure(task) || {}) : (task?.structure || {}); }catch(_){ struct = task?.structure || {}; }
-    const fromRows = A(struct?.approvedRows || task?.approvedStructureRows).map(x => x?.contentType || x?.contentName || x?.creative || x?.product || x?.creativeShortCode || x?.raw?.['نوع المحتوى'] || x?.raw?.['نوع المحتوي']).filter(Boolean);
-    const fromCampaign = A(campaign?.selectedCreatives || campaign?.creatives || campaign?.creativeTypes || campaign?.selectedCreativeTypes).map(x => S(x)).filter(Boolean);
-    const fallback = [task?.contentType, task?.contentName, task?.creativeShortCode, task?.creative, task?.product].filter(Boolean);
-    const all = uniq([fromCampaign, fromItems, fromRows, fallback]).filter(v => !bad(v));
-    return all.join(' / ') || '—';
+    const fromItems = A(task?.structureItems).map(x => x?.creative || x?.contentType || x?.product).filter(Boolean);
+    const fromRows = A((typeof taskStructure === 'function' ? taskStructure(task) : task?.structure || {})?.approvedRows).map(x => x?.contentType || x?.creative || x?.product).filter(Boolean);
+    return uniq([fromItems, fromRows, task?.creative, task?.product, campaign?.selectedCreatives, campaign?.creatives]).join(' / ') || '—';
   }
   function contentCars(task, campaign){
     const fromItems = A(task?.structureItems).flatMap(x => [x?.selectedCar, A(x?.selectedCars).map(c=>c?.label||c?.name||c)]).filter(Boolean);
@@ -34900,16 +34884,16 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
       #dashboard.user-mode .v559-dashboard-title h2{font-size:30px!important;margin:0 0 4px!important;color:var(--text,#241611)!important;}
       #dashboard.user-mode .v559-dashboard-title p{margin:0!important;color:var(--muted,#766258)!important;font-weight:800!important;}
       #dashboard.user-mode .v559-stats-row{display:grid!important;grid-template-columns:repeat(4,minmax(150px,1fr))!important;gap:14px!important;}
-      #dashboard.user-mode .v559-stat{display:grid!important;grid-template-columns:auto 1fr!important;align-items:center!important;gap:10px!important;background:rgba(255,255,255,.42)!important;border:0!important;border-radius:18px!important;padding:16px 18px!important;box-shadow:0 14px 34px rgba(45,23,19,.08)!important;backdrop-filter:blur(3px)!important;}
+      #dashboard.user-mode .v559-stat{display:grid!important;grid-template-columns:auto 1fr!important;align-items:center!important;gap:10px!important;background:rgba(255,255,255,.68)!important;border:1px solid rgba(255,255,255,.58)!important;border-radius:18px!important;padding:16px 18px!important;box-shadow:0 16px 36px rgba(45,23,19,.10)!important;backdrop-filter:blur(4px)!important;}
       #dashboard.user-mode .v559-stat i{grid-row:1/3;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(245,226,216,.72);font-style:normal;color:#8b4b39;font-size:20px;}
       #dashboard.user-mode .v559-stat span{font-weight:900;color:#6f5045}.v559-stat strong{font-size:28px;color:#241611;}
-      #dashboard.user-mode .v559-dash-section{background:rgba(255,255,255,.18)!important;border:0!important;border-radius:22px!important;padding:14px!important;box-shadow:0 14px 34px rgba(45,23,19,.06)!important;backdrop-filter:blur(2px)!important;}
+      #dashboard.user-mode .v559-dash-section{background:rgba(255,255,255,.42)!important;border:0!important;border-radius:22px!important;padding:14px!important;box-shadow:0 18px 44px rgba(45,23,19,.10)!important;backdrop-filter:blur(3px)!important;}
       #dashboard.user-mode .v559-section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;}.v559-section-head h3{margin:0;font-size:22px;display:flex;gap:8px;align-items:center}.v559-section-head span{background:#f4e6dd;border-radius:999px;padding:6px 12px;font-weight:900;color:#8b4b39;font-size:12px;}
-      #dashboard.user-mode .v559-structure-list{display:grid!important;gap:10px!important}.v559-user-task-card{display:grid;grid-template-columns:1.2fr 1fr 1fr auto;gap:14px;align-items:center;background:rgba(255,255,255,.46);border:0;border-radius:18px;padding:14px 16px;box-shadow:0 10px 24px rgba(45,23,19,.06);backdrop-filter:blur(2px);}
+      #dashboard.user-mode .v559-structure-list{display:grid!important;gap:10px!important}.v559-user-task-card{display:grid;grid-template-columns:1.2fr 1fr 1fr auto;gap:14px;align-items:center;background:rgba(255,255,255,.78);border:1px solid rgba(224,204,193,.72);border-radius:18px;padding:14px 16px;box-shadow:0 12px 28px rgba(45,23,19,.08);}
       .v559-card-main h3,.v559-template-card h3,.v559-exec-card h3{margin:0;color:#1f1612}.v559-card-main p{margin:4px 0 8px;color:#6e5c55;font-weight:800}.v559-card-data span,.v559-template-meta span,.v559-template-status span{display:block;color:#8b7168;font-size:12px;font-weight:900;margin-bottom:5px}.v559-card-data strong{font-size:15px;color:#1f1612;}
       .v559-badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900}.v559-badge.warn{background:#ffe8d8;color:#cc5a1d}.v559-badge.ok{background:#e5f5e9;color:#1d743b}.v559-badge.wait{background:#fff2d8;color:#935a19}.v559-badge.blue{background:#e7f0ff;color:#2e5fa8}.v559-badge.bad{background:#fde4e4;color:#a83232}.v559-badge.muted{background:#eee9e4;color:#65544d}
       .v559-open-btn{border:0;border-radius:14px;background:linear-gradient(180deg,#9a5745,#7a382b);color:white;font-weight:900;padding:12px 20px;cursor:pointer;min-width:150px}.v559-open-btn.outline{background:rgba(255,255,255,.55);color:#7a382b;border:1px solid #b98473;}
-      .v559-template-grid,.v559-exec-grid{display:grid!important;grid-template-columns:repeat(3,minmax(240px,1fr))!important;gap:14px!important}.v559-template-card,.v559-exec-card{background:rgba(255,255,255,.46);border:0;border-radius:18px;padding:16px;box-shadow:0 10px 24px rgba(45,23,19,.06);backdrop-filter:blur(2px)}.v559-template-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.v559-template-top span{background:#f4e9e2;border-radius:9px;padding:6px 10px;font-weight:900;color:#8b4b39}.v559-template-top b{background:#f8f0eb;border-radius:9px;padding:6px 10px}.v559-template-card p{margin:12px 0 3px;color:#8b7168;font-weight:900}.v559-template-card>strong{display:block;margin-bottom:12px}.v559-template-meta,.v559-template-status{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.v559-template-card .v559-open-btn{width:100%;margin-top:10px}
+      .v559-template-grid,.v559-exec-grid{display:grid!important;grid-template-columns:repeat(3,minmax(240px,1fr))!important;gap:14px!important}.v559-template-card,.v559-exec-card{background:rgba(255,255,255,.78);border:1px solid rgba(224,204,193,.74);border-radius:18px;padding:16px;box-shadow:0 12px 28px rgba(45,23,19,.08);backdrop-filter:blur(4px)}.v559-template-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.v559-template-top span{background:#f4e9e2;border-radius:9px;padding:6px 10px;font-weight:900;color:#8b4b39}.v559-template-top b{background:#f8f0eb;border-radius:9px;padding:6px 10px}.v559-template-card p{margin:12px 0 3px;color:#8b7168;font-weight:900}.v559-template-card>strong{display:block;margin-bottom:12px}.v559-template-meta,.v559-template-status{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.v559-template-card .v559-open-btn{width:100%;margin-top:10px}
       .v559-exec-head{display:flex;align-items:flex-start;gap:12px}.v559-exec-head i{width:44px;height:44px;border-radius:14px;background:#f4e9e2;display:grid;place-items:center;font-style:normal}.v559-exec-head div{flex:1}.v559-exec-head p{margin:4px 0 0;color:#6f5c54;font-weight:800}.v559-exec-progress{margin:16px 0 12px}.v559-exec-progress>span{color:#8b7168;font-weight:900}.v559-exec-progress>b{float:left}.v559-exec-progress div{clear:both;height:8px;background:#eaded6;border-radius:999px;overflow:hidden;margin-top:8px}.v559-exec-progress i{display:block;height:100%;background:#5c85c8}.v559-exec-lines{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;border-top:1px solid rgba(224,204,193,.62);padding-top:10px;margin-top:10px}.v559-exec-lines span{color:#8b7168;font-weight:900}.v559-exec-lines strong{color:#1f1612}.v559-exec-card .v559-open-btn{width:100%;margin-top:14px}
       .v559-detail-view{display:grid!important;gap:14px!important}.v559-detail-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}.v559-detail-head h2{font-size:34px;margin:0}.v559-detail-head p{margin:5px 0 0;color:#75635c;font-weight:900}.v559-detail-section,.v559-actions-detail{background:rgba(255,255,255,.72)!important}.v559-fields-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.v559-field{border:1px solid rgba(224,204,193,.82);border-radius:14px;background:rgba(255,255,255,.72);padding:12px;min-height:76px}.v559-field span{display:block;color:#9a766a;font-size:12px;font-weight:900;margin-bottom:7px}.v559-field strong{display:block;color:#1f1612;white-space:pre-wrap;line-height:1.65}.v559-action-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}.v559-action-row .btn{min-width:230px}.v559-steps-grid{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))!important}
       @media(max-width:1100px){#dashboard.user-mode .v559-stats-row,.v559-template-grid,.v559-exec-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.v559-user-task-card{grid-template-columns:1fr 1fr}.v559-fields-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -34920,261 +34904,4 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installStyle); else installStyle();
   try{ if(typeof renderUserDashboard === 'function') renderUserDashboard(); }catch(_){ }
   try{ window.MZJ_APP_VERSION='559'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
-})();
-
-
-/* MZJ v560 - user dashboard transparency + safe creative labels */
-(function(){
-  const VERSION='v560-transparent-user-cards-no-object-object';
-  function install(){
-    let st=document.getElementById('v560UserTransparencyFix');
-    if(!st){ st=document.createElement('style'); st.id='v560UserTransparencyFix'; document.head.appendChild(st); }
-    st.textContent=`
-      #dashboard.user-mode .v559-dash-section{background:rgba(255,255,255,.18)!important;border:0!important;box-shadow:0 14px 34px rgba(45,23,19,.06)!important;backdrop-filter:blur(2px)!important;-webkit-backdrop-filter:blur(2px)!important;}
-      #dashboard.user-mode .v559-user-task-card,
-      #dashboard.user-mode .v559-template-card,
-      #dashboard.user-mode .v559-exec-card{background:rgba(255,255,255,.46)!important;border:0!important;box-shadow:0 10px 24px rgba(45,23,19,.06)!important;backdrop-filter:blur(2px)!important;-webkit-backdrop-filter:blur(2px)!important;}
-      #dashboard.user-mode .v559-stat{background:rgba(255,255,255,.42)!important;border:0!important;box-shadow:0 14px 34px rgba(45,23,19,.08)!important;}
-    `;
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
-  try{ window.MZJ_APP_VERSION='560'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
-})();
-
-
-/* MZJ v568 - multi-department user dashboard without section switching; do not change content flow */
-(function(){
-  const VERSION='v568-multi-department-user-dashboard-sections';
-  const S=v=>{
-    if(v==null) return '';
-    if(Array.isArray(v)) return v.map(S).filter(Boolean).join(' / ').trim();
-    if(typeof v==='object'){
-      const keys=['label','name','title','text','value','displayName','arabicName','creativeName','creativeTitle','contentType','contentName','creative','product','shortCode','creativeShortCode','code','carName','model','brand'];
-      for(const k of keys){ if(v[k]!=null){ const out=S(v[k]); if(out) return out; } }
-      return '';
-    }
-    return String(v).trim();
-  };
-  const H=v=>{try{return typeof escapeHtml==='function'?escapeHtml(S(v)):S(v).replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]));}catch(_){return S(v);}};
-  const A=v=>Array.isArray(v)?v:[];
-  const N=v=>{try{return typeof identityClean==='function'?identityClean(v||''):S(v).replace(/[أإآٱ]/g,'ا').replace(/[ؤ]/g,'و').replace(/[ئ]/g,'ي').replace(/[ة]/g,'ه').replace(/[ى]/g,'ي').replace(/[ـ]/g,'').replace(/[^\u0600-\u06FFa-zA-Z0-9]+/g,'').toLowerCase();}catch(_){return S(v).toLowerCase();}};
-  const uniq=list=>{const seen=new Set();return (list||[]).flat(Infinity).map(S).filter(Boolean).filter(v=>{const k=N(v);if(!k||seen.has(k))return false;seen.add(k);return true;});};
-  const fmtDate=v=>{try{return typeof formatDateShort==='function'?formatDateShort(v):(S(v)||'—');}catch(_){return S(v)||'—';}};
-  const campaignOf=task=>{try{return typeof campaignForTask==='function'?(campaignForTask(task)||{}):((window.campaigns||[]).find(c=>S(c.id||c.docId||c.campaignId||c.campaignCode)===S(task?.campaignId||task?.campaignCode))||{});}catch(_){return {};}};
-  function normalizeRole(value){
-    try{const r=normalizeDepartmentRole(value||''); if(r&&r!=='other') return r;}catch(_){ }
-    const t=N(value||'');
-    if(['shooting','photography','photo','تصوير','التصوير','قسمالتصوير'].some(x=>t.includes(N(x)))) return 'shooting';
-    if(['content','writer','copy','محتوى','محتوي','المحتوى','قسمالمحتوى'].some(x=>t.includes(N(x)))) return 'content';
-    if(['design','graphic','تصميم','التصميم','قسمالتصميم'].some(x=>t.includes(N(x)))) return 'design';
-    if(['montage','editing','edit','video','مونتاج','المونتاج','قسمالمونتاج'].some(x=>t.includes(N(x)))) return 'montage';
-    if(['publish','publishing','social','نشر','النشر','قسمالنشر'].some(x=>t.includes(N(x)))) return 'publish';
-    return 'other';
-  }
-  function roleOf(task){
-    const values=[task?.departmentRole,task?.assignedDepartmentRole,task?.departmentId,task?.assignedDepartmentId,task?.contentSectionId,task?.departmentName,task?.assignedDepartmentName,task?.contentSectionName,task?.department,task?.contentSection,task?.role].filter(Boolean);
-    for(const v of values){const r=normalizeRole(v); if(r!=='other') return r;}
-    const blob=[task?.id,task?.taskType,task?.structureTaskLabel,task?.contentType,task?.creative,task?.product].join(' ');
-    return normalizeRole(blob);
-  }
-  const roleLabel=role=>({content:'قسم المحتوى',shooting:'قسم التصوير',design:'قسم التصميم',montage:'قسم المونتاج',publish:'قسم النشر',other:'أخرى'})[role]||role;
-  function extractTaskNo(task){
-    const direct=[task?.structureTaskNo,task?.taskNo,task?.taskNumber,task?.structureRow?.taskNo,task?.approvedStructureRow?.taskNo].map(S).find(Boolean);
-    if(direct && /^N\d{1,3}$/i.test(direct.replace(/\s/g,''))) return direct.replace(/\s/g,'').toUpperCase();
-    if(direct && /N\s*\d{1,3}/i.test(direct)) return (direct.match(/N\s*\d{1,3}/i)||[''])[0].replace(/\s/g,'').toUpperCase();
-    const blob=[task?.id,task?.code,task?.title,task?.name,task?.taskType,task?.structureTaskLabel,task?.creative,task?.product].map(S).join(' ');
-    const m=blob.match(/\bN\s*\d{1,3}\b/i); return m?m[0].replace(/\s/g,'').toUpperCase():'';
-  }
-  function extractContentType(task){
-    const row=task?.structureRow||task?.approvedStructureRow||{};
-    const candidates=[row.contentType,row.contentName,row.type,row.output,task?.creativeShortCode,task?.contentType,task?.contentName,task?.creative,task?.product,task?.taskType,task?.structureTaskLabel,task?.title,task?.name,task?.id].map(S).filter(Boolean);
-    for(const raw of candidates){
-      const m=raw.match(/\bN\s*\d{1,3}\s*[-_ ]+\s*([A-Z][A-Z0-9]*(?:\s*\/\s*[A-Z0-9]+)?)\b/i); if(m) return m[1].replace(/\s+/g,'').toUpperCase();
-    }
-    for(const raw of candidates){
-      const u=raw.toUpperCase();
-      const known=['CAROUSEL','POST','REEL','STORY','VIDEO','SHORT','TREND','SHOWROOM','BANNER','MOTION','GIF'];
-      const hit=known.find(k=>new RegExp('(^|[^A-Z])'+k+'([^A-Z]|$)','i').test(u)); if(hit) return hit;
-    }
-    const clean=candidates.find(x=>normalizeRole(x)==='other' && !N(x).includes(N('قسم')) && !N(x).includes(N('تاسك')));
-    return clean||'—';
-  }
-  function shortTitle(task){const no=extractTaskNo(task);const type=extractContentType(task);return [no,type].filter(x=>x&&x!=='—').join(' - ')||S(task?.taskType||task?.title||'تاسك');}
-  function carText(task){
-    const campaign = campaignOf(task) || {};
-    const addCar = item => {
-      if(item == null) return [];
-      if(Array.isArray(item)) return item.flatMap(addCar);
-      if(typeof item === 'object') return [item.label,item.name,item.title,item.carName,item.model,item.brand,item.code,item.groupKey].map(S).filter(Boolean).slice(0,1);
-      return [S(item)].filter(Boolean);
-    };
-    const rows = [
-      task, task?.structureRow, task?.approvedStructureRow, task?.templateRow,
-      ...(A(task?.structureItems)), ...(A(task?.flowItems)), ...(A(task?.structureRequiredCreatives)),
-      campaign, ...(A(campaign?.creatives)), ...(A(campaign?.selectedCreatives)), ...(A(campaign?.structureRequiredCreatives)), ...(A(campaign?.departmentTasks))
-    ].filter(Boolean);
-    const values = [];
-    rows.forEach(row => {
-      values.push(row.selectedCar,row.car,row.carsLabel,row.carName,row.vehicle,row.vehicles,row.raw?.['السيارة'],row.raw?.['السيارات']);
-      values.push(addCar(row.selectedCars),addCar(row.cars),addCar(row.stockCars),addCar(row.requiredCars));
-    });
-    const cars=uniq(values.flat(Infinity)).filter(v=>v&&v!=='—'&&!/^\[object Object\]$/i.test(v));
-    return cars.join('، ')||'—';
-  }
-  function campaignName(c,t){return S(c?.campaignName||c?.name||c?.campaign_name||t?.campaignName||t?.campaign||'—');}
-  function campaignCode(c,t){return S(c?.campaignCode||c?.campaign_code||t?.campaignCode||t?.campaign_code||'—');}
-  function campaignType(c){return S(c?.campaignType||c?.campaign_type||c?.type||'—');}
-  function progress(task){try{return typeof taskProgress==='function'?taskProgress(task):Number(task?.progress||0);}catch(_){return Number(task?.progress||0);}}
-  function isStructureTask(task){
-    if(roleOf(task)!=='content') return false;
-    const blob=N([task?.taskType,task?.structureTaskLabel,task?.creative,task?.product,task?.source,task?.id].join(' '));
-    return !!(task?.needsStructureUpload||task?.structureRequestTask||task?.structureBundleTask||task?.sourceRequestStep==='campaign_request_data'||blob.includes(N('هيكل'))||blob.includes('structure'));
-  }
-  function isTemplateTask(task){
-    if(roleOf(task)!=='content' || isStructureTask(task)) return false;
-    const blob=N([task?.taskType,task?.source,task?.id,task?.structureTaskLabel].join(' '));
-    return !!(task?.contentTemplateTask||task?.taskTemplate||task?.contentTaskTemplate||task?.approvedContentTemplate||blob.includes(N('tasktemplate'))||blob.includes(N('قالب'))||extractTaskNo(task));
-  }
-  function isContentTask(task){return roleOf(task)==='content'||isStructureTask(task)||isTemplateTask(task);}
-  function isExecTask(task){return ['shooting','design','montage'].includes(roleOf(task));}
-  function statusContent(task){
-    if(isStructureTask(task)){
-      let st='';try{st=(typeof taskStructure==='function'?taskStructure(task):(task.structure||{}))?.status||'';}catch(_){st=task?.structure?.status||'';}
-      if(['approved','distributed'].includes(N(st))||progress(task)>=100)return{text:'تم اعتماد الهيكل',tone:'ok'};
-      if(st)return{text:'تم رفع الهيكل',tone:'wait'};
-      return{text:'مطلوب رفع الهيكل',tone:'warn'};
-    }
-    const st=N(task?.taskTemplateStatus||task?.templateReviewStatus||task?.reviewStatus||task?.status||'');
-    if(st.includes('approved')||task?.contentTemplateApproved||task?.taskTemplateApproved||progress(task)>=100)return{text:'تم اعتماد القالب',tone:'ok'};
-    if(st.includes('pending')||st.includes('review')||task?.taskTemplate?.uploadedAt||task?.contentTaskTemplate?.uploadedAt)return{text:'تم رفع القالب',tone:'wait'};
-    return{text:'لم يتم رفع القالب',tone:'warn'};
-  }
-  function statusExec(task){const p=progress(task),raw=N(task?.status||task?.taskStatus||task?.state||''); if(p>=100||raw.includes('done')||raw.includes(N('منتهي')))return{text:'تم الاعتماد',tone:'ok'}; if(raw.includes('review')||raw.includes(N('مراجعة')))return{text:'في المراجعة',tone:'blue'}; if(p>0||task?.received||task?.receivedConfirmed)return{text:'قيد التنفيذ',tone:'warn'}; return{text:'لم يبدأ بعد',tone:'muted'};}
-  function contentCreatives(task,campaign){
-    let struct={};try{struct=typeof taskStructure==='function'?(taskStructure(task)||{}):(task?.structure||{});}catch(_){struct=task?.structure||{};}
-    const rows=A(struct?.approvedRows||task?.approvedStructureRows||task?.structureItems).map(x=>x?.contentType||x?.contentName||x?.creative||x?.product||x?.creativeShortCode||x?.raw?.['نوع المحتوى']||x?.raw?.['نوع المحتوي']);
-    const campaignVals=A(campaign?.selectedCreatives||campaign?.creativeTypes||campaign?.selectedCreativeTypes||campaign?.creatives).map(x=>S(x?.creative||x?.product||x));
-    return uniq([campaignVals,rows,extractContentType(task)]).filter(v=>v&&normalizeRole(v)==='other'&&!N(v).includes(N('هيكل'))&&!N(v).includes(N('Task Template'))).join(' / ')||'—';
-  }
-  function campaignDetails(task,campaign){return [['اسم الحملة',campaignName(campaign,task)],['كود الحملة',campaignCode(campaign,task)],['نوع الحملة',campaignType(campaign)]];}
-  function fieldsGrid(fields){return `<div class="v559-fields-grid">${fields.map(([k,v])=>`<div class="v559-field"><span>${H(k)}</span><strong>${H(v||'—')}</strong></div>`).join('')}</div>`;}
-  function statCard(label,value,icon){return `<article class="v559-stat"><i>${icon}</i><span>${H(label)}</span><strong>${H(value)}</strong></article>`;}
-  function dashSection(role,title,tasks,body,icon){return `<section class="v559-dash-section v568-role-section v568-role-${H(role)}"><div class="v559-section-head"><h3>${icon?`<i>${icon}</i>`:''}${H(title)}</h3><span>${tasks.length} تاسك</span></div>${body}</section>`;}
-  function contentStructureCard(task){const c=campaignOf(task),st=statusContent(task);return `<article class="v559-user-task-card v559-structure-dash-card"><div class="v559-card-main"><h3>تاسك الهيكل</h3><p>${H(campaignName(c,task))}</p><b class="v559-badge ${st.tone}">${H(st.text)}</b></div><div class="v559-card-data"><span>الكرييتيفات</span><strong>${H(contentCreatives(task,c))}</strong></div><div class="v559-card-data"><span>السيارات</span><strong>${H(carText(task))}</strong></div><button type="button" class="v559-open-btn" data-open-task="${H(task.id)}" data-task-campaign="${H(task.campaignId||'')}">فتح التاسك</button></article>`;}
-  function contentTemplateCard(task){const c=campaignOf(task),st=statusContent(task),title=shortTitle(task);return `<article class="v559-template-card"><div class="v559-template-top"><span>${H(extractContentType(task))}</span><b>${H(extractTaskNo(task)||'N--')}</b></div><h3>${H(title)}</h3><p>الحملة</p><strong>${H(campaignName(c,task))}</strong><div class="v559-template-meta"><span>السيارة المختارة</span><b>${H(carText(task))}</b></div><div class="v559-template-status"><span>حالة القالب</span><b class="v559-badge ${st.tone}">${H(st.text)}</b></div><button type="button" class="v559-open-btn" data-open-task="${H(task.id)}" data-task-campaign="${H(task.campaignId||'')}">فتح التاسك</button></article>`;}
-  function execCard(task){const c=campaignOf(task),st=statusExec(task),p=progress(task);return `<article class="v559-exec-card"><div class="v559-exec-head"><i>📋</i><div><h3>${H(shortTitle(task))}</h3><p>${H(roleLabel(roleOf(task)))}</p></div><b class="v559-badge ${st.tone}">${H(st.text)}</b></div><div class="v559-exec-progress"><span>نسبة الإنجاز</span><b>${p}%</b><div><i style="width:${Math.min(100,p)}%"></i></div></div><div class="v559-exec-lines"><span>الحملة</span><strong>${H(campaignName(c,task))}</strong><span>السيارة</span><strong>${H(carText(task))}</strong><span>نوع المحتوى</span><strong>${H(extractContentType(task))}</strong></div><button type="button" class="v559-open-btn outline" data-open-task="${H(task.id)}" data-task-campaign="${H(task.campaignId||'')}">فتح التاسك</button></article>`;}
-  function buildMultiDashboard(board,tasks){
-    const content=tasks.filter(isContentTask), exec=tasks.filter(isExecTask), other=tasks.filter(t=>!isContentTask(t)&&!isExecTask(t));
-    const groups=[];
-    if(content.length){const structures=content.filter(isStructureTask), templates=content.filter(t=>!isStructureTask(t)); groups.push(dashSection('content','قسم المحتوى',content,`${structures.length?`<div class="v559-structure-list">${structures.map(contentStructureCard).join('')}</div>`:''}${templates.length?`<div class="v559-template-grid">${templates.map(contentTemplateCard).join('')}</div>`:''}`,'▦'));}
-    ['shooting','design','montage'].forEach(role=>{const list=exec.filter(t=>roleOf(t)===role); if(list.length) groups.push(dashSection(role,roleLabel(role),list,`<div class="v559-exec-grid">${list.map(execCard).join('')}</div>`,role==='shooting'?'📸':role==='design'?'🎨':'🎬'));});
-    if(other.length) groups.push(dashSection('other','تاسكات أخرى',other,`<div class="v559-exec-grid">${other.map(execCard).join('')}</div>`,'📋'));
-    board.innerHTML=`<section class="user-content-dashboard-clean v559-dashboard v568-multi-dashboard"><div class="user-dashboard-toolbar user-dashboard-toolbar-clean"><div class="user-theme-panel user-theme-panel-floating"><label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label><button class="mini-btn" type="button" id="clearUserThemeBtn">الثيم الافتراضي</button></div></div><div class="v559-dashboard-title"><h2>لوحة التاسكات الخاصة بي</h2><p>كل التاسكات المسندة لك حسب القسم</p></div><div class="v559-stats-row">${statCard('كل التاسكات',tasks.length,'📋')}${statCard('قسم المحتوى',content.length,'✍️')}${statCard('الأقسام التنفيذية',exec.length,'⚙️')}${statCard('قيد التنفيذ',tasks.filter(t=>progress(t)>0&&progress(t)<100).length,'◎')}</div>${groups.length?groups.join(''):'<div class="dashboard-empty-note-inline">لا توجد تاسكات مسندة لك حالياً.</div>'}</section>`;
-  }
-  const previousRender=typeof renderUserDashboard==='function'?renderUserDashboard:null;
-  if(previousRender){
-    renderUserDashboard=function(){
-      const board=document.getElementById('adminDashboardBoard');
-      if(!board) return previousRender.apply(this,arguments);
-      try{if(typeof setDashboardMode==='function')setDashboardMode('user'); if(typeof applyEffectiveTheme==='function')applyEffectiveTheme();}catch(_){ }
-      let tasks=[]; try{tasks=typeof getVisibleTasksForCurrentUser==='function'?(getVisibleTasksForCurrentUser()||[]):[];}catch(_){tasks=[];}
-      try{buildMultiDashboard(board,tasks); try{if(typeof applyEffectiveTheme==='function')applyEffectiveTheme();}catch(_){ }}catch(e){console.warn(VERSION,'dashboard failed',e); return previousRender.apply(this,arguments);}
-    };
-    try{window.renderUserDashboard=renderUserDashboard;}catch(_){ }
-  }
-  function execStepTemplate(role){
-    const data={
-      shooting:[['التصوير قبل الفلترة',20,false],['الاعتماد',20,true],['الاديت',20,false],['الاعتماد',20,true],['التسليم و الارفاق',20,false]],
-      design:[['النسخة الاولى',35,false],['الاعتماد',35,true],['التسليم و الارفاق',30,false]],
-      montage:[['اختيار اللقطات المناسبة',10,false],['تجهيز مشاهد الذكاء الاصطناعي',10,false],['فويس اوفر',10,false],['الهوك',10,false],['الاعتماد',15,true],['النسخة الأولى',20,false],['الاعتماد',15,true],['التسليم و الارفاق',10,false]]
-    }[role]||[];
-    return data.map(([label,percent,adminOnly],index)=>({label,percent,adminOnly,done:false,index}));
-  }
-  function normalizedExecSteps(task){const role=roleOf(task),base=execStepTemplate(role);const existing=A(task?.steps);const used=new Set();return base.map(step=>{const i=existing.findIndex((s,idx)=>!used.has(idx)&&N(s?.label)===N(step.label)); if(i>=0){used.add(i);return {...step,done:!!existing[i].done};}return step;});}
-  function rowVal(row,keys){if(!row)return'';for(const k of keys){if(row[k]!=null&&S(row[k]))return S(row[k]);}const nkeys=keys.map(N);for(const k of Object.keys(row||{})){if(nkeys.includes(N(k))&&S(row[k]))return S(row[k]);}if(row.raw)return rowVal(row.raw,keys);return'';}
-  function fieldVal(obj,keys,ar){const pool=[obj,obj?.fields,obj?.data,obj?.templateData,obj?.parsed,obj?.raw,obj?.row].filter(Boolean);for(const src of pool){if(Array.isArray(src)){for(const f of src){const key=N(f?.key||f?.name||f?.label||f?.title||f?.field||'');if(keys.concat(ar||[]).map(N).includes(key)&&S(f?.value||f?.text||f?.content))return S(f.value||f.text||f.content);}}else{const v=rowVal(src,keys.concat(ar||[]));if(v)return v;}}return'';}
-  function templateObj(task){return task?.approvedContentTemplate||task?.contentTaskTemplate||task?.taskTemplate||task?.template||{};}
-  function approvedTemplateFields(task){const tpl=templateObj(task);return [['الاسم المقترح للكرييتيف',fieldVal(tpl,['suggestedCreativeName','creativeName','title'],['الاسم المقترح للكرييتيف','العنوان'])],['الهدف',fieldVal(tpl,['goal'],['الهدف'])],['الرسالة الأساسية',fieldVal(tpl,['mainMessage','message','coreMessage'],['الرسالة الأساسية','الرسالة'])],['الهوك',fieldVal(tpl,['hook'],['الهوك'])],['السكريبت الأساسي',fieldVal(tpl,['script','mainScript'],['السكريبت الأساسي','السكريبت'])],['CTA',fieldVal(tpl,['cta','CTA'],['CTA'])],['الكابشن',fieldVal(tpl,['caption'],['الكابشن'])],['هاشتاج',fieldVal(tpl,['hashtags','hashtagsText','hashTags'],['هاشتاج','الهاشتاج','هاشتاجات'])]];}
-  function execDetail(task){const c=campaignOf(task),st=statusExec(task),p=progress(task),steps=normalizedExecSteps(task),admin=typeof isCurrentUserAdmin==='function'&&isCurrentUserAdmin();return `<div class="task-detail-fullscreen v559-detail-view v559-exec-detail v568-exec-detail"><div class="v559-detail-head"><div><h2>${H(shortTitle(task))}</h2><p>${H(roleLabel(roleOf(task)))}</p></div><b class="v559-badge ${st.tone}">${H(st.text)}</b><button type="button" class="mini-btn task-close-btn" data-close-task-modal>إغلاق</button></div><section class="modal-section v559-detail-section"><div class="modal-section-title"><h3>بيانات الحملة</h3></div>${fieldsGrid(campaignDetails(task,c))}</section><section class="modal-section v559-detail-section"><div class="modal-section-title"><h3>بيانات التاسك</h3></div>${fieldsGrid([['أنواع الكرييتيف المختارة',contentCreatives(task,c)],['السيارة المختارة',carText(task)],['رقم التاسك',extractTaskNo(task)||'—'],['نوع المحتوى',extractContentType(task)]])}</section><section class="modal-section v559-detail-section"><div class="modal-section-title"><h3>بيانات المحتوى من Task Template</h3><span>مرتبطة بالتاسك ${H(extractTaskNo(task)||'—')}</span></div>${fieldsGrid(approvedTemplateFields(task))}</section><section class="modal-section v559-actions-detail"><div class="modal-section-title"><h3>إجراءات التكليف</h3><span>${p}%</span></div><div class="modal-progress"><span style="width:${Math.min(100,p)}%"></span></div><div class="modal-steps-grid v559-steps-grid">${steps.map((step,index)=>`<button type="button" class="workflow-step ${step.done?'done':''}" data-task-step="${H(task.id)}" data-step-index="${index}" ${step.adminOnly&&!admin?'disabled':''}><span>${H(step.label)}</span><strong>${Number(step.percent||0)}%</strong>${step.adminOnly?'<em>أدمن فقط</em>':''}</button>`).join('')}</div></section></div>`;}
-  const previousDetail=typeof buildTaskDetailHtml==='function'?buildTaskDetailHtml:null;
-  if(previousDetail){
-    buildTaskDetailHtml=function(task){try{if(!isCurrentUserAdmin?.()&&isExecTask(task))return execDetail(task);}catch(e){console.warn(VERSION,'exec detail failed',e);}return previousDetail.apply(this,arguments);};
-    try{window.buildTaskDetailHtml=buildTaskDetailHtml;}catch(_){ }
-  }
-  const previousToggle=typeof toggleTaskStep==='function'?toggleTaskStep:null;
-  if(previousToggle){
-    toggleTaskStep=async function(taskId,stepIndex){
-      const task=typeof findTaskById==='function'?findTaskById(taskId):null;
-      if(!task||!isExecTask(task)) return previousToggle.apply(this,arguments);
-      if(!isCurrentUserAdmin()&&typeof currentUserMatchesTaskExact==='function'&&!currentUserMatchesTaskExact(task)) return;
-      const steps=normalizedExecSteps(task); const step=steps[Number(stepIndex)]; if(!step) return;
-      if(step.adminOnly&&!isCurrentUserAdmin()){ if(typeof showToast==='function')showToast('الاعتماد للأدمن فقط.'); return; }
-      step.done=!step.done; const prog=Math.min(100,Math.round(steps.reduce((sum,s)=>sum+(s.done?Number(s.percent||0):0),0)));
-      await updateTaskOnFirebase(task.id,{steps,progress:prog,status:prog>=100?'done':'in_progress',deliveredAt:prog>=100?(task.deliveredAt||new Date().toISOString()):'',completedAt:prog>=100?(task.completedAt||new Date().toISOString()):''});
-      try{refreshOpenTaskModal(); renderAdminDashboard();}catch(_){ }
-    };
-    try{window.toggleTaskStep=toggleTaskStep;}catch(_){ }
-  }
-  function style(){
-    let st=document.getElementById('v568MultiDeptDashboardStyle'); if(!st){st=document.createElement('style');st.id='v568MultiDeptDashboardStyle';document.head.appendChild(st);}
-    st.textContent=`#dashboard.user-mode .v568-multi-dashboard{background:transparent!important;border:0!important;box-shadow:none!important}.v568-role-section{margin-top:4px!important}.v568-multi-dashboard .v559-section-head h3 i{font-style:normal}.v568-multi-dashboard .v559-template-grid,.v568-multi-dashboard .v559-exec-grid{margin-top:0!important}.v568-multi-dashboard .v559-exec-card h3,.v568-exec-detail .v559-detail-head h2{direction:ltr;text-align:right;unicode-bidi:plaintext}`;
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',style);else style();
-  try{if(typeof renderUserDashboard==='function')renderUserDashboard();}catch(_){ }
-  try{window.MZJ_APP_VERSION='568';window.MZJ_LAST_PATCH=VERSION;console.info(VERSION,'loaded');}catch(_){ }
-})();
-
-
-/* MZJ v569 - show campaign selected cars in content structure task details/dashboard without changing theme */
-(function(){
-  const VERSION='v569-content-structure-cars-display-fix';
-  const S=v=>{
-    if(v==null) return '';
-    if(Array.isArray(v)) return v.map(S).filter(Boolean).join('، ');
-    if(typeof v==='object'){
-      const keys=['label','name','title','carName','model','brand','code','groupKey','value','text'];
-      for(const k of keys){ if(v[k]!=null){ const out=S(v[k]); if(out) return out; } }
-      return '';
-    }
-    const out=String(v).trim();
-    return /^\[object Object\]$/i.test(out)?'':out;
-  };
-  const H=v=>{try{return typeof escapeHtml==='function'?escapeHtml(S(v)):S(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}catch(_){return S(v);}};
-  const A=v=>Array.isArray(v)?v:[];
-  const uniq=list=>{const seen=new Set(),out=[];(list||[]).flat(Infinity).map(S).filter(Boolean).forEach(v=>{const k=v.replace(/\s+/g,'').toLowerCase(); if(!seen.has(k)){seen.add(k);out.push(v);}});return out;};
-  function campaignOf(task){try{return typeof campaignForTask==='function'?(campaignForTask(task)||{}):((window.campaigns||[]).find(c=>S(c.id||c.docId||c.campaignId||c.campaignCode)===S(task?.campaignId||task?.campaignCode))||{});}catch(_){return {};}}
-  function addCar(item){
-    if(item==null) return [];
-    if(Array.isArray(item)) return item.flatMap(addCar);
-    if(typeof item==='object') return [item.label,item.name,item.title,item.carName,item.model,item.brand,item.code,item.groupKey,item.value,item.text].map(S).filter(Boolean).slice(0,1);
-    return [S(item)].filter(Boolean);
-  }
-  function carsForTask(task){
-    const c=campaignOf(task)||{};
-    const rows=[task,task?.structureRow,task?.approvedStructureRow,task?.templateRow,
-      ...A(task?.structureItems),...A(task?.flowItems),...A(task?.structureRequiredCreatives),
-      c,...A(c?.creatives),...A(c?.selectedCreatives),...A(c?.structureRequiredCreatives),...A(c?.departmentTasks)
-    ].filter(Boolean);
-    const values=[];
-    rows.forEach(row=>{
-      values.push(row.selectedCar,row.car,row.carsLabel,row.carName,row.vehicle,row.vehicles,row.raw?.['السيارة'],row.raw?.['السيارات']);
-      values.push(addCar(row.selectedCars),addCar(row.cars),addCar(row.stockCars),addCar(row.requiredCars));
-    });
-    return uniq(values).join('، ');
-  }
-  const prevDetail=typeof buildTaskDetailHtml==='function'?buildTaskDetailHtml:null;
-  if(prevDetail){
-    buildTaskDetailHtml=function(task){
-      let html=prevDetail.apply(this,arguments);
-      const cars=carsForTask(task);
-      if(cars){
-        html=html.replace(/(<span>السيارات<\/span>\s*<strong>)(?:—|-|\s*)(<\/strong>)/g,`$1${H(cars)}$2`)
-                 .replace(/(<span>السيارة المختارة<\/span>\s*<strong>)(?:—|-|\s*)(<\/strong>)/g,`$1${H(cars)}$2`)
-                 .replace(/(<span>السيارة<\/span>\s*<strong>)(?:—|-|\s*)(<\/strong>)/g,`$1${H(cars)}$2`);
-      }
-      return html;
-    };
-    try{window.buildTaskDetailHtml=buildTaskDetailHtml;}catch(_){ }
-  }
-  try{window.MZJ_APP_VERSION='569';window.MZJ_LAST_PATCH=VERSION;console.info(VERSION,'loaded');}catch(_){ }
 })();
