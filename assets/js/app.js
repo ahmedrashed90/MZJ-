@@ -34342,3 +34342,66 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   setTimeout(normalize,900);
   try{ window.MZJ_APP_VERSION='552'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
 })();
+
+/* MZJ v553 - remove legacy empty review-save panel */
+(function(){
+  const VERSION='v553-remove-empty-review-save-panel';
+  const q=(s,r=document)=>r.querySelector(s);
+  const qa=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  const S=v=>String(v??'').trim();
+  function installStyle(){
+    let st=q('#v553RemoveEmptyReviewSaveStyle');
+    if(!st){ st=document.createElement('style'); st.id='v553RemoveEmptyReviewSaveStyle'; document.head.appendChild(st); }
+    st.textContent=`
+      #create-campaign #campaignReviewPanel,
+      #create-campaign .campaign-wizard-panel[data-campaign-wizard-step="4"],
+      #create-campaign .v531-review-save-panel,
+      #create-campaign .v532-review-save-panel,
+      #create-campaign .v533-review-save-panel{
+        display:none!important;
+        visibility:hidden!important;
+        width:0!important;
+        height:0!important;
+        min-width:0!important;
+        min-height:0!important;
+        max-width:0!important;
+        max-height:0!important;
+        padding:0!important;
+        margin:0!important;
+        border:0!important;
+        overflow:hidden!important;
+      }
+    `;
+  }
+  function isLegacyReviewSave(el){
+    if(!el) return false;
+    if(el.id==='campaignReviewPanel') return true;
+    if(el.classList?.contains('v531-review-save-panel') || el.classList?.contains('v532-review-save-panel') || el.classList?.contains('v533-review-save-panel')) return true;
+    if(el.classList?.contains('campaign-wizard-panel') && String(el.dataset?.campaignWizardStep||'')==='4') return true;
+    const t=S(el.textContent);
+    return t==='مراجعة وحفظ' || t.includes('راجع الحملة قبل الحفظ: بيانات الطلب، كتاب المحتوى، الكريتيفات المحفوظة، والميزانية');
+  }
+  function cleanup(){
+    installStyle();
+    const root=q('#create-campaign'); if(!root) return;
+    qa('#campaignReviewPanel,.campaign-wizard-panel[data-campaign-wizard-step="4"],.v531-review-save-panel,.v532-review-save-panel,.v533-review-save-panel',root).forEach(el=>{
+      if(!el.classList.contains('v533-review-panel') && el.id!=='campaignReviewGrid') el.remove();
+    });
+    qa('h1,h2,h3,p,div,section,article',root).forEach(el=>{
+      if(!isLegacyReviewSave(el)) return;
+      const card=el.closest('.campaign-wizard-panel,.v531-review-save-panel,.v532-review-save-panel,.v533-review-save-panel,.card,.v531-panel,.v533-panel,section,article') || el;
+      if(card && !card.classList.contains('v533-review-panel') && card.id!=='campaignReviewGrid') card.remove();
+    });
+    qa('.card,.v531-panel,.v533-panel,section,article',root).forEach(card=>{
+      if(card.classList.contains('v533-review-panel') || card.id==='campaignReviewGrid') return;
+      const text=S(card.textContent);
+      const hasUseful=card.querySelector('input:not([type="hidden"]),select,textarea,button,table,.v531-creative-panel,.v531-budget-card,.v531-review-card,.v531-check-card,.v550-saved-creatives-box');
+      if(!hasUseful && text.length<4){ card.remove(); }
+    });
+  }
+  ['click','input','change','focus'].forEach(type=>document.addEventListener(type,function(e){ if(q('#create-campaign')?.contains(e.target)) setTimeout(cleanup,80); },true));
+  const oldRender=typeof renderRoute==='function'?renderRoute:null;
+  if(oldRender){ renderRoute=function(){ const r=oldRender.apply(this,arguments); setTimeout(cleanup,180); setTimeout(cleanup,700); return r; }; }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{setTimeout(cleanup,250);setTimeout(cleanup,1000);}); else {setTimeout(cleanup,250);setTimeout(cleanup,1000);}
+  try{ window.MZJ_APP_VERSION='553'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
