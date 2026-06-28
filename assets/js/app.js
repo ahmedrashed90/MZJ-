@@ -14080,7 +14080,8 @@ if(false){(function(){
   ['pointerdown','mousedown','mouseup','click','focusin','focus','keydown'].forEach(type => {
     document.addEventListener(type, function(event){
       if(event.target?.matches?.('.v209-linked-writer-deadline,.js-content-writer-deadline,input[type="date"]')){
-        event.stopPropagation();
+        // v217: protect native date picker from later document-level rebuild/cleanup listeners.
+        event.stopImmediatePropagation();
       }
     }, true);
   });
@@ -14148,7 +14149,14 @@ if(false){(function(){
     });
   }
   ['DOMContentLoaded','change','click','input'].forEach(type => {
-    document.addEventListener(type, function(){ setTimeout(() => hideDuplicateDeadlineBlocks(document), type === 'DOMContentLoaded' ? 0 : 40); }, true);
+    document.addEventListener(type, function(event){
+      // v217: do not touch/re-style date inputs while the picker is opening or active.
+      if(type !== 'DOMContentLoaded' && event?.target?.matches?.('.v209-linked-writer-deadline,.js-content-writer-deadline,input[type="date"]')){
+        if(type === 'change' || type === 'input') event.target.setAttribute('value', event.target.value || '');
+        return;
+      }
+      setTimeout(() => hideDuplicateDeadlineBlocks(document), type === 'DOMContentLoaded' ? 0 : 40);
+    }, true);
   });
   const observer = new MutationObserver(function(mutations){
     for(const m of mutations){
@@ -14222,8 +14230,10 @@ if(false){(function(){
   }
   ['DOMContentLoaded','change','input','click'].forEach(type=>{
     document.addEventListener(type, function(event){
-      if(event.target?.matches?.('.v209-linked-writer-deadline,input[type="date"]')){
+      if(event.target?.matches?.('.v209-linked-writer-deadline,.js-content-writer-deadline,input[type="date"]')){
         event.target.setAttribute('value', event.target.value || '');
+        // v217: never run cleanup from date input events; cleanup mutates the input/row and closes the native calendar.
+        return;
       }
       setTimeout(()=>cleanup(document), type === 'DOMContentLoaded' ? 0 : 80);
     }, true);
@@ -30299,7 +30309,10 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function isExecutionLike(t){ if(!t||isStructureTask(t)||isTemplateTask(t)) return false; const d=deptCanonical(t?.linkedExecutionDepartmentCode||t?.executionDepartmentCode||t?.departmentCode||t?.assignedDepartmentCode||t?.departmentRole||t?.assignedDepartmentName||''); const z=norm(collect(t)); return ['MONTAGE','DESIGN','PHOTO','PHOTOGRAPHY','SHOOTING'].includes(d)||z.includes('montage')||z.includes('design')||z.includes('photo')||z.includes('shooting')||z.includes(norm('مونتاج'))||z.includes(norm('تصميم'))||z.includes(norm('تصوير'))||(!isContentRole(t)&&z.includes('reel'));
   }
   function typeToken(t){ const s=upper([t?.contentType,t?.taskType,t?.title,t?.name,t?.creative,t?.product].join(' ')); if(s.includes('CAROUSEL')) return 'CAROUSEL'; if(s.includes('POST')) return 'POST'; if(s.includes('REEL')||s.includes('SHOWROOM')||s.includes('SHORT')) return 'REEL'; return ''; }
-  function matchTemplateToExec(tpl,exec){ if(!isExecutionLike(exec)) return false; const A=keys(tpl),B=keys(exec); if(A.taskNo&&B.taskNo&&A.taskNo!==B.taskNo) return false; if(A.dept&&B.dept&&A.dept!==B.dept&&!(collect(exec).toUpperCase().includes(A.dept))) return false; if(A.creative&&B.creative&&A.creative!==B.creative&&!(collect(exec).toUpperCase().includes(A.creative))) return false; const at=typeToken(tpl),bt=typeToken(exec); if(at&&bt&&at!==bt) return false; return !!(A.taskNo||A.dept||at); }
+  function writerMatchTokens(t){ return arr([t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.linkedContentUserId,t?.linkedContentUserUid,t?.linkedContentUserEmail,t?.linkedContentUserName,t?.approvedContentWriterName,t?.structureApprovedFromId,t?.structureApprovedFromUid,t?.structureApprovedFromEmail,t?.structureApprovedFromName,t?.dependsOnContentUserIds,t?.dependsOnContentUserNames,t?.upstreamUserIds,t?.upstreamUserNames,t?.upstreamUserLabel,t?.taskTemplate?.contentWriterId,t?.taskTemplate?.contentWriterName,t?.contentTaskTemplate?.contentWriterId,t?.contentTaskTemplate?.contentWriterName,t?.approvedContentTemplate?.contentWriterId,t?.approvedContentTemplate?.contentWriterName]).flat(Infinity).map(norm).filter(Boolean); }
+  function writerMatches(a,b){ const A=writerMatchTokens(a), B=writerMatchTokens(b); if(!A.length || !B.length) return false; return A.some(x=>B.includes(x)); }
+  function pairMatchValue(t){ return norm(t?.contentExecutionPairKey || t?.linkedExecutionPairKey || t?.mzjTaskLinkKey || t?.contentExecutionLinkKey || t?.taskTemplate?.linkedExecutionPairKey || t?.contentTaskTemplate?.linkedExecutionPairKey || t?.approvedContentTemplate?.linkedExecutionPairKey || ''); }
+  function matchTemplateToExec(tpl,exec){ if(!isExecutionLike(exec)) return false; const p1=pairMatchValue(tpl), p2=pairMatchValue(exec); if(p1 && p2 && p1!==p2) return false; if(!writerMatches(tpl,exec)) return false; const A=keys(tpl),B=keys(exec); if(A.taskNo&&B.taskNo&&A.taskNo!==B.taskNo) return false; if(A.dept&&B.dept&&A.dept!==B.dept&&!(collect(exec).toUpperCase().includes(A.dept))) return false; if(A.creative&&B.creative&&A.creative!==B.creative&&!(collect(exec).toUpperCase().includes(A.creative))) return false; const at=typeToken(tpl),bt=typeToken(exec); if(at&&bt&&at!==bt) return false; return !!(p1||A.taskNo||A.dept||at); }
   function cleanStructureWaitBase(){ return {structureApproved:true,waitingForStructureApproval:false,structureLinkPending:false,waitingForAdminReview:false,waitingQueue:false,queueStatus:'',pendingReview:false,pending_review:false}; }
   function structureApprovedPatch(){ return {...cleanStructureWaitBase(),approved:true,status:'approved',state:'approved',reviewStatus:'approved',structureStatus:'approved',structureApproved:true,waitingForApproval:false,waitingForTaskTemplate:false,waitingForContent:false,waitingForApprovalLabel:'',dashboardStatusLabel:'تم اعتماد الهيكل',taskStatus:'تم اعتماد الهيكل',approvedAt:now(),reviewedAt:now(),approvedBy:reviewer(),reviewedBy:reviewer(),updatedAt:now()}; }
   function executionWaitingTemplatePatch(){ return {...cleanStructureWaitBase(),status:'waiting_task_template',state:'waiting_task_template',taskStatus:'في انتظار Task Template',dashboardStatusLabel:'في انتظار Task Template',waitingForApproval:true,waitingForTaskTemplate:true,waitingForContent:true,waitingForApprovalLabel:'في انتظار Task Template',updatedAt:now()}; }
@@ -30311,7 +30324,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   async function loadCampaign(campaignId, fallback){ let c=fallback||localCampaignById(campaignId); if(campaignId){ try{ const doc=await col(CAMPAIGNS_COLLECTION).doc(campaignId).get(); if(doc&&doc.exists){ c={id:doc.id,...doc.data()}; } }catch(e){ console.warn(`${VERSION} load campaign`,e); } } return c; }
   async function persistCampaign(c,tasks){ const id=campaignIdOf(c); if(!id) throw new Error('تعذر تحديد الحملة'); await col(CAMPAIGNS_COLLECTION).doc(id).update({departmentTasks:tasks,taskCount:tasks.length,updatedAt:server()}); const local=localCampaignById(id); if(local){ local.departmentTasks=tasks; local.taskCount=tasks.length; local.updatedAt=now(); } if(c){ c.departmentTasks=tasks; c.taskCount=tasks.length; c.updatedAt=now(); } }
   function locateTask(taskId){ const wanted=norm(taskId); for(const c of campaignsList()){ const tasks=taskArray(c); const idx=tasks.findIndex(t=>[t?.id,t?.taskId,t?.docId,t?.originalTaskId,t?.structureTaskId,t?.taskNo].map(norm).some(x=>x===wanted||x.includes(wanted)||wanted.includes(x))); if(idx>=0) return {campaign:c,task:tasks[idx],index:idx,tasks}; } return {campaign:null,task:null,index:-1,tasks:[]}; }
-  async function sanitizeCampaignAfterStructure(campaignId,taskId){ const campaign=await loadCampaign(campaignId); if(!campaign) throw new Error('تعذر تحميل الحملة بعد اعتماد الهيكل'); const sp=structureApprovedPatch(); const tasks=taskArray(campaign).map(t=>{ if(isStructureTask(t,taskId)){ return {...t,...sp,structure:{...(t.structure||{}),...sp}}; } if(isExecutionLike(t)){ return {...t,...executionWaitingTemplatePatch()}; } return t; }); await persistCampaign(campaign,tasks); return tasks; }
+  async function sanitizeCampaignAfterStructure(campaignId,taskId){ const campaign=await loadCampaign(campaignId); if(!campaign) throw new Error('تعذر تحميل الحملة بعد اعتماد الهيكل'); const sp=structureApprovedPatch(); const wanted=norm(taskId); const originalTasks=taskArray(campaign); const approvedStructureTask=originalTasks.find(t=>[t?.id,t?.taskId,t?.docId,t?.structureTaskId,t?.originalTaskId].map(norm).some(x=>x && (x===wanted || x.includes(wanted) || wanted.includes(x)))); function approvedWriterTokens(){ const t=approvedStructureTask||{}; return arr([t.userId,t.userUid,t.userEmail,t.userName,t.assigneeUid,t.assigneeName,t.assignedToUid,t.assignedToId,t.assignedToName,t.assignedToEmail,t.contentWriterId,t.contentWriterUid,t.contentWriterEmail,t.contentWriterName,t.displayName]).flat(Infinity).map(norm).filter(Boolean); } const writerTokens=approvedWriterTokens(); function targetStructure(t){ return [t?.id,t?.taskId,t?.docId,t?.structureTaskId,t?.originalTaskId].map(norm).some(x=>x && (x===wanted || x.includes(wanted) || wanted.includes(x))); } function execBelongsToApprovedWriter(t){ const execTokens=writerMatchTokens(t); return !!(writerTokens.length && execTokens.length && writerTokens.some(x=>execTokens.includes(x))); } const tasks=originalTasks.map(t=>{ if(targetStructure(t)){ return {...t,...sp,structure:{...(t.structure||{}),...sp}}; } if(isExecutionLike(t) && execBelongsToApprovedWriter(t)){ return {...t,...executionWaitingTemplatePatch()}; } return t; }); await persistCampaign(campaign,tasks); return tasks; }
   async function approveStructureAuthoritative(taskId){
     const loc=locateTask(taskId); const campaignId=campaignIdOf(loc.campaign)||deriveCampaignId(taskId); if(!campaignId) return toast('تعذر تحديد الحملة لاعتماد الهيكل.'); const sp=structureApprovedPatch();
     await updateDocs(STRUCTURES_COLLECTION,(d)=>structureDocMatches(d,taskId,campaignId),{...sp,status:'approved',reviewStatus:'approved',structureStatus:'approved',structureApproved:true,approved:true,waitingForApproval:false,waitingForAdminReview:false,waitingQueue:false});
@@ -30320,6 +30333,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     try{ document.querySelectorAll('.structure-review-popup,.structure-review-modal').forEach(el=>el.remove()); }catch(_){ }
     try{ renderAdminDashboard(); renderUserDashboard(); renderTasksPage(); if(typeof refreshOpenTaskModal==='function') refreshOpenTaskModal(); }catch(_){ }
     toast('تم اعتماد الهيكل وتحديث تاسكات الحملة بعد التوزيع.');
+    try{ setTimeout(function(){ window.location.reload(); }, 700); }catch(_){ }
   }
   function taskTemplatePayload(task,status,note){ const base={...(task.taskTemplate||task.contentTaskTemplate||task.approvedContentTemplate||{})}; const k=keys(task); const ok=status==='approved'; return {...base,status,reviewStatus:status,templateReviewStatus:status,taskTemplateStatus:status,taskTemplateApproved:ok,contentTemplateApproved:ok,taskNo:k.taskNo,creativeShortCode:k.creative,departmentCode:k.dept,userCode:k.user,fileName:base.fileName||task.fileName||task.templateFileName||'',fileUrl:base.fileUrl||base.downloadURL||base.downloadUrl||task.fileUrl||task.downloadURL||task.downloadUrl||'',reviewNote:note||'',reviewedAt:now(),reviewedBy:reviewer(),approvedAt:ok?now():(base.approvedAt||''),approvedBy:ok?reviewer():(base.approvedBy||'')}; }
   async function decideTemplateAuthoritative(taskId,decision){
@@ -30332,7 +30346,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     toast(ok?(matched?'تم اعتماد Task Template وتحديث تاسك التنفيذ.':'تم اعتماد Task Template ولم يتم العثور على تاسك تنفيذ مطابق.'):(status==='needs_changes'?'تم طلب تعديل Task Template.':'تم رفض Task Template.'));
   }
   const prevTasksForCampaign=typeof window.tasksForCampaign==='function'?window.tasksForCampaign:null;
-  if(prevTasksForCampaign){ window.tasksForCampaign=function(campaign){ const list=arr(prevTasksForCampaign.apply(this,arguments)); const hasApprovedStructure=list.some(t=>isStructureTask(t)&&((t.structureApproved||t.approved)||['approved','distributed'].includes(txt(t.status||t.structureStatus||t.reviewStatus)))); if(!hasApprovedStructure) return list; return list.map(t=>{ if(isExecutionLike(t)&&norm(t.waitingForApprovalLabel).includes(norm('اعتماد الهيكل'))) return {...t,...executionWaitingTemplatePatch()}; return t; }); }; try{ tasksForCampaign=window.tasksForCampaign; }catch(_){ } }
+  if(prevTasksForCampaign){ window.tasksForCampaign=function(campaign){ const list=arr(prevTasksForCampaign.apply(this,arguments)); const approvedStructures=list.filter(t=>isStructureTask(t)&&((t.structureApproved||t.approved)||['approved','distributed'].includes(txt(t.status||t.structureStatus||t.reviewStatus)))); if(!approvedStructures.length) return list; function structureWriterTokens(t){ return arr([t.userId,t.userUid,t.userEmail,t.userName,t.assigneeUid,t.assigneeName,t.assignedToUid,t.assignedToId,t.assignedToName,t.assignedToEmail,t.contentWriterId,t.contentWriterUid,t.contentWriterEmail,t.contentWriterName,t.displayName]).flat(Infinity).map(norm).filter(Boolean); } return list.map(t=>{ if(isExecutionLike(t)&&norm(t.waitingForApprovalLabel).includes(norm('اعتماد الهيكل'))){ const et=writerMatchTokens(t); const ok=approvedStructures.some(st=>{ const stt=structureWriterTokens(st); return stt.length && et.length && stt.some(x=>et.includes(x)); }); if(ok) return {...t,...executionWaitingTemplatePatch()}; } return t; }); }; try{ tasksForCampaign=window.tasksForCampaign; }catch(_){ } }
   window.MZJ_v498_approveStructureAuthoritative=approveStructureAuthoritative;
   window.MZJ_v498_decideTemplateAuthoritative=decideTemplateAuthoritative;
   try{ window.MZJ_v497_approveStructureAuthoritative=approveStructureAuthoritative; window.MZJ_v497_decideTemplateAuthoritative=decideTemplateAuthoritative; window.v171ApproveTaskTemplate=id=>decideTemplateAuthoritative(id,'approved'); window.v174SetTaskTemplateDecision=(id,d)=>decideTemplateAuthoritative(id,d); }catch(_){ }
@@ -30446,6 +30460,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     try{ document.querySelectorAll('.structure-review-popup,.structure-review-modal').forEach(el=>el.remove()); }catch(_){ }
     try{ renderAdminDashboard(); renderUserDashboard(); renderTasksPage(); }catch(_){ }
     showToast('تم اعتماد الهيكل وتوزيع التاسكات.');
+    try{ setTimeout(function(){ window.location.reload(); }, 650); }catch(_){ }
   }
   async function decideTemplateHard(taskId,decision){
     const loc=findLoc(taskId);
@@ -36159,4 +36174,1360 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const modal=pick.closest('#creativeAssignmentPopup');
     saveCurrentBeforePick(modal);
   },true);
+})();
+
+/* MZJ v593 - clean content-exec linking + safe template upload + dashboard cards */
+(function(){
+  const VERSION = 'v593-content-link-safe-dashboard';
+  const A = v => Array.isArray(v) ? v : [];
+  const S = v => String(v == null ? '' : v).trim();
+  const N = v => { try { return (typeof normalizeText === 'function' ? normalizeText(v) : S(v)).toLowerCase(); } catch(_) { return S(v).toLowerCase(); } };
+  const H = v => { try { return typeof escapeHtml === 'function' ? escapeHtml(S(v)) : S(v).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); } catch(_) { return S(v); } };
+  const uniq = list => Array.from(new Set(A(list).map(S).filter(Boolean)));
+  function roleName(role){ return ({content:'قسم المحتوى', design:'قسم التصميم', shooting:'قسم التصوير', photography:'قسم التصوير', montage:'قسم المونتاج'}[S(role)] || S(role) || 'القسم'); }
+  function roleCodeSafe(role){ try { return typeof roleCode === 'function' ? roleCode(role) : S(role).toUpperCase(); } catch(_) { return S(role).toUpperCase(); } }
+  function userDisplayById(id, fallback){
+    try{
+      const user = typeof findUserByAnyIdentity === 'function' ? findUserByAnyIdentity([id, fallback]) : null;
+      if(user && typeof userName === 'function') return userName(user) || fallback || id || '';
+    }catch(_){ }
+    return S(fallback || id || '');
+  }
+  function campaignContentWriters(){
+    try{
+      if(typeof campaignRequestContentAssignees === 'function'){
+        const req = campaignRequestContentAssignees() || {};
+        const ids = A(req.ids), names = A(req.names);
+        const max = Math.max(ids.length, names.length);
+        const out = Array.from({length:max}, (_,i)=>({ id:S(ids[i] || names[i] || ''), name:S(names[i] || userDisplayById(ids[i], ids[i]) || ids[i] || '') })).filter(x=>x.id||x.name);
+        if(out.length) return out;
+      }
+    }catch(_){ }
+    const pickers = Array.from(document.querySelectorAll('#campaignRequestForm .js-request-content-writers, #campaignRequestForm [data-role="content"], .js-role-picker[data-role="content"]'));
+    const rows = [];
+    pickers.forEach(p => {
+      p.querySelectorAll('input[type="checkbox"]:checked').forEach(input => rows.push({id:S(input.value||input.dataset.id||''), name:S(input.dataset.name||input.closest('label')?.textContent||input.value||'')}));
+      const ids = S(p.dataset?.selectedIds||'').split('|').filter(Boolean);
+      const names = S(p.dataset?.selectedNames||'').split('|').filter(Boolean);
+      ids.forEach((id,i)=>rows.push({id:S(id), name:S(names[i]||userDisplayById(id,id))}));
+    });
+    return uniq(rows.map(r=>`${r.id}@@${r.name}`)).map(x=>{ const [id,name]=x.split('@@'); return {id:S(id), name:S(name||id)}; }).filter(x=>x.id||x.name);
+  }
+  function execUsersForBlock(block, role){
+    if(!block) return [];
+    const picker = block.querySelector(`.js-role-picker[data-role="${CSS.escape(String(role||''))}"], .js-role-picker`);
+    const rows = [];
+    function add(id, name){ id=S(id); name=S(name||userDisplayById(id,id)); if(id||name) rows.push({id,name}); }
+    if(picker){
+      picker.querySelectorAll('input[type="checkbox"]:checked').forEach(input => add(input.value || input.dataset.id, input.dataset.name || input.closest('label')?.textContent));
+      S(picker.dataset.selectedIds||'').split('|').filter(Boolean).forEach((id,i)=>add(id, S(picker.dataset.selectedNames||'').split('|')[i]));
+    }
+    block.querySelectorAll('.task-user-check-card input[type="checkbox"]:checked, .js-task-user-checkbox:checked').forEach(input => add(input.value || input.dataset.id, input.dataset.name || input.closest('label')?.textContent));
+    return uniq(rows.map(r=>`${r.id}@@${r.name}`)).map(x=>{ const [id,name]=x.split('@@'); return {id:S(id), name:S(name||id)}; }).filter(x=>x.id||x.name);
+  }
+  function readLinks(block){ try { return JSON.parse(decodeURIComponent(block?.dataset?.v593UserContentLinks || block?.dataset?.userContentLinks || '[]')) || []; } catch(_) { return []; } }
+  function storeLinks(block, links){ if(block){ const raw = encodeURIComponent(JSON.stringify(links || [])); block.dataset.v593UserContentLinks = raw; block.dataset.userContentLinks = raw; } }
+  function renderLinksForBlock(block){
+    if(!block) return [];
+    const role = (typeof normalizeDepartmentRole === 'function' ? normalizeDepartmentRole(block.dataset.assignmentRole || '') : S(block.dataset.assignmentRole||''));
+    if(!role || role === 'content') return [];
+    const writers = campaignContentWriters();
+    const execs = execUsersForBlock(block, role);
+    let wrap = block.querySelector('.js-user-content-linker-v593') || block.querySelector('.js-user-content-linker');
+    if(!wrap){
+      wrap = document.createElement('div');
+      wrap.className = 'user-content-linker js-user-content-linker js-user-content-linker-v593';
+      const old = block.querySelector('.js-content-dependency');
+      if(old) old.replaceWith(wrap); else block.insertBefore(wrap, block.querySelector('.creative-role-deadline-field') || null);
+    }
+    wrap.classList.add('js-user-content-linker-v593');
+    const previous = readLinks(block);
+    if(!execs.length){ wrap.innerHTML = '<div class="multi-empty">اختار يوزر من هذا القسم لربطه بكاتب محتوى.</div>'; storeLinks(block, []); return []; }
+    if(!writers.length){ wrap.innerHTML = '<div class="multi-empty">اختار كاتب محتوى من طلب كاتب المحتوى أولاً.</div>'; storeLinks(block, []); return []; }
+    wrap.innerHTML = `<div class="content-dependency-title"><strong>${H(roleName(role))}: ربط كل يوزر بكاتب محتوى</strong><small>اختار كاتب المحتوى المسؤول لكل يوزر في هذا القسم</small></div><div class="user-content-link-rows v593-link-rows">${execs.map(exec=>{
+      const old = previous.find(link => N(link.executorUserId||link.userId) === N(exec.id) || N(link.executorUserName||link.userName) === N(exec.name)) || {};
+      const oldIds = A(old.contentUserIds).map(S), oldNames = A(old.contentUserNames).map(S);
+      return `<div class="user-content-link-row js-user-content-link-row-v593" data-exec-id="${H(exec.id)}" data-exec-name="${H(exec.name)}"><div class="user-content-link-name"><strong>${H(exec.name||exec.id)}</strong><small>${H(roleName(role))}</small></div><div class="user-content-link-options">${writers.map(w=>{ const checked = oldIds.includes(S(w.id)) || oldNames.includes(S(w.name)); return `<label><input type="checkbox" class="js-user-content-link-check-v593" value="${H(w.id)}" data-name="${H(w.name)}"${checked?' checked':''}> <span>${H(w.name||w.id)}</span></label>`; }).join('')}</div></div>`;
+    }).join('')}</div>`;
+    return syncLinksForBlock(block);
+  }
+  function syncLinksForBlock(block){
+    if(!block) return [];
+    const role = (typeof normalizeDepartmentRole === 'function' ? normalizeDepartmentRole(block.dataset.assignmentRole || '') : S(block.dataset.assignmentRole||''));
+    const links = Array.from(block.querySelectorAll('.js-user-content-link-row-v593, .js-user-content-link-row')).map(row=>{
+      const checks = Array.from(row.querySelectorAll('.js-user-content-link-check-v593:checked, .js-user-content-link-check:checked'));
+      return { executorUserId:S(row.dataset.execId||''), executorUserName:S(row.dataset.execName||''), userId:S(row.dataset.execId||''), userName:S(row.dataset.execName||''), role, departmentRole:role, departmentCode:roleCodeSafe(role), contentUserIds:checks.map(i=>S(i.value)).filter(Boolean), contentUserNames:checks.map(i=>S(i.dataset.name)).filter(Boolean) };
+    }).filter(l=>l.executorUserId||l.executorUserName);
+    storeLinks(block, links);
+    return links;
+  }
+  function refreshLinks(panel){
+    const root = panel || document;
+    root.querySelectorAll('[data-assignment-role]').forEach(block=>{ const role = (typeof normalizeDepartmentRole === 'function' ? normalizeDepartmentRole(block.dataset.assignmentRole || '') : S(block.dataset.assignmentRole||'')); if(role && role !== 'content') renderLinksForBlock(block); });
+  }
+  const oldSyncPanel = typeof syncPanelDynamicState === 'function' ? syncPanelDynamicState : null;
+  if(oldSyncPanel && !oldSyncPanel.__mzj_v593_link){
+    const wrapped = function(panel){ const res = oldSyncPanel.apply(this, arguments); try{ refreshLinks(panel); }catch(e){ console.warn(VERSION, e); } return res; };
+    wrapped.__mzj_v593_link = true; try{ syncPanelDynamicState = wrapped; window.syncPanelDynamicState = wrapped; }catch(_){ window.syncPanelDynamicState = wrapped; }
+  }
+  const oldSelectedContentDependency = typeof selectedContentDependency === 'function' ? selectedContentDependency : null;
+  if(!oldSelectedContentDependency || !oldSelectedContentDependency.__mzj_v593_link){
+    const wrapped = function(panel, role){
+      const cleanRole = (typeof normalizeDepartmentRole === 'function' ? normalizeDepartmentRole(role || '') : S(role||''));
+      if(cleanRole && cleanRole !== 'content'){
+        const block = panel?.querySelector?.(`[data-assignment-role="${CSS.escape(String(cleanRole))}"]`);
+        if(block) renderLinksForBlock(block);
+        const links = syncLinksForBlock(block).filter(l => A(l.contentUserIds).length || A(l.contentUserNames).length);
+        const ids = uniq(links.flatMap(l=>l.contentUserIds||[]));
+        const names = uniq(links.flatMap(l=>l.contentUserNames||[]));
+        return { ids, names, links };
+      }
+      return oldSelectedContentDependency ? oldSelectedContentDependency.apply(this, arguments) : {ids:[], names:[], links:[]};
+    };
+    wrapped.__mzj_v593_link = true; try{ selectedContentDependency = wrapped; window.selectedContentDependency = wrapped; }catch(_){ window.selectedContentDependency = wrapped; }
+  }
+  const oldSelectedRoleTask = typeof selectedRoleTaskFromPanel === 'function' ? selectedRoleTaskFromPanel : null;
+  if(oldSelectedRoleTask && !oldSelectedRoleTask.__mzj_v593_link){
+    const wrapped = function(panel, role){
+      const task = oldSelectedRoleTask.apply(this, arguments);
+      const cleanRole = (typeof normalizeDepartmentRole === 'function' ? normalizeDepartmentRole(role || '') : S(role||''));
+      if(task && cleanRole && cleanRole !== 'content'){
+        const linked = selectedContentDependency(panel, cleanRole);
+        task.dependencyLinks = A(linked.links);
+        task.dependsOnContentUserIds = linked.ids || [];
+        task.dependsOnContentUserNames = linked.names || [];
+        task.upstreamUserIds = linked.ids || [];
+        task.upstreamUserNames = linked.names || [];
+        task.upstreamUserLabel = (linked.names || []).join('، ');
+        task.manualContentWriterLinks = true;
+      }
+      return task;
+    };
+    wrapped.__mzj_v593_link = true; try{ selectedRoleTaskFromPanel = wrapped; window.selectedRoleTaskFromPanel = wrapped; }catch(_){ window.selectedRoleTaskFromPanel = wrapped; }
+  }
+  document.addEventListener('change', function(event){
+    if(event.target.matches('.js-user-content-link-check-v593, .js-user-content-link-check')){ const block = event.target.closest('[data-assignment-role]'); syncLinksForBlock(block); try{ updateProductOutput(event.target.closest('.creative-row-card')); renderPublishAgenda(); }catch(_){ } return; }
+    if(event.target.closest('.js-role-picker') || event.target.closest('#campaignRequestForm .js-request-content-writers')){ setTimeout(()=>refreshLinks(document), 20); }
+  }, true);
+  document.addEventListener('click', function(event){ if(event.target.closest('.js-role-picker')) setTimeout(()=>refreshLinks(document), 30); }, true);
+
+  function taskId(t){ return S(t?.id || t?.taskId || t?.docId || ''); }
+  function taskCampaignId(t){ return S(t?.campaignId || t?.campaignDocId || t?.campaign_id || ''); }
+  function isExecTask(t){ const txt = N([t?.flowType,t?.id,t?.taskId,t?.assignedDepartmentId,t?.departmentRole,t?.assignedDepartmentRole,t?.executionDepartmentCode].join(' ')); return !!(txt.includes('execution_task') || txt.includes('-exec-') || ['design','montage','shooting','photography'].some(r=>txt.includes(r))); }
+  function contentFollower(t){ return uniq([t?.upstreamUserLabel, ...(A(t?.upstreamUserNames)), ...(A(t?.dependsOnContentUserNames)), t?.linkedContentUserName, t?.contentWriterName, t?.approvedContentWriterName].filter(Boolean)).join('، '); }
+  const oldFind = typeof findTaskById === 'function' ? findTaskById : null;
+  if(oldFind && !oldFind.__mzj_v593_robust){
+    const wrapped = function(taskIdValue, campaignIdValue=''){
+      let found = oldFind.apply(this, arguments); if(found) return found;
+      const id = S(taskIdValue), cid = S(campaignIdValue);
+      const candidates = A(window.campaigns || campaigns || []);
+      for(const campaign of candidates){
+        if(cid && S(campaign.id || campaign.docId) !== cid) continue;
+        const pools = [campaign.departmentTasks, campaign.tasks, campaign.generatedTasks, campaign.taskItems].filter(Array.isArray);
+        for(const pool of pools){
+          found = A(pool).find(t => [t?.id,t?.taskId,t?.fullTaskCode,t?.canonicalTaskCode,t?.mzjTaskLinkKey].map(S).includes(id));
+          if(found) return {...found, campaignId:S(campaign.id||campaign.docId||found.campaignId)};
+        }
+      }
+      return null;
+    };
+    wrapped.__mzj_v593_robust = true; try{ findTaskById = wrapped; window.findTaskById = wrapped; }catch(_){ window.findTaskById = wrapped; }
+  }
+  async function toggleReceivedSafe(btn){
+    const id = S(btn?.dataset?.toggleReceived || btn?.dataset?.taskId || '');
+    const cid = S(btn?.dataset?.taskCampaign || btn?.dataset?.campaignId || '');
+    const task = typeof findTaskById === 'function' ? findTaskById(id, cid) : null;
+    if(!task){ try{ showToast('تعذر العثور على التاسك داخل الحملة.'); }catch(_){ } return; }
+    const next = !(task.received || task.receivedConfirmed);
+    if(typeof updateTaskOnFirebase === 'function'){
+      await updateTaskOnFirebase(task.id || task.taskId || id, { received:next, receivedConfirmed:next, receivedAt:next ? new Date().toISOString() : '', receivedBy:next ? ((typeof getCurrentUser === 'function' && (getCurrentUser().email || getCurrentUser().name || getCurrentUser().uid)) || '') : '', status:next ? 'received' : (isExecTask(task) ? (task.status || 'ready_execution') : 'pending') });
+    }
+    try{ if(typeof refreshOpenTaskModal === 'function') refreshOpenTaskModal(); }catch(_){ }
+    try{ if(typeof renderUserDashboard === 'function') renderUserDashboard(); }catch(_){ }
+    try{ if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(_){ }
+  }
+  document.addEventListener('click', function(event){
+    const btn = event.target.closest('[data-toggle-received].v593-outside-receive');
+    if(!btn) return;
+    event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
+    toggleReceivedSafe(btn).catch(err=>{ console.error(VERSION, err); try{ showToast(err?.message || 'تعذر تسجيل الاستلام.'); }catch(_){ } });
+  }, true);
+
+  function taskProgressSafe(t){ try{ return typeof taskProgress === 'function' ? taskProgress(t) : Number(t?.progress || 0); }catch(_){ return Number(t?.progress || 0); } }
+  function taskTitleSafe(t){ try{ return typeof shortTaskName === 'function' ? shortTaskName(t) : S(t?.visibleTaskName || t?.taskType || t?.creative || 'تاسك'); }catch(_){ return S(t?.visibleTaskName || t?.taskType || t?.creative || 'تاسك'); } }
+  function taskCarSafe(t){ try{ if(typeof car === 'function') return car(t); }catch(_){ } try{ if(typeof mzjSelectedCarLabels === 'function') return S(t?.selectedCar || mzjSelectedCarLabels(t?.selectedCars||[]).join('، ')); }catch(_){ } return S(t?.selectedCar || t?.carName || t?.structureRow?.car || '—'); }
+  function campaignOf(t){ try{ return typeof campaignForTask === 'function' ? (campaignForTask(t) || {}) : {}; }catch(_){ return {}; } }
+  function contentTypeSafe(t){ try{ return typeof taskContentType === 'function' ? taskContentType(t) : S(t?.contentType || t?.creative || t?.product || ''); }catch(_){ return S(t?.contentType || t?.creative || t?.product || ''); } }
+  function openButton(t){ return `<button type="button" class="v593-open-task" data-open-task="${H(taskId(t))}" data-task-campaign="${H(taskCampaignId(t))}">فتح التاسك</button>`; }
+  function receiveButton(t){ const done=!!(t?.received||t?.receivedConfirmed); return `<button type="button" class="v593-receive-btn v593-outside-receive ${done?'done':''}" data-toggle-received="${H(taskId(t))}" data-task-campaign="${H(taskCampaignId(t))}">${done?'تم الاستلام':'تم الاستلام'}</button>`; }
+  function execCard(t){ const c=campaignOf(t), p=taskProgressSafe(t), follower=contentFollower(t); const status = p>0?'قيد التنفيذ':(N(t?.status||t?.dashboardStatusLabel).includes('ready')||N(t?.dashboardStatusLabel).includes(N('جاهز'))?'جاهز للتنفيذ':'في انتظار التنفيذ'); return `<article class="v593-task-card v593-exec-card"><div class="v593-card-head"><div><h3>${H(taskTitleSafe(t))}</h3><p>${H(roleName(t.departmentRole || t.assignedDepartmentRole || t.assignedDepartmentId))}</p></div><span class="v593-status">${H(status)}</span></div><div class="v593-progress"><b>${p}%</b><span><i style="width:${Math.min(100,p)}%"></i></span></div><div class="v593-lines"><span>الحملة</span><strong>${H(c.campaignName||c.name||t.campaignName||'—')}</strong><span>السيارة</span><strong>${H(taskCarSafe(t))}</strong><span>نوع المحتوى</span><strong>${H(contentTypeSafe(t)||'—')}</strong>${follower?`<span>تابع المحتوى</span><strong>${H(follower)}</strong>`:''}</div><div class="v593-card-actions">${receiveButton(t)}${openButton(t)}</div></article>`; }
+  const oldRenderUserDashboard = typeof renderUserDashboard === 'function' ? renderUserDashboard : null;
+  if(oldRenderUserDashboard && !oldRenderUserDashboard.__mzj_v593_cards){
+    const wrapped = function(){
+      const board = document.getElementById('adminDashboardBoard');
+      if(!board) return oldRenderUserDashboard.apply(this, arguments);
+      let tasks = [];
+      try{ tasks = typeof getVisibleTasksForCurrentUser === 'function' ? getVisibleTasksForCurrentUser() : []; }catch(_){ tasks = []; }
+      const exec = A(tasks).filter(isExecTask);
+      if(!exec.length) return oldRenderUserDashboard.apply(this, arguments);
+      try{
+        if(typeof setDashboardMode === 'function') setDashboardMode('user');
+        const content = A(tasks).filter(t=>!isExecTask(t));
+        const contentHtml = content.length ? `<section class="v593-user-section"><h2>قسم المحتوى</h2><div class="v593-content-mini">${content.map(t=>`<article class="v593-task-card"><div class="v593-card-head"><div><h3>${H(taskTitleSafe(t))}</h3><p>${H(t.dashboardStatusLabel||t.taskStatus||'')}</p></div></div>${openButton(t)}</article>`).join('')}</div></section>` : '';
+        const byRole = ['design','shooting','montage'].map(role=>({role, list:exec.filter(t=>N(t.departmentRole||t.assignedDepartmentRole||t.assignedDepartmentId||t.executionDepartmentCode).includes(role) || (role==='shooting' && N(t.executionDepartmentCode).includes('photo')))})).filter(g=>g.list.length);
+        board.innerHTML = `<section class="v593-dashboard"><div class="user-dashboard-toolbar user-dashboard-toolbar-clean v619-theme-toolbar-safe"><div class="user-theme-panel user-theme-panel-floating"><label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label><button class="mini-btn" type="button" id="clearUserThemeBtn">الثيم الافتراضي</button></div></div><div class="v593-hero v619-dashboard-title-safe"><h2>لوحة التاسكات الخاصة بي</h2><p>عرض سريع للتاسكات مع الاستلام والمتابعة.</p><div><b>${tasks.length}</b> تاسك</div></div>${contentHtml}${byRole.map(g=>`<section class="v593-user-section"><h2>${H(roleName(g.role))}</h2><span>${g.list.length} تاسك</span><div class="v593-task-grid">${g.list.map(execCard).join('')}</div></section>`).join('')}</section>`;
+        try{ if(typeof applyEffectiveTheme === 'function') applyEffectiveTheme(); }catch(_){ }
+      }catch(e){ console.warn(VERSION,'dashboard render fallback',e); return oldRenderUserDashboard.apply(this, arguments); }
+    };
+    wrapped.__mzj_v593_cards = true; try{ renderUserDashboard = wrapped; window.renderUserDashboard = wrapped; }catch(_){ window.renderUserDashboard = wrapped; }
+  }
+  async function safeAfterUpload(){
+    await new Promise(r=>setTimeout(r,50));
+    try{ if(typeof refreshOpenTaskModal === 'function') refreshOpenTaskModal(); }catch(e){ console.warn(VERSION,'safe modal refresh failed',e); }
+    try{ if(typeof renderUserDashboard === 'function') renderUserDashboard(); }catch(e){ console.warn(VERSION,'safe user refresh failed',e); }
+    try{ if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(e){ console.warn(VERSION,'safe admin refresh failed',e); }
+  }
+  ['uploadTaskTemplateFile','v171UploadTaskTemplate'].forEach(name=>{
+    const fn = window[name] || (typeof globalThis !== 'undefined' ? globalThis[name] : null);
+    if(typeof fn === 'function' && !fn.__mzj_v593_safe){
+      const wrapped = async function(){ try{ const res = await fn.apply(this, arguments); safeAfterUpload(); return res; }catch(err){ console.error(VERSION, err); try{ showToast(err?.message || 'تعذر رفع Task Template.'); }catch(_){ } safeAfterUpload(); throw err; } };
+      wrapped.__mzj_v593_safe = true; try{ window[name] = wrapped; eval(`${name}=wrapped`); }catch(_){ window[name] = wrapped; }
+    }
+  });
+  ['setStructureStatus','decideStructureClean','approveStructureClean','decideTemplateV583','decideTemplateV588'].forEach(name=>{
+    const fn = window[name] || (typeof globalThis !== 'undefined' ? globalThis[name] : null);
+    if(typeof fn === 'function' && !fn.__mzj_v593_refresh){
+      const wrapped = async function(){ const res = await fn.apply(this, arguments); setTimeout(()=>safeAfterUpload(),80); return res; };
+      wrapped.__mzj_v593_refresh = true; try{ window[name] = wrapped; eval(`${name}=wrapped`); }catch(_){ window[name] = wrapped; }
+    }
+  });
+  const css = `.v593-dashboard{padding:18px;display:flex;flex-direction:column;gap:18px}.v593-hero{background:rgba(255,255,255,.72);border:1px solid rgba(123,67,48,.16);border-radius:24px;padding:18px;display:flex;justify-content:space-between;gap:12px;align-items:center;box-shadow:0 20px 60px rgba(78,48,35,.08)}.v593-hero h2{margin:0;color:#3e2217}.v593-hero p{margin:5px 0 0;color:#8a6f63}.v593-user-section{background:rgba(255,255,255,.55);border:1px solid rgba(123,67,48,.12);border-radius:22px;padding:16px}.v593-user-section h2{margin:0 0 12px;color:#3e2217}.v593-task-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}.v593-content-mini{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.v593-task-card{background:rgba(255,255,255,.86);border:1px solid rgba(123,67,48,.14);border-radius:20px;padding:14px;box-shadow:0 14px 35px rgba(78,48,35,.08)}.v593-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v593-card-head h3{margin:0 0 4px;font-size:15px;color:#2d1b14}.v593-card-head p{margin:0;color:#8a6f63;font-weight:700}.v593-status{background:#e9f8ee;color:#15733a;border-radius:999px;padding:7px 12px;font-weight:800;font-size:12px}.v593-progress{display:flex;align-items:center;gap:10px;margin:12px 0}.v593-progress span{height:8px;background:#eaded7;border-radius:999px;flex:1;overflow:hidden}.v593-progress i{display:block;height:100%;background:#9d5b45;border-radius:999px}.v593-lines{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;border-top:1px solid #eaded7;padding-top:10px}.v593-lines span{color:#9c7b6d;font-weight:800}.v593-lines strong{color:#2d1b14;text-align:left}.v593-card-actions{display:flex;gap:10px;margin-top:14px}.v593-receive-btn,.v593-open-task{border:1px solid #9d5b45;background:#fff;border-radius:14px;padding:10px 14px;font-weight:900;color:#8b4a37;cursor:pointer;flex:1}.v593-receive-btn.done{background:#e9f8ee;border-color:#b8dec5;color:#15733a}.v593-open-task{background:#9d5b45;color:white}.v593-link-rows{display:flex;flex-direction:column;gap:10px}.js-user-content-link-row-v593{background:rgba(255,255,255,.72);border:1px dashed rgba(123,67,48,.18);border-radius:16px;padding:10px}.user-content-link-name{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}.user-content-link-name small{color:#9c7b6d}.user-content-link-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.user-content-link-options label{border:1px solid rgba(123,67,48,.16);border-radius:12px;padding:8px;background:#fff}`;
+  if(!document.getElementById('mzj-v593-style')){ const style=document.createElement('style'); style.id='mzj-v593-style'; style.textContent=css; document.head.appendChild(style); }
+  setTimeout(()=>refreshLinks(document),200);
+  try{ window.MZJ_APP_VERSION = '619'; window.MZJ_LAST_PATCH = VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
+
+/* MZJ v612 - old-source safe create layout + per executor content writer/date + exact exec status */
+(function(){
+  const VERSION='v612-old-source-create-link-status-safe';
+  const S=v=>String(v==null?'':v).trim();
+  const A=v=>Array.isArray(v)?v:[];
+  const H=v=>{try{return typeof escapeHtml==='function'?escapeHtml(S(v)):S(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}catch(_){return S(v);}};
+  const norm=v=>{try{return typeof identityClean==='function'?identityClean(v):S(v).toLowerCase().replace(/[\u064b-\u065f\u0670]/g,'').replace(/[أإآا]/g,'ا').replace(/[ىي]/g,'ي').replace(/ة/g,'ه').replace(/[^\u0600-\u06FFa-z0-9]+/gi,'');}catch(_){return S(v).toLowerCase();}};
+  const roleOf=v=>{try{return typeof normalizeDepartmentRole==='function'?normalizeDepartmentRole(v||''):S(v);}catch(_){return S(v);}};
+  const uniq=list=>{const seen=new Set();return A(list).map(S).filter(Boolean).filter(v=>{const k=norm(v);if(!k||seen.has(k))return false;seen.add(k);return true;});};
+  const userNameFrom=id=>{try{const u=typeof findUserByAnyIdentity==='function'?findUserByAnyIdentity([id]):null;return u&&typeof userName==='function'?(userName(u)||id):id;}catch(_){return id;}};
+  const userKeys=item=>uniq([item?.id,item?.uid,item?.email,item?.emailLower,item?.name,item?.displayName,item?.username,item?.userId,item?.userUid,item?.userEmail,item?.userName,item?.assignedToId,item?.assignedToUid,item?.assignedToEmail,item?.assignedToName,item?.assigneeId,item?.assigneeUid,item?.assigneeEmail,item?.assigneeName,item?.contentWriterId,item?.contentWriterUid,item?.contentWriterEmail,item?.contentWriterName,item?.linkedContentUserId,item?.linkedContentUserUid,item?.linkedContentUserEmail,item?.linkedContentUserName,item?.writerId,item?.writerName,item?.writerEmail].flat());
+  function hasOverlap(a,b){const s=new Set(uniq(a).map(norm));return uniq(b).some(x=>s.has(norm(x)));}
+  function checkedName(input){const label=input.closest('label')||input.closest('.v531-check-card')||input.parentElement;const strong=label?.querySelector?.('strong');return S(input.dataset.name||input.dataset.userName||input.getAttribute('data-name')||(strong&&strong.textContent)||label?.textContent||input.value);}
+  function checkedId(input){return S(input.value||input.dataset.id||input.dataset.uid||input.dataset.userId||input.getAttribute('data-id')||checkedName(input));}
+  function requestWriters(){
+    const out=[];
+    const root=document.querySelector('#campaignRequestForm')||document;
+    root.querySelectorAll('#v531ContentWriters input[type="checkbox"]:checked, .js-request-content-writers input[type="checkbox"]:checked, [data-role="content"] input[type="checkbox"]:checked').forEach(input=>{
+      if(input.closest('.js-user-content-linker-v612,.js-user-content-linker,.js-content-dependency')) return;
+      out.push({id:checkedId(input),name:checkedName(input)});
+    });
+    try{
+      if(!out.length && typeof campaignRequestContentAssignees==='function'){
+        const req=campaignRequestContentAssignees()||{};const max=Math.max(A(req.ids).length,A(req.names).length);
+        for(let i=0;i<max;i++) out.push({id:S(req.ids[i]||req.names[i]||''),name:S(req.names[i]||userNameFrom(req.ids[i])||req.ids[i]||'')});
+      }
+    }catch(_){ }
+    const seen=new Set();
+    return out.filter(x=>x.id||x.name).filter(x=>{const k=norm(x.id||x.name);if(!k||seen.has(k))return false;seen.add(k);return true;});
+  }
+  function execUsers(block){
+    const out=[];
+    if(!block) return out;
+    block.querySelectorAll('input[type="checkbox"]:checked').forEach(input=>{
+      if(input.closest('.js-user-content-linker-v612,.js-user-content-linker,.js-content-dependency')) return;
+      if(input.closest('#v531ContentWriters')) return;
+      const txt=norm(checkedName(input));
+      if(txt.includes(norm('قسم اختياري'))||txt.includes('optional')) return;
+      out.push({id:checkedId(input),name:checkedName(input)});
+    });
+    const seen=new Set();
+    return out.filter(x=>x.id||x.name).filter(x=>{const k=norm(x.id||x.name);if(!k||seen.has(k))return false;seen.add(k);return true;});
+  }
+  function readStore(block){try{return JSON.parse(block?.dataset?.v612ContentLinks||'[]')||[];}catch(_){return [];}}
+  function writeStore(block,links){if(block){const raw=JSON.stringify(links||[]);block.dataset.v612ContentLinks=raw;block.dataset.v593UserContentLinks=encodeURIComponent(raw);block.dataset.userContentLinks=encodeURIComponent(raw);}}
+  function makeKey(x){return norm(x?.id||x?.uid||x?.email||x?.name||x||'');}
+  function selectedDatesForExec(prev,exec){const k=makeKey(exec);const row=A(prev).find(l=>makeKey(l.executorUserId||l.userId||l.executorUserName||l.userName)===k);return row||{};}
+  function renderLinkBlock(block){
+    if(!block) return [];
+    if(block.querySelector('.v612-date-active') || (document.querySelector('.v612-calendar-pop') && block.contains(document.activeElement))){
+      return syncBlock(block);
+    }
+    const role=roleOf(block.dataset.assignmentRole||'');
+    if(!role||role==='content') return [];
+    const writers=requestWriters();
+    const execs=execUsers(block);
+    block.querySelectorAll('.js-user-content-linker-v593,.js-user-content-linker:not(.js-user-content-linker-v612),.js-content-dependency').forEach(el=>{try{el.remove();}catch(_){el.style.display='none';}});
+    let wrap=block.querySelector(':scope > .js-user-content-linker-v612');
+    if(!wrap){
+      wrap=document.createElement('div');
+      wrap.className='js-user-content-linker-v612 user-content-linker-v612';
+      const anchor=block.querySelector('.creative-role-deadline-field')||block.querySelector('.creative-role-note-field');
+      block.insertBefore(wrap,anchor||null);
+    }
+    const prev=readStore(block);
+    if(!execs.length){wrap.innerHTML='';writeStore(block,[]);return [];}
+    if(!writers.length){wrap.innerHTML='<div class="v612-link-empty">اختار كاتب محتوى من طلب كاتب المحتوى أولاً.</div>';writeStore(block,[]);return [];}
+    wrap.innerHTML=`<div class="v612-link-title">ربط كل يوزر بكتّاب المحتوى + تاريخ التسليم</div>${execs.map(exec=>{
+      const old=selectedDatesForExec(prev,exec);const oldIds=A(old.contentUserIds).map(norm);const oldRows=A(old.contentUserDeadlines);
+      return `<section class="v612-exec-link-card" data-exec-id="${H(exec.id)}" data-exec-name="${H(exec.name)}"><div class="v612-exec-head"><span>يوزر تنفيذي</span><strong>${H(exec.name||exec.id)}</strong></div><div class="v612-writer-grid">${writers.map(w=>{
+        const wr=oldRows.find(r=>makeKey(r.id||r.userId||r.name)===makeKey(w));
+        const checked=oldIds.includes(makeKey(w))?'checked':''; const date=S(wr?.date||wr?.requiredDate||old.contentDeadlineMap?.[w.id]||old.deadline||'');
+        return `<div class="v612-writer-date-row"><label class="v612-writer-check"><input type="checkbox" class="v612-writer-check-input" value="${H(w.id)}" data-name="${H(w.name)}" ${checked}> <span>${H(w.name||w.id)}</span></label><input type="text" class="v612-date-text" inputmode="numeric" placeholder="yyyy-mm-dd" value="${H(date)}" data-date-for="${H(w.id)}"><button type="button" class="v612-date-btn" title="اختيار تاريخ">📅</button></div>`;
+      }).join('')}</div></section>`;
+    }).join('')}`;
+    return syncBlock(block);
+  }
+  function syncBlock(block){
+    if(!block) return [];
+    const role=roleOf(block.dataset.assignmentRole||'');
+    const links=[];
+    block.querySelectorAll('.v612-exec-link-card').forEach(card=>{
+      const execId=S(card.dataset.execId||''), execName=S(card.dataset.execName||'');
+      const ids=[],names=[],contentUserDeadlines=[],deadlineMap={};
+      card.querySelectorAll('.v612-writer-check-input:checked').forEach(ch=>{
+        const id=S(ch.value||''), name=S(ch.dataset.name||id); const date=S(card.querySelector(`.v612-date-text[data-date-for="${CSS.escape(id)}"]`)?.value||'');
+        ids.push(id); names.push(name); contentUserDeadlines.push({id,name,userId:id,userName:name,date,requiredDate:date}); if(id) deadlineMap[id]=date;
+      });
+      if(execId||execName) links.push({executorUserId:execId,executorUserName:execName,userId:execId,userName:execName,role,departmentRole:role,contentUserIds:uniq(ids),contentUserNames:uniq(names),contentUserDeadlines,contentDeadlineMap:deadlineMap,deadline:contentUserDeadlines.map(x=>x.date).filter(Boolean)[0]||'',requiredDate:contentUserDeadlines.map(x=>x.date).filter(Boolean)[0]||''});
+    });
+    writeStore(block,links);return links;
+  }
+  function refreshLinkBlocks(root=document){try{root.querySelectorAll('[data-assignment-role]').forEach(renderLinkBlock);}catch(e){console.warn(VERSION,'refresh links',e);}}
+
+  function openCalendar(input){
+    closeCalendar();
+    try{input.classList.add('v612-date-active');input.focus({preventScroll:true});}catch(_){ }
+    const value=S(input.value); let base=value&&/^\d{4}-\d{2}-\d{2}$/.test(value)?new Date(value+'T12:00:00'):new Date();
+    let y=base.getFullYear(), m=base.getMonth();
+    const pop=document.createElement('div'); pop.className='v612-calendar-pop'; pop.dir='ltr';
+    function pad(n){return String(n).padStart(2,'0');}
+    function draw(){
+      const first=new Date(y,m,1), start=first.getDay(), days=new Date(y,m+1,0).getDate(), prevDays=new Date(y,m,0).getDate();
+      const cells=[]; for(let i=0;i<42;i++){const d=i-start+1;let cm=m,cy=y,day=d,muted=false;if(d<1){cm=m-1;day=prevDays+d;muted=true;if(cm<0){cm=11;cy--;}}else if(d>days){cm=m+1;day=d-days;muted=true;if(cm>11){cm=0;cy++;}}const iso=`${cy}-${pad(cm+1)}-${pad(day)}`;cells.push(`<button type="button" class="v612-cal-day ${muted?'muted':''} ${iso===S(input.value)?'active':''}" data-date="${iso}">${day}</button>`);}      
+      pop.innerHTML=`<div class="v612-cal-head"><button type="button" data-cal-prev>‹</button><strong>${base.toLocaleString('en',{month:'long'})} ${y}</strong><button type="button" data-cal-next>›</button></div><div class="v612-cal-week"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div><div class="v612-cal-grid">${cells.join('')}</div><div class="v612-cal-actions"><button type="button" data-cal-clear>Clear</button><button type="button" data-cal-today>Today</button></div>`;
+    }
+    draw();
+    pop.addEventListener('click',e=>{e.preventDefault();e.stopPropagation(); if(e.target.closest('[data-cal-prev]')){m--;if(m<0){m=11;y--;}base=new Date(y,m,1);draw();return;} if(e.target.closest('[data-cal-next]')){m++;if(m>11){m=0;y++;}base=new Date(y,m,1);draw();return;} if(e.target.closest('[data-cal-clear]')){input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));closeCalendar();return;} if(e.target.closest('[data-cal-today]')){const d=new Date();input.value=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;input.dispatchEvent(new Event('input',{bubbles:true}));closeCalendar();return;} const day=e.target.closest('.v612-cal-day'); if(day){input.value=day.dataset.date||'';input.dispatchEvent(new Event('input',{bubbles:true}));closeCalendar();}});
+    document.body.appendChild(pop);
+    const r=input.getBoundingClientRect(); pop.style.top=(r.bottom+window.scrollY+6)+'px'; pop.style.left=Math.max(8,Math.min(window.innerWidth-270,r.left+window.scrollX))+'px';
+  }
+  function closeCalendar(){document.querySelectorAll('.v612-calendar-pop').forEach(x=>x.remove());document.querySelectorAll('.v612-date-active').forEach(x=>x.classList.remove('v612-date-active'));}
+
+  const oldDep=typeof selectedContentDependency==='function'?selectedContentDependency:null;
+  const depWrap=function(panel,role){
+    const clean=roleOf(role||'');
+    if(clean&&clean!=='content'){
+      const block=panel?.querySelector?.(`[data-assignment-role="${CSS.escape(clean)}"]`);
+      if(block){renderLinkBlock(block);const links=syncBlock(block).filter(l=>A(l.contentUserIds).length);return {ids:uniq(links.flatMap(l=>l.contentUserIds)),names:uniq(links.flatMap(l=>l.contentUserNames)),links};}
+    }
+    return oldDep?oldDep.apply(this,arguments):{ids:[],names:[],links:[]};
+  };
+  try{selectedContentDependency=depWrap;window.selectedContentDependency=depWrap;}catch(_){window.selectedContentDependency=depWrap;}
+
+  const oldRoleTask=typeof selectedRoleTaskFromPanel==='function'?selectedRoleTaskFromPanel:null;
+  if(oldRoleTask){
+    const roleWrap=function(panel,role){
+      const task=oldRoleTask.apply(this,arguments); const clean=roleOf(role||'');
+      if(task&&clean&&clean!=='content'){
+        const linked=depWrap(panel,clean); task.dependencyLinks=A(linked.links); task.contentWriterLinks=A(linked.links); task.dependsOnContentUserIds=linked.ids||[]; task.dependsOnContentUserNames=linked.names||[]; task.upstreamUserIds=linked.ids||[]; task.upstreamUserNames=linked.names||[]; task.upstreamUserLabel=(linked.names||[]).join('، '); task.manualContentWriterLinks=true;
+      }
+      return task;
+    };
+    try{selectedRoleTaskFromPanel=roleWrap;window.selectedRoleTaskFromPanel=roleWrap;}catch(_){window.selectedRoleTaskFromPanel=roleWrap;}
+  }
+
+  const oldBuild=typeof buildDepartmentTasks==='function'?buildDepartmentTasks:null;
+  if(oldBuild){
+    const buildWrap=function(campaignId,payload){
+      const tasks=A(oldBuild.apply(this,arguments));
+      try{return applyLinkDatesAndInitialStatus(tasks,payload);}catch(e){console.warn(VERSION,'build postprocess skipped',e);return tasks;}
+    };
+    try{buildDepartmentTasks=buildWrap;window.buildDepartmentTasks=buildWrap;}catch(_){window.buildDepartmentTasks=buildWrap;}
+  }
+  function linkRowsFromPayload(payload){
+    const rows=[]; A(payload?.creatives).forEach((cr,ci)=>A(cr?.tasks).forEach(t=>{const role=roleOf(t?.departmentRole||t?.contentSectionId||''); A(t?.dependencyLinks).forEach(l=>{A(l.contentUserDeadlines).forEach(w=>rows.push({creativeIndex:ci,role,exec:[l.executorUserId,l.executorUserName,l.userId,l.userName],writer:[w.id,w.userId,w.name,w.userName],date:S(w.date||w.requiredDate||l.deadline||l.requiredDate||'')}));});})); return rows;
+  }
+  function applyLinkDatesAndInitialStatus(tasks,payload){
+    const rows=linkRowsFromPayload(payload);
+    return tasks.map(t=>{
+      const role=roleOf(t.departmentRole||t.assignedDepartmentRole||''); if(!['design','montage','shooting','photography'].includes(role)) return t;
+      const exec=[t.assignedToId,t.assignedToUid,t.assignedToName,t.assigneeUid,t.assigneeName,t.userId,t.userName]; const writer=[t.contentWriterId,t.contentWriterUid,t.contentWriterName,t.linkedContentUserId,t.linkedContentUserName,t.upstreamUserIds,t.upstreamUserNames,t.dependsOnContentUserIds,t.dependsOnContentUserNames];
+      const row=rows.find(r=>(!r.role||r.role===role)&&hasOverlap(r.exec,exec)&&hasOverlap(r.writer,writer)); const date=row?.date||t.requiredDate||t.dueDate||'';
+      return {...t, requiredDate:date, dueDate:date, requiredDateTime:date, waitingForApproval:true, waitingForApprovalLabel:'في انتظار اعتماد الهيكل', dashboardStatusLabel:'في انتظار اعتماد الهيكل', structureLinkPending:true, linkedContentTemplateStatus:t.linkedContentTemplateStatus||'not_uploaded', status:t.status||'waiting_structure'};
+    });
+  }
+
+  function campaignsList(){try{return A(window.campaigns||campaigns);}catch(_){return A(window.campaigns);}}
+  function rawTasks(c){const d=c?.departmentTasks;if(Array.isArray(d))return d.filter(Boolean);if(d&&typeof d==='object')return Object.values(d).filter(x=>x&&typeof x==='object');return [];}
+  function taskCampaign(t){const cid=S(t?.campaignId||t?.campaignDocId||'');return campaignsList().find(c=>S(c.id||c.docId||c.campaignId)===cid)||campaignsList().find(c=>rawTasks(c).some(x=>S(x.id||x.taskId)===S(t?.id||t?.taskId)))||{};}
+  function isExec(t){const r=roleOf(t?.departmentRole||t?.assignedDepartmentRole||t?.assignedDepartmentName||'');return ['design','montage','shooting','photography'].includes(r)||norm(t?.source).includes('exec');}
+  function writerTokens(t){return uniq([t?.linkedContentUserId,t?.linkedContentUserUid,t?.linkedContentUserEmail,t?.linkedContentUserName,t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.writerId,t?.writerName,t?.dependsOnContentUserIds,t?.dependsOnContentUserNames,t?.upstreamUserIds,t?.upstreamUserNames,t?.upstreamUserLabel,A(t?.dependencyLinks).flatMap(l=>[l.contentUserIds,l.contentUserNames,l.contentUserId,l.contentUserName,l.writerId,l.writerName])].flat());}
+  function templateApproved(t){const a=t?.approvedContentTemplate||{}, b=t?.contentTaskTemplate||{}, c=t?.taskTemplate||{};return S(t?.linkedContentTemplateStatus)==='approved'||S(t?.taskTemplateStatus)==='approved'||S(a.status)==='approved'||S(b.status)==='approved'||S(c.status)==='approved'||!!t?.contentTemplateApproved;}
+  function structureApprovedFor(t){
+    const writers=writerTokens(t); const c=taskCampaign(t); const list=rawTasks(c);
+    const found=list.find(x=>roleOf(x?.departmentRole||x?.assignedDepartmentRole||x?.assignedDepartmentName)==='content'&&hasOverlap(userKeys(x),writers));
+    if(!found) return !!(t?.structureApproved||t?.contentStructureApproved||S(t?.structureStatus)==='approved'||S(t?.structureStatus)==='distributed');
+    const st=found.structure||{}; const txt=norm([found.status,found.structureStatus,st.status,found.reviewStatus].join(' '));
+    return txt.includes('approved')||txt.includes('distributed')||txt.includes(norm('معتمد'))||txt.includes(norm('تم الاعتماد'))||Number(found.progress||0)>=20||!!st.approvedAt;
+  }
+  function execGateLabel(t){if(!isExec(t)) return S(t?.dashboardStatusLabel||t?.status||''); if(templateApproved(t)) return 'جاهز للتنفيذ'; if(structureApprovedFor(t)) return 'في انتظار Task Template'; return 'في انتظار اعتماد الهيكل';}
+  const oldTasksFor=typeof tasksForCampaign==='function'?tasksForCampaign:null;
+  if(oldTasksFor){
+    const tf=function(c){return A(oldTasksFor.apply(this,arguments)).map(t=>isExec(t)?{...t,dashboardStatusLabel:execGateLabel(t),executionGateStatus:execGateLabel(t)}:t);};
+    try{tasksForCampaign=tf;window.tasksForCampaign=tf;}catch(_){window.tasksForCampaign=tf;}
+  }
+  const oldRenderDash=typeof renderUserDashboard==='function'?renderUserDashboard:null;
+  if(oldRenderDash){
+    const renderWrap=function(){
+      const res=oldRenderDash.apply(this,arguments);
+      try{document.querySelectorAll('.v593-exec-card').forEach(card=>{const h=card.querySelector('.v593-card-head h3')?.textContent||''; const camp=card.querySelector('.v593-lines strong')?.textContent||''; const all=campaignsList().flatMap(rawTasks); const t=all.find(x=>S(x.taskType||x.creative||x.product||x.id).includes(S(h))||S(h).includes(S(x.taskType||x.creative||x.product||x.id))); const status=card.querySelector('.v593-status'); if(status&&t&&isExec(t)) status.textContent=execGateLabel(t);});}catch(_){ }
+      return res;
+    };
+    try{renderUserDashboard=renderWrap;window.renderUserDashboard=renderWrap;}catch(_){window.renderUserDashboard=renderWrap;}
+  }
+
+  function safeAfterTemplate(){setTimeout(()=>{try{typeof refreshOpenTaskModal==='function'&&refreshOpenTaskModal();}catch(e){console.warn(VERSION,e);}try{typeof renderUserDashboard==='function'&&renderUserDashboard();}catch(e){console.warn(VERSION,e);}try{typeof renderAdminDashboard==='function'&&renderAdminDashboard();}catch(e){console.warn(VERSION,e);}},120);}
+  ['v171UploadTaskTemplate','uploadTaskTemplateFile'].forEach(name=>{const fn=window[name]||(typeof globalThis!=='undefined'?globalThis[name]:null);if(typeof fn==='function'&&!fn.__mzj_v612_safe){const w=async function(){try{const r=await fn.apply(this,arguments);safeAfterTemplate();return r;}catch(err){console.error(VERSION,err);try{showToast(err?.message||'تعذر رفع Task Template.');}catch(_){ }safeAfterTemplate();return null;}};w.__mzj_v612_safe=true;try{window[name]=w;eval(`${name}=w`);}catch(_){window[name]=w;}}});
+
+  function applyLayout(){const root=document.getElementById('create-campaign');if(!root)return;root.classList.add('v612-create-campaign-root');const wiz=document.getElementById('campaignWizard');if(wiz) wiz.classList.add('v612-create-page');}
+  function installStyle(){if(document.getElementById('mzj-v612-style'))return;const st=document.createElement('style');st.id='mzj-v612-style';st.textContent=`
+    #create-campaign.v612-create-campaign-root .v533-create-page{display:grid!important;grid-template-columns:minmax(370px,.86fr) minmax(720px,1.54fr)!important;grid-template-areas:"request creative" "budget review"!important;gap:16px!important;align-items:start!important;direction:rtl!important;overflow:visible!important;}
+    #create-campaign.v612-create-campaign-root .v533-request-panel{grid-area:request!important;}#create-campaign.v612-create-campaign-root .v533-creative-panel{grid-area:creative!important;}#create-campaign.v612-create-campaign-root .v533-budget-panel{grid-area:budget!important;}#create-campaign.v612-create-campaign-root .v533-review-panel{grid-area:review!important;display:block!important;}
+    #create-campaign.v612-create-campaign-root .v533-creative-layout{display:grid!important;grid-template-columns:minmax(190px,230px) minmax(0,1fr)!important;gap:14px!important;}#create-campaign.v612-create-campaign-root .v533-selected-creatives{max-height:none!important;overflow:visible!important;}
+    #create-campaign .js-user-content-linker-v612{margin:12px 0;padding:12px;border:1px dashed rgba(157,91,69,.34);border-radius:16px;background:#fff8f4;display:block!important;position:relative;z-index:5}.v612-link-title{font-weight:900;color:#5c3328;margin-bottom:10px}.v612-link-empty{padding:10px;border-radius:12px;background:#fff;color:#9a7669;font-weight:800}.v612-exec-link-card{border:1px solid rgba(157,91,69,.18);background:#fff;border-radius:15px;padding:10px;margin:8px 0}.v612-exec-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:8px}.v612-exec-head span{color:#9a7669;font-weight:800}.v612-exec-head strong{color:#2d1713}.v612-writer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.v612-writer-date-row{border:1px solid rgba(157,91,69,.18);border-radius:13px;padding:8px;background:#fffdfb;display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center}.v612-writer-check{grid-column:1/-1;display:flex!important;justify-content:space-between;align-items:center;gap:8px;font-weight:900}.v612-writer-check input{width:16px!important;height:16px!important;min-height:16px!important}.v612-date-text{width:100%!important;min-height:36px!important;height:36px!important;direction:ltr!important;text-align:center!important;background:#fff!important;cursor:pointer!important}.v612-date-btn{min-height:36px!important;height:36px!important;width:42px!important;padding:0!important;border-radius:10px!important;cursor:pointer!important}.v612-calendar-pop{position:absolute;z-index:999999;background:#fff;border:1px solid rgba(157,91,69,.25);box-shadow:0 18px 45px rgba(50,30,20,.18);border-radius:14px;padding:10px;width:260px;font:12px Arial,sans-serif}.v612-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.v612-cal-head button,.v612-cal-actions button{border:0;background:#fff3ec;border-radius:8px;padding:6px 9px;cursor:pointer}.v612-cal-week,.v612-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}.v612-cal-week span{font-weight:700;color:#8a6b60}.v612-cal-day{border:0;background:#fff;border-radius:8px;padding:7px 0;cursor:pointer}.v612-cal-day:hover,.v612-cal-day.active{background:#9d5b45;color:#fff}.v612-cal-day.muted{color:#b9a69e}.v612-cal-actions{display:flex;justify-content:space-between;margin-top:8px}
+    @media(max-width:1280px){#create-campaign.v612-create-campaign-root .v533-create-page{grid-template-columns:1fr!important;grid-template-areas:"request" "creative" "budget" "review"!important;}#create-campaign.v612-create-campaign-root .v533-creative-layout{grid-template-columns:1fr!important;}}
+  `;document.head.appendChild(st);}
+  ['change','input'].forEach(type=>document.addEventListener(type,e=>{if(e.target.closest('.v603-link-date')) return; if(e.target.closest('.js-user-content-linker-v612')){syncBlock(e.target.closest('[data-assignment-role]'));return;} if(e.target.closest('#campaignRequestForm,#create-campaign [data-assignment-role]')) setTimeout(()=>refreshLinkBlocks(document),40);},true));
+  document.addEventListener('click',e=>{const btn=e.target.closest('.v612-date-btn');const inp=btn?btn.parentElement?.querySelector('.v612-date-text'):e.target.closest('.v612-date-text');if(inp){e.preventDefault();e.stopImmediatePropagation();openCalendar(inp);return;} if(!e.target.closest('.v612-calendar-pop')) closeCalendar(); if(e.target.closest('#create-campaign [data-assignment-role],#campaignRequestForm')) setTimeout(()=>refreshLinkBlocks(document),50);},true);
+  function boot(){installStyle();applyLayout();refreshLinkBlocks(document);} const oldRender=typeof renderRoute==='function'?renderRoute:null; if(oldRender){const rr=function(){const r=oldRender.apply(this,arguments);setTimeout(boot,120);return r;};try{renderRoute=rr;window.renderRoute=rr;}catch(_){window.renderRoute=rr;}}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,150));else setTimeout(boot,120);setTimeout(boot,900);
+  try{window.MZJ_APP_VERSION='612';window.MZJ_LAST_PATCH=VERSION;console.info(VERSION,'loaded');}catch(_){ }
+})();
+
+/* MZJ v615 - transplanted v603 create link behavior on v612 */
+(function(){
+  const VERSION='v615-v603-create-link-transplant';
+  const S=v=>String(v==null?'':v).trim();
+  const A=v=>Array.isArray(v)?v:[];
+  const q=(s,r=document)=>r.querySelector(s);
+  const qa=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  const H=v=>S(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const toast=msg=>{try{if(typeof showToast==='function')showToast(msg);else console.log(msg);}catch(_){console.log(msg)}};
+  const now=()=>{try{return typeof serverTime==='function'?serverTime():new Date().toISOString();}catch(_){return new Date().toISOString();}};
+  const key=v=>S(v).toLowerCase().replace(/\s+/g,'').replace(/[أإآٱا]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي');
+  const uniq=list=>{const out=[],seen=new Set();(list||[]).flat(Infinity).forEach(x=>{const s=S(x);const k=key(s);if(s&&!seen.has(k)){seen.add(k);out.push(s);}});return out;};
+  function getUsers(){try{return A(window.users||users);}catch(_){return A(window.users)}}
+  function getDeps(){try{return A(window.departments||departments);}catch(_){return A(window.departments)}}
+  function findUser(id){try{if(typeof findUserByAnyIdentity==='function')return findUserByAnyIdentity(id);}catch(_){} return getUsers().find(u=>S(u.id)===S(id)||S(u.uid)===S(id)||S(u.email)===S(id)||S(u.name)===S(id))||null;}
+  function uName(u,id){try{return typeof userName==='function'?userName(u||id):S(u?.name||u?.displayName||u?.email||id);}catch(_){return S(u?.name||u?.displayName||u?.email||id)}}
+  function userCode(u,idx){const raw=S(u?.code||u?.userCode||u?.shortCode||u?.username||''); if(raw)return raw.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4); try{const c=userCodeFromIdentity(u?.name||u?.displayName||u?.email||u?.id||''); if(c)return S(c).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4);}catch(_){} return String.fromCharCode(65+((idx||0)%26));}
+  function depById(id){return getDeps().find(d=>S(d.id)===S(id)||S(d.name)===S(id))||{id:id,name:id};}
+  function roleNorm(v){try{return normalizeDepartmentRole(v)||S(v);}catch(_){return S(v).toLowerCase();}}
+  function rCode(v){try{return typeof roleCode==='function'?roleCode(v):S(v).toUpperCase().slice(0,8);}catch(_){return S(v).toUpperCase().slice(0,8)}}
+  function cShort(name){try{return creativeShortCodeForName(name);}catch(_){return S(name).toUpperCase().replace(/[^A-Z0-9]+/g,'').slice(0,10)}}
+  function selectedContentWriters(){return qa('#v531ContentWriters input[type="checkbox"]:checked').map((i,idx)=>{const u=findUser(i.value)||{id:i.value,name:i.dataset.name};return {id:S(u.id||u.uid||i.value),uid:S(u.uid||u.id||i.value),name:uName(u,i.dataset.name||i.value),email:S(u.email||''),code:userCode(u,idx)}});}
+
+  function installStyle(){
+    let st=q('#v603AuthoritativeStyle'); if(!st){st=document.createElement('style');st.id='v603AuthoritativeStyle';document.head.appendChild(st);}
+    st.textContent=`
+      #create-campaign.v603-create-campaign-root.view.active{padding-inline:20px!important;overflow-x:hidden!important;}
+      #create-campaign.v603-create-campaign-root #campaignWizard.v533-create-page{display:grid!important;grid-template-columns:minmax(720px,1.45fr) minmax(420px,.95fr)!important;grid-auto-rows:auto!important;gap:18px!important;align-items:start!important;direction:ltr!important;width:100%!important;max-width:100%!important;}
+      #create-campaign.v603-create-campaign-root .v533-request-panel{grid-column:2!important;grid-row:1!important;direction:rtl!important;}
+      #create-campaign.v603-create-campaign-root .v533-creative-panel{grid-column:1!important;grid-row:1!important;direction:rtl!important;}
+      #create-campaign.v603-create-campaign-root .v533-budget-panel{grid-column:2!important;grid-row:2!important;direction:rtl!important;}
+      #create-campaign.v603-create-campaign-root .v533-review-panel{grid-column:1!important;grid-row:2!important;direction:rtl!important;display:block!important;}
+      #create-campaign.v603-create-campaign-root .v533-panel{min-width:0!important;width:100%!important;max-width:100%!important;border-radius:24px!important;background:rgba(255,253,251,.96)!important;border:1px solid rgba(189,137,111,.34)!important;box-shadow:0 18px 44px rgba(75,46,34,.08)!important;}
+      #create-campaign.v603-create-campaign-root .v533-creative-layout{display:grid!important;grid-template-columns:230px minmax(0,1fr)!important;gap:16px!important;align-items:start!important;}
+      #create-campaign.v603-create-campaign-root .v533-selected-creatives{max-height:none!important;overflow:visible!important;}
+      #create-campaign.v603-create-campaign-root .v531-creative-config-grid,#create-campaign.v603-create-campaign-root .v543-creative-body{display:grid!important;grid-template-columns:minmax(250px,.9fr) minmax(360px,1.1fr)!important;gap:14px!important;align-items:start!important;}
+      #create-campaign.v603-create-campaign-root .v531-writer-link-box,#create-campaign .js-user-content-linker-v612,#create-campaign .v613-exec-linker{display:none!important;}
+      #create-campaign .v603-exec-linker{display:grid!important;gap:10px!important;margin:10px 0!important;padding:10px!important;border:1px dashed rgba(151,84,66,.34)!important;border-radius:16px!important;background:#fff8f4!important;}
+      #create-campaign .v603-link-title{font-size:12px!important;font-weight:900!important;color:#6f3b2f!important;}
+      #create-campaign .v603-exec-card{display:grid!important;gap:8px!important;padding:10px!important;border:1px solid rgba(198,151,125,.34)!important;border-radius:14px!important;background:#fff!important;}
+      #create-campaign .v603-exec-head{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;font-weight:900!important;color:#312019!important;}
+      #create-campaign .v603-writer-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))!important;gap:8px!important;}
+      #create-campaign .v603-writer-card{display:grid!important;grid-template-columns:auto 1fr!important;gap:6px 8px!important;align-items:center!important;border:1px solid rgba(198,151,125,.26)!important;border-radius:12px!important;background:#fffaf7!important;padding:8px!important;}
+      #create-campaign .v603-writer-card input[type=date]{grid-column:1/-1!important;min-height:34px!important;font-size:11px!important;}
+      .v559-exec-lines span.v603-follow-label,.v559-exec-lines strong.v603-follow-value{display:block!important;}
+      @media(max-width:1250px){#create-campaign.v603-create-campaign-root #campaignWizard.v533-create-page{grid-template-columns:1fr!important;direction:rtl!important;}#create-campaign.v603-create-campaign-root .v533-request-panel,#create-campaign.v603-create-campaign-root .v533-creative-panel,#create-campaign.v603-create-campaign-root .v533-budget-panel,#create-campaign.v603-create-campaign-root .v533-review-panel{grid-column:1!important;grid-row:auto!important;}#create-campaign.v603-create-campaign-root .v533-creative-layout,#create-campaign.v603-create-campaign-root .v531-creative-config-grid,#create-campaign.v603-create-campaign-root .v543-creative-body{grid-template-columns:1fr!important;}}
+    `;
+  }
+  function activateLayout(){const root=q('#create-campaign'); if(!root)return; root.classList.remove('v537-create-campaign-root','v538-create-campaign-root'); root.classList.add('v603-create-campaign-root');}
+  function snapshot(sec){const out={}; qa('.v603-exec-card',sec).forEach(card=>{const eid=S(card.dataset.execId); out[eid]={}; qa('.v603-link-writer',card).forEach(ch=>{out[eid][ch.value]={checked:ch.checked,date:q('.v603-link-date[data-writer-id="'+CSS.escape(ch.value)+'"]',card)?.value||''};});}); return out;}
+  function execs(sec){return qa('.v531-section-user:checked',sec).map((i,idx)=>{const u=findUser(i.value)||{id:i.value,name:i.dataset.name};return {id:S(u.id||u.uid||i.value),name:uName(u,i.dataset.name||i.value),code:userCode(u,idx)}});}
+  function renderLinker(sec){if(!sec)return; const prev=snapshot(sec); let box=q(':scope > .v603-exec-linker',sec); if(!box){box=document.createElement('div');box.className='v603-exec-linker'; const userField=q('.v531-user-grid',sec)?.closest('.field')||q('.v531-user-grid',sec); (userField||q('.v531-dept-title',sec)||sec).insertAdjacentElement(userField?'afterend':'afterend',box);} const writers=selectedContentWriters(); const ex=execs(sec); if(!ex.length){box.innerHTML='<div class="v603-link-title">اختار يوزر من القسم عشان يظهر ربطه بكتّاب المحتوى.</div>';return;} if(!writers.length){box.innerHTML='<div class="v603-link-title">اختار كتّاب المحتوى من طلب كاتب المحتوى أولاً.</div>';return;} box.innerHTML='<div class="v603-link-title">ربط كل يوزر بكتّاب المحتوى + تاريخ التسليم</div>'+ex.map(e=>`<article class="v603-exec-card" data-exec-id="${H(e.id)}" data-exec-name="${H(e.name)}"><div class="v603-exec-head"><strong>${H(e.name)}</strong><small>يوزر تنفيذي</small></div><div class="v603-writer-grid">${writers.map(w=>{const p=prev[e.id]?.[w.id]||{};return `<label class="v603-writer-card"><input type="checkbox" class="v603-link-writer" value="${H(w.id)}" data-name="${H(w.name)}" ${p.checked?'checked':''}><span><strong>${H(w.name)}</strong><small>كاتب محتوى</small></span><input type="date" class="v603-link-date" data-writer-id="${H(w.id)}" value="${H(p.date||'')}"></label>`}).join('')}</div></article>`).join('');}
+  function refreshLinkers(root=document){qa('#create-campaign .v531-dept-section',root).forEach(renderLinker);}
+  function getExecLinks(sec){const fallback=q('.v531-section-deadline',sec)?.value||''; return qa('.v603-exec-card',sec).map(card=>{const execId=S(card.dataset.execId),execName=S(card.dataset.execName); const writers=qa('.v603-link-writer:checked',card).map(ch=>({id:S(ch.value),name:S(ch.dataset.name||ch.value),contentDeadline:q('.v603-link-date[data-writer-id="'+CSS.escape(ch.value)+'"]',card)?.value||fallback})); return {execId,execName,writers};}).filter(x=>x.execId&&x.writers.length);}
+  function collectRequest(){const form=q('#campaignRequestForm'); const fd=form?new FormData(form):new FormData(); const data={}; fd.forEach((v,k)=>data[k]=S(v)); let type={}; try{type=A(window.campaignTypes||campaignTypes).find(t=>S(t.id)===S(data.campaign_type_id)||S(t.name)===S(data.campaign_type_id))||{};}catch(_){} const code=S(q('#campaignCodeInput')?.value); return {...data,campaignCode:code,campaign_code:code,campaignType:S(type.name||''),campaignTypeId:S(type.id||data.campaign_type_id),campaignName:S(data.campaign_name),name:S(data.campaign_name||code||'حملة جديدة')};}
+  function selectedCars(panel){return qa('.v531-car-check:checked',panel).map(i=>({id:S(i.value),label:S(i.dataset.label||i.value)}));}
+  function collectCreatives(){return qa('#v531SelectedCreatives .v531-creative-panel').map((panel,ci)=>{const creative=S(panel.dataset.creativeName||q('h3',panel)?.textContent||''); const sections=qa('.v531-dept-section',panel).map(sec=>{const depId=S(sec.dataset.depId); const dep=depById(depId); const userIds=qa('.v531-section-user:checked',sec).map(i=>S(i.value)); const links=getExecLinks(sec); const union=[]; links.forEach(l=>l.writers.forEach(w=>{if(!union.some(x=>x.id===w.id))union.push(w);})); return {departmentId:depId,departmentName:S(dep.name||depId),departmentRole:roleNorm(dep.name||dep.slug||depId),departmentCode:rCode(roleNorm(dep.name||dep.slug||depId)),kind:S(sec.dataset.depKind),userIds,userNames:userIds.map(id=>uName(findUser(id),id)),execContentLinks:links,linkedContentWriters:union,sectionDeadline:q('.v531-section-deadline',sec)?.value||'',note:S(q('.v531-section-note',sec)?.value)};}).filter(s=>s.departmentId&&s.userIds.length&&s.execContentLinks.length); return {creative,creativeId:S(panel.dataset.creativeId),creativeShortCode:cShort(creative),creativeIndex:ci,selectedCars:selectedCars(panel),sections,workflowMode:'v603_per_executor_content_links'};}).filter(c=>c.creative);}
+  function budget(){return qa('#budgetRows .v531-budget-card').map(card=>({funnel:S(q('.v531-budget-funnel',card)?.value),creatives:qa('.v531-budget-creative:checked',card).map(i=>S(i.value)),platforms:qa('.v531-budget-platform:checked',card).map(i=>S(i.dataset.name||i.value)),ads:S(q('.v531-budget-ads',card)?.value),contentGoal:S(q('.v531-budget-content-goal',card)?.value),expectedGoal:S(q('.v531-budget-expected-goal',card)?.value)}));}
+  function vNo(code,idx){return `${code}${String(idx).padStart(2,'0')}`;}
+  function fCode(campaignCode,ci,creative,depCode,execCode,suffix){return [campaignCode,`C${String(ci+1).padStart(2,'0')}`,cShort(creative),depCode,execCode,suffix].filter(Boolean).join('-').toUpperCase();}
+  function bTask(campaignId,campaign,creative,common){return {id:common.id,taskId:common.id,campaignId,campaignName:campaign.campaignName||campaign.name||'',campaignCode:campaign.campaignCode||campaign.campaign_code||'',creative:creative.creative,product:creative.creative,creativeId:creative.creativeId,creativeIndex:creative.creativeIndex,creativeShortCode:creative.creativeShortCode,selectedCars:creative.selectedCars,selectedCar:A(creative.selectedCars).map(c=>c.label).join('، '),received:false,receivedConfirmed:false,progress:0,attachments:[],source:'v603-authoritative-create-campaign',createdAt:now(),updatedAt:now(),...common};}
+  function buildTasks(campaignId,payload){const writers=A(payload.contentUsers),crs=A(payload.creatives),tasks=[]; writers.forEach((w,wi)=>{const items=crs.map((cr,ci)=>({creative:cr.creative,suffix:vNo(w.code,ci+1),creativeIndex:ci})); const id=`${campaignId}-structure-${w.id}`.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,180); tasks.push(bTask(campaignId,payload,{creative:'طلب هيكل',creativeIndex:0,selectedCars:[]},{id,flowType:'content_structure',structureRequestTask:true,needsStructureUpload:true,taskType:'طلب هيكل',departmentRole:'content',departmentCode:'CONTENT',contentSectionId:'content',contentSectionName:'قسم المحتوى',assignedDepartmentId:'content',assignedDepartmentName:'قسم المحتوى',userId:w.id,userUid:w.uid||w.id,userName:w.name,userEmail:w.email,assignedToId:w.id,assignedToUid:w.uid||w.id,assignedToName:w.name,assignedToEmail:w.email,assigneeUid:w.uid||w.id,assigneeName:w.name,displayName:w.name,contentWriterId:w.id,contentWriterName:w.name,contentWriterCode:w.code,taskNo:`${w.code}-STRUCTURE`,taskSuffix:`${w.code}-STRUCTURE`,requiredDate:payload.structure_deadline||'',dueDate:payload.structure_deadline||'',status:'pending',dashboardStatusLabel:'في انتظار رفع الهيكل',taskStatus:'في انتظار رفع الهيكل',campaignRequestBrief:payload.content_writer_brief||'',contentWriterBrief:payload.content_writer_brief||'',structureItems:items,flowItems:items}));}); crs.forEach((cr,ci)=>A(cr.sections).forEach(sec=>A(sec.execContentLinks).forEach(link=>{const u=findUser(link.execId)||{id:link.execId,name:link.execName}; const execCode=userCode(u,0); A(link.writers).forEach(wref=>{const writer=writers.find(w=>S(w.id)===S(wref.id))||{id:wref.id,uid:wref.id,name:wref.name,code:userCode({name:wref.name},0)}; const suffix=vNo(writer.code,ci+1); const depCode=sec.departmentCode||rCode(sec.departmentRole); const flowKey=[campaignId,writer.id,suffix,cr.creativeShortCode,depCode,link.execId].map(key).join('__'); const full=fCode(payload.campaignCode,ci,cr.creative,depCode,execCode,suffix); const id=`${campaignId}-exec-${flowKey}`.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,180); tasks.push(bTask(campaignId,payload,cr,{id,flowType:'execution_task',contentExecutionPairKey:flowKey,linkedExecutionPairKey:flowKey,contentFlowKey:flowKey,mzjTaskLinkKey:flowKey,taskNo:full,canonicalTaskCode:full,taskCode:full,fullTaskCode:full,taskSuffix:suffix,visibleTaskName:`${suffix} - ${cr.creative}`,departmentRole:sec.departmentRole,departmentCode:depCode,executionDepartmentCode:depCode,contentSectionId:sec.departmentId,contentSectionName:sec.departmentName,assignedDepartmentId:sec.departmentId,assignedDepartmentName:sec.departmentName,taskType:cr.creative,userId:u.id||u.uid||link.execId,userUid:u.uid||u.id||link.execId,userName:uName(u,link.execName),userEmail:S(u.email||''),assignedToId:u.id||u.uid||link.execId,assignedToUid:u.uid||u.id||link.execId,assignedToName:uName(u,link.execName),assignedToEmail:S(u.email||''),assigneeUid:u.uid||u.id||link.execId,assigneeName:uName(u,link.execName),displayName:uName(u,link.execName),executionUserId:u.id||u.uid||link.execId,executionUserName:uName(u,link.execName),executionUserCode:execCode,contentWriterId:writer.id,contentWriterName:writer.name,contentWriterCode:writer.code,linkedContentUserId:writer.id,linkedContentUserName:writer.name,linkedContentUserCode:writer.code,dependsOnContentUserIds:[writer.id],dependsOnContentUserNames:[writer.name],upstreamUserIds:[writer.id],upstreamUserNames:[writer.name],upstreamUserLabel:writer.name,linkedContentDeadline:wref.contentDeadline||'',requiredDate:sec.sectionDeadline||'',dueDate:sec.sectionDeadline||'',sectionNote:sec.note||'',status:'waiting_structure',state:'waiting_structure',taskStatus:'في انتظار اعتماد الهيكل',dashboardStatusLabel:'في انتظار اعتماد الهيكل',waitingForStructureApproval:true,waitingForApproval:true,waitingForApprovalLabel:'في انتظار اعتماد الهيكل',waitingForContent:true,waitingForTaskTemplate:false,waitingQueue:true,steps:typeof taskStepTemplate==='function'?taskStepTemplate(sec.departmentRole):[]}));});}))); return tasks;}
+  async function saveV603(){if(window.__MZJ_V603_SAVING__)return toast('جاري حفظ الحملة...'); const req=collectRequest(),writers=selectedContentWriters(),creatives=collectCreatives(); if(!req.campaignCode)return toast('اختار نوع الحملة عشان كود الحملة يتولد.'); if(!req.campaign_name&&!req.campaignName)return toast('اكتب اسم الحملة.'); if(!writers.length)return toast('اختار يوزر واحد على الأقل من يوزرات كتابة المحتوى.'); if(!creatives.length)return toast('اختار كرييتيف واحد على الأقل.'); if(!creatives.some(c=>A(c.sections).some(s=>A(s.execContentLinks).length)))return toast('اختار يوزر تنفيذي واربطه بكاتب محتوى.'); window.__MZJ_V603_SAVING__=true; try{window.MZJ_CAMPAIGNS_COLLECTION='marketing_campaigns';window.CAMPAIGNS_COLLECTION='marketing_campaigns';}catch(_){} try{const payload={...req,campaign_code:req.campaignCode,publishStartDate:req.publish_start_date,publishEndDate:req.publish_end_date,campaignStartDate:req.publish_start_date,campaignEndDate:req.publish_end_date,startDate:req.publish_start_date,endDate:req.publish_end_date,structure_deadline:req.structure_deadline,contentUsers:writers,userIds:writers.map(w=>w.id),userNames:writers.map(w=>w.name),userCodes:writers.map(w=>w.code),creatives,creativesClean:creatives,budgetItems:budget(),publishSchedule:[],status:'draft',source:'v603-authoritative-create-campaign',updatedAt:now(),createdAt:now()}; const col=(typeof safeCollection==='function'?safeCollection(window.MZJ_CAMPAIGNS_COLLECTION||'marketing_campaigns'):(mainDb||firebase.firestore()).collection(window.MZJ_CAMPAIGNS_COLLECTION||'marketing_campaigns')); const docRef=col.doc(); const tasks=buildTasks(docRef.id,payload); const final={...payload,id:docRef.id,departmentTasks:tasks,taskCount:tasks.length}; delete final.creativesClean; await docRef.set(final); try{campaigns=[final,...A(campaigns).filter(c=>c.id!==docRef.id)];window.campaigns=campaigns;}catch(_){} toast('تم إنشاء الحملة.'); try{renderAdminDashboard();renderTasksPage();renderCampaigns();}catch(_){} window.location.hash='#campaigns';}catch(error){console.error(VERSION,'save failed',error);toast(error?.code==='permission-denied'?'تعذر حفظ الحملة: راجع قواعد Firestore.':'تعذر حفظ الحملة.');} finally{setTimeout(()=>{window.__MZJ_V603_SAVING__=false;},1500);}}
+  function installSave(){try{window.saveCampaignToFirebase=saveV603;saveCampaignToFirebase=saveV603;}catch(_){window.saveCampaignToFirebase=saveV603;}}
+  function boot(){installStyle();activateLayout();installSave(); if(document.activeElement && document.activeElement.matches && document.activeElement.matches('#create-campaign .v603-link-date')) return; refreshLinkers();}
+  ['change','input','click'].forEach(t=>document.addEventListener(t,e=>{if(!q('#create-campaign')?.contains(e.target))return; if(e.target.closest('.js-user-content-linker-v612,.v612-date-text,.v612-date-btn,.v612-calendar-pop,.v603-link-date'))return; setTimeout(boot,90);},true));
+  const oldRender=typeof renderRoute==='function'?renderRoute:null; if(oldRender){renderRoute=function(){const r=oldRender.apply(this,arguments); setTimeout(boot,180); setTimeout(boot,700); return r;};}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(boot,250);setTimeout(boot,900);}); else {setTimeout(boot,250);setTimeout(boot,900);} setInterval(()=>{if(q('#create-campaign.view.active'))boot();},1200);
+  try{window.MZJ_APP_VERSION='615';window.MZJ_LAST_PATCH=VERSION;console.info(VERSION,'loaded');}catch(_){}
+})();
+
+
+/* MZJ v615 - capture create-campaign save buttons for transplanted v603 save */
+(function(){
+  function q(s,r=document){return r.querySelector(s)}
+  document.addEventListener('click', function(e){
+    if(!q('#create-campaign') || !q('#create-campaign').contains(e.target)) return;
+    const btn=e.target.closest('#saveCampaignDraft,#campaignWizardFinalSave');
+    if(!btn) return;
+    if(typeof window.saveCampaignToFirebase === 'function'){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      window.saveCampaignToFirebase();
+    }
+  }, true);
+  try{window.MZJ_APP_VERSION='615';}catch(_){ }
+})();
+
+
+/* v217 - date picker stability fix: date-input events no longer trigger assignment panel cleanup while the native picker is open. */
+
+
+/* v618 - keep v603 linked writer date fields stable.
+   The create-campaign boot listener must not rebuild the creative assignment cards
+   while a native date input is being opened or changed. */
+(function(){
+  try{ window.MZJ_APP_VERSION='618'; window.MZJ_LAST_PATCH='v618-creative-link-date-stable'; }catch(_){}
+  function isV603DateTarget(target){ return !!(target && target.closest && target.closest('#create-campaign .v603-link-date')); }
+  ['pointerdown','mousedown','mouseup','click','dblclick','focusin','focus','keydown','input','change'].forEach(function(type){
+    document.addEventListener(type,function(event){
+      if(!isV603DateTarget(event.target)) return;
+      var input = event.target.closest('#create-campaign .v603-link-date');
+      if(input) input.setAttribute('value', input.value || '');
+      event.stopPropagation();
+    }, true);
+  });
+})();
+
+
+/* MZJ v619 - keep user theme buttons visible above executive dashboard title */
+(function(){
+  const css = `#dashboard.user-mode .user-dashboard-toolbar-clean.v619-theme-toolbar-safe{position:relative!important;z-index:80!important;margin:0 0 26px!important;display:flex!important;justify-content:flex-start!important;align-items:center!important;clear:both!important}#dashboard.user-mode .v619-theme-toolbar-safe .user-theme-panel{position:relative!important;z-index:81!important;margin:0!important;display:flex!important;gap:10px!important;flex-wrap:wrap!important}#dashboard.user-mode .v619-dashboard-title-safe,#dashboard.user-mode .v559-dashboard-title{position:relative!important;z-index:1!important;margin-top:8px!important}#dashboard.user-mode .v593-dashboard{padding-top:22px!important}`;
+  if(!document.getElementById('mzj-v619-dashboard-theme-spacing')){
+    const style=document.createElement('style');
+    style.id='mzj-v619-dashboard-theme-spacing';
+    style.textContent=css;
+    document.head.appendChild(style);
+  }
+})();
+
+/* MZJ v621 - structure approval refresh + strict writer-linked execution gates */
+
+(function(){
+  const VERSION='v622-strict-structure-template-gates-refresh';
+  const S=v=>v==null?'':String(v).trim();
+  const A=v=>Array.isArray(v)?v:(v==null?[]:[v]);
+  const N=v=>S(v).toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآٱا]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/ـ/g,'').replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const now=()=>new Date().toISOString();
+  const toast=msg=>{try{ if(typeof showToast==='function') showToast(msg); }catch(_){}};
+  const server=()=>{try{return typeof firebase!=='undefined'&&firebase.firestore&&firebase.firestore.FieldValue?firebase.firestore.FieldValue.serverTimestamp():now();}catch(_){return now();}};
+  const idOf=t=>S(t&&(t.id||t.taskId||t.docId));
+  const cidOf=c=>S(c&&(c.id||c.docId||c.campaignId||c.campaign_id));
+  function roleOf(t){
+    try{const r=typeof normalizeDepartmentRole==='function'?normalizeDepartmentRole(t?.departmentRole||t?.assignedDepartmentRole||t?.departmentId||t?.assignedDepartmentId||t?.contentSectionId||t?.departmentName||t?.assignedDepartmentName||t?.contentSectionName||t?.role||''):''; if(r&&r!=='other')return r;}catch(_){ }
+    const z=N([t?.departmentRole,t?.assignedDepartmentRole,t?.departmentId,t?.assignedDepartmentId,t?.contentSectionId,t?.departmentName,t?.assignedDepartmentName,t?.contentSectionName,t?.role,t?.taskType,t?.id,t?.taskId].join(' '));
+    if(z.includes(N('محتوى'))||z.includes(N('محتوي'))||z.includes('content'))return 'content';
+    if(z.includes(N('تصميم'))||z.includes('design'))return 'design';
+    if(z.includes(N('مونتاج'))||z.includes('montage')||z.includes('editing'))return 'montage';
+    if(z.includes(N('تصوير'))||z.includes('photo')||z.includes('shoot'))return 'shooting';
+    return 'other';
+  }
+  function templateObj(t){return (t&&typeof t.taskTemplate==='object'&&t.taskTemplate)||(t&&typeof t.contentTaskTemplate==='object'&&t.contentTaskTemplate)||(t&&typeof t.approvedContentTemplate==='object'&&t.approvedContentTemplate)||{};}
+  function structureObj(t){try{return typeof taskStructure==='function'?(taskStructure(t)||{}):(t?.structure||{});}catch(_){return t?.structure||{};}}
+  function isTemplate(t){
+    if(!t||roleOf(t)!=='content')return false;
+    const z=N([t.contentTemplateTask,t.flowType,t.source,t.taskType,t.type,t.status,t.taskTemplateStatus,t.templateReviewStatus,t.id,t.taskId].join(' '));
+    return !!(t.contentTemplateTask||z.includes('tasktemplate')||z.includes('contenttemplate')||z.includes(N('Task Template'))||z.includes(N('قالب'))||t.taskTemplateStatus||t.templateReviewStatus);
+  }
+  function isStructure(t){
+    if(!t||roleOf(t)!=='content'||isTemplate(t))return false;
+    const z=N([t.needsStructureUpload,t.structureRequestTask,t.structureBundleTask,t.sourceRequestStep,t.taskType,t.creative,t.product,t.structureTaskLabel,t.source,t.id,t.taskId].join(' '));
+    return !!(t.needsStructureUpload||t.structureRequestTask||t.structureBundleTask||t.sourceRequestStep==='campaign_request_data'||z.includes(N('هيكل'))||z.includes('structure'));
+  }
+  function isExec(t){return ['design','montage','shooting'].includes(roleOf(t))&&!isStructure(t)&&!isTemplate(t);}
+  function tokens(values){const out=[];(values||[]).flat(Infinity).forEach(v=>{if(v&&typeof v==='object'){['id','uid','userId','userUid','name','userName','displayName','email','code','value','label'].forEach(k=>{if(v[k])out.push(v[k]);});}else if(S(v))out.push(v);});return [...new Set(out.map(N).filter(Boolean))];}
+  function writerTokens(t){return tokens([t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.contentWriterCode,t?.linkedContentUserId,t?.linkedContentUserUid,t?.linkedContentUserEmail,t?.linkedContentUserName,t?.linkedContentUserCode,t?.dependsOnContentUserIds,t?.dependsOnContentUserNames,t?.upstreamUserIds,t?.upstreamUserNames,t?.upstreamUserLabel,t?.assignedContentWriterId,t?.assignedContentWriterName,t?.taskTemplate?.contentWriterId,t?.taskTemplate?.contentWriterName,t?.contentTaskTemplate?.contentWriterId,t?.contentTaskTemplate?.contentWriterName,t?.approvedContentTemplate?.contentWriterId,t?.approvedContentTemplate?.contentWriterName]);}
+  function ownerTokens(t){return tokens([t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.contentWriterCode,t?.userId,t?.userUid,t?.userEmail,t?.userName,t?.assignedToId,t?.assignedToUid,t?.assignedToEmail,t?.assignedToName,t?.assigneeUid,t?.assigneeEmail,t?.assigneeName,t?.displayName]);}
+  function sameWriter(exec,contentTask){const a=writerTokens(exec),b=ownerTokens(contentTask).concat(writerTokens(contentTask));return !!(a.length&&b.length&&a.some(x=>b.includes(x)));}
+  function pairKey(t){return N(t?.contentExecutionPairKey||t?.linkedExecutionPairKey||t?.contentFlowKey||t?.mzjTaskLinkKey||t?.taskTemplate?.contentExecutionPairKey||t?.taskTemplate?.linkedExecutionPairKey||t?.contentTaskTemplate?.contentExecutionPairKey||t?.contentTaskTemplate?.linkedExecutionPairKey||t?.approvedContentTemplate?.contentExecutionPairKey||t?.approvedContentTemplate?.linkedExecutionPairKey||'');}
+  function suffix(t){const blob=[t?.taskSuffix,t?.taskNo,t?.structureTaskNo,t?.canonicalTaskCode,t?.fullTaskCode,t?.taskCode,t?.taskTemplate?.taskSuffix,t?.taskTemplate?.taskNo,t?.contentTaskTemplate?.taskSuffix,t?.contentTaskTemplate?.taskNo,t?.approvedContentTemplate?.taskSuffix,t?.approvedContentTemplate?.taskNo,t?.structureRow?.taskNo,t?.id,t?.taskId].map(S).filter(Boolean).join(' '); const m=blob.match(/\b[A-Z]?\s*N\s*\d{1,4}\b/i)||blob.match(/\b[A-Z]\s*\d{1,4}\b/i); return m?N(m[0]):'';}
+  function ctype(t){const blob=[t?.contentType,t?.taskType,t?.creative,t?.product,t?.structureTaskLabel,t?.taskTemplate?.contentType,t?.taskTemplate?.creative,t?.contentTaskTemplate?.contentType,t?.approvedContentTemplate?.contentType,t?.structureRow?.contentType,t?.structureRow?.['نوع المحتوى']].map(S).join(' ').toUpperCase(); const known=['CAROUSEL','POST','REEL','STORY','SHOWROOM','VIDEO','SHORT','TREND','GIF','MOTION','PANNER','PRINT']; return known.find(k=>blob.includes(k))||'';}
+  function structureApproved(t){const st=structureObj(t),z=N([t?.structureStatus,t?.reviewStatus,t?.approvalStatus,t?.status,t?.state,st.status,st.reviewStatus].join(' '));return !!(st.approvedAt||t.structureApproved||t.contentStructureApproved||z.includes('approved')||z.includes('distributed')||z.includes(N('معتمد'))||z.includes(N('تم الاعتماد'))||((z.includes('done')||z.includes('completed'))&&isStructure(t)));}
+  function templateApproved(t){const tpl=templateObj(t),z=N([t?.taskTemplateStatus,t?.templateReviewStatus,t?.reviewStatus,t?.status,t?.state,tpl.status,tpl.reviewStatus,tpl.templateReviewStatus].join(' '));return !!(t.contentTemplateApproved||t.taskTemplateApproved||tpl.approvedAt||z.includes('approved')||z.includes(N('معتمد'))||z.includes(N('تم الاعتماد'))||((z.includes('done')||z.includes('completed'))&&isTemplate(t)));}
+  function templateMatchesExec(tpl,exec){
+    if(!templateApproved(tpl)||!isExec(exec))return false;
+    const p1=pairKey(tpl),p2=pairKey(exec); if(p1&&p2&&p1!==p2)return false;
+    if(!sameWriter(exec,tpl))return false;
+    const s1=suffix(tpl),s2=suffix(exec); if(s1&&s2&&s1!==s2)return false;
+    const c1=ctype(tpl),c2=ctype(exec); if(c1&&c2&&c1!==c2)return false;
+    return !!(p1||s1||c1||writerTokens(exec).length);
+  }
+  function execLabel(exec,structures,templates){
+    const hasStruct=structures.some(st=>structureApproved(st)&&sameWriter(exec,st));
+    if(!hasStruct)return 'في انتظار اعتماد الهيكل';
+    const hasTemplate=templates.some(tpl=>templateMatchesExec(tpl,exec));
+    return hasTemplate?'جاهز للتنفيذ':'في انتظار Task Template';
+  }
+  function patchExec(exec,label){
+    const clean={...exec,updatedAt:exec.updatedAt||now()};
+    if(label==='جاهز للتنفيذ'){
+      return {...clean,status:'in_progress',state:'in_progress',taskStatus:'قيد التنفيذ',dashboardStatusLabel:'جاهز للتنفيذ',waitingForApproval:false,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:false,waitingForContent:false,waitingQueue:false,isWaitingQueue:false,waitingForApprovalLabel:'',progress:(clean.finalFileUrl||clean.finalFile||clean.finalUploaded)?Number(clean.progress||0):0};
+    }
+    if(label==='في انتظار Task Template'){
+      return {...clean,status:'waiting_task_template',state:'waiting_task_template',taskStatus:'في انتظار Task Template',dashboardStatusLabel:'في انتظار Task Template',waitingForApproval:true,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:true,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,dependencyRole:'content',waitingForApprovalLabel:'في انتظار Task Template',contentTemplateApproved:false,taskTemplateApproved:false,approvedContentTemplate:null,progress:0};
+    }
+    return {...clean,status:'waiting_structure',state:'waiting_structure',taskStatus:'في انتظار اعتماد الهيكل',dashboardStatusLabel:'في انتظار اعتماد الهيكل',waitingForApproval:true,waitingForStructureApproval:true,structureLinkPending:true,waitingForTaskTemplate:false,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,dependencyRole:'content',waitingForApprovalLabel:'في انتظار اعتماد الهيكل',contentTemplateApproved:false,taskTemplateApproved:false,approvedContentTemplate:null,contentTaskTemplate:null,progress:0};
+  }
+  function normalizeTasks(tasks){const list=A(tasks).filter(Boolean);const structures=list.filter(isStructure),templates=list.filter(isTemplate);return list.map(t=>isExec(t)?patchExec(t,execLabel(t,structures,templates)):t);}
+  function campaignsList(){try{return Array.isArray(window.campaigns)?window.campaigns:(Array.isArray(campaigns)?campaigns:[]);}catch(_){return []}}
+  function taskArray(c){const raw=c&&c.departmentTasks;if(Array.isArray(raw))return raw.filter(Boolean);if(raw&&typeof raw==='object')return Object.values(raw).filter(x=>x&&typeof x==='object');return [];}
+  function locateCampaignByTask(taskId){const wanted=N(taskId);for(const c of campaignsList()){if(taskArray(c).some(t=>[idOf(t),t.taskId,t.docId,t.taskNo,t.structureTaskNo,t.contentExecutionPairKey,t.linkedExecutionPairKey].map(N).includes(wanted)))return c;}return null;}
+  function updateLocalCampaign(c,nextTasks){try{c.departmentTasks=nextTasks;c.taskCount=nextTasks.length;c.updatedAt=now();const list=campaignsList();const i=list.findIndex(x=>N(cidOf(x))===N(cidOf(c)));if(i>=0)list[i]={...list[i],departmentTasks:nextTasks,taskCount:nextTasks.length,updatedAt:now()};window.campaigns=list;}catch(_){}}
+  async function persistNormalized(c){if(!c||!cidOf(c))return false;const next=normalizeTasks(taskArray(c));updateLocalCampaign(c,next);try{const db=window.mainDb||window.db||(typeof firebase!=='undefined'?firebase.firestore():null);if(!db)return false;const coll=window.MZJ_CAMPAIGNS_COLLECTION||window.CAMPAIGNS_COLLECTION||'marketing_campaigns';await db.collection(coll).doc(cidOf(c)).update({departmentTasks:next,taskCount:next.length,updatedAt:server()});return true;}catch(e){console.warn(VERSION,'persist skipped',e);return false;}}
+  async function normalizeAllLocal(){for(const c of campaignsList())await persistNormalized(c);}
+
+  const prevTasksFor=(typeof tasksForCampaign==='function'?tasksForCampaign:(window.tasksForCampaign||null));
+  if(prevTasksFor&&!prevTasksFor.__mzj_v622_wrapped){const wrapped=function(c){return normalizeTasks(A(prevTasksFor.apply(this,arguments)));};wrapped.__mzj_v622_wrapped=true;try{tasksForCampaign=wrapped;window.tasksForCampaign=wrapped;}catch(_){window.tasksForCampaign=wrapped;}}
+  const prevWaiting=(typeof isTaskWaitingForDependency==='function'?isTaskWaitingForDependency:(window.isTaskWaitingForDependency||null));
+  if(prevWaiting&&!prevWaiting.__mzj_v622_wrapped){const wrapped=function(task){if(isExec(task)){const c=locateCampaignByTask(idOf(task))||{};const normalized=normalizeTasks(taskArray(c));const exact=normalized.find(t=>N(idOf(t))===N(idOf(task)))||task;return S(exact.dashboardStatusLabel)==='في انتظار اعتماد الهيكل'||S(exact.dashboardStatusLabel)==='في انتظار Task Template';}return prevWaiting.apply(this,arguments);};wrapped.__mzj_v622_wrapped=true;try{isTaskWaitingForDependency=wrapped;window.isTaskWaitingForDependency=wrapped;}catch(_){window.isTaskWaitingForDependency=wrapped;}}
+
+  const oldApprove=window.MZJ_v516_approveStructure||window.MZJ_v570_approveStructure||null;
+  if(typeof oldApprove==='function'&&!oldApprove.__mzj_v622_wrapped){
+    const wrapped=async function(taskId){
+      let campaign=locateCampaignByTask(taskId);
+      let result=null;
+      try{result=await oldApprove.apply(this,arguments);}catch(e){console.error(VERSION,'base structure approve failed',e);toast(e?.message||'تعذر اعتماد الهيكل.');throw e;}
+      campaign=locateCampaignByTask(taskId)||campaign;
+      if(campaign) await persistNormalized(campaign);
+      try{document.querySelectorAll('.structure-review-popup,.structure-review-modal,.task-modal.show,#taskModal.show').forEach(el=>{el.classList.remove('show'); if(el.classList.contains('structure-review-popup')||el.classList.contains('structure-review-modal'))el.remove();});document.body.classList.remove('modal-open');}catch(_){ }
+      toast('تم اعتماد الهيكل. سيتم تحديث الصفحة.');
+      setTimeout(()=>{try{window.location.reload();}catch(_){location.reload();}},550);
+      return result;
+    };
+    wrapped.__mzj_v622_wrapped=true;
+    window.MZJ_v622_approveStructure=wrapped;window.MZJ_v516_approveStructure=wrapped;window.MZJ_v570_approveStructure=wrapped;try{MZJ_v516_approveStructure=wrapped;}catch(_){ }
+  }
+  const oldDecision=window.MZJ_v516_decideTaskTemplate||window.MZJ_v570_decideTaskTemplate||window.v174SetTaskTemplateDecision||null;
+  if(typeof oldDecision==='function'&&!oldDecision.__mzj_v622_wrapped){
+    const wrapped=async function(taskId,decision){let campaign=locateCampaignByTask(taskId);const r=await oldDecision.apply(this,arguments);campaign=locateCampaignByTask(taskId)||campaign;if(campaign)await persistNormalized(campaign);try{typeof renderUserDashboard==='function'&&renderUserDashboard();typeof renderAdminDashboard==='function'&&renderAdminDashboard();typeof renderTasksPage==='function'&&renderTasksPage();}catch(_){ }return r;};
+    wrapped.__mzj_v622_wrapped=true;
+    window.MZJ_v622_decideTaskTemplate=wrapped;window.MZJ_v516_decideTaskTemplate=wrapped;window.MZJ_v570_decideTaskTemplate=wrapped;window.v174SetTaskTemplateDecision=wrapped;window.v171ApproveTaskTemplate=id=>wrapped(id,'approved');try{MZJ_v516_decideTaskTemplate=wrapped;v174SetTaskTemplateDecision=wrapped;v171ApproveTaskTemplate=window.v171ApproveTaskTemplate;}catch(_){ }
+  }
+  const oldRenderUser=typeof renderUserDashboard==='function'?renderUserDashboard:null;
+  if(oldRenderUser&&!oldRenderUser.__mzj_v622_wrapped){const wrapped=function(){try{campaignsList().forEach(c=>updateLocalCampaign(c,normalizeTasks(taskArray(c))));}catch(_){ }return oldRenderUser.apply(this,arguments);};wrapped.__mzj_v622_wrapped=true;try{renderUserDashboard=wrapped;window.renderUserDashboard=wrapped;}catch(_){window.renderUserDashboard=wrapped;}}
+  document.addEventListener('click',function(e){const b=e.target&&e.target.closest&&e.target.closest('[data-structure-approve]');if(!b)return;if(window.__MZJ_V622_STRUCTURE_CLICK__)return;window.__MZJ_V622_STRUCTURE_CLICK__=true;setTimeout(()=>{window.__MZJ_V622_STRUCTURE_CLICK__=false;},2500);},true);
+  setTimeout(()=>{normalizeAllLocal().then(()=>{try{typeof renderUserDashboard==='function'&&renderUserDashboard();}catch(_){}});},1000);
+  try{window.MZJ_APP_VERSION='622';window.MZJ_LAST_PATCH=VERSION;console.info(VERSION,'loaded');}catch(_){ }
+})();
+
+/* MZJ v623 - strict content-writer structure gate fix */
+(function(){
+  const VERSION='v623-structure-writer-code-gates';
+  const S=v=>v==null?'':String(v).trim();
+  const A=v=>Array.isArray(v)?v:(v==null?[]:[v]);
+  const flat=v=>A(v).flat(Infinity).filter(x=>x!=null&&S(x));
+  const norm=v=>S(v).toLowerCase().replace(/[\u064b-\u065f\u0640]/g,'').replace(/[أإآٱا]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/[^\p{L}\p{N}]+/gu,'').trim();
+  const uniq=list=>{const out=[],seen=new Set();flat(list).forEach(x=>{const k=norm(x);if(k&&!seen.has(k)){seen.add(k);out.push(k);}});return out;};
+  const now=()=>{try{return typeof serverTime==='function'?serverTime():new Date().toISOString();}catch(_){return new Date().toISOString();}};
+  const server=()=>{try{return firebase.firestore.FieldValue.serverTimestamp();}catch(_){return now();}};
+  const toast=msg=>{try{typeof showToast==='function'?showToast(msg):console.log(msg);}catch(_){console.log(msg);}};
+  function idOf(t){return S(t?.id||t?.taskId||t?.docId||'');}
+  function cidOf(c){return S(c?.id||c?.docId||c?.campaignId||'');}
+  function campaignsList(){try{return Array.isArray(window.campaigns)?window.campaigns:(Array.isArray(campaigns)?campaigns:[]);}catch(_){return Array.isArray(window.campaigns)?window.campaigns:[];}}
+  function taskArray(c){const raw=c&&c.departmentTasks;if(Array.isArray(raw))return raw.filter(Boolean);if(raw&&typeof raw==='object')return Object.values(raw).filter(x=>x&&typeof x==='object');return [];}
+  function roleOf(t){let v=S(typeof t==='string'?t:(t?.departmentRole||t?.assignedDepartmentRole||t?.assignedDepartmentId||t?.departmentId||t?.assignedDepartmentName||t?.departmentName||t?.sectionRole||t?.role||''));try{if(typeof normalizeDepartmentRole==='function')v=normalizeDepartmentRole(v);}catch(_){} v=norm(v); if(v.includes('content')||v.includes('محتوى')||v.includes('كاتب'))return 'content'; if(v.includes('design')||v.includes('تصميم'))return 'design'; if(v.includes('montage')||v.includes('editing')||v.includes('مونتاج'))return 'montage'; if(v.includes('shoot')||v.includes('photo')||v.includes('تصوير'))return 'shooting'; return v;}
+  function codeFromText(v){const s=S(v).toUpperCase(); let m=s.match(/(?:^|[-_\s])(N|B|A)(?:\d{1,3}|[-_\s]|$)/); if(m)return m[1]; m=s.match(/\b(N|B|A)\b/); return m?m[1]:'';}
+  function codeTokens(t){return uniq([t?.contentWriterCode,t?.linkedContentUserCode,t?.userCode,t?.writerCode,t?.assignedContentWriterCode,t?.structureApprovedFromTaskNo,t?.parentStructureTaskNo,t?.taskNo,t?.structureTaskNo,t?.taskId,t?.id,t?.contentFlowKey,t?.linkedExecutionPairKey,t?.contentExecutionPairKey].map(codeFromText).filter(Boolean));}
+  function linkTokens(t){return uniq([
+    t?.linkedContentUserId,t?.linkedContentUserUid,t?.linkedContentUserEmail,t?.linkedContentUserName,t?.linkedContentUserCode,
+    t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.contentWriterCode,
+    t?.assignedContentWriterId,t?.assignedContentWriterUid,t?.assignedContentWriterEmail,t?.assignedContentWriterName,t?.assignedContentWriterCode,
+    t?.approvedContentWriterId,t?.approvedContentWriterUid,t?.approvedContentWriterEmail,t?.approvedContentWriterName,
+    t?.structureApprovedFromId,t?.structureApprovedFromUid,t?.structureApprovedFromEmail,t?.structureApprovedFromName,
+    t?.dependsOnContentUserIds,t?.dependsOnContentUserNames,t?.upstreamUserIds,t?.upstreamUserNames,t?.upstreamUserLabel,
+    flat(t?.dependencyLinks).flatMap(l=>[l.contentUserIds,l.contentUserNames,l.contentUserId,l.contentUserUid,l.contentUserEmail,l.contentUserName,l.writerId,l.writerUid,l.writerEmail,l.writerName,l.contentUserCode,l.writerCode])
+  ]).concat(codeTokens(t));}
+  function ownerTokens(t){return uniq([
+    t?.assignedToId,t?.assignedToUid,t?.assignedToEmail,t?.assignedToName,t?.assigneeId,t?.assigneeUid,t?.assigneeEmail,t?.assigneeName,
+    t?.userId,t?.userUid,t?.userEmail,t?.userName,t?.displayName,
+    t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.contentWriterCode,
+    t?.linkedContentUserId,t?.linkedContentUserUid,t?.linkedContentUserEmail,t?.linkedContentUserName,t?.linkedContentUserCode,
+    t?.writerId,t?.writerUid,t?.writerEmail,t?.writerName,t?.writerCode,
+    t?.assignedToSearch,t?.searchKeys
+  ]).concat(codeTokens(t));}
+  function sameWriter(exec,content){const a=linkTokens(exec);const b=ownerTokens(content).concat(linkTokens(content));return !!(a.length&&b.length&&a.some(x=>b.includes(x)));}
+  function isTemplate(t){const z=norm([t?.contentTemplateTask,t?.taskTemplate,t?.taskTemplateStatus,t?.templateReviewStatus,t?.source,t?.taskType,t?.taskName,t?.title,t?.id,t?.taskId].join(' '));return !!(t?.contentTemplateTask||t?.taskTemplate||z.includes('tasktemplate')||z.includes('contenttemplate')||z.includes(norm('Task Template')));}
+  function isStructure(t){if(isTemplate(t))return false; const z=norm([t?.needsStructureUpload,t?.structureRequestTask,t?.structureBundleTask,t?.sourceRequestStep,t?.taskType,t?.taskName,t?.title,t?.creative,t?.product,t?.structureTaskLabel,t?.source,t?.id,t?.taskId].join(' '));return !!(t?.needsStructureUpload||t?.structureRequestTask||t?.structureBundleTask||t?.sourceRequestStep==='campaign_request_data'||(roleOf(t)==='content'&&(z.includes('هيكل')||z.includes('structure'))));}
+  function isExec(t){const r=roleOf(t);return ['design','montage','shooting'].includes(r)&&!isStructure(t)&&!isTemplate(t);}
+  function txtStatus(t){return norm([t?.status,t?.state,t?.taskStatus,t?.dashboardStatusLabel,t?.reviewStatus,t?.approvalStatus,t?.structureStatus,t?.templateReviewStatus,t?.taskTemplateStatus,t?.linkedContentTemplateStatus,t?.structure?.status,t?.structure?.reviewStatus,t?.taskTemplate?.status,t?.taskTemplate?.reviewStatus,t?.contentTaskTemplate?.status,t?.approvedContentTemplate?.status].join(' '));}
+  function structureApproved(t){const z=txtStatus(t);const st=t?.structure||{};return !!(t?.structureApproved||t?.structureApprovedAt||t?.contentStructureApproved||st.approvedAt||st.reviewedAt||z.includes('approved')||z.includes('distributed')||z.includes(norm('معتمد'))||z.includes(norm('تم الاعتماد'))||z.includes('done')||z.includes('completed')||Number(t?.progress||0)>=20);}
+  function templateApproved(t){const z=txtStatus(t);const tpl=t?.taskTemplate||t?.contentTaskTemplate||t?.approvedContentTemplate||{};return !!(t?.contentTemplateApproved||t?.taskTemplateApproved||tpl.approvedAt||z.includes('approved')||z.includes(norm('معتمد'))||z.includes(norm('تم الاعتماد')));}
+  function pairKey(t){return norm(t?.contentExecutionPairKey||t?.linkedExecutionPairKey||t?.contentFlowKey||t?.mzjTaskLinkKey||t?.taskTemplate?.contentExecutionPairKey||t?.taskTemplate?.linkedExecutionPairKey||t?.contentTaskTemplate?.contentExecutionPairKey||t?.approvedContentTemplate?.linkedExecutionPairKey||'');}
+  function creativeKey(t){const blob=S([t?.taskType,t?.creative,t?.product,t?.contentType,t?.structureRow?.contentType,t?.taskTemplate?.contentType,t?.contentTaskTemplate?.contentType,t?.approvedContentTemplate?.contentType].join(' ')).toUpperCase();return (blob.match(/CAROUSEL|POST|REEL|STORY|SHOWROOM|VIDEO|SHORT|TREND|GIF|MOTION|PANNER|PRINT/)||[''])[0];}
+  function templateMatchesExec(tpl,exec){if(!templateApproved(tpl)||!sameWriter(exec,tpl))return false; const p1=pairKey(tpl),p2=pairKey(exec); if(p1&&p2&&p1!==p2)return false; const c1=creativeKey(tpl),c2=creativeKey(exec); if(c1&&c2&&c1!==c2)return false; return true;}
+  function labelFor(exec,all){const structures=all.filter(isStructure);const templates=all.filter(isTemplate);const hasStruct=structures.some(st=>structureApproved(st)&&sameWriter(exec,st)); if(!hasStruct)return 'في انتظار اعتماد الهيكل'; const hasTpl=templates.some(t=>templateMatchesExec(t,exec)); return hasTpl?'جاهز للتنفيذ':'في انتظار Task Template';}
+  function patchExec(t,label){const base={...t,updatedAt:t.updatedAt||now()}; if(label==='جاهز للتنفيذ')return {...base,status:'pending',state:'pending',taskStatus:'جاهز للتنفيذ',dashboardStatusLabel:'جاهز للتنفيذ',executionGateStatus:'جاهز للتنفيذ',waitingForApproval:false,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:false,waitingForContent:false,waitingQueue:false,isWaitingQueue:false,waitingForApprovalLabel:'',progress:Number(base.progress||0)}; if(label==='في انتظار Task Template')return {...base,status:'waiting_task_template',state:'waiting_task_template',taskStatus:'في انتظار Task Template',dashboardStatusLabel:'في انتظار Task Template',executionGateStatus:'في انتظار Task Template',structureApproved:true,waitingForApproval:true,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:true,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,waitingForApprovalLabel:'في انتظار Task Template',contentTemplateApproved:false,taskTemplateApproved:false,approvedContentTemplate:null,progress:0}; return {...base,status:'waiting_structure',state:'waiting_structure',taskStatus:'في انتظار اعتماد الهيكل',dashboardStatusLabel:'في انتظار اعتماد الهيكل',executionGateStatus:'في انتظار اعتماد الهيكل',structureApproved:false,waitingForApproval:true,waitingForStructureApproval:true,structureLinkPending:true,waitingForTaskTemplate:false,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,waitingForApprovalLabel:'في انتظار اعتماد الهيكل',contentTemplateApproved:false,taskTemplateApproved:false,approvedContentTemplate:null,contentTaskTemplate:null,progress:0};}
+  function normalizeTasks(tasks){const all=A(tasks).filter(Boolean);return all.map(t=>isExec(t)?patchExec(t,labelFor(t,all)):t);}
+  function updateLocalCampaign(c,next){try{c.departmentTasks=next;c.taskCount=next.length;c.updatedAt=now();const list=campaignsList();const i=list.findIndex(x=>norm(cidOf(x))===norm(cidOf(c)));if(i>=0)list[i]={...list[i],departmentTasks:next,taskCount:next.length,updatedAt:now()};window.campaigns=list;}catch(_){}}
+  async function persist(c){if(!c||!cidOf(c))return;const next=normalizeTasks(taskArray(c));updateLocalCampaign(c,next);try{const db=window.mainDb||window.db||(typeof firebase!=='undefined'?firebase.firestore():null);if(!db)return;const coll=window.MZJ_CAMPAIGNS_COLLECTION||window.CAMPAIGNS_COLLECTION||'marketing_campaigns';await db.collection(coll).doc(cidOf(c)).update({departmentTasks:next,taskCount:next.length,updatedAt:server()});}catch(e){console.warn(VERSION,'persist skipped',e);}}
+  function findCampaignByTask(id){const n=norm(id);for(const c of campaignsList()){if(taskArray(c).some(t=>[idOf(t),t.taskId,t.taskNo,t.structureTaskNo,t.contentExecutionPairKey,t.linkedExecutionPairKey].map(norm).includes(n)))return c;}return null;}
+  const prevTasks=typeof tasksForCampaign==='function'?tasksForCampaign:window.tasksForCampaign;
+  if(typeof prevTasks==='function'&&!prevTasks.__mzj_v623_wrapped){const w=function(c){return normalizeTasks(A(prevTasks.apply(this,arguments)));};w.__mzj_v623_wrapped=true;try{tasksForCampaign=w;window.tasksForCampaign=w;}catch(_){window.tasksForCampaign=w;}}
+  const prevWait=typeof isTaskWaitingForDependency==='function'?isTaskWaitingForDependency:window.isTaskWaitingForDependency;
+  if(typeof prevWait==='function'&&!prevWait.__mzj_v623_wrapped){const w=function(t){if(isExec(t)){const c=findCampaignByTask(idOf(t))||taskCampaign?.(t)||{};const fixed=normalizeTasks(taskArray(c)).find(x=>norm(idOf(x))===norm(idOf(t)))||t;const lab=S(fixed.dashboardStatusLabel||fixed.executionGateStatus);return lab==='في انتظار اعتماد الهيكل'||lab==='في انتظار Task Template';}return prevWait.apply(this,arguments);};w.__mzj_v623_wrapped=true;try{isTaskWaitingForDependency=w;window.isTaskWaitingForDependency=w;}catch(_){window.isTaskWaitingForDependency=w;}}
+  const prevRender=typeof renderUserDashboard==='function'?renderUserDashboard:window.renderUserDashboard;
+  if(typeof prevRender==='function'&&!prevRender.__mzj_v623_wrapped){const w=function(){try{campaignsList().forEach(c=>updateLocalCampaign(c,normalizeTasks(taskArray(c))));}catch(_){} return prevRender.apply(this,arguments);};w.__mzj_v623_wrapped=true;try{renderUserDashboard=w;window.renderUserDashboard=w;}catch(_){window.renderUserDashboard=w;}}
+  const prevApprove=window.MZJ_v516_approveStructure||window.MZJ_v622_approveStructure||window.MZJ_v570_approveStructure;
+  if(typeof prevApprove==='function'&&!prevApprove.__mzj_v623_wrapped){const w=async function(taskId){let c=findCampaignByTask(taskId);let r=await prevApprove.apply(this,arguments);c=findCampaignByTask(taskId)||c;if(c)await persist(c);try{document.querySelectorAll('.structure-review-popup,.structure-review-modal,#structureReviewPopup,.task-modal.show,#taskModal.show').forEach(el=>{el.classList.remove('show');if(el.id==='structureReviewPopup'||el.classList.contains('structure-review-popup')||el.classList.contains('structure-review-modal'))el.remove();});document.body.classList.remove('modal-open');}catch(_){} setTimeout(()=>{try{window.location.reload();}catch(_){location.reload();}},350);return r;};w.__mzj_v623_wrapped=true;window.MZJ_v623_approveStructure=w;window.MZJ_v516_approveStructure=w;window.MZJ_v570_approveStructure=w;try{MZJ_v516_approveStructure=w;}catch(_){}}
+  const prevDecision=window.MZJ_v516_decideTaskTemplate||window.MZJ_v622_decideTaskTemplate||window.MZJ_v570_decideTaskTemplate||window.v174SetTaskTemplateDecision;
+  if(typeof prevDecision==='function'&&!prevDecision.__mzj_v623_wrapped){const w=async function(taskId,decision){let c=findCampaignByTask(taskId);const r=await prevDecision.apply(this,arguments);c=findCampaignByTask(taskId)||c;if(c)await persist(c);try{renderUserDashboard&&renderUserDashboard();renderAdminDashboard&&renderAdminDashboard();renderTasksPage&&renderTasksPage();}catch(_){} return r;};w.__mzj_v623_wrapped=true;window.MZJ_v516_decideTaskTemplate=w;window.MZJ_v570_decideTaskTemplate=w;window.v174SetTaskTemplateDecision=w;window.v171ApproveTaskTemplate=id=>w(id,'approved');try{MZJ_v516_decideTaskTemplate=w;v174SetTaskTemplateDecision=w;v171ApproveTaskTemplate=window.v171ApproveTaskTemplate;}catch(_){}}
+  setTimeout(()=>{Promise.all(campaignsList().map(persist)).then(()=>{try{renderUserDashboard&&renderUserDashboard();}catch(_){}});},900);
+  try{window.MZJ_APP_VERSION='623';window.MZJ_LAST_PATCH=VERSION;console.info(VERSION,'loaded');}catch(_){ }
+})();
+
+/* MZJ v624 - final campaign creative structure flow + structure bundle display */
+(function(){
+  const VERSION = 'v624-structure-bundle-flow-final';
+  const S = v => (v == null ? '' : String(v)).trim();
+  const A = v => Array.isArray(v) ? v : (v == null ? [] : [v]);
+  const flat = v => A(v).flat(Infinity);
+  const H = v => { try{ return typeof escapeHtml === 'function' ? escapeHtml(S(v)) : S(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }catch(_){ return S(v); } };
+  const N = v => S(v)
+    .replace(/[أإآٱ]/g,'ا').replace(/[ؤ]/g,'و').replace(/[ئ]/g,'ي').replace(/[ةه]/g,'ه').replace(/[ىي]/g,'ي')
+    .replace(/[\u200e\u200f\s\-_:/|]+/g,'').toLowerCase();
+  const now = () => new Date().toISOString();
+  const uniq = v => Array.from(new Set(flat(v).map(S).filter(Boolean)));
+  function roleOf(t){
+    const z = N([t?.departmentRole,t?.assignedDepartmentRole,t?.departmentCode,t?.assignedDepartmentName,t?.contentSectionId,t?.contentSectionName,t?.source].join(' '));
+    if(z.includes('content') || z.includes('محتو')) return 'content';
+    if(z.includes('design') || z.includes('تصميم') || z.includes('des')) return 'design';
+    if(z.includes('montage') || z.includes('مونتاج') || z.includes('editing')) return 'montage';
+    if(z.includes('photo') || z.includes('shoot') || z.includes('تصوير')) return 'shooting';
+    return z;
+  }
+  function campaignsList(){ try{ return Array.isArray(window.campaigns) ? window.campaigns : (Array.isArray(campaigns) ? campaigns : []); }catch(_){ return Array.isArray(window.campaigns) ? window.campaigns : []; } }
+  function cid(c){ return S(c?.id || c?.docId || c?.campaignId || c?.campaignCode || c?.campaign_code); }
+  function taskId(t){ return S(t?.id || t?.taskId || t?.docId || t?.taskCode || t?.canonicalTaskCode || t?.fullTaskCode); }
+  function taskArray(c){ const d = c?.departmentTasks; if(Array.isArray(d)) return d.filter(Boolean); if(d && typeof d === 'object') return Object.values(d).filter(x => x && typeof x === 'object'); return []; }
+  function isTemplateTask(t){ const z=N([t?.contentTemplateTask,t?.flowType,t?.source,t?.taskType,t?.structureTaskLabel,t?.id,t?.taskId].join(' ')); return !!(t?.contentTemplateTask || t?.flowType === 'content_template' || z.includes('tasktemplate') || z.includes('contenttemplate')); }
+  function isStructureTask(t){ if(isTemplateTask(t)) return false; const z=N([t?.flowType,t?.needsStructureUpload,t?.structureRequestTask,t?.structureBundleTask,t?.sourceRequestStep,t?.source,t?.taskType,t?.structureTaskLabel,t?.creative,t?.product,t?.id,t?.taskId].join(' ')); return !!(t?.needsStructureUpload || t?.structureRequestTask || t?.structureBundleTask || t?.flowType === 'content_structure' || t?.sourceRequestStep === 'campaign_request_data' || (roleOf(t)==='content' && (z.includes('هيكل') || z.includes('structure')))); }
+  function isExecTask(t){ const r=roleOf(t); return ['design','montage','shooting','photography'].includes(r) && !isStructureTask(t) && !isTemplateTask(t); }
+  function tokens(vals){ return uniq(vals).map(N).filter(Boolean); }
+  function writerTokens(t){
+    return tokens([
+      t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.contentWriterCode,
+      t?.linkedContentUserId,t?.linkedContentUserUid,t?.linkedContentUserEmail,t?.linkedContentUserName,t?.linkedContentUserCode,
+      t?.writerId,t?.writerUid,t?.writerEmail,t?.writerName,t?.writerCode,
+      t?.assignedToId,t?.assignedToUid,t?.assignedToEmail,t?.assignedToName,t?.userId,t?.userUid,t?.userEmail,t?.userName,
+      t?.dependsOnContentUserIds,t?.dependsOnContentUserNames,t?.upstreamUserIds,t?.upstreamUserNames,t?.upstreamUserLabel,
+      A(t?.dependencyLinks).flatMap(l => [l?.contentUserId,l?.contentUserName,l?.contentUserEmail,l?.contentUserIds,l?.contentUserNames,l?.writerId,l?.writerName])
+    ]);
+  }
+  function sameWriter(a,b){ const x=writerTokens(a), y=writerTokens(b); return !!(x.length && y.length && x.some(v => y.includes(v))); }
+  function statusBlob(t){ const st=t?.structure||{}, tpl=t?.taskTemplate||{}, ct=t?.contentTaskTemplate||{}, ap=t?.approvedContentTemplate||{}; return N([t?.status,t?.state,t?.taskStatus,t?.dashboardStatusLabel,t?.reviewStatus,t?.approvalStatus,t?.structureStatus,t?.templateReviewStatus,t?.taskTemplateStatus,t?.linkedContentTemplateStatus,st?.status,st?.reviewStatus,tpl?.status,tpl?.reviewStatus,ct?.status,ap?.status].join(' ')); }
+  function structureApproved(t){ const z=statusBlob(t); const st=t?.structure||{}; return !!(t?.structureApproved || t?.structureApprovedAt || t?.contentStructureApproved || st?.approvedAt || st?.reviewedAt || z.includes('approved') || z.includes('distributed') || z.includes(N('تم الاعتماد')) || z.includes(N('معتمد'))); }
+  function templateApproved(t){ const z=statusBlob(t); const tpl=t?.taskTemplate||t?.contentTaskTemplate||t?.approvedContentTemplate||{}; return !!(t?.contentTemplateApproved || t?.taskTemplateApproved || tpl?.approvedAt || z.includes('approved') || z.includes(N('تم الاعتماد')) || z.includes(N('معتمد'))); }
+  function suffix(t){
+    const vals=[t?.taskSuffix,t?.structureRow?.taskSuffix,t?.taskTemplate?.taskSuffix,t?.contentTaskTemplate?.taskSuffix,t?.approvedContentTemplate?.taskSuffix,t?.structureTaskNo,t?.taskNo,t?.canonicalTaskCode,t?.taskCode,t?.fullTaskCode,t?.visibleTaskName];
+    for(const v of vals){ const m=S(v).match(/\b([NBA]\d{1,3})\b/i); if(m) return m[1].toUpperCase(); }
+    return '';
+  }
+  function creativeKey(t){
+    const vals=[t?.creativeIndex,t?.structureRow?.creativeIndex,t?.taskTemplate?.creativeIndex,t?.contentTaskTemplate?.creativeIndex,t?.approvedContentTemplate?.creativeIndex,t?.creativeShortCode,t?.structureRow?.creativeShortCode,t?.campaignCreativeCode,t?.creativeLinkCode,t?.creativeId,t?.creative,t?.product,t?.contentType,t?.structureRow?.contentType,t?.taskTemplate?.contentType,t?.contentTaskTemplate?.contentType,t?.approvedContentTemplate?.contentType,t?.taskType];
+    const s=suffix(t); if(s) vals.unshift(s);
+    return N(vals.filter(v=>v!==undefined&&v!==null).join('|'));
+  }
+  function pairKey(t){ return N(t?.contentExecutionPairKey || t?.linkedExecutionPairKey || t?.contentFlowKey || t?.mzjTaskLinkKey || t?.taskTemplate?.contentExecutionPairKey || t?.taskTemplate?.linkedExecutionPairKey || t?.contentTaskTemplate?.contentExecutionPairKey || t?.approvedContentTemplate?.linkedExecutionPairKey || ''); }
+  function templateMatchesExec(tpl,exec){
+    if(!templateApproved(tpl) || !sameWriter(tpl,exec)) return false;
+    const p1=pairKey(tpl), p2=pairKey(exec); if(p1 && p2 && p1 !== p2) return false;
+    const s1=suffix(tpl), s2=suffix(exec); if(s1 && s2 && s1 !== s2) return false;
+    const c1=creativeKey(tpl), c2=creativeKey(exec); if(c1 && c2 && c1 !== c2 && !(c1.includes(c2)||c2.includes(c1))) return false;
+    return true;
+  }
+  function execGateLabel(exec,all){
+    const structures = all.filter(isStructureTask);
+    const templates = all.filter(isTemplateTask);
+    const hasStructure = structures.some(st => structureApproved(st) && sameWriter(st, exec));
+    if(!hasStructure) return 'في انتظار اعتماد الهيكل';
+    const hasTemplate = templates.some(tpl => templateMatchesExec(tpl, exec));
+    return hasTemplate ? 'جاهز للتنفيذ' : 'في انتظار اعتماد Task Template';
+  }
+  function patchExecStatus(t,label){
+    const base={...t,updatedAt:t?.updatedAt || now()};
+    if(label === 'جاهز للتنفيذ') return {...base,status:(base.received||base.receivedConfirmed)?(base.status||'in_progress'):'pending',state:'ready_execution',taskStatus:'جاهز للتنفيذ',dashboardStatusLabel:'جاهز للتنفيذ',executionGateStatus:'جاهز للتنفيذ',waitingForApproval:false,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:false,waitingForContent:false,waitingQueue:false,isWaitingQueue:false,waitingForApprovalLabel:'',dependencyRole:'',progress:Number(base.progress||0)};
+    if(label === 'في انتظار اعتماد Task Template') return {...base,status:'waiting_task_template',state:'waiting_task_template',taskStatus:'في انتظار اعتماد Task Template',dashboardStatusLabel:'في انتظار اعتماد Task Template',executionGateStatus:'في انتظار اعتماد Task Template',structureApproved:true,waitingForApproval:true,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:true,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,waitingForApprovalLabel:'في انتظار اعتماد Task Template',progress:0};
+    return {...base,status:'waiting_structure',state:'waiting_structure',taskStatus:'في انتظار اعتماد الهيكل',dashboardStatusLabel:'في انتظار اعتماد الهيكل',executionGateStatus:'في انتظار اعتماد الهيكل',structureApproved:false,waitingForApproval:true,waitingForStructureApproval:true,structureLinkPending:true,waitingForTaskTemplate:false,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,waitingForApprovalLabel:'في انتظار اعتماد الهيكل',progress:0};
+  }
+  function structureItems(task){
+    const direct=A(task?.structureItems).concat(A(task?.flowItems), A(task?.requiredCreatives), A(task?.structureRequiredCreatives)).filter(Boolean);
+    const seen=new Set();
+    const out=[];
+    direct.forEach((it,idx)=>{
+      const creative=S(it?.creative || it?.contentType || it?.type || it?.name || it?.label || it?.product || it);
+      const car=S(it?.car || it?.selectedCar || (Array.isArray(it?.selectedCars) ? it.selectedCars.map(c=>c?.label||c?.name).filter(Boolean).join('، ') : ''));
+      const code=S(it?.suffix || it?.taskSuffix || it?.taskNo || it?.structureTaskNo || '');
+      const key=N([creative,car,code,idx].join('|'));
+      if(!creative || seen.has(key)) return;
+      seen.add(key); out.push({creative,car,code,index:idx});
+    });
+    if(out.length) return out;
+    const c=campaignForTask(task); const writer=writerTokens(task);
+    const related=taskArray(c).filter(isExecTask).filter(ex=> writer.length && writerTokens(ex).some(x=>writer.includes(x)));
+    related.forEach((ex,idx)=>{
+      const creative=S(ex.creative || ex.product || ex.taskType || ex.contentType || '');
+      const car=S(ex.selectedCar || A(ex.selectedCars).map(x=>x?.label||x?.name).filter(Boolean).join('، '));
+      const code=suffix(ex);
+      const key=N([creative,car,code,idx].join('|'));
+      if(creative && !seen.has(key)){ seen.add(key); out.push({creative,car,code,index:idx}); }
+    });
+    return out;
+  }
+  function normalizeTasks(tasks){ const all=A(tasks).filter(Boolean); return all.map(t => isExecTask(t) ? patchExecStatus(t, execGateLabel(t, all)) : t); }
+  function campaignForTask(task){ const id=taskId(task), cId=S(task?.campaignId||task?.campaignDocId); return campaignsList().find(c=>cid(c)===cId) || campaignsList().find(c=>taskArray(c).some(x=>taskId(x)===id || S(x?.taskId)===id)) || {}; }
+  function updateLocalCampaign(c,next){ try{ c.departmentTasks=next; c.taskCount=next.length; c.updatedAt=now(); const list=campaignsList(); const i=list.findIndex(x=>cid(x)===cid(c)); if(i>=0) list[i]={...list[i],departmentTasks:next,taskCount:next.length,updatedAt:now()}; window.campaigns=list; }catch(_){} }
+  async function persistCampaign(c){
+    if(!c || !cid(c)) return;
+    const next=normalizeTasks(taskArray(c)); updateLocalCampaign(c,next);
+    try{ const db=window.mainDb||window.db||(typeof firebase!=='undefined'?firebase.firestore():null); if(!db) return; const coll=window.MZJ_CAMPAIGNS_COLLECTION||window.CAMPAIGNS_COLLECTION||'marketing_campaigns'; await db.collection(coll).doc(cid(c)).update({departmentTasks:next,taskCount:next.length,updatedAt:(typeof firebase!=='undefined' && firebase.firestore ? firebase.firestore.FieldValue.serverTimestamp() : now())}); }catch(e){ console.warn(VERSION,'persist skipped',e); }
+  }
+  function locateTask(id, campaignId){
+    const n=S(id), cn=S(campaignId);
+    for(const c of campaignsList()){
+      if(cn && cid(c)!==cn) continue;
+      const tasks=taskArray(c);
+      const idx=tasks.findIndex(t => [taskId(t),t?.taskId,t?.taskNo,t?.canonicalTaskCode,t?.fullTaskCode,t?.contentExecutionPairKey,t?.linkedExecutionPairKey].map(S).includes(n));
+      if(idx>=0) return {campaign:c,tasks,idx,task:tasks[idx]};
+    }
+    return {campaign:null,tasks:[],idx:-1,task:null};
+  }
+  async function patchTask(id, patch, campaignId){
+    const loc=locateTask(id,campaignId); if(!loc.task || !loc.campaign) return false;
+    const next=loc.tasks.map((t,i)=> i===loc.idx ? {...t,...patch,updatedAt:now()} : t);
+    updateLocalCampaign(loc.campaign,next);
+    try{ const db=window.mainDb||window.db||(typeof firebase!=='undefined'?firebase.firestore():null); if(db){ const coll=window.MZJ_CAMPAIGNS_COLLECTION||window.CAMPAIGNS_COLLECTION||'marketing_campaigns'; await db.collection(coll).doc(cid(loc.campaign)).update({departmentTasks:next,taskCount:next.length,updatedAt:(typeof firebase!=='undefined' && firebase.firestore ? firebase.firestore.FieldValue.serverTimestamp() : now())}); } }catch(e){ console.warn(VERSION,'patch task failed',e); }
+    return true;
+  }
+  function structureBundleTitle(task){ const count=structureItems(task).length; return count ? `طلب هيكل - ${count} كرييتيف` : 'طلب هيكل'; }
+  const prevShort=typeof shortTaskName==='function'?shortTaskName:window.shortTaskName;
+  if(typeof prevShort==='function'){
+    const wrapped=function(task){ try{ if(isStructureTask(task)) return H(structureBundleTitle(task)); }catch(_){} return prevShort.apply(this,arguments); };
+    try{ shortTaskName=wrapped; window.shortTaskName=wrapped; }catch(_){ window.shortTaskName=wrapped; }
+  }
+  const prevContentType=typeof taskContentType==='function'?taskContentType:window.taskContentType;
+  if(typeof prevContentType==='function'){
+    const wrapped=function(task){ try{ if(isStructureTask(task)) return structureBundleTitle(task); }catch(_){} return prevContentType.apply(this,arguments); };
+    try{ taskContentType=wrapped; window.taskContentType=wrapped; }catch(_){ window.taskContentType=wrapped; }
+  }
+  const prevWait=typeof isTaskWaitingForDependency==='function'?isTaskWaitingForDependency:window.isTaskWaitingForDependency;
+  if(typeof prevWait==='function'){
+    const wrapped=function(task){ try{ if(isExecTask(task)){ const fixed=normalizeTasks(taskArray(campaignForTask(task))).find(x=>taskId(x)===taskId(task))||task; return ['في انتظار اعتماد الهيكل','في انتظار اعتماد Task Template'].includes(S(fixed.dashboardStatusLabel||fixed.executionGateStatus||fixed.waitingForApprovalLabel)); } }catch(_){} return prevWait.apply(this,arguments); };
+    try{ isTaskWaitingForDependency=wrapped; window.isTaskWaitingForDependency=wrapped; }catch(_){ window.isTaskWaitingForDependency=wrapped; }
+  }
+  const prevReceivedLabel=typeof receivedLabel==='function'?receivedLabel:window.receivedLabel;
+  if(typeof prevReceivedLabel==='function'){
+    const wrapped=function(task){ try{ if(isExecTask(task)){ const fixed=normalizeTasks(taskArray(campaignForTask(task))).find(x=>taskId(x)===taskId(task))||task; const lab=S(fixed.dashboardStatusLabel||fixed.executionGateStatus); if(lab==='في انتظار اعتماد الهيكل'||lab==='في انتظار اعتماد Task Template') return lab; } }catch(_){} return prevReceivedLabel.apply(this,arguments); };
+    try{ receivedLabel=wrapped; window.receivedLabel=wrapped; }catch(_){ window.receivedLabel=wrapped; }
+  }
+  function structureSummaryHtml(task){
+    if(!isStructureTask(task)) return '';
+    const items=structureItems(task); if(!items.length) return '';
+    const list=items.map((it,idx)=>`<article class="v624-creative-chip"><b>${H(it.code || String(idx+1).padStart(2,'0'))}</b><strong>${H(it.creative)}</strong><span>${H(it.car || 'بدون سيارة')}</span></article>`).join('');
+    return `<div class="modal-section v624-structure-bundle-section" data-v624-structure-summary="1"><div class="modal-section-title"><h3>الكرييتيفات المطلوبة في الهيكل</h3><span>${items.length} كرييتيف</span></div><div class="v624-structure-bundle-grid">${list}</div></div>`;
+  }
+  const prevDetail=typeof buildTaskDetailHtml==='function'?buildTaskDetailHtml:window.buildTaskDetailHtml;
+  if(typeof prevDetail==='function'){
+    const wrapped=function(task){
+      let html=prevDetail.apply(this,arguments);
+      try{
+        const extra=structureSummaryHtml(task);
+        if(extra && !String(html).includes('data-v624-structure-summary')){
+          const marker='<div class="modal-section task-actions-section compact-actions-section">';
+          html=String(html).includes(marker) ? String(html).replace(marker, extra+marker) : String(html)+extra;
+        }
+      }catch(e){ console.warn(VERSION,'detail inject failed',e); }
+      return html;
+    };
+    try{ buildTaskDetailHtml=wrapped; window.buildTaskDetailHtml=wrapped; }catch(_){ window.buildTaskDetailHtml=wrapped; }
+  }
+  const prevTasks=typeof tasksForCampaign==='function'?tasksForCampaign:window.tasksForCampaign;
+  if(typeof prevTasks==='function'){
+    const wrapped=function(c){ const tasks=normalizeTasks(A(prevTasks.apply(this,arguments))); try{ if(c) updateLocalCampaign(c,tasks); }catch(_){} return tasks; };
+    try{ tasksForCampaign=wrapped; window.tasksForCampaign=wrapped; }catch(_){ window.tasksForCampaign=wrapped; }
+  }
+  const prevRenderUser=typeof renderUserDashboard==='function'?renderUserDashboard:window.renderUserDashboard;
+  if(typeof prevRenderUser==='function'){
+    const wrapped=function(){ try{ campaignsList().forEach(c=>updateLocalCampaign(c,normalizeTasks(taskArray(c)))); }catch(_){} return prevRenderUser.apply(this,arguments); };
+    try{ renderUserDashboard=wrapped; window.renderUserDashboard=wrapped; }catch(_){ window.renderUserDashboard=wrapped; }
+  }
+  const prevApprove=window.MZJ_v516_approveStructure||window.MZJ_v623_approveStructure||window.MZJ_v622_approveStructure||window.MZJ_v570_approveStructure;
+  if(typeof prevApprove==='function'){
+    const wrapped=async function(taskId){ let c=campaignForTask({id:taskId}); const r=await prevApprove.apply(this,arguments); c=campaignForTask({id:taskId})||c; if(c) await persistCampaign(c); try{ document.querySelectorAll('.structure-review-popup,.structure-review-modal,#structureReviewPopup,.task-modal.show,#taskModal.show').forEach(el=>{el.classList.remove('show'); if(el.id==='structureReviewPopup'||el.classList.contains('structure-review-popup')||el.classList.contains('structure-review-modal')) el.remove();}); document.body.classList.remove('modal-open'); }catch(_){} setTimeout(()=>{ try{ window.location.reload(); }catch(_){ location.reload(); } },350); return r; };
+    window.MZJ_v624_approveStructure=wrapped; window.MZJ_v516_approveStructure=wrapped; window.MZJ_v570_approveStructure=wrapped; try{ MZJ_v516_approveStructure=wrapped; }catch(_){}
+  }
+  const prevDecision=window.MZJ_v516_decideTaskTemplate||window.MZJ_v623_decideTaskTemplate||window.MZJ_v570_decideTaskTemplate||window.v174SetTaskTemplateDecision;
+  if(typeof prevDecision==='function'){
+    const wrapped=async function(taskId,decision){ let c=campaignForTask({id:taskId}); const r=await prevDecision.apply(this,arguments); c=campaignForTask({id:taskId})||c; if(c) await persistCampaign(c); try{ renderUserDashboard&&renderUserDashboard(); renderAdminDashboard&&renderAdminDashboard(); renderTasksPage&&renderTasksPage(); }catch(_){} return r; };
+    window.MZJ_v516_decideTaskTemplate=wrapped; window.MZJ_v570_decideTaskTemplate=wrapped; window.v174SetTaskTemplateDecision=wrapped; window.v171ApproveTaskTemplate=id=>wrapped(id,'approved'); try{ MZJ_v516_decideTaskTemplate=wrapped; v174SetTaskTemplateDecision=wrapped; v171ApproveTaskTemplate=window.v171ApproveTaskTemplate; }catch(_){}
+  }
+  document.addEventListener('click', async function(e){
+    const btn=e.target.closest('[data-toggle-received]'); if(!btn) return;
+    const id=S(btn.getAttribute('data-toggle-received')||btn.dataset.toggleReceived||''); if(!id) return;
+    const campaignId=S(btn.getAttribute('data-task-campaign')||btn.dataset.taskCampaign||'');
+    const loc=locateTask(id,campaignId); if(!loc.task) return;
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    const task=normalizeTasks(taskArray(loc.campaign)).find(t=>taskId(t)===taskId(loc.task))||loc.task;
+    if(isExecTask(task) && S(task.dashboardStatusLabel||task.executionGateStatus)!=='جاهز للتنفيذ'){
+      try{ showToast(S(task.dashboardStatusLabel||task.executionGateStatus||'التاسك غير جاهز للتنفيذ بعد.')); }catch(_){ }
+      return;
+    }
+    const next=!(task.received||task.receivedConfirmed);
+    const patch={received:next,receivedConfirmed:next,receivedAt:next?now():'',receivedBy:next?S((typeof getCurrentUserIdentity==='function'?getCurrentUserIdentity():{})?.email || (typeof getCurrentUser==='function'?getCurrentUser():{})?.email || ''):'',progress:next?Math.max(Number(task.progress||0),20):0};
+    if(next){ if(isExecTask(task)) patch.status='in_progress'; else if(isTemplateTask(task)) patch.status=task.status||'pending_task_template'; else patch.status=task.status||'received'; }
+    const ok=await patchTask(id,patch,campaignId); if(ok){ try{ showToast(next?'تم تأكيد الاستلام.':'تم إلغاء الاستلام.'); }catch(_){} try{ renderUserDashboard&&renderUserDashboard(); renderAdminDashboard&&renderAdminDashboard(); renderTasksPage&&renderTasksPage(); }catch(_){} }
+  }, true);
+  function injectStyle(){
+    if(document.getElementById('v624FlowStyle')) return;
+    const style=document.createElement('style'); style.id='v624FlowStyle'; style.textContent=`
+      .v624-structure-bundle-section{border-color:rgba(42,145,130,.28)!important;background:rgba(255,255,255,.72)!important;}
+      .v624-structure-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px;}
+      .v624-creative-chip{border:1px solid rgba(198,151,125,.35);border-radius:14px;padding:10px 12px;background:rgba(255,250,246,.86);display:grid;gap:5px;}
+      .v624-creative-chip b{color:#8d4b38;font-size:12px}.v624-creative-chip strong{font-size:15px}.v624-creative-chip span{font-size:12px;color:#8b6d62}
+    `; document.head.appendChild(style);
+  }
+  injectStyle();
+  setTimeout(()=>{ try{ campaignsList().forEach(c=>updateLocalCampaign(c,normalizeTasks(taskArray(c)))); renderUserDashboard&&renderUserDashboard(); }catch(_){} },1200);
+  try{ window.MZJ_APP_VERSION='624'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
+
+/* MZJ v625 - visible dashboard uses campaign stored execution gate, not stale dependency label */
+(function(){
+  const VERSION='v625-visible-exec-gate-from-campaign-doc';
+  const S=v=>(v==null?'':String(v)).trim();
+  const A=v=>Array.isArray(v)?v:(v==null?[]:[v]);
+  const N=v=>S(v).replace(/[أإآٱ]/g,'ا').replace(/[ؤ]/g,'و').replace(/[ئ]/g,'ي').replace(/[ةه]/g,'ه').replace(/[ىي]/g,'ي').replace(/[\u200e\u200f\s\-_:/|]+/g,'').toLowerCase();
+  const now=()=>new Date().toISOString();
+  function list(){try{return Array.isArray(window.campaigns)?window.campaigns:(Array.isArray(campaigns)?campaigns:[]);}catch(_){return Array.isArray(window.campaigns)?window.campaigns:[];}}
+  function cid(c){return S(c&& (c.id||c.docId||c.campaignId||c.campaignCode||c.campaign_code));}
+  function tasks(c){const d=c&&c.departmentTasks; if(Array.isArray(d))return d.filter(Boolean); if(d&&typeof d==='object')return Object.values(d).filter(x=>x&&typeof x==='object'); return [];}
+  function id(t){return S(t&&(t.id||t.taskId||t.docId||t.taskCode||t.canonicalTaskCode||t.fullTaskCode||t.originalTaskId||t.sourceTaskId));}
+  function role(t){const z=N([t&&t.departmentRole,t&&t.assignedDepartmentRole,t&&t.departmentCode,t&&t.assignedDepartmentName,t&&t.contentSectionId,t&&t.contentSectionName,t&&t.source].join(' ')); if(z.includes('content')||z.includes('محتو'))return'content'; if(z.includes('design')||z.includes('تصميم')||z.includes('des'))return'design'; if(z.includes('montage')||z.includes('مونتاج')||z.includes('editing'))return'montage'; if(z.includes('shoot')||z.includes('photo')||z.includes('تصوير'))return'shooting'; return z;}
+  function isTpl(t){const z=N([t&&t.contentTemplateTask,t&&t.flowType,t&&t.source,t&&t.taskType,t&&t.structureTaskLabel,t&&t.id,t&&t.taskId].join(' ')); return !!(t&&(t.contentTemplateTask||t.flowType==='content_template'||z.includes('tasktemplate')||z.includes('contenttemplate')));}
+  function isStruct(t){if(isTpl(t))return false; const z=N([t&&t.flowType,t&&t.needsStructureUpload,t&&t.structureRequestTask,t&&t.structureBundleTask,t&&t.sourceRequestStep,t&&t.source,t&&t.taskType,t&&t.structureTaskLabel,t&&t.creative,t&&t.product,t&&t.id,t&&t.taskId].join(' ')); return !!(t&&(t.needsStructureUpload||t.structureRequestTask||t.structureBundleTask||t.flowType==='content_structure'||t.sourceRequestStep==='campaign_request_data'||(role(t)==='content'&&(z.includes('هيكل')||z.includes('structure')))));
+  }
+  function isExec(t){const r=role(t); return ['design','montage','shooting','photography'].includes(r)&&!isStruct(t)&&!isTpl(t);}
+  function uniq(a){return Array.from(new Set(A(a).flat(Infinity).map(S).filter(Boolean).map(N).filter(Boolean)));}
+  function writerKeys(t){return uniq([t&&t.contentWriterId,t&&t.contentWriterUid,t&&t.contentWriterEmail,t&&t.contentWriterName,t&&t.contentWriterCode,t&&t.linkedContentUserId,t&&t.linkedContentUserUid,t&&t.linkedContentUserEmail,t&&t.linkedContentUserName,t&&t.linkedContentUserCode,t&&t.writerId,t&&t.writerUid,t&&t.writerEmail,t&&t.writerName,t&&t.writerCode,t&&t.dependsOnContentUserIds,t&&t.dependsOnContentUserNames,t&&t.upstreamUserIds,t&&t.upstreamUserNames,t&&t.upstreamUserLabel,A(t&&t.dependencyLinks).flatMap(l=>[l&&l.contentUserId,l&&l.contentUserUid,l&&l.contentUserName,l&&l.contentUserEmail])]);}
+  function sameWriter(a,b){const x=writerKeys(a),y=writerKeys(b); return !!(x.length&&y.length&&x.some(k=>y.includes(k)));}
+  function statusBlob(t){const st=t&&t.structure||{},tpl=t&&t.taskTemplate||{},ct=t&&t.contentTaskTemplate||{},ap=t&&t.approvedContentTemplate||{}; return N([t&&t.status,t&&t.state,t&&t.taskStatus,t&&t.dashboardStatusLabel,t&&t.reviewStatus,t&&t.approvalStatus,t&&t.structureStatus,t&&t.templateReviewStatus,t&&t.taskTemplateStatus,t&&t.linkedContentTemplateStatus,st.status,st.reviewStatus,st.approved,tpl.status,tpl.reviewStatus,ct.status,ap.status].join(' '));}
+  function structureOk(t){const z=statusBlob(t),st=t&&t.structure||{}; return !!(t&&(t.structureApproved||t.approved||t.structureApprovedAt||t.contentStructureApproved||st.approved||st.approvedAt||st.reviewedAt||z.includes('approved')||z.includes(N('تم الاعتماد'))||z.includes(N('معتمد'))));}
+  function templateOk(t){const z=statusBlob(t),tpl=t&&t.taskTemplate||t&&t.contentTaskTemplate||t&&t.approvedContentTemplate||{}; return !!(t&&(t.contentTemplateApproved||t.taskTemplateApproved||tpl.approved||tpl.approvedAt||z.includes('approved')||z.includes(N('تم الاعتماد'))||z.includes(N('معتمد'))));}
+  function suffix(t){const vals=[t&&t.taskSuffix,t&&t.shortTaskCode,t&&t.displayTaskCode,t&&t.userFacingTaskNo,t&&t.structureRow&&t.structureRow.taskSuffix,t&&t.taskTemplate&&t.taskTemplate.taskSuffix,t&&t.taskNo,t&&t.canonicalTaskCode,t&&t.taskCode,t&&t.fullTaskCode,t&&t.visibleTaskName]; for(const v of vals){const m=S(v).match(/\b([A-Z]\d{1,3})\b/i); if(m)return m[1].toUpperCase();} return '';}
+  function creativeKey(t){const s=suffix(t); const vals=[s,t&&t.creativeIndex,t&&t.creativeShortCode,t&&t.creativeId,t&&t.creative,t&&t.product,t&&t.contentType,t&&t.taskType,t&&t.taskTemplate&&t.taskTemplate.contentType,t&&t.contentTaskTemplate&&t.contentTaskTemplate.contentType,t&&t.approvedContentTemplate&&t.approvedContentTemplate.contentType]; return N(vals.filter(v=>v!==undefined&&v!==null).join('|'));}
+  function pair(t){return N(t&&(t.contentExecutionPairKey||t.linkedExecutionPairKey||t.contentFlowKey||t.mzjTaskLinkKey||(t.taskTemplate&&t.taskTemplate.linkedExecutionPairKey)||(t.contentTaskTemplate&&t.contentTaskTemplate.linkedExecutionPairKey)||(t.approvedContentTemplate&&t.approvedContentTemplate.linkedExecutionPairKey)||''));}
+  function tplMatches(tpl,ex){if(!templateOk(tpl)||!sameWriter(tpl,ex))return false; const p1=pair(tpl),p2=pair(ex); if(p1&&p2&&p1!==p2)return false; const s1=suffix(tpl),s2=suffix(ex); if(s1&&s2&&s1!==s2)return false; const c1=creativeKey(tpl),c2=creativeKey(ex); if(c1&&c2&&c1!==c2&&!(c1.includes(c2)||c2.includes(c1)))return false; return true;}
+  function label(ex,all){const structs=all.filter(isStruct); const templates=all.filter(isTpl); const hasStruct=structs.some(st=>structureOk(st)&&sameWriter(st,ex)); if(!hasStruct)return 'في انتظار اعتماد الهيكل'; const hasTpl=templates.some(t=>tplMatches(t,ex)); return hasTpl?'جاهز للتنفيذ':'في انتظار Task Template';}
+  function patch(ex,lab){const base={...ex,updatedAt:ex.updatedAt||now()}; if(lab==='جاهز للتنفيذ')return {...base,status:(base.received||base.receivedConfirmed)?(base.status||'in_progress'):'pending',state:'ready_execution',taskStatus:'جاهز للتنفيذ',dashboardStatusLabel:'جاهز للتنفيذ',executionGateStatus:'جاهز للتنفيذ',waitingForApproval:false,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:false,waitingForContent:false,waitingQueue:false,isWaitingQueue:false,waitingForApprovalLabel:'',progress:Number(base.progress||0)}; if(lab==='في انتظار Task Template')return {...base,status:'waiting_task_template',state:'waiting_task_template',taskStatus:'في انتظار Task Template',dashboardStatusLabel:'في انتظار Task Template',executionGateStatus:'في انتظار Task Template',structureApproved:true,waitingForApproval:true,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:true,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,waitingForApprovalLabel:'في انتظار Task Template',progress:0}; return {...base,status:'waiting_structure',state:'waiting_structure',taskStatus:'في انتظار اعتماد الهيكل',dashboardStatusLabel:'في انتظار اعتماد الهيكل',executionGateStatus:'في انتظار اعتماد الهيكل',structureApproved:false,waitingForApproval:true,waitingForStructureApproval:true,structureLinkPending:true,waitingForTaskTemplate:false,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,waitingForApprovalLabel:'في انتظار اعتماد الهيكل',progress:0};}
+  function normalize(arr){const all=A(arr).filter(Boolean); return all.map(t=>isExec(t)?patch(t,label(t,all)):t);}
+  function findCampByTask(t){const task=id(t), cId=S(t&&t.campaignId||t&&t.campaignDocId); return list().find(c=>cId&&cid(c)===cId)||list().find(c=>tasks(c).some(x=>id(x)===task||S(x&&x.taskId)===task||S(x&&x.originalTaskId)===task||S(x&&x.sourceTaskId)===task))||null;}
+  function normalizeOne(t){const c=findCampByTask(t); if(!c)return t; const next=normalize(tasks(c)); const key=id(t); return next.find(x=>id(x)===key||S(x.originalTaskId)===key||S(x.sourceTaskId)===key)||t;}
+  function updateCampaign(c){if(!c)return; const next=normalize(tasks(c)); c.departmentTasks=next; c.taskCount=next.length;}
+  const prevTasks=typeof tasksForCampaign==='function'?tasksForCampaign:window.tasksForCampaign;
+  if(typeof prevTasks==='function'){const w=function(c){const out=normalize(A(prevTasks.apply(this,arguments))); try{if(c){c.departmentTasks=out;c.taskCount=out.length;}}catch(_){} return out;}; try{tasksForCampaign=w;window.tasksForCampaign=w;}catch(_){window.tasksForCampaign=w;}}
+  const prevVisible=typeof getVisibleTasksForCurrentUser==='function'?getVisibleTasksForCurrentUser:window.getVisibleTasksForCurrentUser;
+  if(typeof prevVisible==='function'){const w=function(){try{list().forEach(updateCampaign);}catch(_){} return A(prevVisible.apply(this,arguments)).map(normalizeOne);}; try{getVisibleTasksForCurrentUser=w;window.getVisibleTasksForCurrentUser=w;}catch(_){window.getVisibleTasksForCurrentUser=w;}}
+  const prevAdmin=typeof adminDashboardTasksForCampaign==='function'?adminDashboardTasksForCampaign:window.adminDashboardTasksForCampaign;
+  if(typeof prevAdmin==='function'){const w=function(c){try{updateCampaign(c);}catch(_){} return A(prevAdmin.apply(this,arguments)).map(normalizeOne);}; try{adminDashboardTasksForCampaign=w;window.adminDashboardTasksForCampaign=w;}catch(_){window.adminDashboardTasksForCampaign=w;}}
+  const prevWait=typeof isTaskWaitingForDependency==='function'?isTaskWaitingForDependency:window.isTaskWaitingForDependency;
+  if(typeof prevWait==='function'){const w=function(t){try{if(isExec(t)){const fixed=normalizeOne(t); const lab=S(fixed.dashboardStatusLabel||fixed.executionGateStatus||fixed.waitingForApprovalLabel); return lab==='في انتظار اعتماد الهيكل'||lab==='في انتظار Task Template'||lab==='في انتظار اعتماد Task Template';}}catch(_){} return prevWait.apply(this,arguments);}; try{isTaskWaitingForDependency=w;window.isTaskWaitingForDependency=w;}catch(_){window.isTaskWaitingForDependency=w;}}
+  const prevRec=typeof receivedLabel==='function'?receivedLabel:window.receivedLabel;
+  if(typeof prevRec==='function'){const w=function(t){try{if(isExec(t)){const fixed=normalizeOne(t); const lab=S(fixed.dashboardStatusLabel||fixed.executionGateStatus||fixed.waitingForApprovalLabel); if(lab==='في انتظار اعتماد الهيكل'||lab==='في انتظار Task Template'||lab==='في انتظار اعتماد Task Template')return lab;}}catch(_){} return prevRec.apply(this,arguments);}; try{receivedLabel=w;window.receivedLabel=w;}catch(_){window.receivedLabel=w;}}
+  const prevRender=typeof renderUserDashboard==='function'?renderUserDashboard:window.renderUserDashboard;
+  if(typeof prevRender==='function'){const w=function(){try{list().forEach(updateCampaign);}catch(_){} return prevRender.apply(this,arguments);}; try{renderUserDashboard=w;window.renderUserDashboard=w;}catch(_){window.renderUserDashboard=w;}}
+  const prevAdminRender=typeof renderAdminDashboard==='function'?renderAdminDashboard:window.renderAdminDashboard;
+  if(typeof prevAdminRender==='function'){const w=function(){try{list().forEach(updateCampaign);}catch(_){} return prevAdminRender.apply(this,arguments);}; try{renderAdminDashboard=w;window.renderAdminDashboard=w;}catch(_){window.renderAdminDashboard=w;}}
+  setTimeout(()=>{try{list().forEach(updateCampaign); if(typeof renderUserDashboard==='function')renderUserDashboard();}catch(_){}},700);
+  try{window.MZJ_APP_VERSION='625';window.MZJ_LAST_PATCH=VERSION;console.info(VERSION,'loaded');}catch(_){ }
+})();
+
+/* MZJ v626 - final user dashboard gate renderer: execution status from approved structure/template, not stored stale label */
+(function(){
+  const VERSION='v626-final-exec-gate-dashboard-render';
+  const S=v=>v==null?'':String(v).trim();
+  const A=v=>Array.isArray(v)?v:(v==null?[]:[v]);
+  const H=v=>{try{return typeof escapeHtml==='function'?escapeHtml(S(v)):S(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}catch(_){return S(v);}};
+  const N=v=>S(v).toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآٱا]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/[ىي]/g,'ي').replace(/[ةه]/g,'ه').replace(/ـ/g,'').replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const uniq=list=>Array.from(new Set(A(list).flat(Infinity).map(S).filter(Boolean).map(N).filter(Boolean)));
+  const overlap=(a,b)=>{const x=uniq(a),y=uniq(b);return !!(x.length&&y.length&&x.some(k=>y.includes(k)));};
+  const roleOf=t=>{try{const r=typeof normalizeDepartmentRole==='function'?normalizeDepartmentRole(t?.departmentRole||t?.assignedDepartmentRole||t?.assignedDepartmentId||t?.assignedDepartmentName||t?.contentSectionId||t?.contentSectionName||t?.departmentCode||t?.executionDepartmentCode||''):''; if(r)return r;}catch(_){} const z=N([t?.departmentRole,t?.assignedDepartmentRole,t?.assignedDepartmentId,t?.assignedDepartmentName,t?.contentSectionId,t?.contentSectionName,t?.departmentCode,t?.executionDepartmentCode,t?.source,t?.flowType].join(' ')); if(z.includes('content')||z.includes('محتو'))return'content'; if(z.includes('design')||z.includes('تصميم'))return'design'; if(z.includes('montage')||z.includes('مونتاج')||z.includes('edit'))return'montage'; if(z.includes('shoot')||z.includes('photo')||z.includes('تصوير'))return'shooting'; return z;};
+  const campaignsList=()=>{try{return A(window.campaigns&&window.campaigns.length?window.campaigns:campaigns);}catch(_){return A(window.campaigns);}};
+  const rawTasks=c=>{const d=c?.departmentTasks;if(Array.isArray(d))return d.filter(Boolean);if(d&&typeof d==='object')return Object.values(d).filter(x=>x&&typeof x==='object');return [];};
+  const tid=t=>S(t?.id||t?.taskId||t?.docId||t?.fullTaskCode||t?.canonicalTaskCode||t?.taskCode||'');
+  const campaignIdOf=t=>S(t?.campaignId||t?.campaignDocId||t?.campaign_id||'');
+  const taskCampaign=t=>{const cid=campaignIdOf(t);return campaignsList().find(c=>cid&&S(c.id||c.docId||c.campaignId)===cid)||campaignsList().find(c=>rawTasks(c).some(x=>tid(x)===tid(t)))||{};};
+  const isExec=t=>['design','montage','shooting','photography'].includes(roleOf(t))||N([t?.flowType,t?.source,t?.id].join(' ')).includes('executiontask')||N([t?.flowType,t?.source,t?.id].join(' ')).includes('exec');
+  const isTpl=t=>{const z=N([t?.flowType,t?.source,t?.taskType,t?.structureTaskLabel,t?.creative,t?.product,t?.id,t?.taskId].join(' '));return !!(t?.contentTemplateTask||t?.flowType==='content_template'||z.includes('tasktemplate')||z.includes('contenttemplate'))&&!isExec(t);};
+  const isStruct=t=>{if(isTpl(t)||isExec(t))return false;const z=N([t?.flowType,t?.source,t?.taskType,t?.structureTaskLabel,t?.creative,t?.product,t?.id,t?.taskId].join(' '));return !!(t?.needsStructureUpload||t?.structureRequestTask||t?.structureBundleTask||t?.flowType==='content_structure'||(roleOf(t)==='content'&&(z.includes('هيكل')||z.includes('structure'))));};
+  function writerKeys(t){return uniq([t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.contentWriterCode,t?.linkedContentUserId,t?.linkedContentUserUid,t?.linkedContentUserEmail,t?.linkedContentUserName,t?.linkedContentUserCode,t?.writerId,t?.writerUid,t?.writerEmail,t?.writerName,t?.writerCode,t?.userId,t?.userUid,t?.userEmail,t?.userName,t?.assignedToId,t?.assignedToUid,t?.assignedToEmail,t?.assignedToName,t?.assigneeUid,t?.assigneeName,t?.dependsOnContentUserIds,t?.dependsOnContentUserNames,t?.upstreamUserIds,t?.upstreamUserNames,t?.upstreamUserLabel,A(t?.dependencyLinks).flatMap(l=>[l?.contentUserIds,l?.contentUserNames,l?.contentUserId,l?.contentUserName,l?.writerId,l?.writerName])]);}
+  const statusBlob=t=>N([t?.status,t?.state,t?.taskStatus,t?.dashboardStatusLabel,t?.reviewStatus,t?.approvalStatus,t?.structureStatus,t?.taskTemplateStatus,t?.templateReviewStatus,t?.linkedContentTemplateStatus,t?.structure?.status,t?.structure?.reviewStatus,t?.structure?.approved,t?.taskTemplate?.status,t?.contentTaskTemplate?.status,t?.approvedContentTemplate?.status].join(' '));
+  const okWord=z=>z.includes('approved')||z.includes('distributed')||z.includes(N('تم الاعتماد'))||z.includes(N('معتمد'))||z.includes(N('تاسك معتمد'));
+  function structureApproved(t){const z=statusBlob(t);return !!(t?.structureApproved||t?.approved||t?.structureApprovedAt||t?.contentStructureApproved||t?.structure?.approved||t?.structure?.approvedAt||t?.structure?.reviewedAt||okWord(z));}
+  function templateApproved(t){const z=statusBlob(t);return !!(t?.contentTemplateApproved||t?.taskTemplateApproved||t?.approvedContentTemplate?.approved||t?.approvedContentTemplate?.approvedAt||t?.taskTemplate?.approved||t?.taskTemplate?.approvedAt||okWord(z));}
+  const suffix=t=>{const vals=[t?.taskSuffix,t?.shortTaskCode,t?.displayTaskCode,t?.userFacingTaskNo,t?.structureRow?.taskSuffix,t?.taskTemplate?.taskSuffix,t?.contentTaskTemplate?.taskSuffix,t?.approvedContentTemplate?.taskSuffix,t?.taskNo,t?.canonicalTaskCode,t?.taskCode,t?.fullTaskCode,t?.visibleTaskName];for(const v of vals){const m=S(v).match(/\b([A-Z]\d{1,3})\b/i);if(m)return m[1].toUpperCase();}return'';};
+  const creativeKey=t=>N([suffix(t),t?.creativeIndex,t?.creativeShortCode,t?.creativeId,t?.creative,t?.product,t?.contentType,t?.taskType,t?.structureRow?.contentType,t?.taskTemplate?.contentType,t?.contentTaskTemplate?.contentType,t?.approvedContentTemplate?.contentType].filter(v=>v!==undefined&&v!==null).join('|'));
+  function templateMatchesExec(tpl,ex){if(!templateApproved(tpl)||!overlap(writerKeys(tpl),writerKeys(ex)))return false;const s1=suffix(tpl),s2=suffix(ex);if(s1&&s2&&s1!==s2)return false;const c1=creativeKey(tpl),c2=creativeKey(ex);if(c1&&c2&&c1!==c2&&!(c1.includes(c2)||c2.includes(c1)))return false;return true;}
+  function gateLabel(ex,campaign){const list=rawTasks(campaign||taskCampaign(ex));if(templateApproved(ex)||list.some(t=>isTpl(t)&&templateMatchesExec(t,ex)))return 'جاهز للتنفيذ';if(list.some(t=>isStruct(t)&&structureApproved(t)&&overlap(writerKeys(t),writerKeys(ex))))return 'في انتظار اعتماد Task Template';return 'في انتظار اعتماد الهيكل';}
+  function patchExec(t,c){const lab=gateLabel(t,c);const base={...t,executionGateStatus:lab,dashboardStatusLabel:lab,taskStatus:lab};if(lab==='جاهز للتنفيذ')return {...base,status:(base.received||base.receivedConfirmed)?(base.status||'in_progress'):'ready_execution',state:'ready_execution',waitingForApproval:false,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:false,waitingForContent:false,waitingQueue:false,isWaitingQueue:false,waitingForApprovalLabel:'',structureApproved:true};if(lab==='في انتظار اعتماد Task Template')return {...base,status:'waiting_task_template',state:'waiting_task_template',waitingForApproval:true,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:true,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,waitingForApprovalLabel:lab,structureApproved:true};return {...base,status:'waiting_structure',state:'waiting_structure',waitingForApproval:true,waitingForStructureApproval:true,structureLinkPending:true,waitingForTaskTemplate:false,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,waitingForApprovalLabel:lab,structureApproved:false};}
+  function fixedTasksFor(c){return rawTasks(c).map(t=>isExec(t)?patchExec(t,c):t);} 
+  function syncCampaign(c){if(!c)return;const next=fixedTasksFor(c);c.departmentTasks=next;c.taskCount=next.length;return c;}
+  const oldTasksFor=typeof tasksForCampaign==='function'?tasksForCampaign:window.tasksForCampaign;
+  if(typeof oldTasksFor==='function'){const w=function(c){try{syncCampaign(c);}catch(_){}return A(oldTasksFor.apply(this,arguments)).map(t=>isExec(t)?patchExec(t,c):t);};try{tasksForCampaign=w;window.tasksForCampaign=w;}catch(_){window.tasksForCampaign=w;}}
+  const oldFind=typeof findTaskById==='function'?findTaskById:window.findTaskById;
+  if(typeof oldFind==='function'){const w=function(taskId,campaignId=''){let f=oldFind.apply(this,arguments);if(f&&isExec(f))return patchExec(f,taskCampaign(f));if(f)return f;for(const c of campaignsList()){if(campaignId&&S(c.id||c.docId)!==S(campaignId))continue;const hit=fixedTasksFor(c).find(t=>[tid(t),S(t.taskId),S(t.fullTaskCode),S(t.canonicalTaskCode),S(t.taskCode)].includes(S(taskId)));if(hit)return hit;}return null;};try{findTaskById=w;window.findTaskById=w;}catch(_){window.findTaskById=w;}}
+  function currentUserKeys(){try{const a=typeof getCurrentUserIdentity==='function'?(getCurrentUserIdentity()||{}):{};const b=typeof getCurrentUser==='function'?(getCurrentUser()||{}):{};return uniq([a.uid,a.id,a.email,a.name,a.displayName,b.uid,b.id,b.email,b.name,b.displayName]);}catch(_){return [];}}
+  function assigneeKeys(t){return uniq([t?.assignedToUid,t?.assignedToId,t?.assignedToEmail,t?.assignedToName,t?.assigneeUid,t?.assigneeId,t?.assigneeEmail,t?.assigneeName,t?.executionUserId,t?.executionUserUid,t?.executionUserEmail,t?.executionUserName,t?.userId,t?.userUid,t?.userEmail,t?.userName,t?.userIds,t?.userNames]);}
+  function contentOwnerKeys(t){return uniq([t?.assignedToUid,t?.assignedToId,t?.assignedToEmail,t?.assignedToName,t?.assigneeUid,t?.assigneeId,t?.assigneeEmail,t?.assigneeName,t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.writerId,t?.writerUid,t?.writerEmail,t?.writerName,t?.userId,t?.userUid,t?.userEmail,t?.userName,t?.assignedToSearch,t?.searchKeys]);}
+  function userMatch(t){const me=currentUserKeys();if(!me.length)return true;return isExec(t)?overlap(assigneeKeys(t),me):overlap(contentOwnerKeys(t),me);}
+  function currentTasks(){try{campaignsList().forEach(syncCampaign);}catch(_){}const all=campaignsList().flatMap(c=>fixedTasksFor(c));try{if(typeof isCurrentUserAdmin==='function'&&isCurrentUserAdmin())return all;}catch(_){}return all.filter(userMatch);}
+  const oldVisible=typeof getVisibleTasksForCurrentUser==='function'?getVisibleTasksForCurrentUser:window.getVisibleTasksForCurrentUser;
+  if(typeof oldVisible==='function'){const w=function(){return currentTasks();};try{getVisibleTasksForCurrentUser=w;window.getVisibleTasksForCurrentUser=w;}catch(_){window.getVisibleTasksForCurrentUser=w;}}
+  function campaignName(c,t){return S(c?.campaignName||c?.campaign_name||c?.name||t?.campaignName||'—');}
+  function roleName(r){return ({content:'قسم المحتوى',design:'قسم التصميم',montage:'قسم المونتاج',shooting:'قسم التصوير',photography:'قسم التصوير'}[r]||'قسم تنفيذي');}
+  function title(t){try{if(typeof shortTaskName==='function')return S(shortTaskName(t)).replace(/<[^>]*>/g,'');}catch(_){}return S(t.visibleTaskName||t.taskNo||t.taskType||t.creative||t.product||'تاسك');}
+  function ctype(t){return S(t.contentType||t.structureRow?.contentType||t.approvedContentTemplate?.contentType||t.contentTaskTemplate?.contentType||t.taskTemplate?.contentType||t.creative||t.product||t.taskType||'—');}
+  function car(t){try{if(typeof mzjSelectedCarLabels==='function'){const a=mzjSelectedCarLabels(t.selectedCars||[]);if(a&&a.length)return a.join('، ');}}catch(_){}return S(t.selectedCar||t.car||t.structureRow?.car||'—');}
+  function progress(t){try{return typeof taskProgress==='function'?taskProgress(t):Number(t.progress||0);}catch(_){return Number(t.progress||0);}}
+  function openBtn(t,extra=''){return `<button type="button" class="v626-open-task ${extra}" data-open-task="${H(tid(t))}" data-task-campaign="${H(campaignIdOf(t))}">فتح التاسك</button>`;}
+  function receiveBtn(t,gate=''){const done=!!(t.received||t.receivedConfirmed);if(isExec(t)&&gate!=='جاهز للتنفيذ')return `<span class="v626-locked">${H(gate)}</span>`;return `<button type="button" class="v626-receive ${done?'done':''}" data-toggle-received="${H(tid(t))}" data-task-campaign="${H(campaignIdOf(t))}">${done?'تم الاستلام':'تم الاستلام'}</button>`;}
+  function contentCard(t){return `<article class="v626-task-card v626-content-card"><div class="v626-head"><div><h3>${H(title(t))}</h3><p>${H(t.dashboardStatusLabel||t.taskStatus||t.status||'')}</p></div></div><div class="v626-lines"><span>الحملة</span><strong>${H(campaignName(taskCampaign(t),t))}</strong><span>الكرييتيفات</span><strong>${H(ctype(t))}</strong>${isStruct(t)?`<span>عدد الكرييتيفات</span><strong>${H(A(t.structureItems||t.flowItems).length||1)} كرييتيف</strong>`:''}</div><div class="v626-actions">${receiveBtn(t,'جاهز للتنفيذ')}${openBtn(t)}</div></article>`;}
+  function execCard(t){const c=taskCampaign(t),gate=gateLabel(t,c),p=progress(t),r=roleOf(t);return `<article class="v626-task-card v626-exec-card"><div class="v626-head"><div><h3>${H(title(t))}</h3><p>${H(roleName(r))}</p></div><b class="v626-badge ${gate==='جاهز للتنفيذ'?'ok':gate.includes('Task')?'warn':'wait'}">${H(gate)}</b></div><div class="v626-progress"><span>نسبة الإنجاز</span><b>${p}%</b><div><i style="width:${Math.min(100,p)}%"></i></div></div><div class="v626-lines"><span>الحملة</span><strong>${H(campaignName(c,t))}</strong><span>السيارة</span><strong>${H(car(t))}</strong><span>نوع المحتوى</span><strong>${H(ctype(t))}</strong><span>تابع المحتوى</span><strong>${H(S(t.upstreamUserLabel||t.linkedContentUserName||t.contentWriterName||A(t.upstreamUserNames).join('، ')||A(t.dependsOnContentUserNames).join('، ')||'—'))}</strong></div><div class="v626-actions">${receiveBtn(t,gate)}${openBtn(t,'primary')}</div></article>`;}
+  function renderFinalDashboard(){const board=document.getElementById('adminDashboardBoard');if(!board)return;try{if(typeof setDashboardMode==='function')setDashboardMode('user');}catch(_){}const tasks=currentTasks();const content=tasks.filter(t=>!isExec(t)&&(roleOf(t)==='content'||isStruct(t)||isTpl(t)));const exec=tasks.filter(isExec);const sections=[];if(content.length)sections.push(`<section class="v626-section"><h2>قسم المحتوى</h2><span>${content.length} تاسك</span><div class="v626-grid">${content.map(contentCard).join('')}</div></section>`);['design','shooting','montage'].forEach(r=>{const list=exec.filter(t=>roleOf(t)===r||(r==='shooting'&&roleOf(t)==='photography'));if(list.length)sections.push(`<section class="v626-section"><h2>${H(roleName(r))}</h2><span>${list.length} تاسك</span><div class="v626-grid">${list.map(execCard).join('')}</div></section>`);});board.innerHTML=`<section class="v626-dashboard"><div class="user-dashboard-toolbar user-dashboard-toolbar-clean v619-theme-toolbar-safe"><div class="user-theme-panel user-theme-panel-floating"><label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label><button class="mini-btn" type="button" id="clearUserThemeBtn">الثيم الافتراضي</button></div></div><div class="v626-title"><h2>لوحة التاسكات الخاصة بي</h2><p>كل التاسكات المسندة لك حسب الفلو المعتمد.</p><b>${tasks.length} تاسك</b></div>${sections.join('')||'<div class="dashboard-empty-note-inline">لا توجد تاسكات مسندة لك حالياً.</div>'}</section>`;try{if(typeof applyEffectiveTheme==='function')applyEffectiveTheme();}catch(_){}}
+  const oldRender=typeof renderUserDashboard==='function'?renderUserDashboard:window.renderUserDashboard;
+  const renderWrap=function(){try{return renderFinalDashboard();}catch(e){console.warn(VERSION,'fallback render',e);return typeof oldRender==='function'?oldRender.apply(this,arguments):undefined;}};
+  try{renderUserDashboard=renderWrap;window.renderUserDashboard=renderWrap;}catch(_){window.renderUserDashboard=renderWrap;}
+  const oldWait=typeof isTaskWaitingForDependency==='function'?isTaskWaitingForDependency:window.isTaskWaitingForDependency;
+  const waitWrap=function(t){try{if(isExec(t)){const gate=gateLabel(t,taskCampaign(t));return gate!=='جاهز للتنفيذ';}}catch(_){}return typeof oldWait==='function'?oldWait.apply(this,arguments):false;};try{isTaskWaitingForDependency=waitWrap;window.isTaskWaitingForDependency=waitWrap;}catch(_){window.isTaskWaitingForDependency=waitWrap;}
+  const oldRec=typeof receivedLabel==='function'?receivedLabel:window.receivedLabel;
+  const recWrap=function(t){try{if(isExec(t)){const gate=gateLabel(t,taskCampaign(t));if(gate!=='جاهز للتنفيذ')return gate;}}catch(_){}return typeof oldRec==='function'?oldRec.apply(this,arguments):'';};try{receivedLabel=recWrap;window.receivedLabel=recWrap;}catch(_){window.receivedLabel=recWrap;}
+  if(!document.getElementById('mzj-v626-style')){const st=document.createElement('style');st.id='mzj-v626-style';st.textContent=`.v626-dashboard{padding:22px;display:flex;flex-direction:column;gap:18px}.v626-title,.v626-section{background:rgba(255,255,255,.56);border:1px solid rgba(123,67,48,.13);border-radius:22px;padding:16px;box-shadow:0 14px 40px rgba(45,23,19,.05)}.v626-title{display:flex;justify-content:space-between;align-items:center;gap:14px}.v626-title h2,.v626-section h2{margin:0;color:#2d1b14}.v626-title p{margin:4px 0 0;color:#8a6f63;font-weight:700}.v626-section>span{display:block;margin:4px 0 12px;color:#8a6f63;font-weight:800}.v626-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}.v626-task-card{background:rgba(255,255,255,.88);border:1px solid rgba(157,91,69,.16);border-radius:19px;padding:14px}.v626-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v626-head h3{margin:0 0 5px;color:#2d1b14;font-size:16px}.v626-head p{margin:0;color:#8a6f63;font-weight:900}.v626-badge,.v626-locked{border-radius:999px;padding:8px 12px;font-weight:900;font-size:12px;display:inline-flex;align-items:center;justify-content:center}.v626-badge.wait,.v626-locked{background:#e9f8ee;color:#15733a}.v626-badge.warn{background:#fff1df;color:#bd5b13}.v626-badge.ok{background:#e9f8ee;color:#15733a}.v626-progress{margin:12px 0}.v626-progress>span{color:#8a6f63;font-weight:900}.v626-progress>b{float:left}.v626-progress div{clear:both;height:8px;background:#eaded7;border-radius:999px;overflow:hidden;margin-top:8px}.v626-progress i{display:block;height:100%;background:#9d5b45;border-radius:999px}.v626-lines{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;border-top:1px solid #eaded7;padding-top:10px}.v626-lines span{color:#9c7b6d;font-weight:900}.v626-lines strong{color:#2d1b14;text-align:left}.v626-actions{display:flex;gap:10px;margin-top:14px}.v626-receive,.v626-open-task{border:1px solid #9d5b45;background:#fff;border-radius:14px;padding:10px 14px;font-weight:900;color:#8b4a37;cursor:pointer;flex:1}.v626-open-task.primary,.v626-open-task{background:#9d5b45;color:#fff}.v626-receive.done{background:#e9f8ee;border-color:#b8dec5;color:#15733a}`;document.head.appendChild(st);}
+  document.addEventListener('click',function(e){const locked=e.target.closest('.v626-locked');if(!locked)return;e.preventDefault();e.stopPropagation();try{showToast(locked.textContent||'التاسك غير جاهز للتنفيذ بعد.');}catch(_){}},true);
+  setTimeout(()=>{try{renderFinalDashboard();}catch(_){}},700);
+  try{window.MZJ_APP_VERSION='626';window.MZJ_LAST_PATCH=VERSION;console.info(VERSION,'loaded');}catch(_){ }
+})();
+
+/* MZJ v629 - v626 safe fix: keep per-writer executive tasks + receipt button + admin Task Template review cards */
+(function(){
+  const VERSION='v629-v626-preserve-linked-exec-tasks-and-template-review';
+  const S=v=>v==null?'':String(v).trim();
+  const A=v=>Array.isArray(v)?v:(v==null?[]:[v]);
+  const H=v=>{try{return typeof escapeHtml==='function'?escapeHtml(S(v)):S(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}catch(_){return S(v);}};
+  const N=v=>S(v).toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآٱا]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/[ىي]/g,'ي').replace(/[ةه]/g,'ه').replace(/ـ/g,'').replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const uniq=list=>Array.from(new Set(A(list).flat(Infinity).map(S).filter(Boolean).map(N).filter(Boolean)));
+  const overlap=(a,b)=>{const x=uniq(a),y=uniq(b);return !!(x.length&&y.length&&x.some(k=>y.includes(k)));};
+  const now=()=>new Date().toISOString();
+  const campaignsList=()=>{try{return A(window.campaigns&&window.campaigns.length?window.campaigns:campaigns);}catch(_){return A(window.campaigns);}};
+  const cid=c=>S(c&& (c.id||c.docId||c.campaignId));
+  const taskId=t=>S(t&&(t.id||t.taskId||t.docId||t.fullTaskCode||t.canonicalTaskCode||t.taskCode));
+  const roleOf=t=>{try{const r=typeof normalizeDepartmentRole==='function'?normalizeDepartmentRole(t?.departmentRole||t?.assignedDepartmentRole||t?.assignedDepartmentId||t?.assignedDepartmentName||t?.contentSectionId||t?.contentSectionName||t?.departmentCode||t?.executionDepartmentCode||''):'';if(r)return r;}catch(_){}const z=N([t?.departmentRole,t?.assignedDepartmentRole,t?.assignedDepartmentId,t?.assignedDepartmentName,t?.contentSectionId,t?.contentSectionName,t?.departmentCode,t?.executionDepartmentCode,t?.flowType,t?.source].join(' '));if(z.includes('content')||z.includes('محتو'))return'content';if(z.includes('design')||z.includes('تصميم'))return'design';if(z.includes('montage')||z.includes('مونتاج')||z.includes('edit'))return'montage';if(z.includes('shoot')||z.includes('photo')||z.includes('تصوير'))return'shooting';return z;};
+  const isExec=t=>['design','montage','shooting','photography'].includes(roleOf(t)) || N([t?.flowType,t?.source,t?.id].join(' ')).includes('executiontask') || N([t?.flowType,t?.source,t?.id].join(' ')).includes('exec');
+  const isTpl=t=>{const z=N([t?.flowType,t?.source,t?.taskType,t?.structureTaskLabel,t?.creative,t?.product,t?.id,t?.taskId].join(' '));return !!(t?.contentTemplateTask||t?.flowType==='content_template'||z.includes('tasktemplate')||z.includes('contenttemplate'))&&!isExec(t);};
+  const isStruct=t=>{if(isTpl(t)||isExec(t))return false;const z=N([t?.flowType,t?.source,t?.taskType,t?.structureTaskLabel,t?.creative,t?.product,t?.id,t?.taskId].join(' '));return !!(t?.needsStructureUpload||t?.structureRequestTask||t?.structureBundleTask||t?.flowType==='content_structure'||(roleOf(t)==='content'&&(z.includes('هيكل')||z.includes('structure'))));};
+  function rawDepartmentTasks(c){
+    if(!c) return [];
+    if(!Array.isArray(c.__v629RawDepartmentTasks) && Array.isArray(c.departmentTasks) && c.departmentTasks.length){
+      c.__v629RawDepartmentTasks = c.departmentTasks.slice();
+    }
+    const saved = Array.isArray(c.__v629RawDepartmentTasks) ? c.__v629RawDepartmentTasks : [];
+    const current = Array.isArray(c.departmentTasks) ? c.departmentTasks : (c.departmentTasks&&typeof c.departmentTasks==='object'?Object.values(c.departmentTasks):[]);
+    const out=[]; const seen=new Set();
+    [...saved, ...current].filter(Boolean).forEach(t=>{ const k = taskId(t) || v629Signature(t); if(seen.has(k)) return; seen.add(k); out.push(t); });
+    if(out.length > saved.length) c.__v629RawDepartmentTasks = out.slice();
+    return out;
+  }
+  function v629Signature(t){return [
+    S(t?.campaignId||t?.campaignDocId), S(t?.fullTaskCode||t?.canonicalTaskCode||t?.taskCode), S(t?.contentExecutionPairKey||t?.contentFlowKey),
+    S(t?.assignedToUid||t?.assignedToId||t?.assigneeUid||t?.executionUserId||t?.userId), S(t?.contentWriterUid||t?.contentWriterId||t?.contentWriterCode||t?.contentWriterName||A(t?.dependsOnContentUserIds).join('|')||A(t?.dependsOnContentUserNames).join('|')),
+    S(t?.creativeIndex), S(t?.creativeShortCode||t?.creative||t?.product), S(t?.departmentRole||t?.assignedDepartmentId||t?.departmentCode), S(t?.displayTaskCode||t?.taskSuffix)
+  ].map(N).join('::');}
+  function writerKeys(t){return uniq([t?.contentWriterId,t?.contentWriterUid,t?.contentWriterEmail,t?.contentWriterName,t?.contentWriterCode,t?.linkedContentUserId,t?.linkedContentUserUid,t?.linkedContentUserEmail,t?.linkedContentUserName,t?.linkedContentUserCode,t?.writerId,t?.writerUid,t?.writerEmail,t?.writerName,t?.writerCode,t?.dependsOnContentUserIds,t?.dependsOnContentUserNames,t?.upstreamUserIds,t?.upstreamUserNames,t?.upstreamUserLabel,A(t?.dependencyLinks).flatMap(l=>[l?.contentUserIds,l?.contentUserNames,l?.contentUserId,l?.contentUserName,l?.contentUserEmail,l?.writerId,l?.writerName])]);}
+  function statusBlob(t){const st=t?.structure||{},tpl=t?.taskTemplate||{},ct=t?.contentTaskTemplate||{},ap=t?.approvedContentTemplate||{};return N([t?.status,t?.state,t?.taskStatus,t?.dashboardStatusLabel,t?.reviewStatus,t?.approvalStatus,t?.structureStatus,t?.taskTemplateStatus,t?.templateReviewStatus,t?.linkedContentTemplateStatus,st.status,st.reviewStatus,st.approved,tpl.status,tpl.reviewStatus,ct.status,ap.status].join(' '));}
+  function templateDocsFor(t){
+    const docs=A(window.MZJ_TASK_TEMPLATE_DOCS).filter(Boolean);
+    const cId=N(t?.campaignId||t?.campaignDocId||'');
+    const tId=N(taskId(t));
+    const sfx=suffix(t);
+    const ck=creativeKey(t);
+    const w=writerKeys(t);
+    return docs.filter(d=>{
+      if(cId && N(d.campaignId||d.campaignDocId||'') && N(d.campaignId||d.campaignDocId||'')!==cId) return false;
+      const ids=[d.id,d.taskId,d.sourceTaskId,d.templateTaskId,d.originalTaskId,d.linkedExecutionTaskId,d.sourceStructureRowKey,d.taskNo,d.structureTaskNo].map(N).filter(Boolean);
+      if(tId && ids.some(x=>x===tId || x.includes(tId) || tId.includes(x))) return true;
+      const ds=suffix(d); if(sfx && ds && sfx!==ds) return false;
+      if(w.length && !overlap(w,writerKeys(d))) return false;
+      const dc=creativeKey(d); if(ck && dc && ck!==dc && !ck.includes(dc) && !dc.includes(ck)) return false;
+      return !!(sfx || ck || w.length);
+    });
+  }
+  function tplStatusApproved(t){const z=statusBlob(t),tpl=t?.taskTemplate||t?.contentTaskTemplate||t?.approvedContentTemplate||{};return !!(t?.contentTemplateApproved||t?.taskTemplateApproved||tpl.approved||tpl.approvedAt||okWord(z));}
+  function tplHasFile(t){const tpl=t?.taskTemplate||t?.contentTaskTemplate||t?.approvedContentTemplate||{};return !!(tpl.fileName||tpl.fileUrl||tpl.downloadURL||tpl.downloadUrl||tpl.storagePath||tpl.uploadedAt||t?.templateFileName||t?.templateFileUrl);}
+  const okWord=z=>z.includes('approved')||z.includes('distributed')||z.includes(N('تم الاعتماد'))||z.includes(N('معتمد'))||z.includes(N('تاسك معتمد'));
+  function structureApproved(t){const z=statusBlob(t);return !!(t?.structureApproved||t?.approved||t?.structureApprovedAt||t?.contentStructureApproved||t?.structure?.approved||t?.structure?.approvedAt||t?.structure?.reviewedAt||okWord(z));}
+  function templateApproved(t){return tplStatusApproved(t) || templateDocsFor(t).some(tplStatusApproved);}
+  const suffix=t=>{const vals=[t?.taskSuffix,t?.shortTaskCode,t?.displayTaskCode,t?.userFacingTaskNo,t?.structureRow?.taskSuffix,t?.taskTemplate?.taskSuffix,t?.contentTaskTemplate?.taskSuffix,t?.approvedContentTemplate?.taskSuffix,t?.taskNo,t?.canonicalTaskCode,t?.taskCode,t?.fullTaskCode,t?.visibleTaskName];for(const v of vals){const m=S(v).match(/\b([A-Z]\d{1,3})\b/i);if(m)return m[1].toUpperCase();}return'';};
+  const creativeKey=t=>N([suffix(t),t?.creativeIndex,t?.creativeShortCode,t?.creativeId,t?.creative,t?.product,t?.contentType,t?.taskType,t?.structureRow?.contentType,t?.taskTemplate?.contentType,t?.contentTaskTemplate?.contentType,t?.approvedContentTemplate?.contentType].filter(v=>v!==undefined&&v!==null).join('|'));
+  function templateMatchesExec(tpl,ex){if(!templateApproved(tpl)||!overlap(writerKeys(tpl),writerKeys(ex)))return false;const s1=suffix(tpl),s2=suffix(ex);if(s1&&s2&&s1!==s2)return false;const c1=creativeKey(tpl),c2=creativeKey(ex);if(c1&&c2&&c1!==c2&&!(c1.includes(c2)||c2.includes(c1)))return false;return true;}
+  function gateLabel(ex,c){const campaign=c||campaignFor(ex);const cId=N(campaign?.id||campaign?.docId||campaign?.campaignId||ex?.campaignId||ex?.campaignDocId||'');const list=[...rawDepartmentTasks(campaign),...A(window.MZJ_TASK_TEMPLATE_DOCS).filter(d=>!cId||N(d.campaignId||d.campaignDocId||'')===cId)];if(templateApproved(ex)||list.some(t=>isTpl(t)&&templateMatchesExec(t,ex)))return 'جاهز للتنفيذ';if(list.some(t=>isStruct(t)&&structureApproved(t)&&overlap(writerKeys(t),writerKeys(ex))))return 'في انتظار اعتماد Task Template';return 'في انتظار اعتماد الهيكل';}
+  function patchExec(t,c){const lab=gateLabel(t,c);const base={...t,executionGateStatus:lab,dashboardStatusLabel:lab,taskStatus:lab};if(lab==='جاهز للتنفيذ')return {...base,status:(base.received||base.receivedConfirmed)?(base.status||'in_progress'):'ready_execution',state:'ready_execution',waitingForApproval:false,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:false,waitingForContent:false,waitingQueue:false,isWaitingQueue:false,waitingForApprovalLabel:'',structureApproved:true};if(lab==='في انتظار اعتماد Task Template')return {...base,status:'waiting_task_template',state:'waiting_task_template',waitingForApproval:true,waitingForStructureApproval:false,structureLinkPending:false,waitingForTaskTemplate:true,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,waitingForApprovalLabel:lab,structureApproved:true};return {...base,status:'waiting_structure',state:'waiting_structure',waitingForApproval:true,waitingForStructureApproval:true,structureLinkPending:true,waitingForTaskTemplate:false,waitingForContent:true,waitingQueue:true,isWaitingQueue:true,waitingForApprovalLabel:lab,structureApproved:false};}
+  function campaignTasks(c){const raw=rawDepartmentTasks(c);return raw.map(t=>isExec(t)?patchExec(t,c):t);}
+  function campaignFor(t){const cId=S(t?.campaignId||t?.campaignDocId);return campaignsList().find(c=>cId&&cid(c)===cId)||campaignsList().find(c=>rawDepartmentTasks(c).some(x=>taskId(x)===taskId(t)))||{};}
+  function syncCampaign(c){if(!c)return c;const next=campaignTasks(c);c.departmentTasks=next;c.taskCount=next.length;return c;}
+  const oldTaskSignature=typeof taskSignature==='function'?taskSignature:window.taskSignature;
+  const sigWrap=function(t){try{return v629Signature(t)|| (typeof oldTaskSignature==='function'?oldTaskSignature(t):'');}catch(_){return typeof oldTaskSignature==='function'?oldTaskSignature(t):'';}};try{taskSignature=sigWrap;window.taskSignature=sigWrap;}catch(_){window.taskSignature=sigWrap;}
+  const oldTasksFor=typeof tasksForCampaign==='function'?tasksForCampaign:window.tasksForCampaign;
+  const tasksForWrap=function(c){try{return campaignTasks(c);}catch(e){console.warn(VERSION,'tasksFor fallback',e);return typeof oldTasksFor==='function'?A(oldTasksFor.apply(this,arguments)):[];}};try{tasksForCampaign=tasksForWrap;window.tasksForCampaign=tasksForWrap;}catch(_){window.tasksForCampaign=tasksForWrap;}
+  const oldFind=typeof findTaskById==='function'?findTaskById:window.findTaskById;
+  const findWrap=function(id,campaignId=''){const key=S(id);for(const c of campaignsList()){if(campaignId&&cid(c)!==S(campaignId))continue;const hit=campaignTasks(c).find(t=>[taskId(t),S(t.taskId),S(t.fullTaskCode),S(t.canonicalTaskCode),S(t.taskCode)].includes(key));if(hit)return hit;}return typeof oldFind==='function'?oldFind.apply(this,arguments):null;};try{findTaskById=findWrap;window.findTaskById=findWrap;}catch(_){window.findTaskById=findWrap;}
+  function userMatch(t){try{return typeof currentUserMatchesTaskExact==='function'?currentUserMatchesTaskExact(t):true;}catch(_){return true;}}
+  function currentTasks(){campaignsList().forEach(syncCampaign);const all=campaignsList().flatMap(c=>campaignTasks(c));try{if(typeof isCurrentUserAdmin==='function'&&isCurrentUserAdmin())return all;}catch(_){}return all.filter(userMatch);}
+  const visibleWrap=function(){return currentTasks();};try{getVisibleTasksForCurrentUser=visibleWrap;window.getVisibleTasksForCurrentUser=visibleWrap;}catch(_){window.getVisibleTasksForCurrentUser=visibleWrap;}
+  const roleName=r=>({content:'قسم المحتوى',design:'قسم التصميم',montage:'قسم المونتاج',shooting:'قسم التصوير',photography:'قسم التصوير'}[r]||'قسم تنفيذي');
+  function campaignName(c,t){return S(c?.campaignName||c?.campaign_name||c?.name||t?.campaignName||'—');}
+  function title(t){try{if(typeof shortTaskName==='function')return S(shortTaskName(t)).replace(/<[^>]*>/g,'');}catch(_){}return S(t?.visibleTaskName||t?.displayTaskCode||t?.taskNo||t?.taskType||t?.creative||t?.product||'تاسك');}
+  function ctype(t){return S(t?.contentType||t?.structureRow?.contentType||t?.approvedContentTemplate?.contentType||t?.contentTaskTemplate?.contentType||t?.taskTemplate?.contentType||t?.creative||t?.product||t?.taskType||'—');}
+  function car(t){try{if(typeof mzjSelectedCarLabels==='function'){const a=mzjSelectedCarLabels(t?.selectedCars||[]);if(a&&a.length)return a.join('، ');}}catch(_){}return S(t?.selectedCar||t?.car||t?.structureRow?.car||'—');}
+  function progress(t){try{return typeof taskProgress==='function'?taskProgress(t):Number(t?.progress||0);}catch(_){return Number(t?.progress||0);}}
+  function structureCount(t){const a=A(t?.structureItems||t?.flowItems);return a.length||1;}
+  function openBtn(t,extra=''){return `<button type="button" class="v629-open-task ${extra}" data-open-task="${H(taskId(t))}" data-task-campaign="${H(S(t?.campaignId||t?.campaignDocId))}">فتح التاسك</button>`;}
+  function receiptDone(t){return isExec(t)?!!(t?.execReceived||t?.executionReceived||t?.execReceivedConfirmed||t?.executionReceivedConfirmed):!!(t?.contentReceived||t?.contentReceivedConfirmed||t?.received||t?.receivedConfirmed);}
+  function receiveBtn(t){const done=receiptDone(t);return `<button type="button" class="v629-receive ${done?'done':''}" data-v629-receive="${H(taskId(t))}" data-task-campaign="${H(S(t?.campaignId||t?.campaignDocId))}">${done?'تم الاستلام':'تم الاستلام'}</button>`;}
+  function contentStatusLabel(t){if(isTpl(t)){if(templateApproved(t))return 'تم اعتماد Task Template';if(tplHasFile(t)||templateDocsFor(t).some(tplHasFile))return 'في انتظار اعتماد Task Template';return 'في انتظار رفع Task Template';}return t?.dashboardStatusLabel||t?.taskStatus||t?.status||'';}
+  function contentCard(t){return `<article class="v629-task-card v629-content-card"><div class="v629-head"><div><h3>${H(isStruct(t)?'تاسك الهيكل':title(t))}</h3><p>${H(contentStatusLabel(t))}</p></div></div><div class="v629-lines"><span>الحملة</span><strong>${H(campaignName(campaignFor(t),t))}</strong><span>الكرييتيفات</span><strong>${H(ctype(t))}</strong>${isStruct(t)?`<span>عدد الكرييتيفات</span><strong>${H(structureCount(t))} كرييتيف</strong>`:''}</div><div class="v629-actions">${receiveBtn(t)}${openBtn(t)}</div></article>`;}
+  function execCard(t){const c=campaignFor(t),gate=gateLabel(t,c),p=progress(t),r=roleOf(t);return `<article class="v629-task-card v629-exec-card"><div class="v629-head"><div><h3>${H(title(t))}</h3><p>${H(roleName(r))}</p></div><b class="v629-badge ${gate==='جاهز للتنفيذ'?'ok':gate.includes('Task')?'warn':'wait'}">${H(gate)}</b></div><div class="v629-progress"><span>نسبة الإنجاز</span><b>${p}%</b><div><i style="width:${Math.min(100,p)}%"></i></div></div><div class="v629-lines"><span>الحملة</span><strong>${H(campaignName(c,t))}</strong><span>السيارة</span><strong>${H(car(t))}</strong><span>نوع المحتوى</span><strong>${H(ctype(t))}</strong><span>تابع المحتوى</span><strong>${H(S(t?.upstreamUserLabel||t?.linkedContentUserName||t?.contentWriterName||A(t?.upstreamUserNames).join('، ')||A(t?.dependsOnContentUserNames).join('، ')||'—'))}</strong></div><div class="v629-actions">${receiveBtn(t)}${openBtn(t,'primary')}</div></article>`;}
+  function renderUserV629(){const board=document.getElementById('adminDashboardBoard');if(!board)return;try{if(typeof setDashboardMode==='function')setDashboardMode('user');}catch(_){}const tasks=currentTasks();const content=tasks.filter(t=>!isExec(t)&&(roleOf(t)==='content'||isStruct(t)||isTpl(t)));const exec=tasks.filter(isExec);const sections=[];if(content.length)sections.push(`<section class="v629-section"><h2>قسم المحتوى</h2><span>${content.length} تاسك</span><div class="v629-grid">${content.map(contentCard).join('')}</div></section>`);['design','shooting','montage'].forEach(r=>{const list=exec.filter(t=>roleOf(t)===r||(r==='shooting'&&roleOf(t)==='photography'));if(list.length)sections.push(`<section class="v629-section"><h2>${H(roleName(r))}</h2><span>${list.length} تاسك</span><div class="v629-grid">${list.map(execCard).join('')}</div></section>`);});board.innerHTML=`<section class="v629-dashboard"><div class="user-dashboard-toolbar user-dashboard-toolbar-clean v619-theme-toolbar-safe"><div class="user-theme-panel user-theme-panel-floating"><label class="user-theme-upload"><input type="file" accept="image/*" id="userThemeImageInput"><span>صورة مرجع الثيم</span></label><button class="mini-btn" type="button" id="clearUserThemeBtn">الثيم الافتراضي</button></div></div><div class="v629-title"><h2>لوحة التاسكات الخاصة بي</h2><p>كل التاسكات المسندة لك حسب الفلو المعتمد.</p><b>${tasks.length} تاسك</b></div>${sections.join('')||'<div class="dashboard-empty-note-inline">لا توجد تاسكات مسندة لك حالياً.</div>'}</section>`;try{if(typeof applyEffectiveTheme==='function')applyEffectiveTheme();}catch(_){}}
+  const renderUserWrap=function(){try{return renderUserV629();}catch(e){console.warn(VERSION,'user render failed',e);}};try{renderUserDashboard=renderUserWrap;window.renderUserDashboard=renderUserWrap;}catch(_){window.renderUserDashboard=renderUserWrap;}
+  async function persistTaskReceipt(task,campaignId,next){let c=null,idx=-1,raw=[];for(const item of campaignsList()){if(campaignId&&cid(item)!==S(campaignId))continue;raw=rawDepartmentTasks(item);idx=raw.findIndex(t=>taskId(t)===taskId(task));if(idx>=0){c=item;break;}}if(!c||idx<0)return false;const base={receivedAt:next?now():'',receivedBy:next?S((typeof getCurrentUser==='function'?getCurrentUser():{})?.email||''):'',progress:next?Math.max(Number(raw[idx].progress||0),20):0,status:next?(isExec(raw[idx])?'in_progress':'received'):(raw[idx].status||'pending')};const patch=isExec(raw[idx])?{...base,execReceived:next,executionReceived:next,execReceivedConfirmed:next,executionReceivedConfirmed:next}:{...base,contentReceived:next,contentReceivedConfirmed:next,received:next,receivedConfirmed:next};const nextRaw=raw.map((t,i)=>i===idx?{...t,...patch,updatedAt:now()}:t);c.__v629RawDepartmentTasks=nextRaw;c.departmentTasks=nextRaw.map(t=>isExec(t)?patchExec(t,c):t);c.taskCount=c.departmentTasks.length;try{const db=window.mainDb||window.db||(typeof firebase!=='undefined'?firebase.firestore():null);if(db){const coll=window.MZJ_CAMPAIGNS_COLLECTION||window.CAMPAIGNS_COLLECTION||'marketing_campaigns';await db.collection(coll).doc(cid(c)).update({departmentTasks:c.departmentTasks,taskCount:c.departmentTasks.length,updatedAt:(typeof firebase!=='undefined'&&firebase.firestore?firebase.firestore.FieldValue.serverTimestamp():now())});}}catch(e){console.warn(VERSION,'receipt persist failed',e);}return true;}
+  document.addEventListener('click',async function(e){const btn=e.target.closest('[data-v629-receive]');if(!btn)return;e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();const id=S(btn.dataset.v629Receive||btn.getAttribute('data-v629-receive'));const campaignId=S(btn.dataset.taskCampaign||btn.getAttribute('data-task-campaign'));const task=findWrap(id,campaignId);if(!task){try{showToast('تعذر العثور على التاسك داخل الحملة.');}catch(_){}return;}const next=!receiptDone(task);const ok=await persistTaskReceipt(task,campaignId,next);if(ok){try{showToast(next?'تم تأكيد الاستلام.':'تم إلغاء الاستلام.');}catch(_){}try{renderUserV629(); if(typeof renderAdminDashboard==='function')renderAdminDashboard();}catch(_){}}},true);
+  function taskTemplatePending(t){const tpl=t?.taskTemplate||{};const blob=N([t?.status,t?.state,t?.taskStatus,t?.dashboardStatusLabel,tpl.status,tpl.reviewStatus].join(' '));const hasFile=!!(tpl.fileUrl||tpl.downloadURL||tpl.downloadUrl||tpl.storagePath||tpl.fileName);return hasFile&&(blob.includes('pendingreview')||blob.includes('pendingtasktemplatereview')||blob.includes(N('في انتظار مراجعة'))||blob.includes(N('في انتظار اعتماد'))||tpl.status==='pending_review');}
+  function pendingTemplateTasks(){return campaignsList().flatMap(c=>campaignTasks(c).filter(taskTemplatePending).map(t=>({campaign:c,task:t})));}
+  function injectAdminTemplates(){try{if(typeof isCurrentUserAdmin==='function'&&!isCurrentUserAdmin())return;}catch(_){}const board=document.getElementById('adminDashboardBoard');if(!board)return;const pending=pendingTemplateTasks();let box=document.getElementById('v629AdminTemplateReviewBox');if(!pending.length){if(box)box.remove();return;}const cards=pending.map(({campaign,task})=>`<article class="v629-admin-template-card"><div><h3>${H(title(task))}</h3><p>${H(campaignName(campaign,task))} · ${H(S(task.contentWriterName||task.assignedToName||task.userName||''))}</p><small>${H(task.taskTemplate?.fileName||task.taskTemplate?.name||'Task Template')}</small></div><button type="button" class="btn btn-primary" data-open-task-template-review="${H(taskId(task))}">مراجعة Task Template</button></article>`).join('');const html=`<section class="v629-admin-template-review" id="v629AdminTemplateReviewBox"><div class="v629-admin-template-head"><h2>Task Template بانتظار الاعتماد</h2><span>${pending.length} ملف</span></div><div class="v629-admin-template-grid">${cards}</div></section>`;if(box)box.outerHTML=html;else board.insertAdjacentHTML('afterbegin',html);} 
+  const oldAdmin=typeof renderAdminDashboard==='function'?renderAdminDashboard:window.renderAdminDashboard;
+  const adminWrap=function(){let r;if(typeof oldAdmin==='function')r=oldAdmin.apply(this,arguments);setTimeout(injectAdminTemplates,50);return r;};try{renderAdminDashboard=adminWrap;window.renderAdminDashboard=adminWrap;}catch(_){window.renderAdminDashboard=adminWrap;}
+  function injectStyle(){if(document.getElementById('v629Style'))return;const st=document.createElement('style');st.id='v629Style';st.textContent=`.v629-dashboard{padding:22px;display:flex;flex-direction:column;gap:18px}.v629-title,.v629-section,.v629-admin-template-review{background:rgba(255,255,255,.56);border:1px solid rgba(123,67,48,.13);border-radius:22px;padding:16px;box-shadow:0 14px 40px rgba(45,23,19,.05)}.v629-title{display:flex;justify-content:space-between;align-items:center;gap:14px}.v629-title h2,.v629-section h2,.v629-admin-template-head h2{margin:0;color:#2d1b14}.v629-title p{margin:4px 0 0;color:#8a6f63;font-weight:700}.v629-section>span{display:block;margin:4px 0 12px;color:#8a6f63;font-weight:800}.v629-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}.v629-task-card{background:rgba(255,255,255,.88);border:1px solid rgba(157,91,69,.16);border-radius:19px;padding:14px}.v629-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v629-head h3{margin:0 0 5px;color:#2d1b14;font-size:16px}.v629-head p{margin:0;color:#8a6f63;font-weight:900}.v629-badge{border-radius:999px;padding:8px 12px;font-weight:900;font-size:12px;display:inline-flex;align-items:center;justify-content:center}.v629-badge.wait{background:#e9f8ee;color:#15733a}.v629-badge.warn{background:#fff1df;color:#bd5b13}.v629-badge.ok{background:#e9f8ee;color:#15733a}.v629-progress{margin:12px 0}.v629-progress>span{color:#8a6f63;font-weight:900}.v629-progress>b{float:left}.v629-progress div{clear:both;height:8px;background:#eaded7;border-radius:999px;overflow:hidden;margin-top:8px}.v629-progress i{display:block;height:100%;background:#9d5b45;border-radius:999px}.v629-lines{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;border-top:1px solid #eaded7;padding-top:10px}.v629-lines span{color:#9c7b6d;font-weight:900}.v629-lines strong{color:#2d1b14;text-align:left}.v629-actions{display:flex;gap:10px;margin-top:14px}.v629-receive,.v629-open-task{border:1px solid #9d5b45;background:#fff;border-radius:14px;padding:10px 14px;font-weight:900;color:#8b4a37;cursor:pointer;flex:1}.v629-open-task.primary,.v629-open-task{background:#9d5b45;color:#fff}.v629-receive.done{background:#e9f8ee;border-color:#b8dec5;color:#15733a}.v629-admin-template-review{margin-bottom:16px}.v629-admin-template-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.v629-admin-template-head span{background:#fff1df;color:#bd5b13;border-radius:999px;padding:7px 12px;font-weight:900}.v629-admin-template-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.v629-admin-template-card{background:#fff;border:1px solid rgba(157,91,69,.16);border-radius:16px;padding:12px;display:flex;justify-content:space-between;gap:12px;align-items:center}.v629-admin-template-card h3{margin:0 0 4px}.v629-admin-template-card p,.v629-admin-template-card small{display:block;margin:0;color:#8a6f63;font-weight:800}`;document.head.appendChild(st);}
+  injectStyle();
+  setTimeout(()=>{try{renderUserV629();injectAdminTemplates();}catch(_){}},900);
+  try{window.MZJ_APP_VERSION='629';window.MZJ_LAST_PATCH=VERSION;console.info(VERSION,'loaded');}catch(_){ }
+})();
+
+/* MZJ v632 - no layout changes: isolate content/execution receipt and approved template labels */
+try{ window.MZJ_APP_VERSION='632'; window.MZJ_LAST_PATCH='v632-receipt-template-status-logic-only'; console.info('v632-receipt-template-status-logic-only loaded'); }catch(_){ }
+
+/* MZJ v649 create campaign approved 3-step concept rebuild */
+(function(){
+  const VERSION='v654-create-campaign-nav-cars-dropdown-fixes';
+  if(window.__MZJ_V649_CREATE_CAMPAIGN__) return;
+  window.__MZJ_V649_CREATE_CAMPAIGN__=true;
+  const S=v=>String(v==null?'':v);
+  const A=v=>Array.isArray(v)?v:[];
+  const H=v=>S(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const byId=id=>document.getElementById(id);
+  const q=(r,s)=>r?r.querySelector(s):null;
+  const qa=(r,s)=>Array.from(r?r.querySelectorAll(s):[]);
+  const today=()=>new Date().toISOString().slice(0,10);
+  const norm=v=>S(v).trim().toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآٱا]/g,'ا').replace(/ؤ/g,'و').replace(/[ئىي]/g,'ي').replace(/[ةه]/g,'ه').replace(/ـ/g,'').replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const roleLabels={content:'قسم المحتوى',design:'قسم التصميم',montage:'قسم المونتاج',shooting:'قسم التصوير',photography:'قسم التصوير',publishing:'قسم النشر'};
+  const roleNorm=v=>{const x=norm(v); if(x.includes('content')||x.includes('محتو')||x.includes('script'))return'content'; if(x.includes('design')||x.includes('تصميم'))return'design'; if(x.includes('montage')||x.includes('مونتاج')||x.includes('edit'))return'montage'; if(x.includes('shoot')||x.includes('photo')||x.includes('تصوير'))return'shooting'; if(x.includes('publish')||x.includes('نشر'))return'publishing'; return S(v)||'';};
+  const roleLabel=r=>roleLabels[roleNorm(r)]||S(r)||'قسم';
+  function creativeRole(name){const n=norm(name); if(n.includes(norm('تصوير'))) return 'shooting'; if(['POST','CAROUSEL','PANNER','MOTION','GIF','PRINT','MZJ-INTERIAL'].some(x=>n.includes(norm(x)))) return 'design'; if(['REEL','VIDEO','STORY'].some(x=>n.includes(norm(x)))) return 'montage'; return 'design';}
+  function creativeType(name){const n=norm(name); if(n.includes('carousel'))return'CAROUSEL'; if(n.includes('story'))return'STORY'; if(n.includes('post'))return'POST'; if(n.includes('video'))return'VIDEO'; if(n.includes('gif'))return'GIF'; return 'REEL';}
+  function uniq(list,key){const out=[],seen=new Set(); A(list).forEach(x=>{const k=norm(key?key(x):x); if(k&&!seen.has(k)){seen.add(k); out.push(x);}}); return out;}
+  function localList(name){try{if(Array.isArray(window[name]))return window[name];}catch(_){} try{return eval('typeof '+name+'!=="undefined"&&Array.isArray('+name+')?'+name+':[]');}catch(_){return [];}}
+  function collection(name){try{if(typeof safeCollection==='function')return safeCollection(name); if(window.mainDb)return window.mainDb.collection(name); if(typeof mainDb!=='undefined'&&mainDb)return mainDb.collection(name); if(window.db)return window.db.collection(name); if(window.firebase&&firebase.firestore)return firebase.firestore().collection(name);}catch(_){} return null;}
+  async function readCollection(name){try{const c=collection(name); if(!c)return[]; const snap=await c.get(); const rows=[]; snap.forEach(doc=>rows.push({id:doc.id,...(doc.data()||{})})); return rows;}catch(e){console.warn(VERSION,'read failed',name,e); return[];}}
+  function stripCount(v){return S(v).replace(/\s*\(\s*\d+\s*\)\s*$/,'').trim();}
+  function stockValue(row, keys){for(const k of keys){try{const v=row&&row[k]; if(S(v))return S(v).trim();}catch(_){}}return'';}
+  function stockCarName(row){let key=stockValue(row,['Unique Spec Key','uniqueSpecKey','unique_spec_key','specKey','spec_key','uniqueKey','unique_key','key','groupKey','statement','carStatement','name','title']); if(!key && (row&& (row.carName||row.statement))) key=[row.carName,row.statement].map(stripCount).filter(Boolean).join(' - '); const ext=stockValue(row,['اللون الخارجي','لون خارجي','externalColor','exteriorColor','outsideColor','outerColor','colorExterior','external_color','exterior_color']); const inn=stockValue(row,['اللون الداخلي','لون داخلي','internalColor','interiorColor','insideColor','innerColor','colorInterior','internal_color','interior_color']); return [stripCount(key), ext?('خارجي: '+stripCount(ext)):'', inn?('داخلي: '+stripCount(inn)):''].filter(Boolean).join(' | ');}
+  function localStockRows(){try{if(typeof window.stockRowsWithMeta==='function'){const v=window.stockRowsWithMeta(); if(Array.isArray(v)&&v.length)return v;}}catch(_){} try{if(typeof stockRowsWithMeta==='function'){const v=stockRowsWithMeta(); if(Array.isArray(v)&&v.length)return v;}}catch(_){} try{if(typeof window.buildStockGroups==='function'){const v=window.buildStockGroups(); if(Array.isArray(v)&&v.length)return v;}}catch(_){} try{if(typeof buildStockGroups==='function'){const v=buildStockGroups(); if(Array.isArray(v)&&v.length)return v;}}catch(_){} const names=['stockRowsWithMeta','stockRows','stockRowsRaw','stockData','carsStock','stockCars','inventoryRows']; for(const n of names){try{const v=window[n]; if(Array.isArray(v)&&v.length)return v;}catch(_){} try{const v=eval('typeof '+n+'!=="undefined"?'+n+':null'); if(Array.isArray(v)&&v.length)return v;}catch(_){}} return [];}
+  function newCreative(){return {id:'cr_'+Date.now()+Math.random().toString(16).slice(2),creativeId:'',type:'REEL',carIds:[],primaryRole:'',primaryUsers:{},contentLinks:{},optionalRoles:{}};}
+  const state={page:1,activeCreative:0,loaded:false,loading:false,refs:{types:[],creatives:[],funnels:[],platforms:[],users:[],departments:[],cars:[]},form:{campaignDate:today(),writerIds:[],writerDeadlines:{}},creatives:[newCreative()],budgets:[{}]};
+  function mapLocal(){
+    state.refs.types=uniq([...state.refs.types,...localList('campaignTypes')].map((x,i)=>({id:S(x.id||x.code||x.name||'type_'+i),name:S(x.name||x.label||x.title||x.code||'نوع حملة'),code:S(x.code||''),prefix:S(x.prefix||'MZJ'),nextNumber:Number(x.nextNumber||x.next||1)||1})),x=>x.id||x.name);
+    state.refs.creatives=uniq([...state.refs.creatives,...localList('creatives')].map((x,i)=>{const name=S(x.name||x.label||x.title||x.id||''); return {id:S(x.id||x.code||name||'creative_'+i),name:name||('Creative '+(i+1)),role:S(x.primaryRole||x.departmentRole||x.role||creativeRole(name)),code:S(x.code||x.primaryCode||''),type:S(x.type||creativeType(name))};}),x=>x.name||x.id).sort((a,b)=>S(a.name).localeCompare(S(b.name),'ar'));
+    try{if(!state.refs.creatives.length&&Array.isArray(MZJ_DEFAULT_CREATIVE_NAMES))state.refs.creatives=MZJ_DEFAULT_CREATIVE_NAMES.map(name=>({id:S(name),name:S(name),role:creativeRole(name),type:creativeType(name),code:''}));}catch(_){ }
+    state.refs.funnels=uniq([...state.refs.funnels,...localList('funnels')].map((x,i)=>({id:S(x.id||x.name||'funnel_'+i),name:S(x.name||x.label||x.title||x.id||'Funnel')})),x=>x.id||x.name);
+    state.refs.platforms=uniq([...state.refs.platforms,...localList('platforms')].map((x,i)=>({id:S(x.id||x.name||'platform_'+i),name:S(x.name||x.label||x.title||x.id||'منصة')})),x=>x.name||x.id);
+    state.refs.users=uniq([...state.refs.users,...localList('users')].map((x,i)=>({id:S(x.id||x.uid||x.email||'user_'+i),uid:S(x.uid||x.id||''),email:S(x.email||''),name:S(x.name||x.displayName||x.email||x.id||'مستخدم'),department:S(x.department||x.departmentId||x.departmentName||'')})),x=>x.id||x.uid||x.email||x.name);
+    state.refs.departments=uniq([...state.refs.departments,...localList('departments')],x=>x.id||x.slug||x.name);
+    try{const rows=localStockRows(); if(rows.length)state.refs.cars=uniq(rows.map((r,i)=>{const name=stockCarName(r)||stripCount(S([r.carName,r.statement].filter(Boolean).join(' - ')||r.name||r.title||r.id||'سيارة')); return {id:S(r.id||r.key||r.groupKey||r.docId||name||'car_'+i),name};}).filter(x=>S(x.name)),x=>x.name);}catch(_){ }
+    try{if(!state.refs.cars.length&&typeof buildStockGroups==='function')state.refs.cars=uniq((buildStockGroups()||[]).map((g,i)=>({id:S(g.key||g.id||'car_'+i),name:[stripCount(S([g.carName,g.statement].filter(Boolean).join(' - ')||g.name||g.title||g.key||'سيارة')), g.exteriorColor?('خارجي: '+stripCount(g.exteriorColor)):'', g.interiorColor?('داخلي: '+stripCount(g.interiorColor)):''].filter(Boolean).join(' | ')})),x=>x.name);}catch(_){ }
+  }
+  async function loadRefs(){if(state.loading)return; state.loading=true; mapLocal(); render(); try{if(typeof bootstrapData==='function')bootstrapData();}catch(_){ }
+    const [types,creatives,funnels,platforms,users,deps]=await Promise.all([
+      readCollection(window.MZJ_CAMPAIGN_TYPES_COLLECTION||'marketing_campaign_types'),
+      readCollection(window.MZJ_CREATIVES_COLLECTION||'marketing_creatives'),
+      readCollection(window.MZJ_FUNNELS_COLLECTION||'marketing_funnels'),
+      readCollection(window.MZJ_PLATFORMS_COLLECTION||'marketing_platforms'),
+      readCollection(window.MZJ_USERS_COLLECTION||'users'),
+      readCollection(window.MZJ_DEPARTMENTS_COLLECTION||'departments')
+    ]);
+    state.refs.types.push(...types); state.refs.creatives.push(...creatives); state.refs.funnels.push(...funnels); state.refs.platforms.push(...platforms); state.refs.users.push(...users); state.refs.departments.push(...deps);
+    mapLocal(); state.loading=false; state.loaded=true; render();
+  }
+  function usersForRole(role){const r=roleNorm(role); const out=[]; const users=state.refs.users;
+    A(state.refs.departments).forEach(dep=>{const dr=roleNorm(dep.id||dep.slug||dep.name||dep.department); if(dr!==r)return; [...A(dep.members),...A(dep.users)].forEach((raw,i)=>{const rec=users.find(u=>norm(u.id)===norm(raw.id||raw.uid||raw.email)||norm(u.uid)===norm(raw.uid||raw.id)||norm(u.email)===norm(raw.email)); out.push({...(rec||{}),...raw,id:S(raw.id||raw.uid||raw.email||rec?.id||rec?.uid||'u_'+r+'_'+i),name:S(raw.name||raw.displayName||rec?.name||rec?.email||raw.email||raw.id||'مستخدم'),email:S(raw.email||rec?.email||'')});}); [...A(dep.memberUids),...A(dep.memberEmails),...A(dep.userIds)].forEach((key)=>{const rec=users.find(u=>[u.id,u.uid,u.email].some(v=>norm(v)===norm(key))); out.push(rec?rec:{id:S(key),uid:S(key),email:S(S(key).includes('@')?key:''),name:S(key)});});});
+    if(!out.length)users.filter(u=>roleNorm(u.department)===r).forEach(u=>out.push(u)); return uniq(out,x=>x.id||x.uid||x.email||x.name);
+  }
+  const contentUsers=()=>usersForRole('content');
+  const selectedWriters=()=>contentUsers().filter(w=>A(state.form.writerIds).includes(w.id));
+  const selectedCreative=cr=>state.refs.creatives.find(x=>S(x.id)===S(cr.creativeId))||{};
+  function opts(rows,val,ph){return `<option value="">${H(ph||'اختار')}</option>`+A(rows).map(x=>`<option value="${H(x.id)}" ${S(val)===S(x.id)?'selected':''}>${H(x.name||x.label||x.id)}</option>`).join('');}
+  function updateCode(){const t=state.refs.types.find(x=>S(x.id)===S(state.form.campaignTypeId)); if(t)state.form.campaignCode=[t.prefix||'MZJ',(t.code||t.id||'TYPE').toUpperCase(),String(t.nextNumber||1).padStart(3,'0')].join('-');}
+  function syncInputs(){const root=byId('mzjCreateCampaignPagesV649'); if(!root)return; qa(root,'[name]').forEach(el=>{state.form[el.name]=el.value;}); qa(root,'[data-budget-text]').forEach(el=>{const [i,k]=S(el.dataset.budgetText).split(':'); state.budgets[+i][k]=el.value;});}
+  function header(){const steps=[['بيانات الحملة وطلب كاتب المحتوى',1],['اختيار الكرييتيف وتوزيع التنفيذ',2],['الميزانية',3],['المراجعة',4]]; return `<div class="cc-hero"><div><h1>إنشاء حملة</h1><p>تصور موحد لإنشاء الحملة: طلب كاتب المحتوى، اختيار الكرييتيف، الميزانية، المراجعة.</p></div><span class="cc-hero-icon">📣</span></div><div class="cc-stepper">${steps.map(s=>`<button type="button" class="${state.page===s[1]?'active':''}" data-cc-go="${s[1]}"><b>${s[1]}</b><span>${H(s[0])}</span></button>`).join('')}</div>`;}
+  function nav(){return `<div class="cc-nav">${state.page<4?`<button type="button" class="cc-next" data-cc-next>التالي</button>`:`<button type="button" class="cc-next" data-cc-save>إنشاء الحملة</button>`}<span>الصفحة ${state.page} من 4</span><button type="button" class="cc-prev" data-cc-prev ${state.page===1?'disabled':''}>السابق</button></div>`;}
+  function field(label,html,wide){return `<label class="cc-field ${wide?'wide':''}"><span>${H(label)}</span>${html}</label>`;}
+  function userAvatar(u){return `<span class="cc-avatar">${H(S(u.name||'م').trim().slice(0,1)||'م')}</span>`;}
+  function page1(){const writers=contentUsers(); return `<section class="cc-page"><div class="cc-title"><span>📄</span><div><h2>الخطوة 1: بيانات الحملة وطلب كاتب المحتوى</h2><p>ابدأ بيانات الحملة وحدد كتّاب المحتوى وتاريخ التسليم لكل كاتب.</p></div></div><div class="cc-card cc-form-grid">
+    ${field('تاريخ الحملة',`<input type="date" name="campaignDate" value="${H(state.form.campaignDate)}" readonly>`)}
+    ${field('بداية النشر',`<input type="date" name="publishStart" value="${H(state.form.publishStart||'')}">`)}
+    ${field('نهاية النشر',`<input type="date" name="publishEnd" value="${H(state.form.publishEnd||'')}">`)}
+    ${field('نوع الحملة',`<select name="campaignTypeId" data-cc-type>${opts(state.refs.types,state.form.campaignTypeId,'اختار نوع الحملة')}</select>`)}
+    ${field('كود الحملة',`<input name="campaignCode" value="${H(state.form.campaignCode||'')}" readonly placeholder="تلقائي">`)}
+    ${field('اسم الحملة',`<input name="campaignName" value="${H(state.form.campaignName||'')}" placeholder="اسم الحملة">`)}
+    ${field('هدف الحملة',`<textarea name="campaignGoal" placeholder="اكتب هدف الحملة">${H(state.form.campaignGoal||'')}</textarea>`,true)}
+    ${field('المطلوب من كاتب المحتوى',`<textarea name="contentBrief" placeholder="اكتب المطلوب من كاتب المحتوى">${H(state.form.contentBrief||'')}</textarea>`,true)}
+  </div><div class="cc-section"><div class="cc-section-head"><h3>يوزرات كتابة المحتوى لطلب الهيكل</h3><p>اختار كاتب أو أكثر وحدد تاريخ تسليم لكل كاتب.</p></div><div class="cc-writer-grid">${writers.map(w=>{const on=A(state.form.writerIds).includes(w.id);return `<label class="cc-pick-card cc-writer-card ${on?'on':''}">${userAvatar(w)}<strong>${H(w.name)}</strong><input type="checkbox" class="cc-structure-writer" value="${H(w.id)}" ${on?'checked':''}>${on?`<span class="cc-writer-date-label">موعد تسليم الهيكل</span><input type="date" class="cc-writer-date" data-writer-deadline="${H(w.id)}" value="${H(state.form.writerDeadlines[w.id]||state.form.structureDeadline||'')}" onclick="event.stopPropagation()">`:''}</label>`;}).join('')||'<p class="cc-empty">لا يوجد كتاب محتوى.</p>'}</div></div>${nav()}</section>`;}
+  function creativeTabs(){return `<div class="cc-tabs"><button type="button" data-cc-add-creative>+ إضافة كرييتيف</button>${state.creatives.map((cr,i)=>`<button type="button" class="${i===state.activeCreative?'active':''}" data-cc-tab="${i}">كرييتيف ${i+1}</button>`).join('')}</div>`;}
+  function carCards(cr){const all=state.refs.cars.length?state.refs.cars:[{id:'sample_car_1',name:'أكسنت - فليت 1500 سي سي - L'},{id:'sample_car_2',name:'سوناتا'},{id:'sample_car_3',name:'كونا'},{id:'sample_car_4',name:'النترا'}]; const query=norm(cr.carSearch||''); const cars=query?all.filter(c=>norm(c.name).includes(query)):all; return `<input class="cc-car-search" data-car-search value="${H(cr.carSearch||'')}" placeholder="اكتب للبحث عن السيارة أو اللون..."><div class="cc-car-grid">${cars.map(c=>`<label class="cc-car ${A(cr.carIds).includes(c.id)?'on':''}"><span>${H(c.name)}</span><input type="checkbox" data-cc-car value="${H(c.id)}" ${A(cr.carIds).includes(c.id)?'checked':''}></label>`).join('')||'<p class="cc-empty">لا توجد سيارات مطابقة.</p>'}</div>`;}
+  function contentLinkCards(cr){
+    const users=usersForRole(cr.primaryRole||'');
+    const writers=selectedWriters();
+    if(!users.length)return '<p class="cc-empty">اختار الكرييتيف لتحديد القسم الأساسي.</p>';
+    return `<div class="cc-user-picks cc-primary-users-grid">${users.map(u=>{
+      const rec=cr.primaryUsers[u.id]||{};
+      rec.linkedWriterDeadlines=rec.linkedWriterDeadlines||{};
+      const links=A(rec.linkedWriterIds);
+      return `<article class="cc-assignment ${rec.selected?'on':''}">
+        <label class="cc-user-line">${userAvatar(u)}<strong>${H(u.name)}</strong><input type="checkbox" data-primary-user value="${H(u.id)}" ${rec.selected?'checked':''}></label>
+        ${rec.selected?`<div class="cc-mini"><span>يرتبط مع</span><div class="cc-check-row">${writers.map(w=>`<label><input type="checkbox" data-primary-link="${H(u.id)}" value="${H(w.id)}" ${links.includes(w.id)?'checked':''}> ${H(w.name)}</label>`).join('')||'<em>اختار كتاب المحتوى من الخطوة الأولى.</em>'}</div>${links.length?`<div class="cc-link-date-grid">${links.map(wid=>{const w=writers.find(x=>x.id===wid)||{id:wid,name:wid};return `<label><span>تسليم ${H(w.name)}</span><input type="date" data-primary-link-date="${H(u.id)}:${H(w.id)}" value="${H(rec.linkedWriterDeadlines[w.id]||rec.deadline||'')}"></label>`;}).join('')}</div>`:''}</div>`:''}
+      </article>`;
+    }).join('')}</div>`;
+  }
+  function optionalDeptCards(cr){
+    const roles=['shooting','montage','design'].filter(r=>r!==roleNorm(cr.primaryRole));
+    return `<div class="cc-optional-grid cc-optional-compact">${roles.map(role=>{
+      const opt=cr.optionalRoles[role]||{selected:false,users:{}};
+      const users=usersForRole(role);
+      return `<article class="cc-opt-dept ${opt.selected?'on':''}">
+        <label class="cc-opt-head"><input type="checkbox" data-opt-role value="${H(role)}" ${opt.selected?'checked':''}><strong>${H(roleLabel(role))}</strong></label>
+        ${opt.selected?`<div class="cc-opt-users">${users.map(u=>{
+          const rec=opt.users[u.id]||{};
+          rec.linkedWriterDeadlines=rec.linkedWriterDeadlines||{};
+          const links=A(rec.linkedWriterIds);
+          return `<div class="cc-opt-user ${rec.selected?'on':''}">
+            <label>${userAvatar(u)}<strong>${H(u.name)}</strong><input type="checkbox" data-opt-user="${H(role)}" value="${H(u.id)}" ${rec.selected?'checked':''}></label>
+            ${rec.selected?`<div class="cc-mini"><span>يرتبط مع</span><div class="cc-check-row">${selectedWriters().map(w=>`<label><input type="checkbox" data-opt-link="${H(role)}:${H(u.id)}" value="${H(w.id)}" ${links.includes(w.id)?'checked':''}> ${H(w.name)}</label>`).join('')||'<em>اختار كتاب المحتوى أولًا.</em>'}</div>${links.length?`<div class="cc-link-date-grid">${links.map(wid=>{const w=selectedWriters().find(x=>x.id===wid)||{id:wid,name:wid};return `<label><span>تسليم ${H(w.name)}</span><input type="date" data-opt-link-date="${H(role)}:${H(u.id)}:${H(w.id)}" value="${H(rec.linkedWriterDeadlines[w.id]||rec.deadline||'')}"></label>`;}).join('')}</div>`:''}</div>`:''}
+          </div>`;
+        }).join('')||'<p class="cc-empty">لا يوجد يوزرات في القسم.</p>'}</div>`:''}
+      </article>`;
+    }).join('')}</div>`;
+  }
+  function creativeSummary(cr){const primaryCount=Object.values(cr.primaryUsers||{}).filter(x=>x&&x.selected).length; const optRoles=Object.entries(cr.optionalRoles||{}).filter(([,v])=>v&&v.selected).length; const optUsers=Object.values(cr.optionalRoles||{}).flatMap(v=>Object.values((v||{}).users||{})).filter(x=>x&&x.selected).length; return `<aside class="cc-summary"><h3>ملخص الكرييتيف ${state.activeCreative+1}</h3><div><b>${A(cr.carIds).length}</b><span>سيارات مختارة</span></div><div><b>${primaryCount}</b><span>مستخدمين في القسم الأساسي</span></div><div><b>${selectedWriters().length}</b><span>كتاب محتوى مرتبطين</span></div><div><b>${optRoles}</b><span>أقسام اختيارية</span></div><div><b>${primaryCount+optUsers}</b><span>إجمالي مهام تنفيذ</span></div></aside>`;}
+  function page2(){
+    const cr=state.creatives[state.activeCreative]||state.creatives[0]||newCreative();
+    if(!state.creatives.length)state.creatives.push(cr);
+    const sel=selectedCreative(cr);
+    const primaryRole=cr.primaryRole||sel.role||creativeRole(sel.name);
+    cr.primaryRole=primaryRole||cr.primaryRole;
+    return `<section class="cc-page"><div class="cc-title"><span>🎬</span><div><h2>الخطوة 2: اختيار الكرييتيف وتوزيع التنفيذ</h2><p>كل كرييتيف له صفحة توزيع مستقلة: سيارات، قسم أساسي، ربط محتوى، وأقسام اختيارية.</p></div></div>${creativeTabs()}<div class="cc-layout"><main>
+      <div class="cc-card cc-creative-head-card"><div class="cc-row-title"><h3>بيانات الكرييتيف</h3><button type="button" class="cc-danger" data-cc-del-active ${state.creatives.length<2?'disabled':''}>حذف الكرييتيف</button></div><div class="cc-creative-basics cc-creative-basics-single"><label><span>اسم/فئة الكرييتيف</span><select data-creative-select>${opts(state.refs.creatives,cr.creativeId,'اختار كرييتيف')}</select></label></div></div>
+      <div class="cc-card cc-departments-card"><h3>الأقسام</h3><p class="cc-hint">القسم الأساسي يظهر حسب الكرييتيف، والأقسام الاختيارية تستبعد القسم الأساسي تلقائيًا.</p><div class="cc-dept-stack"><section class="cc-primary-panel"><div class="cc-primary-box"><strong>القسم الأساسي: ${H(roleLabel(primaryRole))}</strong><small>اختار يوزر أو أكثر، واربط كل يوزر بكاتب محتوى أو أكثر مع تاريخ لكل ربط.</small></div>${contentLinkCards(cr)}</section><section class="cc-optional-panel"><div class="cc-panel-title"><strong>الأقسام الاختيارية</strong><small>اختار من القسمين المتاحين فقط.</small></div>${optionalDeptCards(cr)}</section></div></div>
+      <div class="cc-card cc-cars-card"><h3>السيارات</h3>${carCards(cr)}</div>
+    </main>${creativeSummary(cr)}</div>${nav()}</section>`;
+  }
+  function budgetTotal(){return state.budgets.reduce((s,b)=>s+(Number(b.value)||0),0);}
+  function platformChips(bi){return `<div class="cc-platforms">${state.refs.platforms.map(p=>`<label class="${A(bi.platformIds).includes(p.id)?'on':''}"><input type="checkbox" data-budget-platform value="${H(p.id)}" ${A(bi.platformIds).includes(p.id)?'checked':''}>${H(p.name)}</label>`).join('')||'<span>لا توجد منصات</span>'}</div>`;}
+  function page3(){return `<section class="cc-page"><div class="cc-title"><span>💰</span><div><h2>الخطوة 3: الميزانية</h2><p>حدد بنود الميزانية وتوزيعها على الفانل والمنصات.</p></div></div><div class="cc-stat-grid"><div><span>إجمالي الميزانية</span><b>${budgetTotal().toLocaleString('ar-SA')} ر.س</b></div><div><span>عدد بنود الميزانية</span><b>${state.budgets.length}</b></div><div><span>إجمالي حسب Funnel</span><b>${budgetTotal().toLocaleString('ar-SA')} ر.س</b></div></div><div class="cc-budget-list">${state.budgets.map((b,i)=>`<article class="cc-budget-card"><button type="button" class="cc-danger" data-cc-del-budget="${i}">حذف</button><label><span>Funnel</span><select data-cc-funnel="${i}">${opts(state.refs.funnels,b.funnelId,'اختار Funnel')}</select></label><label><span>المنتج / الكرييتيف</span><select data-cc-product="${i}"><option value="">اختار كرييتيف أولًا</option>${state.creatives.map((cr,ci)=>`<option value="${H(cr.id)}" ${S(b.productId)===S(cr.id)?'selected':''}>${H((selectedCreative(cr).name||('كرييتيف '+(ci+1))))}</option>`).join('')}</select></label><label><span>عدد الإعلانات</span><input type="number" min="0" data-budget-text="${i}:adsCount" value="${H(b.adsCount||'')}"></label><label><span>هدف المحتوى</span><input data-budget-text="${i}:contentGoal" value="${H(b.contentGoal||'')}"></label><label><span>الهدف المتوقع</span><input data-budget-text="${i}:expectedTarget" value="${H(b.expectedTarget||'')}"></label><label><span>القيمة</span><input type="number" min="0" data-budget-text="${i}:value" value="${H(b.value||'')}"></label><div class="wide"><span>المنصات</span>${platformChips(b)}</div></article>`).join('')}</div><button type="button" class="cc-add-wide" data-cc-add-budget>+ إضافة بند ميزانية</button>${nav()}</section>`;}
+  function page4(){const writers=selectedWriters().map(w=>w.name).join('، ')||'—'; const crs=state.creatives.map((r,i)=>{const c=selectedCreative(r); return `<li>كرييتيف ${i+1}: ${H(c.name||'بدون اختيار')} · سيارات: ${A(r.carIds).length} · القسم الأساسي: ${H(roleLabel(r.primaryRole||c.role||''))}</li>`;}).join(''); return `<section class="cc-page"><div class="cc-title"><span>✅</span><div><h2>الخطوة 4: المراجعة</h2><p>راجع بيانات الحملة قبل الإنشاء.</p></div></div><div class="cc-review"><div><b>بيانات الحملة</b><p>الاسم: ${H(state.form.campaignName||'—')}</p><p>الكود: ${H(state.form.campaignCode||'—')}</p><p>النوع: ${H((state.refs.types.find(x=>x.id===state.form.campaignTypeId)||{}).name||'—')}</p></div><div><b>كتّاب المحتوى</b><p>${H(writers)}</p></div><div><b>الكرييتيفات</b><ul>${crs||'<li>—</li>'}</ul></div><div><b>الميزانية</b><p>عدد البنود: ${state.budgets.length}</p><p>الإجمالي: ${budgetTotal().toLocaleString('ar-SA')} ر.س</p></div></div>${nav()}</section>`;}
+  function css(){let st=byId('mzj-v649-create-campaign-css'); if(st)return; st=document.createElement('style'); st.id='mzj-v649-create-campaign-css'; st.textContent=`
+    #create-campaign #campaignWizard,#create-campaign #mzjSheetRoot643,#create-campaign #mzjCreateCampaignPagesV643,#create-campaign #mzjCreateCampaignPagesV644,#create-campaign #mzjCreateCampaignPagesV645,#create-campaign #mzjCreateCampaignPagesV647,#create-campaign #mzjCreateCampaignPagesV648{display:none!important;visibility:hidden!important;height:0!important;min-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;}
+    #create-campaign #mzjCreateCampaignPagesV649{width:100%;max-width:none;margin:0;padding:0 0 28px;direction:rtl;color:#2c1a15;font-size:13px;font-weight:400;}
+    #create-campaign #mzjCreateCampaignPagesV649 *{box-sizing:border-box;}
+    .cc-hero{display:flex;align-items:center;justify-content:space-between;gap:18px;background:rgba(255,255,255,.80);border-radius:20px;padding:20px 24px;margin:0 0 14px;box-shadow:0 14px 36px rgba(91,51,39,.08),inset 0 0 0 1px rgba(150,83,65,.10)}
+    .cc-hero h1{margin:0 0 6px;font-size:30px;font-weight:700}.cc-hero p{margin:0;color:#6d5850}.cc-hero-icon{width:56px;height:56px;border-radius:16px;background:#a54d39;color:#fff;display:flex;align-items:center;justify-content:center;font-size:27px;box-shadow:0 10px 20px rgba(165,77,57,.24)}
+    .cc-stepper{display:grid;grid-template-columns:repeat(4,1fr);background:rgba(255,255,255,.72);border-radius:18px;margin:0 0 18px;padding:16px;gap:8px;box-shadow:inset 0 0 0 1px rgba(150,83,65,.08)}.cc-stepper button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:7px;color:#6d625e}.cc-stepper b{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid rgba(150,83,65,.16);font-weight:600}.cc-stepper .active b{background:#a54d39;color:#fff}.cc-stepper .active span{color:#9b442f;font-weight:600}
+    .cc-page{background:rgba(255,255,255,.68);border-radius:22px;padding:20px;margin:0;box-shadow:0 16px 40px rgba(91,51,39,.07),inset 0 0 0 1px rgba(150,83,65,.10)}
+    .cc-title{display:flex;align-items:center;justify-content:flex-start;gap:12px;margin:0 0 18px}.cc-title>span{width:42px;height:42px;border-radius:13px;background:#f5e8e2;color:#a54d39;display:flex;align-items:center;justify-content:center}.cc-title h2{margin:0 0 5px;font-size:22px;font-weight:700}.cc-title p{margin:0;color:#78655d;font-size:13px}
+    .cc-card,.cc-section{background:rgba(255,255,255,.82);border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:inset 0 0 0 1px rgba(150,83,65,.10),0 8px 20px rgba(91,51,39,.04)}.cc-card h3,.cc-section h3{margin:0 0 10px;font-size:16px;font-weight:700}.cc-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}.cc-section-head p{margin:0;color:#806b63}
+    .cc-form-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}.cc-field{display:flex;flex-direction:column;gap:7px}.cc-field.wide{grid-column:span 3}.cc-field span,.cc-budget-card>label span,.cc-budget-card>.wide>span{font-weight:600;color:#3b2a24;font-size:13px} input,select,textarea{border:1px solid rgba(150,83,65,.16);border-radius:12px;background:#fff;height:44px;padding:0 13px;font-family:inherit;font-size:13px;color:#2c1a15;outline:none;font-weight:400}textarea{height:88px;padding:12px;resize:vertical}.cc-date-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+    .cc-writer-grid,.cc-user-picks,.cc-optional-grid,.cc-stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.cc-pick-card,.cc-user-line,.cc-opt-user>label{background:#fff;border-radius:14px;min-height:62px;padding:10px 12px;display:flex;align-items:center;gap:10px;border:1px solid rgba(150,83,65,.12);cursor:pointer}.cc-pick-card.on,.cc-car.on,.cc-assignment.on,.cc-opt-user.on{border-color:#a54d39;box-shadow:0 0 0 1px rgba(165,77,57,.12)}.cc-pick-card input{margin-inline-start:auto}.cc-writer-card{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}.cc-writer-card .cc-writer-date-label{grid-column:1/-1;font-size:11px;color:#6d5850}.cc-writer-card .cc-writer-date{grid-column:1/-1;width:100%;height:34px}.cc-avatar{width:34px;height:34px;border-radius:50%;background:#f1ded6;color:#7a3b2c;display:inline-flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 34px}
+    .cc-tabs{display:flex;gap:10px;align-items:center;margin:0 0 14px}.cc-tabs button,.cc-add-wide{border:1px solid rgba(150,83,65,.16);background:#fff;border-radius:12px;height:46px;padding:0 18px;font-family:inherit;color:#7c3b2b;font-weight:600;cursor:pointer}.cc-tabs .active{border-color:#a54d39;background:#fff7f4}.cc-tabs button:first-child,.cc-add-wide{border-style:dashed;color:#a54d39}.cc-layout{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:16px;align-items:start}.cc-row-title{display:flex;align-items:center;justify-content:space-between}.cc-creative-basics{display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:end}.cc-creative-basics label{display:flex;flex-direction:column;gap:7px}.cc-type-pills,.cc-check-row,.cc-platforms{display:flex;flex-wrap:wrap;gap:8px}.cc-type-pills button{height:42px;min-width:112px;border:1px solid rgba(150,83,65,.13);border-radius:12px;background:#fff;font-family:inherit;cursor:pointer}.cc-type-pills .active{border-color:#a54d39;background:#fff4ef;color:#a54d39;font-weight:700}
+    .cc-car-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.cc-car{background:#fff;border:1px solid rgba(150,83,65,.12);border-radius:14px;min-height:72px;padding:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}.cc-primary-box{display:flex;align-items:center;justify-content:space-between;gap:16px;background:#fff7f4;border-radius:14px;padding:13px 15px;margin-bottom:12px;border:1px solid rgba(165,77,57,.15)}.cc-primary-box strong{font-size:15px}.cc-primary-box small{color:#806b63}
+    .cc-assignment,.cc-opt-dept,.cc-opt-user{background:rgba(255,255,255,.78);border:1px solid rgba(150,83,65,.10);border-radius:16px;padding:10px}.cc-mini{margin-top:8px;display:grid;gap:8px}.cc-mini span{font-size:12px;color:#6d5850;font-weight:600}.cc-mini input[type=date]{height:38px}.cc-check-row label,.cc-platforms label{border:1px solid rgba(150,83,65,.12);background:#fff;border-radius:999px;padding:7px 10px;font-size:12px;display:flex;gap:6px;align-items:center}.cc-opt-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}.cc-opt-users{display:grid;gap:8px}.cc-summary{position:sticky;top:12px;background:rgba(255,255,255,.86);border-radius:18px;padding:14px;box-shadow:inset 0 0 0 1px rgba(150,83,65,.10)}.cc-summary h3{margin:0 0 12px}.cc-summary div{background:#fff;border-radius:13px;padding:13px;margin-bottom:10px;text-align:center;border:1px solid rgba(150,83,65,.10)}.cc-summary b{display:block;font-size:22px;color:#a54d39}.cc-summary span{font-size:12px;color:#77665f}
+    .cc-stat-grid{margin-bottom:14px}.cc-stat-grid div{background:#fff;border-radius:16px;min-height:100px;padding:18px;border:1px solid rgba(150,83,65,.10)}.cc-stat-grid b{display:block;font-size:24px;margin-top:12px}.cc-budget-list{display:grid;gap:10px}.cc-budget-card{display:grid;grid-template-columns:74px minmax(140px,.8fr) minmax(230px,1.2fr) minmax(100px,.6fr) minmax(160px,.8fr) minmax(160px,.8fr) minmax(120px,.6fr);gap:10px;align-items:end;background:#fff;border-radius:16px;padding:12px;border:1px solid rgba(150,83,65,.10)}.cc-budget-card>label{display:flex;flex-direction:column;gap:7px}.cc-budget-card>.wide{grid-column:span 3;display:flex;flex-direction:column;gap:7px}.cc-platforms .on{background:#fff4ef;border-color:#a54d39}.cc-add-wide{width:320px;margin:14px auto;display:block;background:transparent}
+    .cc-review{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cc-review>div{background:#fff;border-radius:18px;min-height:180px;padding:16px;border:1px solid rgba(150,83,65,.10)}.cc-review b{display:block;margin-bottom:10px}.cc-review ul{padding-right:18px;margin:0}.cc-danger{border:0;background:#fbe2dc;color:#a13a2a;border-radius:10px;padding:8px 12px;font-family:inherit;cursor:pointer}.cc-empty{color:#8a756e}.cc-nav{display:grid;grid-template-columns:auto 1fr auto;align-items:center;margin-top:18px;gap:12px;direction:ltr}.cc-nav button{height:50px;min-width:160px;border:0;border-radius:12px;background:#a54d39;color:#fff;font-family:inherit;font-weight:700;cursor:pointer}.cc-nav .cc-prev{background:#fff;color:#7a3b2c;border:1px solid rgba(150,83,65,.14)}.cc-nav button:disabled{opacity:.4;cursor:not-allowed}.cc-nav span{color:#7b665f;font-size:12px;text-align:center;direction:rtl}.cc-nav .cc-next{grid-column:1}.cc-nav span{grid-column:2}.cc-nav .cc-prev{grid-column:3}
+
+    .cc-creative-basics-single{grid-template-columns:minmax(280px,520px)!important;max-width:560px;margin-left:auto!important;margin-right:0!important;justify-content:end}.cc-creative-basics-single label{direction:rtl;text-align:right}.cc-creative-basics-single select{direction:rtl;text-align:right;text-align-last:right}.cc-type-pills{display:none!important}.cc-cars-card{padding:12px}.cc-cars-card h3{font-size:15px;margin-bottom:8px}.cc-car-search{width:100%;margin-bottom:10px}.cc-cars-card .cc-car-grid{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}.cc-cars-card .cc-car{min-height:48px;padding:8px 10px;border-radius:12px;font-size:12px}.cc-departments-card{padding:14px}.cc-hint{margin:-4px 0 12px;color:#806b63;font-size:12px}.cc-dept-stack{display:grid;grid-template-columns:1fr;gap:12px;align-items:start}.cc-dept-split{display:grid;grid-template-columns:1fr;gap:12px;align-items:start}.cc-primary-panel,.cc-optional-panel{background:rgba(255,255,255,.62);border:1px solid rgba(150,83,65,.10);border-radius:16px;padding:12px}.cc-panel-title{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px}.cc-panel-title small{color:#806b63}.cc-primary-users-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.cc-optional-compact{grid-template-columns:repeat(2,minmax(0,1fr))}.cc-link-date-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px;margin-top:8px}.cc-link-date-grid label{display:flex;flex-direction:column;gap:5px}.cc-link-date-grid span{font-size:11px;color:#6d5850}.cc-link-date-grid input{height:34px}.cc-budget-card>.wide{grid-column:1/-1!important}.cc-budget-card .cc-platforms{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;overflow:visible!important;padding-bottom:0}.cc-budget-card .cc-platforms label{white-space:nowrap;min-width:0;justify-content:center}.cc-budget-card{grid-template-columns:74px minmax(150px,.8fr) minmax(220px,1fr) minmax(105px,.55fr) minmax(150px,.75fr) minmax(150px,.75fr) minmax(120px,.55fr)}
+    @media(max-width:1200px){.cc-dept-split{grid-template-columns:1fr}.cc-creative-basics-single{max-width:none}.cc-cars-card .cc-car-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:1200px){.cc-form-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.cc-field.wide{grid-column:span 3}.cc-layout{grid-template-columns:1fr}.cc-summary{position:static}.cc-car-grid,.cc-writer-grid,.cc-user-picks,.cc-optional-grid,.cc-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cc-budget-card{grid-template-columns:repeat(3,minmax(0,1fr))}.cc-budget-card>.wide{grid-column:span 3}.cc-review{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  `; document.head.appendChild(st);}
+  function ensureRoot(){const page=byId('create-campaign'); if(!page)return null; css(); ['campaignWizard','mzjSheetRoot643','mzjCreateCampaignPagesV643','mzjCreateCampaignPagesV644','mzjCreateCampaignPagesV645','mzjCreateCampaignPagesV647','mzjCreateCampaignPagesV648'].forEach(id=>{const el=byId(id); if(el){el.style.display='none'; el.style.visibility='hidden'; el.style.height='0'; el.style.overflow='hidden';}}); let root=byId('mzjCreateCampaignPagesV649'); if(!root){root=document.createElement('div'); root.id='mzjCreateCampaignPagesV649'; const head=q(page,'.page-head'); if(head)head.insertAdjacentElement('afterend',root); else page.appendChild(root);} return root;}
+  function render(){const root=ensureRoot(); if(!root)return; root.innerHTML=header()+(state.page===1?page1():state.page===2?page2():state.page===3?page3():page4());}
+  function currentCreative(){return state.creatives[state.activeCreative]||state.creatives[0];}
+  function boot(){if(!byId('create-campaign'))return; if(location.hash && !location.hash.includes('create-campaign'))return; mapLocal(); render(); if(!state.loaded)loadRefs();}
+  document.addEventListener('click',e=>{const root=byId('mzjCreateCampaignPagesV649'); if(!root||!root.contains(e.target))return; const t=e.target;
+    const go=t.closest('[data-cc-go]'); if(go){syncInputs(); state.page=Number(go.dataset.ccGo)||1; render(); return;}
+    if(t.matches('[data-cc-next]')){syncInputs(); state.page=Math.min(4,state.page+1); render(); return;}
+    if(t.matches('[data-cc-prev]')){syncInputs(); state.page=Math.max(1,state.page-1); render(); return;}
+    if(t.matches('[data-cc-add-creative]')){syncInputs(); state.creatives.push(newCreative()); state.activeCreative=state.creatives.length-1; render(); return;}
+    if(t.matches('[data-cc-tab]')){syncInputs(); state.activeCreative=Number(t.dataset.ccTab)||0; render(); return;}
+    if(t.matches('[data-creative-type]')){const cr=currentCreative(); if(cr){cr.type=t.dataset.creativeType;} render(); return;}
+    if(t.matches('[data-cc-del-active]')){if(state.creatives.length>1){state.creatives.splice(state.activeCreative,1); state.activeCreative=Math.max(0,state.activeCreative-1); render();} return;}
+    if(t.matches('[data-cc-add-budget]')){syncInputs(); state.budgets.push({}); render(); return;}
+    if(t.matches('[data-cc-del-budget]')){syncInputs(); state.budgets.splice(Number(t.dataset.ccDelBudget),1); if(!state.budgets.length)state.budgets.push({}); render(); return;}
+    if(t.matches('[data-cc-save]')){syncInputs(); save(); return;}
+  },true);
+  document.addEventListener('change',e=>{const root=byId('mzjCreateCampaignPagesV649'); if(!root||!root.contains(e.target))return; const t=e.target; const cr=currentCreative();
+    if(t.matches('[name]')){state.form[t.name]=t.value; if(t.matches('[data-cc-type]')){updateCode(); const code=q(root,'[name="campaignCode"]'); if(code)code.value=state.form.campaignCode||'';}}
+    if(t.matches('[data-writer-deadline]')){state.form.writerDeadlines[t.dataset.writerDeadline]=t.value;}
+    if(t.matches('.cc-structure-writer')){const id=S(t.value); const arr=state.form.writerIds=A(state.form.writerIds); if(t.checked&&!arr.includes(id))arr.push(id); if(!t.checked){const ix=arr.indexOf(id); if(ix>-1)arr.splice(ix,1); delete state.form.writerDeadlines[id];} render(); return;}
+    if(!cr)return;
+    if(t.matches('[data-creative-select]')){const c=state.refs.creatives.find(x=>S(x.id)===S(t.value))||{}; cr.creativeId=t.value; cr.type=c.type||creativeType(c.name)||cr.type; cr.primaryRole=c.role||creativeRole(c.name); cr.primaryUsers={}; cr.optionalRoles={}; render(); return;}
+    if(t.matches('[data-cc-car]')){const id=S(t.value); cr.carIds=A(cr.carIds); if(t.checked&&!cr.carIds.includes(id))cr.carIds.push(id); if(!t.checked){const ix=cr.carIds.indexOf(id); if(ix>-1)cr.carIds.splice(ix,1);} render(); return;}
+    if(t.matches('[data-car-search]')){cr.carSearch=t.value; render(); return;}
+    if(t.matches('[data-primary-user]')){const id=S(t.value); cr.primaryUsers=cr.primaryUsers||{}; cr.primaryUsers[id]=cr.primaryUsers[id]||{linkedWriterIds:[]}; cr.primaryUsers[id].selected=t.checked; render(); return;}
+    if(t.matches('[data-primary-link]')){const id=S(t.dataset.primaryLink); const rec=(cr.primaryUsers[id]=cr.primaryUsers[id]||{selected:true,linkedWriterIds:[]}); rec.linkedWriterIds=A(rec.linkedWriterIds); const wid=S(t.value); if(t.checked&&!rec.linkedWriterIds.includes(wid))rec.linkedWriterIds.push(wid); if(!t.checked){const ix=rec.linkedWriterIds.indexOf(wid); if(ix>-1)rec.linkedWriterIds.splice(ix,1); if(rec.linkedWriterDeadlines)delete rec.linkedWriterDeadlines[wid];} render(); return;}
+    if(t.matches('[data-primary-date]')){const id=S(t.dataset.primaryDate); cr.primaryUsers[id]=cr.primaryUsers[id]||{selected:true,linkedWriterIds:[]}; cr.primaryUsers[id].deadline=t.value; return;}
+    if(t.matches('[data-primary-link-date]')){const [id,wid]=S(t.dataset.primaryLinkDate).split(':'); const rec=(cr.primaryUsers[id]=cr.primaryUsers[id]||{selected:true,linkedWriterIds:[]}); rec.linkedWriterDeadlines=rec.linkedWriterDeadlines||{}; rec.linkedWriterDeadlines[wid]=t.value; return;}
+    if(t.matches('[data-opt-role]')){const role=S(t.value); cr.optionalRoles=cr.optionalRoles||{}; cr.optionalRoles[role]=cr.optionalRoles[role]||{selected:false,users:{}}; cr.optionalRoles[role].selected=t.checked; render(); return;}
+    if(t.matches('[data-opt-user]')){const role=S(t.dataset.optUser),uid=S(t.value); const opt=cr.optionalRoles[role]=cr.optionalRoles[role]||{selected:true,users:{}}; opt.users=opt.users||{}; opt.users[uid]=opt.users[uid]||{linkedWriterIds:[]}; opt.users[uid].selected=t.checked; render(); return;}
+    if(t.matches('[data-opt-link]')){const [role,uid]=S(t.dataset.optLink).split(':'); const opt=cr.optionalRoles[role]=cr.optionalRoles[role]||{selected:true,users:{}}; const rec=opt.users[uid]=opt.users[uid]||{selected:true,linkedWriterIds:[]}; rec.linkedWriterIds=A(rec.linkedWriterIds); const wid=S(t.value); if(t.checked&&!rec.linkedWriterIds.includes(wid))rec.linkedWriterIds.push(wid); if(!t.checked){const ix=rec.linkedWriterIds.indexOf(wid); if(ix>-1)rec.linkedWriterIds.splice(ix,1); if(rec.linkedWriterDeadlines)delete rec.linkedWriterDeadlines[wid];} render(); return;}
+    if(t.matches('[data-opt-date]')){const [role,uid]=S(t.dataset.optDate).split(':'); const opt=cr.optionalRoles[role]=cr.optionalRoles[role]||{selected:true,users:{}}; const rec=opt.users[uid]=opt.users[uid]||{selected:true,linkedWriterIds:[]}; rec.deadline=t.value; return;}
+    if(t.matches('[data-opt-link-date]')){const [role,uid,wid]=S(t.dataset.optLinkDate).split(':'); const opt=cr.optionalRoles[role]=cr.optionalRoles[role]||{selected:true,users:{}}; const rec=opt.users[uid]=opt.users[uid]||{selected:true,linkedWriterIds:[]}; rec.linkedWriterDeadlines=rec.linkedWriterDeadlines||{}; rec.linkedWriterDeadlines[wid]=t.value; return;}
+    if(t.matches('[data-cc-funnel]'))state.budgets[+t.dataset.ccFunnel].funnelId=t.value;
+    if(t.matches('[data-cc-product]'))state.budgets[+t.dataset.ccProduct].productId=t.value;
+    if(t.matches('[data-budget-platform]')){const card=t.closest('.cc-budget-card'); const i=qa(root,'.cc-budget-card').indexOf(card); const b=state.budgets[i]; b.platformIds=A(b.platformIds); const pid=S(t.value); if(t.checked&&!b.platformIds.includes(pid))b.platformIds.push(pid); if(!t.checked){const ix=b.platformIds.indexOf(pid); if(ix>-1)b.platformIds.splice(ix,1);} render(); return;}
+  },true);
+  document.addEventListener('input',e=>{const root=byId('mzjCreateCampaignPagesV649'); if(!root||!root.contains(e.target))return; const t=e.target; const cr=currentCreative(); if(t.matches('[data-car-search]')&&cr){cr.carSearch=t.value; render(); const fresh=byId('mzjCreateCampaignPagesV649')?.querySelector('[data-car-search]'); if(fresh){fresh.focus(); try{fresh.setSelectionRange(fresh.value.length,fresh.value.length);}catch(_){}} return;} if(t.matches('[data-budget-text]')){const [i,k]=S(t.dataset.budgetText).split(':'); state.budgets[+i][k]=t.value; const stats=qa(root,'.cc-stat-grid b'); if(stats[0])stats[0].textContent=budgetTotal().toLocaleString('ar-SA')+' ر.س'; if(stats[2])stats[2].textContent=budgetTotal().toLocaleString('ar-SA')+' ر.س';}},true);
+  async function save(){try{syncInputs(); if(!state.form.campaignName){(typeof showToast==='function'?showToast('اكتب اسم الحملة.'):alert('اكتب اسم الحملة.')); return;} const c=collection(window.MZJ_CAMPAIGNS_COLLECTION||'marketing_campaigns'); if(!c){alert('Firestore غير متصل');return;} const ref=c.doc(); const writers=selectedWriters(); const payload={id:ref.id,name:state.form.campaignName,campaignName:state.form.campaignName,campaignCode:state.form.campaignCode,campaignTypeId:state.form.campaignTypeId,campaign_date:state.form.campaignDate,publish_start_date:state.form.publishStart,publish_end_date:state.form.publishEnd,campaign_goal:state.form.campaignGoal,content_writer_brief:state.form.contentBrief,contentUsers:writers,userIds:writers.map(w=>w.id),writerDeadlines:state.form.writerDeadlines,creatives:state.creatives,budgetItems:state.budgets,status:'draft',source:VERSION,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}; await ref.set(payload); if(typeof showToast==='function')showToast('تم إنشاء الحملة.'); location.hash='#campaigns';}catch(e){console.error(VERSION,e); alert('تعذر حفظ الحملة.');}}
+  document.addEventListener('DOMContentLoaded',boot); window.addEventListener('hashchange',()=>setTimeout(boot,80)); setTimeout(boot,250); setTimeout(boot,900); window.MZJ_V654=VERSION; window.MZJ_V653=VERSION; window.MZJ_V650=VERSION; window.MZJ_V649=VERSION;
 })();
