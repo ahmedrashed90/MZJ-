@@ -36783,6 +36783,57 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function isCompletedForUser(t){const ss=statusOf(t,'structure'), ts=statusOf(t,'template'), st=S(t.status||'').toLowerCase(); if(isContent(t)&&!isTemplateContentTask(t)&&ss==='approved') return true; if(isTemplateContentTask(t)&&(ts==='approved'||st==='task_template_approved'||st==='completed')) return true; if(isExecution(t)) return ['completed','done'].includes(S(t.execution&&t.execution.status||t.status).toLowerCase()) || Number((t.execution&&t.execution.progress)||t.progress||0)>=100; return st==='completed'||st==='done';}
   function userTaskBucket(t){if(isCompletedForUser(t)) return 'done'; if(isReadyReview(t)) return 'review'; if(statusOf(t,'structure')==='needs_changes'||statusOf(t,'template')==='needs_changes'||S(t.status)==='needs_changes') return 'changes'; if(t.received||t.receivedConfirmed||S(t.status)==='received') return 'work'; return 'new';}
   function rowLabelValue(t,label){const row=t.structureRow||t.approvedStructureRow||{}; const raw=row.raw||{}; return S(row[label]||raw[label]||'');}
+  function contentTemplatePrimary(c,t,label){
+    if(label==='نوع الحمله') return campaignTypeName(c,t)||'—';
+    if(label==='نوع المحتوى') return rowLabelValue(t,'نوع المحتوى') || creativeName(t) || '—';
+    if(label==='السيارة') return rowLabelValue(t,'السيارة') || cars(t).join('، ') || '—';
+    if(label==='رقم التاسك') return rowLabelValue(t,'رقم التاسك') || S(t.taskNo||t.fullTaskCode||t.taskCode||taskId(t)) || '—';
+    return rowLabelValue(t,label) || '—';
+  }
+  function contentTemplateDetailTone(t){
+    const ts=statusOf(t,'template');
+    if(ts==='approved'||S(t.status).toLowerCase()==='completed') return {text:'تم الاعتماد',cls:'ok'};
+    if(ts==='in_review') return {text:'في مراجعة Task Template',cls:'wait'};
+    if(ts==='needs_changes') return {text:'محتاج تعديل',cls:'warn'};
+    return {text:'رفع Task Template',cls:'soft'};
+  }
+  function contentTemplateCard(label,value,icon){return `<article class="v701-content-card"><div class="v701-content-card-copy"><span>${H(label)}</span><strong>${H(value||'—')}</strong></div><i>${H(icon||'')}</i></article>`;}
+  function contentTemplateField(label,value){return `<article class="v701-content-field"><div class="v701-content-value">${H(value||'—')}</div><div class="v701-content-label">${H(label)}</div></article>`;}
+  function contentTemplateActions(t){
+    const ts=statusOf(t,'template');
+    const tpl=t.taskTemplate||{};
+    const url=S(tpl.fileUrl||tpl.downloadURL||tpl.downloadUrl||'');
+    return `<div class="v701-content-actions">`
+      + `<button type="button" class="btn btn-light" data-v677-task-template="${H(taskId(t))}">تحميل Task Template</button>`
+      + `${['pending','received','needs_changes'].includes(ts)?fileButton(taskId(t),'template','إرفاق Task Template Excel'):''}`
+      + `${url?`<a class="btn btn-light" href="${H(url)}" target="_blank" rel="noopener">تحميل الملف المرفوع</a>`:''}`
+      + `</div>`;
+  }
+  function contentTemplateDetailView(c,t){
+    const tone=contentTemplateDetailTone(t);
+    const note=statusOf(t,'template')==='in_review'?'<p class="v701-content-note">تم رفع Task Template وفي انتظار مراجعة الأدمن.</p>':'';
+    return `<div class="v701-content-template-detail">`
+      + `<div class="v701-content-shell">`
+      + `<div class="v701-content-topbar"><button type="button" class="v701-close-btn" data-close-task-modal>×</button><div class="v701-content-badges"><span class="v701-pill v701-pill-content">قسم المحتوى</span><span class="v701-pill ${tone.cls}">${H(tone.text)}</span></div></div>`
+      + `<div class="v701-content-heading"><h2>Task Template</h2><p>تفاصيل التاسك من الهيكل</p></div>`
+      + `<section class="v701-content-section"><div class="v701-section-title"><h3>بيانات أساسية</h3></div><div class="v701-content-grid">`
+      + contentTemplateCard('نوع الحمله',contentTemplatePrimary(c,t,'نوع الحمله'),'🎯')
+      + contentTemplateCard('نوع المحتوى',contentTemplatePrimary(c,t,'نوع المحتوى'),'🖼️')
+      + contentTemplateCard('السيارة',contentTemplatePrimary(c,t,'السيارة'),'🚗')
+      + contentTemplateCard('رقم التاسك',contentTemplatePrimary(c,t,'رقم التاسك'),'📋')
+      + `</div></section>`
+      + `<section class="v701-content-section"><div class="v701-section-title"><h3>تفاصيل المحتوى</h3></div><div class="v701-content-fields">`
+      + contentTemplateField('الهدف',contentTemplatePrimary(c,t,'الهدف'))
+      + contentTemplateField('الهدف الملموس',contentTemplatePrimary(c,t,'الهدف الملموس'))
+      + contentTemplateField('الفكرة',contentTemplatePrimary(c,t,'الفكرة'))
+      + contentTemplateField('وصف المحتوى',contentTemplatePrimary(c,t,'وصف المحتوى'))
+      + contentTemplateField('الرسالة',contentTemplatePrimary(c,t,'الرسالة'))
+      + contentTemplateField('المطلوب من الكاتب',contentTemplatePrimary(c,t,'المطلوب من الكاتب'))
+      + contentTemplateField('CTA',contentTemplatePrimary(c,t,'CTA'))
+      + `</div></section>`
+      + `<section class="v701-content-section"><div class="v701-section-title"><h3>إجراءات الكاتب</h3></div>${contentTemplateActions(t)}${note}</section>`
+      + `</div></div>`;
+  }
 
   function campaignTypeName(c,t){return S(c.campaignTypeName||c.campaignType||c.campaign_type||t.campaignTypeName||t.campaignType||'');}
   function campaignField(c,t,k){return S(c[k]||t[k]||'');}
@@ -36915,7 +36966,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     return `<div class="v696-template-panel"><div class="v696-section-head"><h3>بيانات Task Template المعتمد</h3><span>Task Template معتمد</span></div><div class="v696-top-cards"><article class="v696-mini-card"><strong>الاسم المقترح للكرييتيف</strong><div>${H(execField(data,'الاسم المقترح للكرييتيف')||'—')}</div></article><article class="v696-mini-card v696-wide"><strong>الهدف</strong><div>${H(execField(data,'الهدف')||'—')}</div></article><article class="v696-mini-card"><strong>الرسالة الأساسية</strong><div>${H(execField(data,'الرسالة الأساسية')||'—')}</div></article><article class="v696-mini-card"><strong>الهوك</strong><div>${H(execField(data,'الهوك')||'—')}</div></article><article class="v696-mini-card v696-cta"><strong>CTA</strong><div>${H(execField(data,'CTA')||'—')}</div></article></div><div class="v696-layout"><section class="v696-script-box"><div class="v696-box-title">📄 السكريبت الأساسي</div><div class="v696-meta-grid"><article class="v696-meta"><b>نوع المحتوى</b><p>${H(contentType)}</p></article><article class="v696-meta"><b>السيارة</b><p>${H(car)}</p></article><article class="v696-meta"><b>الفئات</b><p>${H(cats)}</p></article><article class="v696-meta"><b>الألوان</b><p>${H(colors)}</p></article><article class="v696-meta"><b>مدة الريل المقترحة</b><p>${H(duration)}</p></article></div><div class="v696-idea-notes"><article class="v696-meta"><b>الفكرة التنفيذية</b><p>${H(idea)}</p></article><article class="v696-meta v696-notes"><b>ملاحظات تنفيذية</b>${notes.length?`<ul>${notes.map(n=>`<li>${H(n)}</li>`).join('')}</ul>`:`<p>—</p>`}</article></div></section><section class="v696-scenes-box"><div class="v696-box-title">🎬 مشاهد الريل</div><div class="v696-scenes-grid">${scenes.map(sc=>`<article class="v696-scene"><span class="v696-scene-num">${H(sc.num)}</span><h4>${H(sc.title||'مشهد')}</h4><dl><dt>شرح المشهد</dt><dd>${H(trimText(sc.desc||'—',150))}</dd><dt>الفويس أوفر</dt><dd>${H(trimText(sc.voice||'—',135))}</dd><dt>التيكست</dt><dd>${H(trimText(sc.text||'—',120))}</dd></dl></article>`).join('')}</div></section></div><div class="v696-bottom-grid"><article class="v696-bottom-card"><div class="v696-box-title">📋 الكابشن</div><div class="v696-caption">${H(execField(data,'الكابشن')||'—')}</div></article><article class="v696-bottom-card"><div class="v696-box-title"># هاشتاج</div><div class="v696-tags">${tags.length?tags.map(t=>`<span class="v696-tag">${H(t)}</span>`).join(''):H(hashtags||'—')}</div></article></div>${allRows.length?`<details class="v696-all-data"><summary>عرض كل البيانات الخام من Task Template</summary><div class="v696-all-data-grid">${allRows.map(([k,v])=>`<article><strong>${H(k)}</strong><div>${H(v)}</div></article>`).join('')}</div></details>`:''}</div>`;
   }
   function execDetails(t){execTemplateCss(); const data=templateData(t); const role=roleNorm(t.departmentRole||t.assignedDepartmentRole); const steps=execSteps[role]||execSteps.design; return `${renderExecTemplate(data)}<div class="v677-panel"><h3>إجراءات التكليف</h3><div class="v677-actions v677-exec-actions v696-exec-actions">${steps.map((s,i)=>`<button type="button" class="btn btn-light" data-v677-exec-step="${H(taskId(t))}:${i}">${H(s[0])} · ${H(s[1])}%</button>`).join('')}</div></div>`;}
-  function openModal(id){const loc=locate(id); if(!loc)return; const t=loc.task,c=loc.campaign; const m=by('taskModal'),content=by('taskModalContent'); if(!m||!content)return; const title=isContent(t)?(isTemplateContentTask(t)||statusOf(t,'structure')==='approved'?'رفع Task Template':'طلب هيكل'):(t.taskType||'تاسك تنفيذ'); const isContentTemplateDetail=isTemplateContentTask(t)&&isContent(t); const execFull=!isContent(t); if(execFull){execTemplateCss(); m.classList.add('v697-exec-fullscreen','task-fullscreen-view');}else{m.classList.remove('v697-exec-fullscreen');} content.innerHTML=`<div class="v677-modal-inner"><div class="v677-modal-title"><button type="button" class="v697-close-btn" data-close-task-modal>×</button><h2>${H(title)}</h2><span class="v677-badge ${labelClass(t)}">${H(label(t))}</span></div>${isContentTemplateDetail?'':dataCards(c,t)}${detailsActions(t)}</div>`; m.classList.add('show','is-visible');m.setAttribute('aria-hidden','false');document.body.classList.add('modal-open');}
+  function openModal(id){const loc=locate(id); if(!loc)return; const t=loc.task,c=loc.campaign; const m=by('taskModal'),content=by('taskModalContent'); if(!m||!content)return; const title=isContent(t)?(isTemplateContentTask(t)||statusOf(t,'structure')==='approved'?'رفع Task Template':'طلب هيكل'):(t.taskType||'تاسك تنفيذ'); const isContentTemplateDetail=isTemplateContentTask(t)&&isContent(t); const execFull=!isContent(t); m.classList.remove('v697-exec-fullscreen','v701-content-template-fullscreen','task-fullscreen-view'); if(isContentTemplateDetail){ content.innerHTML=contentTemplateDetailView(c,t); m.classList.add('v701-content-template-fullscreen','task-fullscreen-view'); }else{ if(execFull){execTemplateCss(); m.classList.add('v697-exec-fullscreen','task-fullscreen-view');} content.innerHTML=`<div class="v677-modal-inner"><div class="v677-modal-title"><button type="button" class="v697-close-btn" data-close-task-modal>×</button><h2>${H(title)}</h2><span class="v677-badge ${labelClass(t)}">${H(label(t))}</span></div>${dataCards(c,t)}${detailsActions(t)}</div>`; } m.classList.add('show','is-visible');m.setAttribute('aria-hidden','false');document.body.classList.add('modal-open');}
   async function receive(id){await updateTask(id,t=>({...t,received:true,receivedConfirmed:true,receivedAt:now(),status:isContent(t)?'received':t.status,updatedAt:now()}));toast('تم الاستلام.');}
   function sheetLabelMap(rows){const out={}; A(rows).forEach(r=>{const c=r.cells||{}; const keys=Object.keys(c).sort(); for(let i=0;i<keys.length-1;i++){const lab=S(c[keys[i]]).trim(); const val=S(c[keys[i+1]]).trim(); if(lab&&!out[lab])out[lab]=val;}}); return out;}
   function rowsToHtml(rows, cols){return A(rows).map((r,ri)=>`<tr>${cols.map(col=>`<td class="v677-cell" data-v677-cell="${ri}:${col}">${H((r.cells||{})[col]||'')}</td>`).join('')}</tr>`).join('');}
