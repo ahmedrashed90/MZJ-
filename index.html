@@ -582,6 +582,18 @@
 </input></form>
 </details>
 <details class="accordion-card admin-form-card">
+<summary><span>إجراءات التكليف</span><strong>فتح / إغلاق</strong></summary>
+<form class="form" id="assignmentActionForm">
+<input id="assignmentActionEditIndex" type="hidden">
+<label class="field"><span>القسم</span><select id="assignmentActionDepartment" required=""></select></label>
+<label class="field"><span>اسم الإجراء</span><input id="assignmentActionName" placeholder="مثال: الاعتماد" required="" type="text"/></label>
+<label class="field"><span>النسبة</span><input id="assignmentActionPercent" max="100" min="1" required="" type="number"/></label>
+<label class="field inline-check"><span>أدمن فقط</span><input id="assignmentActionAdminOnly" type="checkbox"/></label>
+<div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ الإجراء</button><button class="btn btn-light" id="cancelAssignmentActionEdit" type="button">إلغاء</button></div>
+<p class="form-message" id="assignmentActionMessage"></p>
+</input></form>
+</details>
+<details class="accordion-card admin-form-card">
 <summary><span>إضافة كريتيف</span><strong>فتح / إغلاق</strong></summary>
 <form class="form" id="creativeForm">
 <input id="creativeEditId" type="hidden">
@@ -652,6 +664,10 @@
 <details class="accordion-card">
 <summary><span>قائمة الأقسام</span><strong>فتح / إغلاق</strong></summary>
 <div class="departments-list" id="departmentsList"><div class="empty-state">جاري تحميل الأقسام...</div></div>
+</details>
+<details class="accordion-card">
+<summary><span>إجراءات التكليف</span><strong>فتح / إغلاق</strong></summary>
+<div class="departments-list" id="assignmentActionsList"><div class="empty-state">جاري تحميل إجراءات التكليف...</div></div>
 </details>
 <details class="accordion-card">
 <summary><span>قائمة الكريتيفات</span><strong>فتح / إغلاق</strong></summary>
@@ -1012,6 +1028,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="assets/js/jszip.min.js?v=160"></script>
-<script src="assets/js/app.js?v=695"></script>
+<script src="assets/js/app.js?v=699"></script>
 </input></input></input></input></body>
 </html>
