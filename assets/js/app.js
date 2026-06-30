@@ -1788,10 +1788,25 @@ function cssEscape(value){
 }
 window.mzjHandleStockShotChange = handleStockShotSelectChange;
 
+function stockPlaceOf(car){
+  return normalizeText(pickFirstValue(car, [
+    'place', 'carPlace', 'stockPlace', 'location', 'site', 'yard', 'branch', 'showroom',
+    'المكان', 'مكان', 'الموقع', 'الفرع', 'المعرض'
+  ]));
+}
+function isExcludedStockPlace(place){
+  const text = normalizeText(place);
+  return text === 'الوكالة' || text.includes('الوكالة');
+}
+function isReadableStockCar(car){
+  return !isExcludedStockPlace(stockPlaceOf(car));
+}
 function loadStock(){
   if(!stockDb) return;
   stockDb.collection(window.MZJ_STOCK_CARS_COLLECTION).onSnapshot(snapshot => {
-    cars = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) }));
+    cars = snapshot.docs
+      .map(doc => ({ id: doc.id, ...(doc.data() || {}) }))
+      .filter(isReadableStockCar);
     renderStock();
   }, error => { console.error('Stock load error', error); renderStockError(); });
 }
@@ -1815,7 +1830,7 @@ function isExcludedStockStatus(status){
   return text.includes('تم التسليم') || text.includes('تحت التسليم') || text.includes('مؤرشف') || text.includes('ارشيف') || text.includes('أرشيف') || text.includes('archive');
 }
 function statusCount(statusName){
-  return cars.filter(car => stockStatusOf(car).includes(statusName)).length;
+  return cars.filter(car => isReadableStockCar(car) && stockStatusOf(car).includes(statusName)).length;
 }
 function stockChipHtml(name, count = null, extraClass = ''){
   const suffix = count !== null && count !== undefined ? ` <small>${escapeHtml(count)}</small>` : '';
@@ -1834,7 +1849,7 @@ function stockGroupKeyFromCar(car){
   return [carName, statement, exteriorColor, interiorColor].join(' | ');
 }
 function buildStockGroups(){
-  const visibleCars = cars.filter(car => !isExcludedStockStatus(stockStatusOf(car)));
+  const visibleCars = cars.filter(car => isReadableStockCar(car) && !isExcludedStockStatus(stockStatusOf(car)));
   const groups = new Map();
   visibleCars.forEach(car => {
     const carName = normalizeText(car.carName || '—') || '—';
@@ -1895,7 +1910,7 @@ function renderStockFilterCards(counts, labels){
 function renderStock(){
   const tbody = document.getElementById('stockSummaryRows');
   const setText = (id, value) => { const el = document.getElementById(id); if(el) el.textContent = value; };
-  const visibleCars = cars.filter(car => !isExcludedStockStatus(stockStatusOf(car)));
+  const visibleCars = cars.filter(car => isReadableStockCar(car) && !isExcludedStockStatus(stockStatusOf(car)));
   const filterSelect = document.getElementById('stockFilterMode');
   stockFilterMode = filterSelect?.value || stockFilterMode || 'all';
   const allRows = stockRowsWithMeta();
