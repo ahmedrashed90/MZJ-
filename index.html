@@ -18,7 +18,7 @@
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&amp;display=swap" rel="stylesheet"/>
-<link href="assets/css/style.css?v=553" rel="stylesheet">
+<link href="assets/css/style.css?v=732" rel="stylesheet">
 <link href="assets/favicon.png" rel="icon" type="image/x-icon"/>
 </link></head>
 <body>
@@ -526,36 +526,42 @@
 </section>
 </div> </section>
 <section class="view" data-title="تجهيز النشر" id="publish-prep">
-<div class="page-head publish-prep-head">
+<div class="page-head publish-prep-head v731-prep-head">
 <div class="page-title">
 <h1>تجهيز النشر</h1>
-<p>متابعة تاسكات النشر ورفع الملفات النهائية وتجهيزها للنشر.</p>
+<p>متابعة تجهيز المنشورات النهائية ورفع الملفات وجدولة النشر.</p>
 </div>
-<div class="social-publisher-actions">
+<div class="social-publisher-actions v731-prep-actions">
 <button class="btn btn-light" id="refreshPublishPrepBtn" type="button">تحديث التاسكات</button>
-<a class="btn btn-light" href="#calendar">عرض التقويم</a>
+<a class="btn btn-primary" href="#calendar">عرض التقويم</a>
 </div>
 </div>
-<div class="publish-prep-stats" id="publishPrepStats">
-<article class="publish-center-stat"><span>تاسكاتي</span><strong>0</strong></article>
-<article class="publish-center-stat"><span>قيد التجهيز</span><strong>0</strong></article>
-<article class="publish-center-stat"><span>تم التسليم</span><strong>0</strong></article>
-<article class="publish-center-stat"><span>يحتاج تعديل</span><strong>0</strong></article>
+<div class="publish-prep-stats v731-prep-stats" id="publishPrepStats">
+<article class="publish-center-stat"><span>كل التاسكات</span><strong>0</strong><small>تاسكات تنفيذية</small></article>
+<article class="publish-center-stat"><span>جاهز للنشر</span><strong>0</strong><small>مكتملة وجاهزة</small></article>
+<article class="publish-center-stat"><span>بانتظار التاريخ</span><strong>0</strong><small>مكتملة بدون تاريخ</small></article>
+<article class="publish-center-stat"><span>ناقص</span><strong>0</strong><small>تحتاج استكمال</small></article>
+<article class="publish-center-stat"><span>ملفات مرفوعة</span><strong>0</strong><small>الملفات النهائية</small></article>
 </div>
-<div class="card publish-prep-card">
-<div class="section-toolbar small-toolbar">
-<div>
-<h2>تاسكاتي المطلوبة</h2>
-<p>تابع حالة كل تاسك، النواقص، والملف النهائي.</p>
+<div class="card publish-prep-card v731-prep-card">
+<div class="v731-prep-toolbar">
+<div class="v731-prep-toolbar-start">
+<button class="btn btn-light" id="publishPrepResetFiltersBtn" type="button">تصفية</button>
+<label class="v731-prep-search"><span>بحث</span><input id="publishPrepSearchInput" placeholder="بحث في التاسكات..." type="search"></label>
 </div>
-<div class="publish-center-filters">
-<span>حملات</span>
-<span>أجندات</span>
-<span>ملفات نهائية</span>
+<div class="v731-prep-toolbar-filters">
+<label><span>كل الحالات</span><select id="publishPrepStatusFilter"><option value="">كل الحالات</option></select></label>
+<label><span>كل المنصات</span><select id="publishPrepPlatformFilter"><option value="">كل المنصات</option></select></label>
+<label><span>كل الأقسام</span><select id="publishPrepDepartmentFilter"><option value="">كل الأقسام</option></select></label>
 </div>
 </div>
-<div class="publish-prep-list" id="publishPrepList">
+<div class="publish-prep-list v731-prep-list" id="publishPrepList">
 <div class="empty-state">جاري تحميل تاسكات تجهيز النشر...</div>
+</div>
+<div class="v731-prep-bulk-bar" id="publishPrepBulkBar">
+<button class="btn btn-primary" disabled id="publishPrepBulkPublishBtn" type="button">نشر الآن</button>
+<div class="v731-prep-bulk-meta"><strong id="publishPrepSelectedCount">0</strong><span id="publishPrepSelectedSummary">المحدد: 0 من 0</span></div>
+<label class="v731-select-all"><span>تحديد الكل</span><input id="publishPrepSelectAll" type="checkbox"></label>
 </div>
 </div>
 </section>
@@ -1028,6 +1034,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="assets/js/jszip.min.js?v=160"></script>
-<script src="assets/js/app.js?v=729"></script>
+<script src="assets/js/app.js?v=732"></script>
 </input></input></input></input></body>
 </html>
