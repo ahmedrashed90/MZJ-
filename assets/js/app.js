@@ -8838,12 +8838,96 @@ function publishPrepTasksFromCampaignSchedules(){
     };
   }).filter(Boolean));
 }
+function publishPrepTaskSerialKey(task){
+  const raw = task?.raw || {};
+  const values = [
+    task?.title, task?.id, raw?.id, raw?.taskId, raw?.taskNo, raw?.taskNumber, raw?.structureTaskNo, raw?.fullTaskCode, raw?.code, raw?.title, raw?.name, raw?.taskName
+  ].filter(Boolean).map(String);
+  for(const value of values){
+    const match = value.match(/(?:^|[-_\s])([NBA]\d{1,3})(?:$|[-_\s])/i) || value.match(/\b([NBA]\d{1,3})\b/i);
+    if(match) return match[1].toUpperCase();
+  }
+  return '';
+}
+function publishPrepIdentityText(value){
+  return identityClean(normalizeText(value || '')).replace(/\s+/g, ' ').trim();
+}
+function publishPrepTaskMergeKey(task){
+  const raw = task?.raw || {};
+  const campaign = publishPrepIdentityText(task?.campaignName || raw?.campaignName || raw?.campaign_name || raw?.campaignCode || raw?.campaign_code || raw?.campaignId || raw?.campaign_id || '');
+  const serial = publishPrepTaskSerialKey(task);
+  const creative = publishPrepIdentityText(
+    raw?.creative || raw?.creativeName || raw?.contentType || raw?.content_type || raw?.taskType || raw?.requiredFile ||
+    task?.title || task?.requiredFile || task?.type || raw?.title || raw?.taskName || raw?.name || ''
+  );
+  const car = publishPrepIdentityText(raw?.selectedCar || raw?.car || raw?.carName || (Array.isArray(raw?.selectedCars) ? raw.selectedCars.join(' ') : '') || '');
+  // تجهيز النشر لازم يدمج نفس الكرييتيف داخل نفس الحملة حتى لو ظهر مرة من قسم المحتوى ومرة من قسم التصميم/التنفيذ.
+  // لذلك لا ندخل القسم أو نوع التاسك أو اسم المسؤول في مفتاح الدمج، لأنهم كانوا سبب ظهور كارتين ناقصين لنفس التاسك.
+  return [campaign, serial || creative, car].filter(Boolean).join('|') || publishPrepIdentityText(task?.id || Math.random().toString(36));
+}
+function publishPrepPreferValue(current, next){
+  if(Array.isArray(current) && current.length) return current;
+  if(Array.isArray(next) && next.length) return next;
+  if(current && String(current).trim()) return current;
+  return next;
+}
+function publishPrepMergeRawTask(current = {}, next = {}){
+  const merged = { ...current, ...next };
+  Object.keys(current || {}).forEach(key => {
+    merged[key] = publishPrepPreferValue(current[key], next[key]);
+  });
+  Object.keys(next || {}).forEach(key => {
+    merged[key] = publishPrepPreferValue(merged[key], next[key]);
+  });
+  const currentFiles = taskFiles(current) || [];
+  const nextFiles = taskFiles(next) || [];
+  const allFiles = [...currentFiles, ...nextFiles];
+  if(allFiles.length){
+    const seen = new Set();
+    merged.attachments = allFiles.filter(file => {
+      const key = [file?.fileUrl, file?.downloadURL, file?.downloadUrl, file?.url, file?.fileName, file?.name, file?.uploadedAt, file?.createdAt].map(v => normalizeText(v || '')).join('|');
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+  return merged;
+}
+function publishPrepMergeTaskRecord(current, next){
+  if(!current) return { ...next, relatedTaskIds: [next.id].filter(Boolean) };
+  const merged = { ...current };
+  ['title','campaignName','sourceLabel','type','requiredFile','postType','postTypeLabel','publishDate','publishTime','deadline','notes','caption','hashtags'].forEach(key => {
+    merged[key] = publishPrepPreferValue(merged[key], next[key]);
+  });
+  ['platforms','platformPublishing'].forEach(key => {
+    merged[key] = publishPrepPreferValue(merged[key], next[key]);
+  });
+  merged.platformTypes = (merged.platformTypes && Object.keys(merged.platformTypes).length) ? merged.platformTypes : (next.platformTypes || merged.platformTypes || {});
+  merged.requiredDimensions = merged.requiredDimensions || next.requiredDimensions || null;
+  const currentProgress = publishPrepTaskProgress(merged);
+  const nextProgress = publishPrepTaskProgress(next);
+  merged.progress = Math.max(currentProgress, nextProgress);
+  merged.raw = publishPrepMergeRawTask(merged.raw || {}, next.raw || {});
+  if(publishPrepHasFinalFile(next, {})){
+    const finalRecord = publishPrepFinalFileRecord(next, {}) || {};
+    merged.finalFile = finalRecord;
+    merged.finalFileName = finalRecord.fileName || next.finalFileName || next.raw?.finalFileName || merged.finalFileName || '';
+    merged.finalFileUrl = finalRecord.fileUrl || next.finalFileUrl || next.raw?.finalFileUrl || merged.finalFileUrl || '';
+    merged.finalSubmitted = true;
+  }
+  merged.relatedTaskIds = uniqueList([...(merged.relatedTaskIds || []), next.id].filter(Boolean));
+  return merged;
+}
+function publishPrepSubmissionForTask(task, submissions = getPublishPrepSubmissions()){
+  const ids = uniqueList([task?.id, ...(task?.relatedTaskIds || [])].filter(Boolean));
+  return ids.reduce((merged, id) => ({ ...merged, ...(submissions[id] || {}) }), {});
+}
 function getPublishingPrepTasks(){
-  // تجهيز النشر يعرض التاسكات المسندة للموظف فقط حتى يتطابق مع الداشبورد.
-  // جدول النشر يستخدم لتوليد/تصدير الخطة، لكنه لا يضيف تاسك منفصل هنا إلا بعد تحويله لتاسك فعلي.
+  // تجهيز النشر يعرض نفس تاسكات الداشبورد، مع دمج نسخ نفس التاسك بدل فصل ملف النهائي عن بيانات النشر.
   const map = new Map();
   publishPrepTasksFromExistingTasks().forEach(task => {
-    if(!map.has(task.id)) map.set(task.id, task);
+    const key = publishPrepTaskMergeKey(task);
+    map.set(key, publishPrepMergeTaskRecord(map.get(key), task));
   });
   return [...map.values()];
 }
@@ -9081,7 +9165,7 @@ function renderPublishPrepPage(){
   syncPublishPrepSearchQuery();
   const tasks = getPublishingPrepTasks();
   const submissions = getPublishPrepSubmissions();
-  const enrichedAll = tasks.map(task => ({ task, submission: submissions[task.id] || {} }));
+  const enrichedAll = tasks.map(task => ({ task, submission: publishPrepSubmissionForTask(task, submissions) }));
   const enriched = enrichedAll.filter(({ task, submission }) => publishPrepTaskMatchesSearch(task, submission));
   const stats = document.getElementById('publishPrepStats');
   if(stats){
@@ -38163,4 +38247,401 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     event.preventDefault();
     event.stopPropagation();
   }, true);
+})();
+
+/* MZJ v726 - publish prep reconcile duplicate task cards and final-file metadata */
+(function(){
+  const VERSION = 'v726-publish-prep-reconcile-final-metadata';
+  function S(v){ return v == null ? '' : String(v).trim(); }
+  function A(v){ return Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : (v == null ? [] : [v])); }
+  function N(v){ try{ return typeof identityClean === 'function' ? identityClean(v || '') : S(v).toLowerCase().replace(/[\s\u200f\u200e\-_\/]+/g,''); }catch(_){ return S(v).toLowerCase().replace(/[\s\u200f\u200e\-_\/]+/g,''); } }
+  function uniq(list){ return Array.from(new Set(A(list).flat(Infinity).map(S).filter(Boolean))); }
+  function fileUrl(f){ return S(f && (f.fileUrl || f.finalFileUrl || f.downloadURL || f.downloadUrl || f.url || f.storageUrl || f.viewUrl)); }
+  function fileName(f, i){ return S(f && (f.fileName || f.finalFileName || f.name || f.title)) || ('final-file-' + (Number(i||0)+1)); }
+  function attachmentsOf(t){ try{ return typeof taskFiles === 'function' ? A(taskFiles(t)) : A(t && t.attachments); }catch(_){ return A(t && t.attachments); } }
+  function finalFilesOf(t){
+    const out = [];
+    if(t && (t.finalFile || t.finalFileUrl || t.finalFileName || t.finalSubmitted || t.finalUploadedAt)){
+      const rec = (t.finalFile && typeof t.finalFile === 'object') ? { ...t.finalFile } : {};
+      rec.fileUrl = fileUrl(rec) || S(t.finalFileUrl || t.fileUrl || t.downloadURL || t.downloadUrl);
+      rec.fileName = fileName(rec, 0) || S(t.finalFileName || t.fileName || 'final-file');
+      rec.uploadKind = rec.uploadKind || 'final'; rec.kind = rec.kind || 'final'; rec.purpose = rec.purpose || 'final'; rec.isFinal = true;
+      out.push(rec);
+    }
+    attachmentsOf(t).forEach(f => {
+      if(!f) return;
+      if(f.isFinal || f.uploadKind === 'final' || f.kind === 'final' || f.purpose === 'final' || f.final === true){
+        out.push({ ...f, fileUrl:fileUrl(f), fileName:fileName(f, out.length), isFinal:true, uploadKind:f.uploadKind || 'final', kind:f.kind || 'final', purpose:f.purpose || 'final' });
+      }
+    });
+    const seen = new Set();
+    return out.filter(f => { const k = N(fileUrl(f) || fileName(f)); if(!k || seen.has(k)) return false; seen.add(k); return true; });
+  }
+  function doneStepProgress(t){
+    const pools = [A(t && t.steps), A(t && t.workflowSteps), A(t && t.assignmentSteps), A(t && t.execution && t.execution.steps)].filter(x => x.length);
+    let best = 0;
+    pools.forEach(steps => {
+      const sum = steps.reduce((acc, st) => {
+        const done = !!(st && (st.done || st.completed || st.isDone || st.checked || st.value === true || N(st.status).includes('done') || N(st.status).includes('completed') || N(st.status).includes(N('تم'))));
+        return acc + (done ? Number(st.percent || st.percentage || st.weight || 0) : 0);
+      }, 0);
+      best = Math.max(best, sum);
+    });
+    return Math.max(0, Math.min(100, Math.round(best || 0)));
+  }
+  function progressOfRaw(t){
+    const vals = [];
+    if(finalFilesOf(t).length) vals.push(100);
+    vals.push(doneStepProgress(t));
+    vals.push(Number(t && t.execution && t.execution.progress || 0));
+    vals.push(Number(t && t.progress || 0));
+    vals.push(Number(t && t.readinessProgress || 0));
+    try{ if(typeof taskProgress === 'function') vals.push(Number(taskProgress(t) || 0)); }catch(_){ }
+    const ok = vals.filter(v => Number.isFinite(v));
+    return Math.max(0, Math.min(100, Math.round(ok.length ? Math.max(...ok) : 0)));
+  }
+  function field(t, keys){
+    for(const k of keys){ const v = t && t[k]; if(v !== undefined && v !== null && S(v)) return v; }
+    return '';
+  }
+  function semanticKey(task){
+    const r = task && (task.raw || task) || {};
+    const campaign = N(task.campaignName || r.campaignName || r.campaignCode || r.campaign_code || r.campaignId || '');
+    const no = N(r.taskNo || r.structureTaskNo || r.taskCode || r.fullTaskCode || r.code || '');
+    const title = N(no || task.title || r.title || r.taskType || r.contentType || r.creative || r.product || '');
+    const role = N(r.departmentRole || r.assignedDepartmentRole || r.assignedDepartmentName || task.sourceLabel || '');
+    const owner = N(r.assignedToUid || r.assigneeUid || r.userUid || r.userId || r.assignedToName || r.assigneeName || '');
+    const writer = N(r.linkedContentUserId || r.contentWriterUid || r.writerUid || r.contentWriterName || r.writerName || '');
+    return [campaign, title, role, owner, writer].filter(Boolean).join('|') || N(task.id || Math.random());
+  }
+  function choose(a, b, getter){ const av = getter(a), bv = getter(b); return S(av) ? av : bv; }
+  function mergeTask(a, b){
+    if(!a) return b;
+    if(!b) return a;
+    const ar = a.raw || {}, br = b.raw || {};
+    const files = finalFilesOf(ar).concat(finalFilesOf(br));
+    const attachments = attachmentsOf(ar).concat(attachmentsOf(br));
+    const mergedRaw = { ...ar, ...br };
+    // Preserve the strongest final-file state from either duplicate.
+    const final = files[0];
+    if(final){
+      mergedRaw.finalFile = final;
+      mergedRaw.finalFileUrl = fileUrl(final);
+      mergedRaw.finalFileName = fileName(final, 0);
+      mergedRaw.finalSubmitted = true;
+      mergedRaw.finalUploadedAt = mergedRaw.finalUploadedAt || final.uploadedAt || final.createdAt || new Date().toISOString();
+    }
+    mergedRaw.attachments = (() => {
+      const seen = new Set();
+      return attachments.concat(files).filter(f => {
+        const k = N(fileUrl(f) || fileName(f));
+        if(!k || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+    })();
+    mergedRaw.progress = Math.max(progressOfRaw(ar), progressOfRaw(br), Number(ar.progress||0), Number(br.progress||0));
+    const out = { ...a, ...b, raw: mergedRaw };
+    // Keep the id that already has a submission/final file when possible.
+    let submissions = {};
+    try{ submissions = typeof getPublishPrepSubmissions === 'function' ? getPublishPrepSubmissions() : {}; }catch(_){ submissions = {}; }
+    const aSub = submissions[a.id] || {}, bSub = submissions[b.id] || {};
+    const aHas = !!(aSub.fileName || aSub.finalFileName || aSub.finalFileUrl || aSub.fileUrl || finalFilesOf(ar).length);
+    const bHas = !!(bSub.fileName || bSub.finalFileName || bSub.finalFileUrl || bSub.fileUrl || finalFilesOf(br).length);
+    out.id = aHas && !bHas ? a.id : (bHas ? b.id : (a.id || b.id));
+    out.title = choose(a, b, x => x.title) || choose(b, a, x => x.title);
+    out.campaignName = choose(a, b, x => x.campaignName) || choose(b, a, x => x.campaignName);
+    out.type = choose(a, b, x => x.type) || choose(b, a, x => x.type);
+    out.requiredFile = choose(a, b, x => x.requiredFile) || choose(b, a, x => x.requiredFile);
+    out.caption = choose(a, b, x => x.caption) || choose(b, a, x => x.caption) || S(mergedRaw.caption || mergedRaw.publishCaption || mergedRaw.copy || '');
+    out.hashtags = choose(a, b, x => x.hashtags) || choose(b, a, x => x.hashtags) || S(mergedRaw.hashtags || mergedRaw.hashtagsText || mergedRaw.publishHashtags || '');
+    out.platforms = uniq([a.platforms, b.platforms, mergedRaw.platforms, mergedRaw.platform]);
+    out.platformPublishing = A(a.platformPublishing).length ? A(a.platformPublishing) : A(b.platformPublishing);
+    out.platformTypes = (a.platformTypes && Object.keys(a.platformTypes).length) ? a.platformTypes : (b.platformTypes || mergedRaw.platformTypes || {});
+    out.postType = choose(a, b, x => x.postType) || choose(b, a, x => x.postType) || S(mergedRaw.postType || mergedRaw.publishType || '');
+    out.postTypeLabel = choose(a, b, x => x.postTypeLabel) || choose(b, a, x => x.postTypeLabel) || S(mergedRaw.postTypeLabel || '');
+    out.publishDate = choose(a, b, x => x.publishDate) || choose(b, a, x => x.publishDate) || S(mergedRaw.publishDate || mergedRaw.scheduleDate || '');
+    out.publishTime = choose(a, b, x => x.publishTime) || choose(b, a, x => x.publishTime) || S(mergedRaw.publishTime || mergedRaw.scheduleTime || '');
+    out.deadline = choose(a, b, x => x.deadline) || choose(b, a, x => x.deadline);
+    return out;
+  }
+  const oldGetPublishingPrepTasksV726 = typeof getPublishingPrepTasks === 'function' ? getPublishingPrepTasks : null;
+  if(oldGetPublishingPrepTasksV726){
+    getPublishingPrepTasks = function(){
+      const source = oldGetPublishingPrepTasksV726.apply(this, arguments) || [];
+      const grouped = new Map();
+      source.forEach(t => {
+        if(!t) return;
+        const key = semanticKey(t);
+        grouped.set(key, mergeTask(grouped.get(key), t));
+      });
+      return Array.from(grouped.values());
+    };
+    try{ window.getPublishingPrepTasks = getPublishingPrepTasks; }catch(_){ }
+  }
+  const oldProgressV726 = typeof publishPrepTaskProgress === 'function' ? publishPrepTaskProgress : null;
+  if(oldProgressV726){
+    publishPrepTaskProgress = function(task){ return Math.max(progressOfRaw(task && (task.raw || task)), Number(oldProgressV726.apply(this, arguments) || 0)); };
+    try{ window.publishPrepTaskProgress = publishPrepTaskProgress; }catch(_){ }
+  }
+  const oldHasFinalV726 = typeof publishPrepHasFinalFile === 'function' ? publishPrepHasFinalFile : null;
+  if(oldHasFinalV726){
+    publishPrepHasFinalFile = function(task, submission){
+      if(submission && (submission.fileName || submission.finalFileName || submission.finalFileUrl || submission.fileUrl || submission.downloadURL || submission.downloadUrl)) return true;
+      if(finalFilesOf(task && (task.raw || task)).length) return true;
+      return !!oldHasFinalV726.apply(this, arguments);
+    };
+    try{ window.publishPrepHasFinalFile = publishPrepHasFinalFile; }catch(_){ }
+  }
+  const oldFinalRecordV726 = typeof publishPrepFinalFileRecord === 'function' ? publishPrepFinalFileRecord : null;
+  if(oldFinalRecordV726){
+    publishPrepFinalFileRecord = function(task, submission){
+      const subUrl = submission && (submission.finalFileUrl || submission.fileUrl || submission.downloadURL || submission.downloadUrl);
+      if(subUrl) return { fileUrl:subUrl, fileName:submission.finalFileName || submission.fileName || 'final-file', mimeType:submission.mimeType || submission.fileType || '' };
+      const f = finalFilesOf(task && (task.raw || task))[0];
+      if(f) return { ...f, fileUrl:fileUrl(f), fileName:fileName(f, 0), mimeType:f.mimeType || f.type || f.fileType || '' };
+      return oldFinalRecordV726.apply(this, arguments);
+    };
+    try{ window.publishPrepFinalFileRecord = publishPrepFinalFileRecord; }catch(_){ }
+  }
+  const oldEffPlatformsV726 = typeof publishPrepEffectivePlatforms === 'function' ? publishPrepEffectivePlatforms : null;
+  if(oldEffPlatformsV726){
+    publishPrepEffectivePlatforms = function(task, submission){ return uniq([submission && submission.platforms, task && task.platforms, task && task.raw && task.raw.platforms, task && task.raw && task.raw.platform]); };
+    try{ window.publishPrepEffectivePlatforms = publishPrepEffectivePlatforms; }catch(_){ }
+  }
+  const oldHasPlatformDataV726 = typeof publishPrepHasEffectivePlatformTypeData === 'function' ? publishPrepHasEffectivePlatformTypeData : null;
+  if(oldHasPlatformDataV726){
+    publishPrepHasEffectivePlatformTypeData = function(task, submission){
+      const publishing = (typeof publishPrepEffectivePlatformPublishing === 'function') ? publishPrepEffectivePlatformPublishing(task, submission) : [];
+      if(A(publishing).length) return A(publishing).every(item => item && item.platform && (item.postType || item.postTypeLabel));
+      const types = (typeof publishPrepEffectivePlatformTypes === 'function') ? publishPrepEffectivePlatformTypes(task, submission) : {};
+      const hasTypes = types && typeof types === 'object' && Object.keys(types).some(k => S(types[k]));
+      const postType = (typeof publishPrepEffectivePostType === 'function') ? publishPrepEffectivePostType(task, submission) : (task && task.postType);
+      const postLabel = (typeof publishPrepEffectivePostTypeLabel === 'function') ? publishPrepEffectivePostTypeLabel(task, submission) : (task && task.postTypeLabel);
+      return !!(publishPrepEffectivePlatforms(task, submission).length && (hasTypes || S(postType) || S(postLabel)));
+    };
+    try{ window.publishPrepHasEffectivePlatformTypeData = publishPrepHasEffectivePlatformTypeData; }catch(_){ }
+  }
+  try{ window.MZJ_APP_VERSION='726'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
+
+/* MZJ v729 - publish prep uses real dashboard tasks only */
+(function(){
+  const VERSION = 'v729-publish-prep-real-dashboard-exec-tasks';
+  function S(v){ return v == null ? '' : String(v).trim(); }
+  function A(v){ return Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : (v == null ? [] : [v])); }
+  function flat(v){ return A(v).flat(Infinity).filter(x => x !== undefined && x !== null); }
+  function norm(v){
+    const s = S(v).toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآٱا]/g,'ا').replace(/ؤ/g,'و').replace(/[ئىي]/g,'ي').replace(/[ةه]/g,'ه').replace(/ـ/g,'');
+    return s.replace(/[^\u0600-\u06FFa-z0-9]+/g,'').trim();
+  }
+  function uniq(list){ return Array.from(new Set(flat(list).map(S).filter(Boolean))); }
+  function first(){ for(const v of arguments){ if(Array.isArray(v)){ if(v.length) return v; } else if(v && S(v)) return v; } return ''; }
+  function safe(fn, fallback){ try{ return fn(); }catch(_){ return fallback; } }
+  function currentCampaigns(){ return safe(() => Array.isArray(window.campaigns) ? window.campaigns : (Array.isArray(campaigns) ? campaigns : []), []); }
+  function campaignKey(c){ return S(c && (c.id || c.docId || c.campaignId || c.campaignCode || c.campaign_code || c.name || c.campaignName)); }
+  function campaignTitle(c){ return S(c && (c.campaignName || c.name || c.campaignCode || c.campaign_code || 'حملة')); }
+  function rawTasks(c){
+    const raw = c && c.departmentTasks;
+    if(Array.isArray(raw)) return raw.filter(t => t && typeof t === 'object');
+    if(raw && typeof raw === 'object') return Object.entries(raw).map(([key, value]) => value && typeof value === 'object' ? ({ ...value, id:value.id || value.taskId || key, taskId:value.taskId || value.id || key, __departmentTaskMapKey:key }) : null).filter(Boolean);
+    return [];
+  }
+  function taskKey(t){ return S(t && (t.id || t.taskId || t.taskNo || t.taskCode || t.fullTaskCode || t.code || t.__departmentTaskMapKey)); }
+  function roleText(t){ return [t && t.departmentRole, t && t.assignedDepartmentRole, t && t.assignedDepartmentName, t && t.department, t && t.contentSectionName].map(S).join(' '); }
+  function isContentRole(t){ const z = norm(roleText(t)); return z.includes(norm('قسم المحتوى')) || z.includes('content') || z.includes(norm('محتوى')); }
+  function isExecutionRole(t){ const z = norm(roleText(t)); return z.includes('design') || z.includes(norm('تصميم')) || z.includes('montage') || z.includes(norm('مونتاج')) || z.includes('photo') || z.includes('shoot') || z.includes(norm('تصوير')); }
+  function taskBlob(t){ return [t&&t.taskType,t&&t.type,t&&t.title,t&&t.name,t&&t.taskName,t&&t.contentType,t&&t.source,t&&t.departmentRole,t&&t.assignedDepartmentName,t&&t.status].map(S).join(' '); }
+  function isStructureTask(t){
+    const b = norm(taskBlob(t));
+    return !!(t && (t.structureRequest || t.structureRequestTask || b.includes(norm('طلب هيكل')) || b.includes(norm('الهيكل')) || b.includes('structure')) && !isExecutionRole(t));
+  }
+  function isTaskTemplateTask(t){
+    const b = norm(taskBlob(t));
+    return !!(b.includes('tasktemplate') || b.includes(norm('Task Template')) || b.includes(norm('تاسك تمبلت')) || b.includes(norm('قالب التاسك')) || (isContentRole(t) && t && t.taskTemplate && !isExecutionRole(t)));
+  }
+  function isActualExecTask(t){ return !!(t && !isStructureTask(t) && !isTaskTemplateTask(t) && (isExecutionRole(t) || !isContentRole(t))); }
+  function isMetaSourceTask(t){ return !!(t && !isStructureTask(t) && !isTaskTemplateTask(t)); }
+  function contentKind(t){
+    const raw = [t&&t.contentType,t&&t.creativeName,t&&t.creative,t&&t.product,t&&t.taskType,t&&t.title,t&&t.name,t&&t.fullTaskCode,t&&t.taskCode,t&&t.id,t&&t.taskId].map(S).join(' ').toUpperCase();
+    if(raw.includes('CAROUSEL')) return 'CAROUSEL';
+    if(raw.includes('POST')) return 'POST';
+    if(raw.includes('VIDEO')) return 'VIDEO';
+    if(raw.includes('REEL')) return 'REEL';
+    if(raw.includes('STORY')) return 'STORY';
+    if(raw.includes('PANNER')) return 'PANNER';
+    if(raw.includes('MOTION')) return 'MOTION';
+    if(raw.includes('GIF')) return 'GIF';
+    if(raw.includes('PRINT')) return 'PRINT';
+    return S(t && (t.creativeName || t.creative || t.product || t.contentType || t.taskType || t.title || t.name));
+  }
+  function carsOf(t){ return uniq([t&&t.selectedCar, t&&t.car, t&&t.carName, t&&t.vehicle, t&&t.vehicleName, t&&t.selectedCars, t&&t.cars, t&&t.carIds]); }
+  function groupKey(c, t){ return [norm(campaignKey(c)), norm(contentKind(t)), norm(carsOf(t).join(' '))].filter(Boolean).join('|') || [norm(campaignTitle(c)), norm(taskKey(t) || contentKind(t))].join('|'); }
+  function finalUrl(f){ return S(f && (f.fileUrl || f.finalFileUrl || f.downloadURL || f.downloadUrl || f.url || f.storageUrl || f.viewUrl)); }
+  function finalName(f){ return S(f && (f.fileName || f.finalFileName || f.name || f.title)); }
+  function taskFilesSafe(t){ return safe(() => typeof taskFiles === 'function' ? A(taskFiles(t)) : A(t && t.attachments).concat(A(t && t.files)), A(t && t.attachments).concat(A(t && t.files))); }
+  function finalFiles(t){
+    const out = [];
+    if(t && (t.finalFile || t.finalFileUrl || t.finalFileName || t.finalSubmitted || t.finalUploadedAt)){
+      const rec = (t.finalFile && typeof t.finalFile === 'object') ? { ...t.finalFile } : {};
+      rec.fileUrl = finalUrl(rec) || S(t.finalFileUrl || t.fileUrl || t.downloadURL || t.downloadUrl);
+      rec.fileName = finalName(rec) || S(t.finalFileName || t.fileName || 'final-file');
+      rec.isFinal = true; rec.uploadKind = rec.uploadKind || 'final'; rec.kind = rec.kind || 'final'; rec.purpose = rec.purpose || 'final';
+      out.push(rec);
+    }
+    taskFilesSafe(t).forEach(f => {
+      if(!f) return;
+      if(f.isFinal || f.uploadKind === 'final' || f.kind === 'final' || f.purpose === 'final' || f.final === true){
+        out.push({ ...f, fileUrl:finalUrl(f), fileName:finalName(f) || 'final-file', isFinal:true, uploadKind:f.uploadKind || 'final', kind:f.kind || 'final', purpose:f.purpose || 'final' });
+      }
+    });
+    const seen = new Set();
+    return out.filter(f => { const k = norm(finalUrl(f) || finalName(f)); if(!k || seen.has(k)) return false; seen.add(k); return true; });
+  }
+  function stepProgress(t){
+    const pools = [A(t&&t.steps), A(t&&t.workflowSteps), A(t&&t.assignmentSteps), A(t&&t.execution&&t.execution.steps)].filter(x => x.length);
+    let best = 0;
+    pools.forEach(steps => {
+      const sum = steps.reduce((acc, st) => {
+        const done = !!(st && (st.done || st.completed || st.isDone || st.checked || st.value === true || norm(st.status).includes('done') || norm(st.status).includes('completed') || norm(st.status).includes(norm('تم'))));
+        return acc + (done ? Number(st.percent || st.percentage || st.weight || 0) : 0);
+      }, 0);
+      best = Math.max(best, sum);
+    });
+    return Math.max(0, Math.min(100, Math.round(best)));
+  }
+  function progressOf(t){
+    const vals = [Number(t&&t.progress || 0), Number(t&&t.readinessProgress || 0), Number(t&&t.execution&&t.execution.progress || 0), stepProgress(t)];
+    if(finalFiles(t).length) vals.push(100);
+    try{ if(typeof taskProgressValue === 'function') vals.push(Number(taskProgressValue(t) || 0)); }catch(_){ }
+    try{ if(typeof taskProgress === 'function') vals.push(Number(taskProgress(t) || 0)); }catch(_){ }
+    return Math.max(0, Math.min(100, Math.round(Math.max(...vals.filter(Number.isFinite), 0))));
+  }
+  function taskTitle(t){ return safe(() => typeof displayTaskTitle === 'function' ? displayTaskTitle(t) : '', '') || contentKind(t) || S(t && (t.title || t.name || t.taskName)) || 'تاسك تنفيذ'; }
+  function taskType(t){ return safe(() => typeof prepTaskTypeLabel === 'function' ? prepTaskTypeLabel(t) : '', '') || contentKind(t) || 'محتوى نشر'; }
+  function requiredFile(t){ return safe(() => typeof prepTaskRequiredFileLabel === 'function' ? prepTaskRequiredFileLabel(t) : '', '') || 'الملف النهائي'; }
+  function platformList(value){ return safe(() => typeof normalizePrepPlatformList === 'function' ? normalizePrepPlatformList(value) : uniq(value), uniq(value)); }
+  function templateText(t, label){
+    try{ if(typeof templateData === 'function' && typeof execField === 'function'){ return S(execField(templateData(t), label) || ''); } }catch(_){ }
+    return '';
+  }
+  function captionOf(t, c){ return first(t&&t.caption, t&&t.publishCaption, t&&t.copy, t&&t.description, templateText(t,'الكابشن'), templateText(t,'Caption'), c&&c.caption, c&&c.description); }
+  function hashtagsOf(t, c){ return first(t&&t.hashtags, t&&t.hashtagsText, t&&t.publishHashtags, templateText(t,'هاشتاج'), templateText(t,'الهاشتاج'), templateText(t,'Hashtags'), c&&c.hashtags); }
+  function dateOf(t, c){ return safe(() => typeof prepTaskDate === 'function' ? prepTaskDate(t, c) : '', '') || S(t&&t.publishDate || t&&t.scheduleDate || t&&t.scheduledDate || ''); }
+  function baseTask(c, t){
+    const id = `dash_${campaignKey(c) || 'campaign'}_${taskKey(t) || Math.random().toString(36).slice(2)}`;
+    let base = {
+      id,
+      relatedTaskIds: uniq([id, `task_${taskKey(t)}`, taskKey(t)]),
+      sourceType:'campaign',
+      sourceLabel: roleText(t) || 'تاسك تنفيذي',
+      title: taskTitle(t),
+      campaignName: campaignTitle(c),
+      type: taskType(t),
+      requiredFile: requiredFile(t),
+      platforms: platformList(t&&t.platforms || t&&t.platform || c&&c.platforms || c&&c.platform),
+      platformTypes: (t&&t.platformTypes) || {},
+      platformPublishing: A(t&&t.platformPublishing),
+      postType: S(t&&t.postType || t&&t.publishType || ''),
+      postTypeLabel: S(t&&t.postTypeLabel || ''),
+      requiredDimensions: (t&&t.requiredDimensions) || null,
+      caption: captionOf(t, c),
+      hashtags: hashtagsOf(t, c),
+      publishDate: dateOf(t, c),
+      publishTime: S(t&&t.publishTime || t&&t.scheduleTime || ''),
+      deadline: S(t&&t.deadline || t&&t.dueDate || t&&t.requiredDate || ''),
+      notes: S(t&&t.notes || t&&t.note || t&&t.instructions || ''),
+      progress: progressOf(t),
+      raw: t,
+      __hasExecution: isActualExecTask(t),
+      __hasFinalFile: !!finalFiles(t).length
+    };
+    try{
+      const beforeIndex = base.scheduleRowIndex;
+      if(typeof enrichPrepTaskFromSchedule === 'function') base = enrichPrepTaskFromSchedule(base, c, t) || base;
+      if(base.scheduleRowIndex !== undefined && base.scheduleRowIndex !== null){
+        base.relatedTaskIds = uniq([base.relatedTaskIds, `schedule_${campaignKey(c) || 'campaign'}_${base.scheduleRowIndex}`]);
+      } else if(beforeIndex !== undefined && beforeIndex !== null){
+        base.relatedTaskIds = uniq([base.relatedTaskIds, `schedule_${campaignKey(c) || 'campaign'}_${beforeIndex}`]);
+      }
+    }catch(_){ }
+    return base;
+  }
+  function prefer(a, b){
+    if(Array.isArray(a) && a.length) return a;
+    if(Array.isArray(b) && b.length) return b;
+    if(a && S(a)) return a;
+    return b;
+  }
+  function mergeRecords(a, b){
+    if(!a) return { ...b };
+    if(!b) return a;
+    const execFirst = b.__hasExecution && !a.__hasExecution;
+    const primary = execFirst ? b : a;
+    const secondary = execFirst ? a : b;
+    const rawA = a.raw || {}, rawB = b.raw || {};
+    const mergedRaw = { ...rawA, ...rawB };
+    const files = finalFiles(rawA).concat(finalFiles(rawB));
+    if(files.length){
+      const f = files[0];
+      mergedRaw.finalFile = f;
+      mergedRaw.finalFileUrl = finalUrl(f);
+      mergedRaw.finalFileName = finalName(f) || 'final-file';
+      mergedRaw.finalSubmitted = true;
+      mergedRaw.finalUploadedAt = mergedRaw.finalUploadedAt || f.uploadedAt || f.createdAt || new Date().toISOString();
+    }
+    const out = { ...primary, raw: mergedRaw };
+    out.relatedTaskIds = uniq([a.relatedTaskIds, b.relatedTaskIds, a.id, b.id]);
+    out.__hasExecution = !!(a.__hasExecution || b.__hasExecution);
+    out.__hasFinalFile = !!(a.__hasFinalFile || b.__hasFinalFile || files.length);
+    out.title = primary.title || secondary.title;
+    out.campaignName = primary.campaignName || secondary.campaignName;
+    out.sourceLabel = primary.sourceLabel || secondary.sourceLabel;
+    ['type','requiredFile','postType','postTypeLabel','publishDate','publishTime','deadline','notes','caption','hashtags'].forEach(k => { out[k] = prefer(a[k], b[k]); });
+    out.platforms = uniq([a.platforms, b.platforms, mergedRaw.platforms, mergedRaw.platform]);
+    out.platformPublishing = A(a.platformPublishing).length ? A(a.platformPublishing) : A(b.platformPublishing);
+    out.platformTypes = (a.platformTypes && Object.keys(a.platformTypes).length) ? a.platformTypes : (b.platformTypes || {});
+    out.requiredDimensions = a.requiredDimensions || b.requiredDimensions || null;
+    out.progress = Math.max(Number(a.progress||0), Number(b.progress||0), progressOf(rawA), progressOf(rawB));
+    return out;
+  }
+  function buildRealPublishPrepTasks(){
+    const grouped = new Map();
+    currentCampaigns().forEach(c => {
+      rawTasks(c).filter(isMetaSourceTask).forEach(t => {
+        const rec = baseTask(c, t);
+        const key = groupKey(c, t);
+        grouped.set(key, mergeRecords(grouped.get(key), rec));
+      });
+    });
+    return Array.from(grouped.values()).filter(t => t.__hasExecution || t.__hasFinalFile).map(t => {
+      const f = finalFiles(t.raw)[0];
+      if(f){
+        t.finalFile = f; t.finalFileUrl = finalUrl(f); t.finalFileName = finalName(f) || 'final-file'; t.finalSubmitted = true;
+      }
+      return t;
+    });
+  }
+  getPublishingPrepTasks = function(){ return buildRealPublishPrepTasks(); };
+  try{ window.getPublishingPrepTasks = getPublishingPrepTasks; }catch(_){ }
+  const prevProgress = typeof publishPrepTaskProgress === 'function' ? publishPrepTaskProgress : null;
+  publishPrepTaskProgress = function(task){ return Math.max(progressOf(task && (task.raw || task)), Number(task && task.progress || 0), prevProgress ? Number(prevProgress.apply(this, arguments) || 0) : 0); };
+  try{ window.publishPrepTaskProgress = publishPrepTaskProgress; }catch(_){ }
+  const prevFinal = typeof publishPrepHasFinalFile === 'function' ? publishPrepHasFinalFile : null;
+  publishPrepHasFinalFile = function(task, submission){
+    if(submission && (submission.fileName || submission.finalFileName || submission.finalFileUrl || submission.fileUrl || submission.downloadURL || submission.downloadUrl)) return true;
+    if(finalFiles(task && (task.raw || task)).length) return true;
+    return prevFinal ? !!prevFinal.apply(this, arguments) : false;
+  };
+  try{ window.publishPrepHasFinalFile = publishPrepHasFinalFile; }catch(_){ }
+  const prevRecord = typeof publishPrepFinalFileRecord === 'function' ? publishPrepFinalFileRecord : null;
+  publishPrepFinalFileRecord = function(task, submission){
+    const url = submission && (submission.finalFileUrl || submission.fileUrl || submission.downloadURL || submission.downloadUrl);
+    if(url) return { fileUrl:url, fileName:submission.finalFileName || submission.fileName || 'final-file', mimeType:submission.mimeType || submission.fileType || '' };
+    const f = finalFiles(task && (task.raw || task))[0];
+    if(f) return { ...f, fileUrl:finalUrl(f), fileName:finalName(f) || 'final-file', mimeType:f.mimeType || f.type || f.fileType || '' };
+    return prevRecord ? prevRecord.apply(this, arguments) : null;
+  };
+  try{ window.publishPrepFinalFileRecord = publishPrepFinalFileRecord; }catch(_){ }
+  try{ window.MZJ_APP_VERSION='729'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
 })();
