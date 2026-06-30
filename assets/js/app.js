@@ -2002,35 +2002,58 @@ function formatUploadTime(seconds){
 }
 let activeUploadProgressState = null;
 window.__mzjUploadDetailsOpen = false;
-function showUploadProgressToast(percent, label = 'جاري رفع الملف', details = null){
-  let toast = document.querySelector('.save-toast');
-  if(!toast){ toast = document.createElement('div'); toast.className = 'save-toast'; document.body.appendChild(toast); }
-  const value = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
-  const meta = details || activeUploadProgressState || {};
+function ensureUploadProgressUiCss(){
+  if(document.getElementById('mzj-upload-progress-ui-style')) return;
+  const style = document.createElement('style');
+  style.id = 'mzj-upload-progress-ui-style';
+  style.textContent = `
+    .mzj-upload-card{position:relative;overflow:hidden;border:1px solid rgba(148,83,62,.22);border-radius:18px;background:linear-gradient(135deg,#fff 0%,#fff8f2 46%,#f8eadf 100%);box-shadow:0 18px 36px rgba(83,43,30,.11);padding:14px;margin-top:12px;direction:rtl;color:#2b1711}
+    .mzj-upload-card::before{content:"";position:absolute;inset:-70px auto auto -70px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(151,83,62,.14),transparent 68%)}
+    .mzj-upload-head{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+    .mzj-upload-title{display:flex;align-items:center;gap:10px;min-width:0}.mzj-upload-orb{width:38px;height:38px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(145deg,#8f4a38,#5f3028);color:#fff;box-shadow:0 10px 22px rgba(95,48,40,.28);font-size:17px}.mzj-upload-title strong{display:block;font-size:15px}.mzj-upload-title small{display:block;color:#8b7166;font-weight:800;margin-top:2px}.mzj-upload-percent{min-width:64px;height:38px;border-radius:999px;display:grid;place-items:center;background:#fff;border:1px solid rgba(148,83,62,.20);color:#7c3f31;font-weight:1000;box-shadow:inset 0 0 0 4px rgba(148,83,62,.045)}
+    .mzj-upload-bar{height:12px;border-radius:999px;background:#ead9cf;overflow:hidden;position:relative;z-index:1;box-shadow:inset 0 2px 8px rgba(70,35,22,.08)}.mzj-upload-bar span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#6a392f,#9b5140,#d69c74);box-shadow:0 0 18px rgba(155,81,64,.32);transition:width .22s ease}.mzj-upload-bar span::after{content:"";display:block;height:100%;width:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.40),transparent);animation:mzjUploadSweep 1.4s linear infinite}@keyframes mzjUploadSweep{from{transform:translateX(100%)}to{transform:translateX(-100%)}}
+    .mzj-upload-stats{position:relative;z-index:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}.mzj-upload-stat{background:rgba(255,255,255,.78);border:1px solid rgba(148,83,62,.13);border-radius:13px;padding:8px 10px;min-height:48px}.mzj-upload-stat b{display:block;color:#8b7166;font-size:11px;margin-bottom:4px}.mzj-upload-stat span{font-weight:900;color:#21130d;font-size:12px;word-break:break-word}.mzj-upload-actions{position:relative;z-index:1;display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px}.mzj-upload-cancel{border:1px solid rgba(190,65,45,.25);background:#fff3f1;color:#9b2e22;border-radius:12px;padding:8px 14px;font-weight:1000;cursor:pointer}.mzj-upload-cancel:hover{background:#ffe8e4}.mzj-upload-done .mzj-upload-orb{background:linear-gradient(145deg,#20945a,#0d6b3d)}.mzj-upload-done .mzj-upload-bar span{background:linear-gradient(90deg,#0f8f52,#48c985)}
+    .save-toast .upload-toast-box{min-width:320px;max-width:420px;background:linear-gradient(135deg,#6b392f,#9b5140);border:1px solid rgba(255,255,255,.18);box-shadow:0 18px 42px rgba(0,0,0,.22);border-radius:18px;padding:12px;color:#fff;direction:rtl}.save-toast .upload-toast-box button{font-family:inherit}
+    @media(max-width:900px){.mzj-upload-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.mzj-upload-head{align-items:flex-start}.mzj-upload-percent{min-width:54px}}
+  `;
+  document.head.appendChild(style);
+}
+function uploadProgressHtml(value, label, meta, compact = false){
   const uploaded = Number(meta.bytesTransferred || 0);
   const total = Number(meta.totalBytes || 0);
   const speed = Number(meta.speedBps || 0);
   const remaining = speed > 0 && total > uploaded ? (total - uploaded) / speed : 0;
-  const expanded = !!window.__mzjUploadDetailsOpen;
-  const stats = total ? `${formatUploadBytes(uploaded)} / ${formatUploadBytes(total)}` : '';
-  toast.innerHTML = `<div class="upload-toast-box" style="min-width:230px;pointer-events:auto">
-    <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
-      <strong>${escapeHtml(label)}... ${value}%</strong>
-      ${meta.cancelable ? '<button type="button" data-cancel-active-upload style="border:0;border-radius:9px;background:#fff;color:#6b3b32;padding:5px 8px;font-weight:800;cursor:pointer">إلغاء</button>' : ''}
+  const stats = total ? `${formatUploadBytes(uploaded)} / ${formatUploadBytes(total)}` : 'جاري تجهيز الملف';
+  const fileName = meta.fileName || '';
+  const done = value >= 100 || meta.done;
+  const statusText = meta.status || (done ? 'تم الرفع بنجاح' : 'جاري الرفع إلى Firebase Storage');
+  return `<div class="mzj-upload-card ${done ? 'mzj-upload-done' : ''}">
+    <div class="mzj-upload-head">
+      <div class="mzj-upload-title"><span class="mzj-upload-orb">${done ? '✓' : '↥'}</span><div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(statusText)}</small></div></div>
+      <div class="mzj-upload-percent">${value}%</div>
     </div>
-    <div style="height:7px;background:rgba(255,255,255,.25);border-radius:999px;margin-top:8px;overflow:hidden"><span style="display:block;height:100%;width:${value}%;background:#fff;border-radius:999px"></span></div>
-    ${stats ? `<button type="button" data-toggle-upload-details style="margin-top:7px;border:0;background:transparent;color:#fff;text-decoration:underline;cursor:pointer;font-weight:800">${expanded ? 'إخفاء التفاصيل' : 'عرض سرعة الرفع'}</button>` : ''}
-    ${expanded && stats ? `<div style="margin-top:6px;font-size:12px;line-height:1.8;text-align:right;color:#fff">
-      <div>الملف: ${escapeHtml(meta.fileName || '')}</div>
-      <div>المرفوع: ${escapeHtml(stats)}</div>
-      <div>السرعة: ${speed ? `${formatUploadBytes(speed)}/ث` : 'جاري الحساب'}</div>
-      <div>المتبقي: ${escapeHtml(formatUploadTime(remaining))}</div>
-    </div>` : ''}
+    <div class="mzj-upload-bar"><span style="width:${value}%"></span></div>
+    <div class="mzj-upload-stats">
+      <div class="mzj-upload-stat"><b>الملف</b><span>${escapeHtml(fileName || '—')}</span></div>
+      <div class="mzj-upload-stat"><b>المرفوع</b><span>${escapeHtml(stats)}</span></div>
+      <div class="mzj-upload-stat"><b>سرعة الرفع</b><span>${speed ? `${formatUploadBytes(speed)}/ث` : 'جاري الحساب'}</span></div>
+      <div class="mzj-upload-stat"><b>الوقت المتبقي</b><span>${escapeHtml(formatUploadTime(remaining))}</span></div>
+    </div>
+    ${meta.cancelable && !done ? `<div class="mzj-upload-actions"><button type="button" class="mzj-upload-cancel" data-cancel-active-upload>إلغاء الرفع</button></div>` : ''}
   </div>`;
+}
+function showUploadProgressToast(percent, label = 'جاري رفع الملف', details = null){
+  ensureUploadProgressUiCss();
+  let toast = document.querySelector('.save-toast');
+  if(!toast){ toast = document.createElement('div'); toast.className = 'save-toast'; document.body.appendChild(toast); }
+  const value = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+  const meta = details || activeUploadProgressState || {};
+  const compactMeta = { ...meta, status: meta.status || (value >= 100 ? 'تم الرفع بنجاح' : 'اضغط إلغاء لو عاوز توقف الرفع') };
+  toast.innerHTML = `<div class="upload-toast-box">${uploadProgressHtml(value, label, compactMeta, true)}</div>`;
   toast.classList.add('show');
   const inline = document.getElementById('taskUploadProgressInline');
   if(inline){
-    inline.innerHTML = `<div class="inline-upload-progress-box"><div class="inline-upload-progress-head"><strong>${escapeHtml(label)} ${value}%</strong>${meta.cancelable ? '<button type="button" data-cancel-active-upload>إلغاء</button>' : ''}</div><div class="inline-upload-bar"><span style="width:${value}%"></span></div>${stats ? `<div class="inline-upload-stats"><span>الملف: ${escapeHtml(meta.fileName || '')}</span><span>المرفوع: ${escapeHtml(stats)}</span><span>السرعة: ${speed ? `${formatUploadBytes(speed)}/ث` : 'جاري الحساب'}</span><span>المتبقي: ${escapeHtml(formatUploadTime(remaining))}</span></div>` : ''}</div>`;
+    inline.innerHTML = uploadProgressHtml(value, label, meta, false);
   }
 }
 function hideUploadProgressToast(delay = 900){
@@ -3598,6 +3621,97 @@ async function uploadTaskFileToDrive(file, task, uploadKind = 'review'){
   if(uploadKind === 'final') return uploadTaskFileToFirebaseStorage(file, task, 'final');
   return uploadTaskFileToZohoReview(file, task);
 }
+
+function isFinalTaskAttachmentRecord(file){
+  return !!(file && (file.isFinal || file.uploadKind === 'final' || file.kind === 'final' || file.purpose === 'final' || file.final === true));
+}
+function taskAttachmentRecordUrl(file){
+  return file?.fileUrl || file?.downloadURL || file?.downloadUrl || file?.url || file?.storageUrl || '';
+}
+function taskAttachmentRecordName(file, fallback = 'ملف'){
+  return file?.fileName || file?.name || file?.title || fallback;
+}
+async function deleteTaskAttachmentPhysicalFile(file){
+  if(!file) return false;
+  if(file.storageProvider && file.storageProvider !== 'firebase') return false;
+  if(!mainStorage) return false;
+  const path = file.storagePath || file.fullPath || file.path || '';
+  const url = taskAttachmentRecordUrl(file);
+  try{
+    if(path){ await mainStorage.ref().child(path).delete(); return true; }
+    if(url && typeof mainStorage.refFromURL === 'function'){
+      await mainStorage.refFromURL(url).delete();
+      return true;
+    }
+  }catch(error){
+    const code = String(error?.code || error?.message || '').toLowerCase();
+    if(code.includes('object-not-found') || code.includes('not found')) return false;
+    console.warn('Storage file delete failed', error, file);
+    showToast('تم حذف الملف من التاسك، لكن تعذر حذفه من Storage. راجع قواعد Storage أو المسار.');
+  }
+  return false;
+}
+async function overwritePublishPrepSubmissionRecord(taskId, record){
+  const submissions = getPublishPrepSubmissions();
+  submissions[taskId] = record || {};
+  publishPrepSubmissionsCache = submissions;
+  localStorage.setItem(publishPrepSubmissionKey, JSON.stringify(submissions));
+  if(mainDb && taskId){
+    try{
+      await safeCollection(window.MZJ_PUBLISH_PREP_COLLECTION).doc(safeFirestoreDocId(taskId)).set(cleanPublishPrepSubmissionForFirestore(taskId, record || {}));
+      publishPrepFirestoreReady = true;
+    }catch(error){
+      publishPrepFirestoreReady = false;
+      console.warn('Publish prep overwrite after delete skipped/error', error);
+      showToast('تم الحذف محليًا، لكن تعذر مزامنة تجهيز النشر مؤقتًا.');
+    }
+  }
+}
+async function syncDeletedTaskAttachmentWithPublishPrep(task, removedFile, remainingFiles){
+  if(!task || !removedFile) return;
+  const prepId = `task_${task.id || task.taskId || task.code || task.fullTaskCode || ''}`;
+  if(!prepId || prepId === 'task_') return;
+  const submissions = getPublishPrepSubmissions();
+  const current = { ...(submissions[prepId] || {}) };
+  const removedUrl = taskAttachmentRecordUrl(removedFile);
+  const removedName = taskAttachmentRecordName(removedFile, '');
+  if(isFinalTaskAttachmentRecord(removedFile)){
+    const remainingFinal = (remainingFiles || []).filter(isFinalTaskAttachmentRecord).slice(-1)[0] || null;
+    if(remainingFinal){
+      current.fileName = taskAttachmentRecordName(remainingFinal, 'final-file');
+      current.finalFileName = taskAttachmentRecordName(remainingFinal, 'final-file');
+      current.fileUrl = taskAttachmentRecordUrl(remainingFinal);
+      current.finalFileUrl = taskAttachmentRecordUrl(remainingFinal);
+      current.mimeType = remainingFinal.mimeType || remainingFinal.type || '';
+      current.finalFileRecord = remainingFinal;
+      current.finalUploadedAt = remainingFinal.uploadedAt || new Date().toISOString();
+      current.status = current.readyForPublish ? 'جاهز للنشر' : (current.status || 'تم رفع الملف النهائي');
+    }else{
+      delete current.fileName;
+      delete current.finalFileName;
+      delete current.fileUrl;
+      delete current.finalFileUrl;
+      delete current.mimeType;
+      delete current.finalFileRecord;
+      delete current.finalUploadedAt;
+      if(current.status === 'تم رفع الملف النهائي' || current.status === 'جاهز للنشر') current.status = 'في انتظار الملف النهائي';
+      current.readyForPublish = false;
+    }
+    await overwritePublishPrepSubmissionRecord(prepId, current);
+    return;
+  }
+  const reviewFiles = Array.isArray(current.reviewFiles) ? current.reviewFiles.filter(file => {
+    const url = taskAttachmentRecordUrl(file);
+    const name = taskAttachmentRecordName(file, '');
+    if(removedUrl && url && removedUrl === url) return false;
+    if(removedName && name && removedName === name) return false;
+    return true;
+  }) : [];
+  current.reviewFiles = reviewFiles;
+  current.lastReviewFileName = reviewFiles.length ? taskAttachmentRecordName(reviewFiles[reviewFiles.length - 1], '') : '';
+  current.lastReviewFileUrl = reviewFiles.length ? taskAttachmentRecordUrl(reviewFiles[reviewFiles.length - 1]) : '';
+  await overwritePublishPrepSubmissionRecord(prepId, current);
+}
 function openTaskModal(task){
   const modal = document.getElementById('taskModal');
   const content = document.getElementById('taskModalContent');
@@ -3634,23 +3748,68 @@ function refreshOpenTaskModal(){
 }
 async function updateTaskOnFirebase(taskId, patch, options = {}){
   if(!mainDb || !taskId){ showToast('اتصال Firebase غير متاح.'); return null; }
-  const campaignIndex = campaigns.findIndex(c => Array.isArray(c.departmentTasks) && c.departmentTasks.some(t => (t.id || '') === taskId));
+  const cleanTaskKey = value => String(value || '').trim().toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/ـ/g,'').replace(/[^\u0600-\u06FFa-z0-9]+/g,'');
+  const taskKeyList = task => uniqueList([
+    task?.id,
+    task?.taskId,
+    task?.code,
+    task?.fullTaskCode,
+    task?.taskCode,
+    task?.taskNo,
+    task?.structureTaskNo,
+    task?.linkedExecutionTaskId,
+    task?.linkedContentTemplateTaskId,
+    task?.contentExecutionPairKey,
+    task?.linkedExecutionPairKey,
+    task?.__departmentTaskMapKey
+  ].map(v => String(v || '').trim()).filter(Boolean));
+  const wantedRaw = String(taskId || '').trim();
+  const wantedClean = cleanTaskKey(wantedRaw);
+  const taskMatches = task => taskKeyList(task).some(key => key === wantedRaw || cleanTaskKey(key) === wantedClean);
+  const campaignIndex = campaigns.findIndex(c => {
+    const direct = c.departmentTasks;
+    if(Array.isArray(direct) && direct.some(taskMatches)) return true;
+    if(direct && typeof direct === 'object' && Object.entries(direct).some(([key, value]) => taskMatches({ ...(value || {}), __departmentTaskMapKey:key }))) return true;
+    try{ return (tasksForCampaign(c) || []).some(taskMatches); }catch(_){ return false; }
+  });
   if(campaignIndex >= 0){
     const campaign = campaigns[campaignIndex];
     let updatedTask = null;
-    const nextTasksRaw = (campaign.departmentTasks || []).map(task => {
-      if((task.id || '') !== taskId) return task;
-      updatedTask = { ...task, ...patch, updatedAt: new Date().toISOString() };
-      return updatedTask;
-    });
-    const nextTasks = nextTasksRaw.map(sanitizeTaskForFirestore);
+    const rawDepartmentTasks = campaign.departmentTasks;
+    let nextDepartmentTasks;
+    if(Array.isArray(rawDepartmentTasks)){
+      nextDepartmentTasks = rawDepartmentTasks.map(task => {
+        if(!taskMatches(task)) return task;
+        updatedTask = { ...task, ...patch, updatedAt: new Date().toISOString() };
+        return sanitizeTaskForFirestore(updatedTask);
+      });
+    }else if(rawDepartmentTasks && typeof rawDepartmentTasks === 'object'){
+      nextDepartmentTasks = {};
+      Object.entries(rawDepartmentTasks).forEach(([key, value]) => {
+        const task = value && typeof value === 'object' ? { ...value, __departmentTaskMapKey:key } : value;
+        if(task && typeof task === 'object' && taskMatches(task)){
+          updatedTask = { ...task, ...patch, id: task.id || task.taskId || key, taskId: task.taskId || task.id || key, updatedAt: new Date().toISOString() };
+          const clean = sanitizeTaskForFirestore(updatedTask);
+          delete clean.__departmentTaskMapKey;
+          nextDepartmentTasks[key] = clean;
+        }else{
+          nextDepartmentTasks[key] = value;
+        }
+      });
+    }else{
+      const derived = (tasksForCampaign(campaign) || []);
+      nextDepartmentTasks = derived.map(task => {
+        if(!taskMatches(task)) return task;
+        updatedTask = { ...task, ...patch, updatedAt: new Date().toISOString() };
+        return sanitizeTaskForFirestore(updatedTask);
+      });
+    }
     if(updatedTask) updatedTask = sanitizeTaskForFirestore(updatedTask);
     try{
-      await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update({ departmentTasks: nextTasks, updatedAt: serverTime() });
-      // تحديث النسخة المحلية فوراً عشان الـ Popup يعرض التغيير بدون انتظار onSnapshot.
-      campaigns[campaignIndex] = { ...campaign, departmentTasks: nextTasks, updatedAt: new Date().toISOString() };
+      await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION).doc(campaign.id).update({ departmentTasks: nextDepartmentTasks, updatedAt: serverTime() });
+      campaigns[campaignIndex] = { ...campaign, departmentTasks: nextDepartmentTasks, updatedAt: new Date().toISOString() };
       if(!options.silent) showToast('تم تحديث التاسك.');
-      if(activeTaskModalMeta && activeTaskModalMeta.taskId === taskId){
+      if(!options.noRefresh && activeTaskModalMeta && (activeTaskModalMeta.taskId === taskId || cleanTaskKey(activeTaskModalMeta.taskId) === wantedClean)){
         setTimeout(refreshOpenTaskModal, 30);
       }
       return updatedTask;
@@ -3660,7 +3819,7 @@ async function updateTaskOnFirebase(taskId, patch, options = {}){
       throw error;
     }
   }
-  if(taskId.startsWith('fallback-')){ showToast('التاسك غير محفوظ على Firebase بعد. احفظ الحملة مرة أخرى.'); return null; }
+  if(String(taskId).startsWith('fallback-')){ showToast('التاسك غير محفوظ على Firebase بعد. احفظ الحملة مرة أخرى.'); return null; }
   showToast('تعذر تحديث التاسك: لم يتم العثور عليه داخل marketing_campaigns.');
   return null;
 }
@@ -10220,17 +10379,60 @@ document.addEventListener('DOMContentLoaded', () => {
     if(modalStepBtn){ await toggleTaskStep(modalStepBtn.dataset.taskStep, modalStepBtn.dataset.stepIndex); return; }
     const uploadBtn = event.target.closest('[data-upload-task-attachment]');
     if(uploadBtn){
+      event.preventDefault();
+      event.stopPropagation();
       const input = document.getElementById('taskAttachmentInput');
       if(input){ input.dataset.uploadKind = uploadBtn.dataset.uploadTaskAttachment || 'review'; input.click(); }
       return;
     }
     const delFile = event.target.closest('[data-delete-task-file]');
     if(delFile && activeTaskModalMeta){
+      event.preventDefault();
+      event.stopPropagation();
       const task = findTaskById(activeTaskModalMeta.taskId, activeTaskModalMeta.campaignId);
       if(!task) return;
-      const files = taskFiles(task).filter((_, i) => i !== Number(delFile.dataset.deleteTaskFile));
-      await updateTaskOnFirebase(task.id, { attachments: files });
-      refreshOpenTaskModal();
+      const fileIndex = Number(delFile.dataset.deleteTaskFile);
+      const currentFiles = taskFiles(task);
+      const removedFile = currentFiles[fileIndex];
+      if(!removedFile) return;
+      const remainingFiles = currentFiles.filter((_, i) => i !== fileIndex);
+      const patch = { attachments: remainingFiles, updatedAt: new Date().toISOString() };
+      if(isFinalTaskAttachmentRecord(removedFile)){
+        const remainingFinal = remainingFiles.filter(isFinalTaskAttachmentRecord).slice(-1)[0] || null;
+        if(remainingFinal){
+          patch.finalFile = remainingFinal;
+          patch.finalFileUrl = taskAttachmentRecordUrl(remainingFinal);
+          patch.finalFileName = taskAttachmentRecordName(remainingFinal, 'final-file');
+          patch.finalUploadedAt = remainingFinal.uploadedAt || new Date().toISOString();
+          patch.finalSubmitted = true;
+        }else{
+          patch.finalFile = null;
+          patch.finalFileUrl = '';
+          patch.finalFileName = '';
+          patch.finalUploadedAt = '';
+          patch.finalSubmitted = false;
+        }
+      }
+      try{
+        await deleteTaskAttachmentPhysicalFile(removedFile);
+        await updateTaskOnFirebase(task.id, patch, { noRefresh:true, silent:true });
+        await syncDeletedTaskAttachmentWithPublishPrep(task, removedFile, remainingFiles);
+        showToast('تم حذف الملف من التاسك وتجهيز النشر.');
+        try{ renderAdminDashboard(); renderUserDashboard(); renderTasksPage(); if(typeof renderPublishPrepPage === 'function' && typeof getRoute === 'function' && getRoute() === 'publish-prep') renderPublishPrepPage(); }catch(_){}
+        setTimeout(() => {
+          try{
+            const modal = document.getElementById('taskModal');
+            const meta = (typeof activeTaskModalMeta !== 'undefined') ? activeTaskModalMeta : null;
+            const id = meta && (meta.taskId || meta.id || meta.taskKey);
+            if(modal && modal.classList.contains('show') && id && typeof window.__MZJ_OPEN_CLEAN_TASK_MODAL__ === 'function') window.__MZJ_OPEN_CLEAN_TASK_MODAL__(id);
+            else refreshOpenTaskModal();
+          }catch(_){}
+        }, 80);
+      }catch(error){
+        console.error(error);
+        showToast(error.message || 'تعذر حذف الملف.');
+      }
+      return;
     }
   });
 
@@ -10269,14 +10471,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const task = findTaskById(activeTaskModalMeta.taskId, activeTaskModalMeta.campaignId);
     if(!task) return;
     try{
-      showUploadProgressToast(0, 'جاري رفع الملف');
       const uploadKind = event.target.dataset.uploadKind || 'review';
+      const uploadLabel = uploadKind === 'final' ? 'جاري رفع الملف النهائي' : 'جاري رفع ملف المراجعة';
+      showUploadProgressToast(0, uploadLabel, { fileName:file.name || 'ملف', totalBytes:file.size || 0, bytesTransferred:0, speedBps:0, percent:0, cancelable:false, status:'تم اختيار الملف وبدء الرفع' });
       const record = await uploadTaskFileToDrive(file, task, uploadKind);
       record.uploadKind = uploadKind;
       record.kind = uploadKind;
       record.purpose = uploadKind;
       record.isFinal = uploadKind === 'final';
-      await updateTaskOnFirebase(task.id, { attachments: [...taskFiles(task), record] });
+      await updateTaskOnFirebase(task.id, { attachments: [...taskFiles(task), record], ...(uploadKind === 'final' ? { finalFile:record, finalFileUrl: record.fileUrl || record.downloadURL || record.downloadUrl, finalFileName: record.fileName || record.name, finalUploadedAt: new Date().toISOString(), finalSubmitted:true } : {}) }, { noRefresh:true });
       const prepId = `task_${task.id || task.taskId || task.code || ''}`;
       const submissions = getPublishPrepSubmissions();
       const currentPrep = submissions[prepId] || {};
@@ -10300,9 +10503,26 @@ document.addEventListener('DOMContentLoaded', () => {
           reviewUploadedAt: new Date().toISOString()
         });
       }
+      showUploadProgressToast(100, uploadKind === 'final' ? 'تم رفع الملف النهائي' : 'تم رفع ملف المراجعة', { fileName: record.fileName || record.name || file.name || 'ملف', totalBytes:file.size || record.size || 0, bytesTransferred:file.size || record.size || 0, speedBps:0, percent:100, cancelable:false, done:true, status:'تم الحفظ والربط بتجهيز النشر' });
       showToast(uploadKind === 'final' ? 'تم رفع الملف النهائي وحفظ الرابط في Firestore.' : 'تم رفع ملف المراجعة وحفظه في Firestore.');
-      refreshOpenTaskModal();
-    }catch(error){ console.error(error); showToast(error.message || 'تعذر رفع الملف.'); }
+      try{ renderAdminDashboard(); renderUserDashboard(); renderTasksPage(); if(typeof renderPublishPrepPage === 'function' && typeof getRoute === 'function' && getRoute() === 'publish-prep') renderPublishPrepPage(); }catch(_){}
+      if(uploadKind === 'final'){
+        setTimeout(() => {
+          try{
+            const modal = document.getElementById('taskModal');
+            const meta = (typeof activeTaskModalMeta !== 'undefined') ? activeTaskModalMeta : null;
+            const id = meta && (meta.taskId || meta.id || meta.taskKey);
+            if(modal && modal.classList.contains('show') && id && typeof window.__MZJ_OPEN_CLEAN_TASK_MODAL__ === 'function'){
+              window.__MZJ_OPEN_CLEAN_TASK_MODAL__(id);
+            }
+          }catch(_){ }
+        }, 120);
+      }
+    }catch(error){
+      console.error(error);
+      showUploadProgressToast(0, 'تعذر رفع الملف', { fileName:file.name || 'ملف', totalBytes:file.size || 0, bytesTransferred:0, speedBps:0, cancelable:false, status:error.message || 'حدث خطأ أثناء الرفع' });
+      showToast(error.message || 'تعذر رفع الملف.');
+    }
   });
 
   isLoggedIn() ? openApp() : openLogin();
@@ -33253,7 +33473,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   const oldFind=typeof findTaskById==='function'?findTaskById:null; if(oldFind){ findTaskById=function(id){ const t=oldFind.apply(this,arguments); return t?sanitizeExec(t,campaignOf(t)):t; }; window.findTaskById=findTaskById; }
   const oldShort=typeof shortTaskName==='function'?shortTaskName:null; shortTaskName=function(task){ const c=campaignOf(task); const s=(isExecTask(task)||isTemplateTask(task))?visibleSuffix(task,c):''; const ty=typeOf(task); return (s&&ty)?`${s} - ${ty}`:(oldShort?oldShort.apply(this,arguments):(ty||'تاسك')); }; window.shortTaskName=shortTaskName;
   const oldFinal=typeof taskFinalFileUploaded==='function'?taskFinalFileUploaded:null; taskFinalFileUploaded=function(task){ if(isExecTask(task) && !(task?.finalFileUrl || task?.finalFile || task?.finalUploaded || task?.finalSubmission?.fileUrl || task?.finalSubmissionUrl)) return false; return oldFinal?oldFinal.apply(this,arguments):false; }; window.taskFinalFileUploaded=taskFinalFileUploaded;
-  const oldProgress=typeof taskProgress==='function'?taskProgress:null; if(oldProgress){ taskProgress=function(task){ if(isExecTask(task) && !(task?.finalFileUrl || task?.finalFile || task?.finalUploaded || task?.finalSubmission?.fileUrl || task?.finalSubmissionUrl) && Number(task?.progress||0)>=100) return 0; return oldProgress.apply(this,arguments); }; window.taskProgress=taskProgress; }
+  const oldProgress=typeof taskProgress==='function'?taskProgress:null; if(oldProgress){ taskProgress=function(task){ return oldProgress.apply(this,arguments); }; window.taskProgress=taskProgress; }
   window.MZJ_v527_decideTaskTemplate=decideTemplateExact; window.MZJ_v516_decideTaskTemplate=decideTemplateExact; window.MZJ_v524_decideTaskTemplate=decideTemplateExact; window.MZJ_v525_decideTaskTemplate=decideTemplateExact; window.MZJ_v526_decideTaskTemplate=decideTemplateExact; window.v174SetTaskTemplateDecision=(id,decision)=>decideTemplateExact(id,decision); window.v171ApproveTaskTemplate=id=>decideTemplateExact(id,'approved'); try{ v174SetTaskTemplateDecision=window.v174SetTaskTemplateDecision; v171ApproveTaskTemplate=window.v171ApproveTaskTemplate; }catch(_){}
   if(!document.getElementById('v527-template-style')){ const st=document.createElement('style'); st.id='v527-template-style'; st.textContent='.approved-content-template-section-v527{border-color:#dfbca9;background:linear-gradient(180deg,#fffaf6,#fff)}.approved-content-fields-grid-v527{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.approved-content-field-v527{border:1px solid #ead0c1;background:#fffdfb;border-radius:16px;padding:13px 14px;min-height:84px}.approved-content-field-v527 b{display:block;color:#9b7668;font-size:12px;font-weight:900;margin-bottom:8px}.approved-content-field-v527 p{margin:0;white-space:pre-wrap;line-height:1.8;font-weight:800;color:#2e211d}'; document.head.appendChild(st); }
   try{ window.MZJ_APP_VERSION='527'; window.MZJ_LAST_PATCH=VERSION; if(typeof renderTasksPage==='function') renderTasksPage(); if(typeof renderAdminDashboard==='function') renderAdminDashboard(); console.info(VERSION,'loaded'); }catch(_){ }
@@ -36836,7 +37056,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
 
 /* MZJ v677 - clean dashboard flow from uploaded v667 only */
 (function(){
-  const VERSION = 'v699-luxury-owner-writer-badges';
+  const VERSION = 'v716-final-upload-visible-clean';
   if (window.__MZJ_V677_FLOW__) return;
   window.__MZJ_V677_FLOW__ = true;
   const CAMPAIGNS_COLLECTION='marketing_campaigns';
@@ -36878,6 +37098,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function writerKeysList(t){return [writerId(t),t.contentWriterId,t.contentWriterUid,t.writerId,t.linkedContentWriterId,t.contentWriterEmail,t.writerEmail,t.linkedContentWriterEmail,t.contentWriterName,t.writerName,t.linkedContentWriterName,A(t.linkedContentWriterNames)[0],writerName(t)];}
   function userChip(label, keys, cls){const name=S(label)||'غير محدد'; const color=colorForKeys(keys); const style=color?` style="--owner-color:${H(color)};border-color:${H(color)};box-shadow:0 8px 18px rgba(37,23,19,.07), inset 0 0 0 1px rgba(255,255,255,.75)"`:''; return `<b class="v697-user-chip ${H(cls||'')}"${style}><i></i><span>${H(name)}</span></b>`;}
   function taskProgressPercent(t){return Math.max(0,Math.min(100,Math.round(Number(taskProgressValue(t)||0))));}
+  function directStepProgress(t){const pools=[A(t&&t.steps),A(t&&t.workflowSteps),A(t&&t.execution&&t.execution.steps),A(t&&t.assignmentSteps)].filter(x=>x.length);let best=0;pools.forEach(steps=>{const sum=steps.reduce((acc,st)=>{const done=!!(st&&(st.done||st.completed||st.isDone||st.checked||st.value===true||String(st.status||'').toLowerCase()==='done'||String(st.status||'').toLowerCase()==='completed'));return acc+(done?Number(st.percent||st.percentage||st.weight||0):0);},0);best=Math.max(best,sum);});return Math.max(0,Math.min(100,Math.round(best)));}
   function carTextForCard(t){return cars(t).join('، ') || S(t.selectedCar||t.carName||t.car||t.vehicleName||t.vehicle||'');}
   function statusOf(t,path){return S(path==='template'?(t.taskTemplate&&t.taskTemplate.status):(t.structure&&t.structure.status))||'pending';}
   function isReadyReview(t){return readyStatuses.includes(statusOf(t,'structure'))||readyStatuses.includes(statusOf(t,'template'));}
@@ -36910,7 +37131,8 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     if(isExecution(t)) return kind||creativeName(t)||S(t.taskType||label(t)||'تاسك');
     return S(t.taskType||label(t)||'طلب هيكل');
   }
-  function isCompletedForUser(t){const ss=statusOf(t,'structure'), ts=statusOf(t,'template'), st=S(t.status||'').toLowerCase(); if(isContent(t)&&!isTemplateContentTask(t)&&ss==='approved') return true; if(isTemplateContentTask(t)&&(ts==='approved'||st==='task_template_approved'||st==='completed')) return true; if(isExecution(t)) return ['completed','done'].includes(S(t.execution&&t.execution.status||t.status).toLowerCase()) || Number((t.execution&&t.execution.progress)||t.progress||0)>=100; return st==='completed'||st==='done';}
+  function hasFinalFile(t){const files=A(t.attachments).concat(A(t.files)); return !!(t.finalFileUrl||t.finalFileName||t.finalUploadedAt||t.finalFile||t.finalSubmitted||files.some(f=>f&&(f.isFinal||f.uploadKind==='final'||f.kind==='final'||f.purpose==='final'||f.final===true)));}
+  function isCompletedForUser(t){const ss=statusOf(t,'structure'), ts=statusOf(t,'template'), st=S(t.status||'').toLowerCase(); if(isContent(t)&&!isTemplateContentTask(t)&&ss==='approved') return true; if(isTemplateContentTask(t)&&(ts==='approved'||st==='task_template_approved'||st==='completed')) return true; if(isExecution(t)) return hasFinalFile(t)||['completed','done','final_uploaded'].includes(S(t.execution&&t.execution.status||t.status).toLowerCase()); return st==='completed'||st==='done';}
   function userTaskBucket(t){if(isCompletedForUser(t)) return 'done'; if(isReadyReview(t)) return 'review'; if(statusOf(t,'structure')==='needs_changes'||statusOf(t,'template')==='needs_changes'||S(t.status)==='needs_changes') return 'changes'; if(t.received||t.receivedConfirmed||S(t.status)==='received') return 'work'; return 'new';}
   function rowLabelValue(t,label){const row=t.structureRow||t.approvedStructureRow||{}; const raw=row.raw||{}; return S(row[label]||raw[label]||'');}
   function contentTemplatePrimary(c,t,label){
@@ -36976,20 +37198,44 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function stableTaskKey(t){const row=t.structureRow||t.approvedStructureRow||{}; const raw=row.raw||{}; return S(t.contentExecutionPairKey||t.linkedExecutionPairKey||t.mzjTaskLinkKey||t.taskNo||t.taskCode||t.fullTaskCode||t.canonicalTaskCode||raw['رقم التاسك']||taskId(t)||t.taskType||creativeName(t));}
   function allPairs(){const seen=new Set(),out=[]; campaignsList().forEach(c=>tasks(c).forEach(t=>{const key=[campaignId(c)||c.campaignCode||c.name,stableTaskKey(t),t.assignedToId||t.userId||t.assignedToUid||t.userUid||'',t.departmentRole||t.assignedDepartmentRole||'',isTemplateContentTask(t)?'template':isExecution(t)?'execution':'content'].join('|'); if(!seen.has(key)){seen.add(key);out.push({c,t});}})); return out;}
   function css(){let st=by('v677FlowStyle'); if(st) return; st=document.createElement('style'); st.id='v677FlowStyle'; st.textContent=`
+.v32-release-actions{display:grid!important;grid-template-columns:1fr!important;gap:8px!important;margin-top:12px!important;}
+.v32-release-actions .v32-show-tasks-btn{width:100%!important;border-radius:16px!important;font-weight:900!important;}
+.v32-release-btn{width:100%!important;border:0!important;border-radius:18px!important;padding:12px 14px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;cursor:pointer!important;font-weight:950!important;box-shadow:0 14px 32px rgba(99,55,42,.20)!important;transition:.18s ease!important;text-align:right!important;}
+.v32-release-btn span{font-size:13px!important;line-height:1.2!important;}
+.v32-release-btn small{font-size:10px!important;font-weight:800!important;opacity:.86!important;line-height:1.2!important;}
+.v32-release-btn.is-ready{background:linear-gradient(135deg,#6f3b2f,#9b5848)!important;color:#fff!important;}
+.v32-release-btn.is-ready:hover{transform:translateY(-1px)!important;box-shadow:0 18px 38px rgba(99,55,42,.28)!important;}
+.v32-release-btn.is-ready:before{content:'✓';display:inline-flex!important;align-items:center!important;justify-content:center!important;width:26px!important;height:26px!important;border-radius:999px!important;background:rgba(255,255,255,.18)!important;border:1px solid rgba(255,255,255,.35)!important;flex:0 0 auto!important;}
+.v32-release-btn.is-locked{background:linear-gradient(135deg,#f7eee9,#fffaf7)!important;color:#8f6b5e!important;border:1px dashed rgba(143,107,94,.35)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.75),0 10px 24px rgba(99,55,42,.08)!important;cursor:not-allowed!important;}
+.v32-release-btn.is-locked:before{content:'🔒';display:inline-flex!important;align-items:center!important;justify-content:center!important;width:26px!important;height:26px!important;border-radius:999px!important;background:#fff!important;border:1px solid rgba(143,107,94,.22)!important;flex:0 0 auto!important;}
+
   .v677-user-toolbar{display:flex;justify-content:flex-start;margin:0 0 14px}.v677-user-kanban{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:14px;align-items:start;direction:rtl}.v677-kanban-col{background:rgba(255,255,255,.78);border:1px solid rgba(148,83,62,.14);border-radius:22px;padding:14px;min-height:260px;box-shadow:0 16px 42px rgba(60,35,20,.05)}.v677-kanban-col h2{font-size:16px;margin:0 0 10px;color:#281914}@media(max-width:1200px){.v677-user-kanban{grid-template-columns:1fr 1fr}}@media(max-width:760px){.v677-user-kanban{grid-template-columns:1fr}}
   .v677-board{display:grid;grid-template-columns:repeat(4,minmax(260px,1fr));gap:16px;width:100%;align-items:start;direction:rtl}.v677-col{background:rgba(255,255,255,.78);border:1px solid rgba(148,83,62,.14);border-radius:22px;padding:16px;min-height:280px;box-shadow:0 16px 42px rgba(60,35,20,.05)}.v677-col h2{font-size:18px;margin:0 0 5px;color:#281914}.v677-col p.v677-desc{font-size:12px;color:#9a8074;margin:0 0 12px}.v677-card{background:#fff;border:1px solid rgba(148,83,62,.16);border-radius:18px;padding:15px;margin:12px 0;box-shadow:0 14px 30px rgba(50,28,20,.06)}.v677-card-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.v677-card-title{font-size:16px;font-weight:900;color:#2e1b15}.v677-badge{border-radius:999px;padding:6px 10px;font-size:12px;font-weight:900;white-space:nowrap}.v677-badge.orange{background:#fff0df;color:#ad4f34}.v677-badge.green{background:#eaf9ef;color:#158343}.v677-badge.red{background:#fff0f0;color:#bd2b2b}.v677-lines{display:grid;grid-template-columns:auto 1fr;gap:7px 10px;margin:12px 0}.v677-lines span{color:#876b5f;font-weight:900}.v677-lines b{text-align:left;font-weight:800;color:#201410}.v677-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.v677-actions .btn{min-width:90px}.v677-modal-inner{background:#fff;border-radius:26px;padding:20px;border:1px solid #ead7cb;direction:rtl;max-width:1120px;margin:auto}.v677-modal-title{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:16px}.v677-modal-title h2{margin:0;font-size:28px;color:#26150e}.v677-info{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.v677-info article{background:#fff8f2;border:1px solid #efdacd;border-radius:16px;padding:12px;min-height:70px}.v677-info span{display:block;color:#80685f;font-size:12px;font-weight:800}.v677-info b{white-space:pre-wrap;line-height:1.6}.v677-panel{background:#fffaf6;border:1px solid #eed9cc;border-radius:18px;padding:16px;margin-top:14px}.v677-panel h3{margin:0 0 12px;color:#2b1711}.v677-note{background:#fff4d9;border:1px solid #eed497;border-radius:12px;padding:12px;margin-top:10px}.v677-review-overlay{position:fixed!important;inset:0!important;background:rgba(30,20,15,.66)!important;z-index:2147483646!important;display:flex!important;align-items:stretch!important;justify-content:stretch!important;padding:0!important;direction:rtl!important;backdrop-filter:blur(5px)}.v677-review{width:100vw!important;height:100vh!important;max-height:none!important;background:#fff;border-radius:0!important;box-shadow:none!important;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr) auto;direction:rtl}.v677-review-main{padding:18px 26px 22px;overflow:auto;min-height:0;scrollbar-gutter:stable;background:#fffdfb}.v677-review-head{display:grid;grid-template-columns:220px 1fr 220px;align-items:center;border-bottom:1px solid #eee0d6;padding:14px 22px;grid-column:1!important;background:linear-gradient(180deg,#fff,#fffaf6);position:relative;z-index:2}.v677-review-head h2{margin:0;font-size:28px;text-align:center;color:#21130d}.v677-pill{background:#f7f2ea;border:1px solid #eadbd1;border-radius:999px;padding:7px 12px;font-weight:800}.v677-review-section{border:1px solid #ead8cc;border-radius:16px;margin:12px 0;overflow:hidden;background:#fff;box-shadow:0 12px 28px rgba(70,35,20,.035)}.v677-section-title{display:flex;gap:10px;align-items:center;justify-content:flex-start;padding:12px 14px;font-weight:900;font-size:18px;background:#fffaf6;border-bottom:1px solid #ead8cc}.v677-num{width:28px;height:28px;border-radius:50%;border:1px solid #e1c5b5;display:grid;place-items:center;color:#b05a3f;background:#fffaf5}.v677-table{width:100%;border-collapse:collapse}.v677-table th,.v677-table td{border:1px solid #ead8cc;padding:9px 10px;text-align:right;vertical-align:top;line-height:1.65;min-width:110px}.v677-table th{background:#fff8f2;color:#6d4c3e;font-weight:900}.v677-cell{cursor:pointer}.v677-cell.marked,.v677-field.marked{background:#fff0a8!important}.v677-cell.noted,.v677-field.noted{outline:2px solid #b85c45}.v677-notes{display:none!important}.v677-note-card{background:#fff;border:1px solid #ead8cc;border-radius:16px;padding:12px;margin:10px 0;box-shadow:0 10px 22px rgba(80,40,20,.06);cursor:pointer}.v677-review-actions{grid-column:1!important;grid-row:3;display:flex;gap:12px;justify-content:center;padding:14px 18px;border-top:1px solid #ead8cc;background:#fff;position:relative;z-index:2}.v677-template-grid{display:grid;grid-template-columns:1fr 320px;gap:18px}.v677-template-fields{border:1px solid #ead8cc;border-radius:16px;overflow:hidden}.v677-field{display:grid;grid-template-columns:240px 1fr 46px;gap:10px;align-items:center;padding:12px;border-bottom:1px solid #ead8cc;cursor:pointer}.v677-field:last-child{border-bottom:0}.v677-field textarea,.v677-field input{width:100%;border:1px solid #ead8cc;border-radius:10px;padding:10px;min-height:44px;background:#fff}.v677-side-card{border:1px solid #ead8cc;border-radius:16px;margin-bottom:14px;overflow:hidden;background:#fff}.v677-side-card h3{margin:0;padding:13px;background:#fff8f2;color:#7e42c7}.v677-side-row{display:flex;justify-content:space-between;gap:12px;padding:10px 13px;border-top:1px solid #eee}.v677-timeline{display:flex;justify-content:space-around;align-items:center;gap:6px;padding:20px}.v677-step{display:grid;gap:6px;place-items:center;color:#8d7b72}.v677-step.active{color:#7e42c7;font-weight:900}.v677-exec-actions button{min-width:190px;height:46px;border-radius:14px;margin:5px}.v677-exec-data{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.v677-empty{border:1px dashed #e3c6b8;border-radius:16px;padding:42px;text-align:center;color:#9a8074;background:#fffaf6}.v677-logic-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}.v677-logic-grid .v677-table{border-collapse:collapse}.v677-wide-scroll{overflow:auto;max-width:100%;}.v677-review-close{width:44px;height:44px;border-radius:12px;border:1px solid #ead8cc;background:#fff;color:#2a1710;font-size:22px;cursor:pointer}.v677-campaign-chip{justify-self:start;background:#f8f1e8;border:1px solid #ead8cc;border-radius:999px;padding:9px 14px;font-weight:900;color:#5e3d30}.v677-data-list{display:grid!important;grid-template-columns:1fr!important;gap:6px!important;margin:0!important}.v677-data-list .v677-data-line{display:block;padding:6px 8px;border-radius:9px;background:rgba(255,255,255,.7);border:1px solid rgba(150,83,65,.10);line-height:1.45}.task-modal.show,.task-modal.is-visible,.task-modal.open,.task-modal.active{z-index:2147483644!important}.task-modal-backdrop{z-index:2147483643!important}.task-modal.show .task-modal-dialog,.task-modal.is-visible .task-modal-dialog{z-index:2147483645!important}.v677-review-overlay{z-index:2147483646!important}@media(max-width:1200px){.v677-board{grid-template-columns:1fr 1fr}.v677-info,.v677-template-grid,.v677-exec-data{grid-template-columns:1fr}.v677-review{grid-template-columns:1fr}.v677-review-head,.v677-review-actions{grid-column:1}.v677-notes{border-right:0;border-top:1px solid #ead8cc}.v677-field{grid-template-columns:1fr}}
   @media(max-width:1200px){.v677-review{grid-template-columns:1fr!important;grid-template-rows:auto minmax(0,1fr) auto!important}.v677-review-head{grid-template-columns:56px 1fr auto!important}.v677-logic-grid{grid-template-columns:1fr!important}}
 `;
   document.head.appendChild(st);}
   function card(c,t,review){const receiveBtn=!review&&!isAdmin()&&!t.received&&!t.receivedConfirmed&&canSee(t)?`<button type="button" class="btn btn-light" data-v677-receive="${H(taskId(t))}">تم الاستلام</button>`:'';const action=review?`<button type="button" class="btn btn-primary" data-v677-review="${H(taskId(t))}">مراجعة واعتماد</button>`:`<button type="button" class="btn btn-primary" data-v677-open="${H(taskId(t))}">تفاصيل</button>`;const p=taskProgressPercent(t);const isExec=isExecution(t);const car=carTextForCard(t);const writerLine=isExec?`<span>كاتب المحتوى</span>${userChip(writerName(t),writerKeysList(t),'writer')}`:'';const carLine=car?`<span>السيارة</span><b>${H(car)}</b>`:'';return `<article class="v677-card"><div class="v677-card-head"><strong class="v677-card-title">${H(displayTaskTitle(t))}</strong><span class="v677-badge ${labelClass(t)}">${H(label(t))}</span></div><p>${H(c.campaignCode||c.campaignName||c.name||'حملة')}</p><div class="v697-card-progress"><span>${H(p)}%</span><div class="dash-progress"><i style="width:${H(p)}%"></i></div></div><div class="v677-lines"><span>المسؤول</span>${userChip(assignee(t),assigneeKeys(t),'owner')} ${writerLine}<span>القسم</span><b>${H(roleLabel(t.departmentRole||t.assignedDepartmentRole))}</b><span>الكرييتيف</span><b>${H(creativeName(t))}</b>${carLine}</div><div class="v677-actions">${receiveBtn}${action}</div></article>`;}
-  function finalDeliveryReady(t){const ex=t&&t.execution||{}; const st=S(ex.status||t.status).toLowerCase(); const progress=Number(ex.progress??t.progress??0); return ['submitted','delivered','ready_for_publish','completed','done','100','تم التسليم','جاهز للنشر'].includes(st)||progress>=100||t.finalDelivery||t.deliveryFile||t.executionSubmitted===true;}
-  function taskProgressValue(t){try{return typeof taskProgress==='function'?Number(taskProgress(t)||0):Number((t.execution&&t.execution.progress)??t.progress??0);}catch(_){return Number((t.execution&&t.execution.progress)??t.progress??0)||0;}}
-  function taskListPairs(){return allPairs().filter(x=>!isCompletedForUser(x.t));}
-  function taskListPairsForCampaign(c){const id=campaignId(c)||S(c&&c.docId)||S(c&&c.campaignCode);return taskListPairs().filter(x=>{const cid=campaignId(x.c)||S(x.c&&x.c.docId)||S(x.c&&x.c.campaignCode);return cid&&id?cid===id:x.c===c;});}
-  function taskListSnapshot(c){const pairs=taskListPairsForCampaign(c);const related=pairs.map(x=>x.t);const total=related.length;const done=related.filter(t=>taskProgressValue(t)>=100).length;const progress=total?Math.round(related.reduce((sum,t)=>sum+Math.max(0,Math.min(100,taskProgressValue(t))),0)/total):0;return{campaign:c,related,total,received:related.filter(t=>t.received||t.receivedConfirmed).length,progress,done,publish:0,keepStructureInReadiness:true};}
+  function finalDeliveryReady(t){const ex=t&&t.execution||{}; const st=S(ex.status||t.status).toLowerCase(); return hasFinalFile(t)||['submitted','delivered','ready_for_publish','completed','done','100','تم التسليم','جاهز للنشر','final_uploaded'].includes(st)||t.finalDelivery||t.deliveryFile||t.executionSubmitted===true;}
+  function taskProgressValue(t){const vals=[];const d=directStepProgress(t);if(d)vals.push(d);if(hasFinalFile(t)||finalDeliveryReady(t))vals.push(100);vals.push(Number(t&&t.execution&&t.execution.progress||0),Number(t&&t.progress||0),Number(t&&t.readinessProgress||0));try{if(typeof taskProgress==='function')vals.push(Number(taskProgress(t)||0));}catch(_){}const ok=vals.filter(v=>!Number.isNaN(v));return Math.max(0,Math.min(100,Math.round(ok.length?Math.max(...ok):0)));}
+  function isStructureOnlyTask(t){const z=norm([t.taskType,t.title,t.name,t.dashboardStatusLabel,t.source].join(' ')); return !!(t.structureRequest===true||t.structureRequestTask===true||t.needsStructureUpload===true||z.includes(norm('طلب هيكل'))||z.includes('structurerequest'));}
+  function campaignReleasedToPublish(c){const ps=c&&c.publishStage||{}; return !!(c&&((c.readinessReleasedToPublish===true)||(c.movedToPublish===true)||(c.manualPublishRelease===true)||(c.readyForPublish===true)||(ps.ready===true)||(S(ps.status)==='ready')||(S(ps.status)==='released')));}
+  function campaignDisplayName(c){return S(c&&c.campaignName||c&&c.name||c&&c.campaign_name||c&&c.campaignCode||'حملة');}
+  function campaignCodeLabel(c){return S(c&&c.campaignCode||c&&c.campaign_code||c&&c.campaignCodeShortCode||'بدون كود');}
+  function taskListPairs(){return allPairs().filter(x=>!isStructureOnlyTask(x.t)&&!campaignReleasedToPublish(x.c));}
+  function taskListPairsForCampaign(c){const id=campaignId(c)||S(c&&c.docId)||S(c&&c.campaignCode);return allPairs().filter(x=>!isStructureOnlyTask(x.t)&&!campaignReleasedToPublish(x.c)).filter(x=>{const cid=campaignId(x.c)||S(x.c&&x.c.docId)||S(x.c&&x.c.campaignCode);return cid&&id?cid===id:x.c===c;});}
+  function taskListSnapshot(c){const pairs=taskListPairsForCampaign(c);const related=pairs.map(x=>x.t);const total=related.length;const done=related.filter(t=>taskProgressValue(t)>=100||hasFinalFile(t)||finalDeliveryReady(t)).length;const progress=total?Math.round(related.reduce((sum,t)=>sum+Math.max(0,Math.min(100,taskProgressValue(t)|| (hasFinalFile(t)?100:0))),0)/total):0;return{campaign:c,related,total,received:related.filter(t=>t.received||t.receivedConfirmed).length,progress,done,publish:0,allReady:total>0&&progress>=100,keepStructureInReadiness:true};}
   try{campaignTasksSnapshot=function(c){return taskListSnapshot(c);};window.campaignTasksSnapshot=campaignTasksSnapshot;}catch(_){}
   try{renderCampaignInlineTasks=function(c){const snap=taskListSnapshot(c);return `<div class="campaign-inline-tasks">${snap.related.length?snap.related.map(t=>card(c,t,false)).join(''):'<div class="v677-empty">لا توجد تاسكات مطلوبة لهذه الحملة.</div>'}</div>`;};window.renderCampaignInlineTasks=renderCampaignInlineTasks;}catch(_){}
-  function renderAdmin(){css(); const b=by('adminDashboardBoard'); if(!b)return; const all=allPairs(); const requiredPairs=taskListPairs(); const task=requiredPairs.map(x=>card(x.c,x.t,false)).join('')||'<div class="v677-empty">لا توجد تاسكات.</div>'; const campaignItems=campaignsList().map(c=>taskListSnapshot(c)).filter(x=>x.total); const ready=campaignItems.map(item=>`<article class="dash-campaign-card dash-ready-card v677-card" data-open-campaign="${H(item.campaign.id||item.campaign.docId||'')}"><div class="dash-card-top"><strong>${H(item.campaign.campaignName||item.campaign.name||item.campaign.campaignCode||'حملة')}</strong><span>${H(item.progress)}%</span></div><p>${H(item.campaign.campaignCode||item.campaign.campaign_code||'بدون كود')} · ${H(item.total)} تاسك</p><div class="dash-progress"><span style="width:${Math.min(100,Number(item.progress||0))}%"></span></div><button type="button" class="open-details-hint">عرض التاسكات</button></article>`).join('')||'<div class="v677-empty">لا توجد حملات في جاهزية المطلوب.</div>'; const publishing=all.filter(x=>isExecution(x.t)&&finalDeliveryReady(x.t)).map(x=>card(x.c,x.t,false)).join('')||'<div class="v677-empty">قسم النشر ينتظر التسليم النهائي للتنفيذ.</div>'; const arch=all.filter(x=>x.t.status==='completed'||(x.t.execution&&x.t.execution.status==='completed')).map(x=>card(x.c,x.t,false)).join('')||'<div class="v677-empty">لا يوجد أرشيف.</div>'; b.innerHTML=`<div class="v677-board"><section class="v677-col"><h2>TASK - المطلوب</h2><p class="v677-desc">عرض فقط لكل تاسكات الحملة ومين استلم.</p>${task}</section><section class="v677-col"><h2>جاهزية المطلوب</h2><p class="v677-desc">نفس التاسكات الظاهرة في TASK - المطلوب مجمعة حسب الحملة.</p>${ready}</section><section class="v677-col"><h2>قسم النشر</h2><p class="v677-desc">ينتظر اعتماد Task Template.</p>${publishing}</section><section class="v677-col"><h2>قسم الأرشيف</h2>${arch}</section></div>`;}
+  function readyCampaignCard(item){
+    const c=item.campaign;
+    const cid=H(campaignId(c)||c.docId||'');
+    const ready=!!item.allReady;
+    const releaseBtn=`<div class="v704-ready-card-actions v32-release-actions"><button type="button" class="open-details-hint v32-show-tasks-btn">عرض التاسكات</button><button type="button" class="v32-release-btn ${ready?'is-ready':'is-locked'}" ${ready?`data-v704-release-campaign="${cid}"`:'disabled aria-disabled="true"'}><span>نقل الحملة لقسم النشر</span><small>${ready?'الحملة مكتملة 100% وجاهزة للنقل':'يعمل بعد وصول الحملة 100%'}</small></button></div>`;
+    return `<article class="dash-campaign-card dash-ready-card v677-card" data-open-campaign="${cid}"><div class="dash-card-top"><strong>${H(campaignDisplayName(c))}</strong><span>${H(item.progress)}%</span></div><p>${H(campaignCodeLabel(c))} · ${H(item.total)} تاسك</p><div class="dash-progress"><span style="width:${Math.min(100,Number(item.progress||0))}%"></span></div>${releaseBtn}</article>`;
+  }
+  function publishCampaignCard(c){const snap=taskListSnapshot({...c, readinessReleasedToPublish:false, movedToPublish:false, manualPublishRelease:false, readyForPublish:false, publishStage:{}}); const total=snap.total||tasks(c).filter(t=>!isStructureOnlyTask(t)).length; const progress=100; return `<article class="dash-campaign-card dash-ready-card v677-card" data-open-campaign="${H(campaignId(c)||c.docId||'')}"><div class="dash-card-top"><strong>${H(campaignDisplayName(c))}</strong><span>${progress}%</span></div><p>${H(campaignCodeLabel(c))} · ${H(total)} تاسك</p><div class="dash-progress"><span style="width:100%"></span></div><button type="button" class="open-details-hint">عرض التاسكات</button></article>`;}
+  async function releaseCampaignToPublish(id){const c=campaignsList().find(x=>N(campaignId(x)||x.docId||x.campaignCode)===N(id)); if(!c) throw new Error('تعذر العثور على الحملة.'); const snap=taskListSnapshot(c); if(!snap.total) throw new Error('لا توجد تاسكات تنفيذية لنقلها.'); if(!snap.allReady) throw new Error('لازم كل تاسكات الحملة توصل 100% قبل النقل لقسم النشر.'); const payload={readinessReleasedToPublish:true,movedToPublish:true,manualPublishRelease:true,readyForPublish:true,publishStage:{...(c.publishStage||{}),ready:true,status:'ready',releasedAt:now(),releasedBy:S(currentUser().email||currentUser().name||'')},updatedAt:server()}; const col=db(); if(!col||!campaignId(c)) throw new Error('تعذر الاتصال بقاعدة البيانات.'); await col.doc(campaignId(c)).update(payload); Object.assign(c,payload,{updatedAt:now()}); try{window.campaigns=campaignsList().map(x=>campaignId(x)===campaignId(c)?c:x);}catch(_){} renderAll(); toast('تم نقل الحملة لقسم النشر.');}
+  function renderAdmin(){css(); const b=by('adminDashboardBoard'); if(!b)return; const requiredPairs=taskListPairs(); const task=requiredPairs.map(x=>card(x.c,x.t,false)).join('')||'<div class="v677-empty">لا توجد تاسكات.</div>'; const campaignItems=campaignsList().filter(c=>!campaignReleasedToPublish(c)).map(c=>taskListSnapshot(c)).filter(x=>x.total); const ready=campaignItems.map(readyCampaignCard).join('')||'<div class="v677-empty">لا توجد حملات في جاهزية المطلوب.</div>'; const publishItems=campaignsList().filter(c=>campaignReleasedToPublish(c)); const publishing=publishItems.map(publishCampaignCard).join('')||'<div class="v677-empty">قسم النشر ينتظر نقل الحملة من جاهزية المطلوب.</div>'; const arch=allPairs().filter(x=>x.t.status==='completed'||(x.t.execution&&x.t.execution.status==='completed')).map(x=>card(x.c,x.t,false)).join('')||'<div class="v677-empty">لا يوجد أرشيف.</div>'; b.innerHTML=`<div class="v677-board"><section class="v677-col"><h2>TASK - المطلوب</h2><p class="v677-desc">عرض فقط لكل تاسكات الحملة ومين استلم.</p>${task}</section><section class="v677-col"><h2>جاهزية المطلوب</h2><p class="v677-desc">الحملة تفضل هنا بعد 100% لحد ما الأدمن ينقلها لقسم النشر.</p>${ready}</section><section class="v677-col"><h2>قسم النشر</h2><p class="v677-desc">الحملات التي تم نقلها يدويًا من جاهزية المطلوب.</p>${publishing}</section><section class="v677-col"><h2>قسم الأرشيف</h2>${arch}</section></div>`;}
   function renderUser(){css(); const b=by('adminDashboardBoard'); if(!b)return; const showDone=!!window.__MZJ_V686_SHOW_DONE__; const all=allPairs().filter(x=>canSee(x.t) && !(isExecution(x.t)&&x.t.execution&&x.t.execution.status==='waiting')); const visible=all.filter(x=>showDone?isCompletedForUser(x.t):!isCompletedForUser(x.t)); const groups=[['new','جديد / لم يتم الاستلام'],['work','تم الاستلام / جاري العمل'],['review','في المراجعة'],['changes','محتاج تعديل']]; const doneHtml=`<section class="v677-kanban-col"><h2>التاسكات المنتهية</h2>${visible.map(x=>card(x.c,x.t,false)).join('')||'<div class="v677-empty">لا توجد تاسكات منتهية.</div>'}</section>`; const board=showDone?doneHtml:groups.map(([k,title])=>`<section class="v677-kanban-col"><h2>${title}</h2>${visible.filter(x=>userTaskBucket(x.t)===k).map(x=>card(x.c,x.t,false)).join('')||'<div class="v677-empty">لا توجد تاسكات.</div>'}</section>`).join(''); b.innerHTML=`<div class="v677-user-toolbar"><button type="button" class="btn ${showDone?'btn-primary':'btn-light'}" data-v686-toggle-done>${showDone?'إخفاء التاسكات المنتهية':'التاسكات المنتهية'}</button></div><div class="v677-user-kanban">${board}</div>`;}
   function renderAll(){try{if(isAdmin())renderAdmin();else renderUser();}catch(e){console.warn(VERSION,e);}}
   let renderTimer=null; function scheduleRender(){clearTimeout(renderTimer); renderTimer=setTimeout(renderAll,80);}
@@ -37100,8 +37346,23 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const allRows=Object.entries(data).filter(([k,v])=>S(v));
     return `<div class="v696-template-panel"><div class="v696-section-head"><h3>بيانات Task Template المعتمد</h3><span>Task Template معتمد</span></div><div class="v696-top-cards"><article class="v696-mini-card"><strong>الاسم المقترح للكرييتيف</strong><div>${H(execField(data,'الاسم المقترح للكرييتيف')||'—')}</div></article><article class="v696-mini-card v696-wide"><strong>الهدف</strong><div>${H(execField(data,'الهدف')||'—')}</div></article><article class="v696-mini-card"><strong>الرسالة الأساسية</strong><div>${H(execField(data,'الرسالة الأساسية')||'—')}</div></article><article class="v696-mini-card"><strong>الهوك</strong><div>${H(execField(data,'الهوك')||'—')}</div></article><article class="v696-mini-card v696-cta"><strong>CTA</strong><div>${H(execField(data,'CTA')||'—')}</div></article></div><div class="v696-layout"><section class="v696-script-box"><div class="v696-box-title">📄 السكريبت الأساسي</div><div class="v696-meta-grid"><article class="v696-meta"><b>نوع المحتوى</b><p>${H(contentType)}</p></article><article class="v696-meta"><b>السيارة</b><p>${H(car)}</p></article><article class="v696-meta"><b>الفئات</b><p>${H(cats)}</p></article><article class="v696-meta"><b>الألوان</b><p>${H(colors)}</p></article><article class="v696-meta"><b>مدة الريل المقترحة</b><p>${H(duration)}</p></article></div><div class="v696-idea-notes"><article class="v696-meta"><b>الفكرة التنفيذية</b><p>${H(idea)}</p></article><article class="v696-meta v696-notes"><b>ملاحظات تنفيذية</b>${notes.length?`<ul>${notes.map(n=>`<li>${H(n)}</li>`).join('')}</ul>`:`<p>—</p>`}</article></div></section><section class="v696-scenes-box"><div class="v696-box-title">🎬 مشاهد الريل</div><div class="v696-scenes-grid">${scenes.map(sc=>`<article class="v696-scene"><span class="v696-scene-num">${H(sc.num)}</span><h4>${H(sc.title||'مشهد')}</h4><dl><dt>شرح المشهد</dt><dd>${H(trimText(sc.desc||'—',150))}</dd><dt>الفويس أوفر</dt><dd>${H(trimText(sc.voice||'—',135))}</dd><dt>التيكست</dt><dd>${H(trimText(sc.text||'—',120))}</dd></dl></article>`).join('')}</div></section></div><div class="v696-bottom-grid"><article class="v696-bottom-card"><div class="v696-box-title">📋 الكابشن</div><div class="v696-caption">${H(execField(data,'الكابشن')||'—')}</div></article><article class="v696-bottom-card"><div class="v696-box-title"># هاشتاج</div><div class="v696-tags">${tags.length?tags.map(t=>`<span class="v696-tag">${H(t)}</span>`).join(''):H(hashtags||'—')}</div></article></div>${allRows.length?`<details class="v696-all-data"><summary>عرض كل البيانات الخام من Task Template</summary><div class="v696-all-data-grid">${allRows.map(([k,v])=>`<article><strong>${H(k)}</strong><div>${H(v)}</div></article>`).join('')}</div></details>`:''}</div>`;
   }
-  function execDetails(t){execTemplateCss(); const data=templateData(t); const steps=typeof taskWorkflowSteps==='function'?taskWorkflowSteps(t):[]; const admin=typeof isCurrentUserAdmin==='function'&&isCurrentUserAdmin(); return `${renderExecTemplate(data)}<div class="v677-panel"><h3>إجراءات التكليف</h3><div class="v677-actions v677-exec-actions v696-exec-actions">${steps.length?steps.map((step,i)=>`<button type="button" class="btn btn-light ${step.done?'done':''}" data-task-step="${H(taskId(t))}" data-step-index="${i}" ${step.adminOnly&&!admin?'disabled':''}>${H(step.label)} · ${H(step.percent)}%</button>`).join(''):'<div class="v677-empty">لم يتم إعداد إجراءات التكليف لهذا القسم من صفحة الأقسام.</div>'}</div></div>`;}
-  function openModal(id){const loc=locate(id); if(!loc)return; const t=loc.task,c=loc.campaign; const m=by('taskModal'),content=by('taskModalContent'); if(!m||!content)return; const title=isContent(t)?(isTemplateContentTask(t)||statusOf(t,'structure')==='approved'?'رفع Task Template':'طلب هيكل'):(t.taskType||'تاسك تنفيذ'); const isContentTemplateDetail=isTemplateContentTask(t)&&isContent(t); const execFull=!isContent(t); m.classList.remove('v697-exec-fullscreen','v701-content-template-fullscreen','task-fullscreen-view'); if(isContentTemplateDetail){ content.innerHTML=contentTemplateDetailView(c,t); m.classList.add('v701-content-template-fullscreen','task-fullscreen-view'); }else{ if(execFull){execTemplateCss(); m.classList.add('v697-exec-fullscreen','task-fullscreen-view');} content.innerHTML=`<div class="v677-modal-inner"><div class="v677-modal-title"><button type="button" class="v697-close-btn" data-close-task-modal>×</button><h2>${H(title)}</h2><span class="v677-badge ${labelClass(t)}">${H(label(t))}</span></div>${dataCards(c,t)}${detailsActions(t)}</div>`; } m.classList.add('show','is-visible');m.setAttribute('aria-hidden','false');document.body.classList.add('modal-open');}
+  function execDetails(t){execTemplateCss(); const data=templateData(t); const steps=typeof taskWorkflowSteps==='function'?taskWorkflowSteps(t):[]; const admin=typeof isCurrentUserAdmin==='function'&&isCurrentUserAdmin(); const progress=taskProgressValue(t); const finalUpload=progress>=100?`<div class="v677-panel"><h3>رفع الملف النهائي</h3><p class="v677-note">التاسك وصل 100%. ارفع الملف النهائي هنا عشان يتسجل ويرتبط بتجهيز النشر.</p><div class="v677-actions"><button type="button" class="btn btn-primary" data-upload-task-attachment="final">رفع الملف النهائي</button></div><div id="taskUploadProgressInline" class="task-upload-progress-inline" aria-live="polite"></div>${typeof renderAttachmentTable==='function'?renderAttachmentTable(t,'final'):''}</div>`:''; return `${renderExecTemplate(data)}<div class="v677-panel"><h3>إجراءات التكليف</h3><div class="v677-actions v677-exec-actions v696-exec-actions">${steps.length?steps.map((step,i)=>`<button type="button" class="btn btn-light ${step.done?'done':''}" data-task-step="${H(taskId(t))}" data-step-index="${i}" ${step.adminOnly&&!admin?'disabled':''}>${H(step.label)} · ${H(step.percent)}%</button>`).join(''):'<div class="v677-empty">لم يتم إعداد إجراءات التكليف لهذا القسم من صفحة الأقسام.</div>'}</div></div>${finalUpload}`;}
+  function openModal(id){const loc=locate(id); if(!loc)return; const t=loc.task,c=loc.campaign; try{ if(typeof activeTaskModalMeta!=='undefined') activeTaskModalMeta={ taskId: taskId(t), campaignId: campaignId(c)||S(t.campaignId||'') }; }catch(_){} const m=by('taskModal'),content=by('taskModalContent'); if(!m||!content)return; const title=isContent(t)?(isTemplateContentTask(t)||statusOf(t,'structure')==='approved'?'رفع Task Template':'طلب هيكل'):(t.taskType||'تاسك تنفيذ'); const isContentTemplateDetail=isTemplateContentTask(t)&&isContent(t); const execFull=!isContent(t); m.classList.remove('v697-exec-fullscreen','v701-content-template-fullscreen','task-fullscreen-view'); if(isContentTemplateDetail){ content.innerHTML=contentTemplateDetailView(c,t); m.classList.add('v701-content-template-fullscreen','task-fullscreen-view'); }else{ if(execFull){execTemplateCss(); m.classList.add('v697-exec-fullscreen','task-fullscreen-view');} content.innerHTML=`<div class="v677-modal-inner"><div class="v677-modal-title"><button type="button" class="v697-close-btn" data-close-task-modal>×</button><h2>${H(title)}</h2><span class="v677-badge ${labelClass(t)}">${H(label(t))}</span></div>${dataCards(c,t)}${detailsActions(t)}</div>`; } m.classList.add('show','is-visible');m.setAttribute('aria-hidden','false');document.body.classList.add('modal-open');}
+  try{ window.__MZJ_OPEN_CLEAN_TASK_MODAL__ = openModal; }catch(_){ }
+  try{
+    const prevRefreshOpenTaskModalV718 = typeof refreshOpenTaskModal === 'function' ? refreshOpenTaskModal : null;
+    refreshOpenTaskModal = function(){
+      const modal = by('taskModal');
+      const meta = (typeof activeTaskModalMeta !== 'undefined') ? activeTaskModalMeta : null;
+      const id = meta && (meta.taskId || meta.id || meta.taskKey);
+      if(modal && modal.classList.contains('show') && id && typeof window.__MZJ_OPEN_CLEAN_TASK_MODAL__ === 'function'){
+        return window.__MZJ_OPEN_CLEAN_TASK_MODAL__(id);
+      }
+      return prevRefreshOpenTaskModalV718 ? prevRefreshOpenTaskModalV718.apply(this, arguments) : undefined;
+    };
+    try{ window.refreshOpenTaskModal = refreshOpenTaskModal; }catch(_){ }
+  }catch(_){ }
+
   async function receive(id){await updateTask(id,t=>({...t,received:true,receivedConfirmed:true,receivedAt:now(),status:isContent(t)?'received':t.status,updatedAt:now()}));toast('تم الاستلام.');}
   function sheetLabelMap(rows){const out={}; A(rows).forEach(r=>{const c=r.cells||{}; const keys=Object.keys(c).sort(); for(let i=0;i<keys.length-1;i++){const lab=S(c[keys[i]]).trim(); const val=S(c[keys[i+1]]).trim(); if(lab&&!out[lab])out[lab]=val;}}); return out;}
   function rowsToHtml(rows, cols){return A(rows).map((r,ri)=>`<tr>${cols.map(col=>`<td class="v677-cell" data-v677-cell="${ri}:${col}">${H((r.cells||{})[col]||'')}</td>`).join('')}</tr>`).join('');}
@@ -37291,11 +37552,11 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     toast('تم تحميل قالب الهيكل.');
   }
   async function downloadTaskTemplate(id){const loc=locate(id); if(!loc)return; const c=loc.campaign,t=loc.task; const p={B4:S(c.campaignName||c.name||t.campaignName||''),B5:S(c.campaignCode||t.campaignCode||''),B6:campaignTypeName(c,t),B7:taskNo(t),B8:creativeName(t),B11:'',B12:'',B13:'',B14:'',B15:'',B16:'',B17:'',B18:''}; await excelFromBase64(TASK_TEMPLATE_B64,p,`${S(c.campaignCode||c.name||'campaign')}-Task-Template.xlsx`); toast('تم تحميل Task Template.');}
-  document.addEventListener('click',e=>{const notif=e.target.closest('[data-open-task]'); if(notif){e.preventDefault();e.stopImmediatePropagation();try{document.getElementById('notificationPanel')?.classList.add('is-hidden');}catch(_){} openModal(notif.dataset.openTask);return;} const togg=e.target.closest('[data-v686-toggle-done]'); if(togg){e.preventDefault();window.__MZJ_V686_SHOW_DONE__=!window.__MZJ_V686_SHOW_DONE__;renderAll();return;} const open=e.target.closest('[data-v677-open]'); if(open){e.preventDefault();openModal(open.dataset.v677Open);return;} const rec=e.target.closest('[data-v677-receive]'); if(rec){e.preventDefault();receive(rec.dataset.v677Receive).catch(err=>toast(err.message||'تعذر الحفظ'));return;} const file=e.target.closest('[data-v677-file]'); if(file){e.preventDefault();const [id,type]=S(file.dataset.v677File).split(':'); const inp=document.createElement('input'); inp.type='file'; inp.accept='.xlsx,.xls'; inp.style.display='none'; document.body.appendChild(inp); inp.onchange=ev=>{const f=ev.target.files&&ev.target.files[0]; if(f)upload(id,type,f).catch(err=>toast(err.message||'تعذر الرفع')).finally(()=>inp.remove()); else inp.remove();}; inp.click();return;} const st=e.target.closest('[data-v677-structure-template]'); if(st){e.preventDefault();downloadStructureTemplate(st.dataset.v677StructureTemplate).catch(err=>{console.error(err);toast('تعذر تحميل القالب.');});return;} const tt=e.target.closest('[data-v677-task-template]'); if(tt){e.preventDefault();downloadTaskTemplate(tt.dataset.v677TaskTemplate).catch(err=>{console.error(err);toast('تعذر تحميل Task Template.');});return;} const rev=e.target.closest('[data-v677-review]'); if(rev){e.preventDefault();openReviewForTask(rev.dataset.v677Review);return;} const dec=e.target.closest('[data-v677-decision]'); if(dec){e.preventDefault();const [d,id]=S(dec.dataset.v677Decision).split(':'); decide(id,d).catch(err=>toast(err.message||'تعذر حفظ القرار'));return;} const close=e.target.closest('[data-v677-review-close]'); if(close){e.preventDefault();document.querySelectorAll('.v677-review-overlay').forEach(x=>x.remove());return;} const cell=e.target.closest('[data-v677-cell]'); if(cell){cell.classList.toggle('marked'); const ov=e.target.closest('.v677-review-overlay'); if(ov){const d=getDraft(ov.dataset.id,ov.dataset.kind); const key=cell.dataset.v677Cell; if(cell.classList.contains('marked'))d.marks.add(key); else d.marks.delete(key);} return;}},true);
+  document.addEventListener('click',e=>{const rel=e.target.closest('[data-v704-release-campaign]'); if(rel){e.preventDefault();e.stopPropagation();releaseCampaignToPublish(rel.dataset.v704ReleaseCampaign).catch(err=>toast(err.message||'تعذر نقل الحملة لقسم النشر'));return;} const notif=e.target.closest('[data-open-task]'); if(notif){e.preventDefault();e.stopImmediatePropagation();try{document.getElementById('notificationPanel')?.classList.add('is-hidden');}catch(_){} openModal(notif.dataset.openTask);return;} const togg=e.target.closest('[data-v686-toggle-done]'); if(togg){e.preventDefault();window.__MZJ_V686_SHOW_DONE__=!window.__MZJ_V686_SHOW_DONE__;renderAll();return;} const open=e.target.closest('[data-v677-open]'); if(open){e.preventDefault();openModal(open.dataset.v677Open);return;} const rec=e.target.closest('[data-v677-receive]'); if(rec){e.preventDefault();receive(rec.dataset.v677Receive).catch(err=>toast(err.message||'تعذر الحفظ'));return;} const file=e.target.closest('[data-v677-file]'); if(file){e.preventDefault();const [id,type]=S(file.dataset.v677File).split(':'); const inp=document.createElement('input'); inp.type='file'; inp.accept='.xlsx,.xls'; inp.style.display='none'; document.body.appendChild(inp); inp.onchange=ev=>{const f=ev.target.files&&ev.target.files[0]; if(f)upload(id,type,f).catch(err=>toast(err.message||'تعذر الرفع')).finally(()=>inp.remove()); else inp.remove();}; inp.click();return;} const st=e.target.closest('[data-v677-structure-template]'); if(st){e.preventDefault();downloadStructureTemplate(st.dataset.v677StructureTemplate).catch(err=>{console.error(err);toast('تعذر تحميل القالب.');});return;} const tt=e.target.closest('[data-v677-task-template]'); if(tt){e.preventDefault();downloadTaskTemplate(tt.dataset.v677TaskTemplate).catch(err=>{console.error(err);toast('تعذر تحميل Task Template.');});return;} const rev=e.target.closest('[data-v677-review]'); if(rev){e.preventDefault();openReviewForTask(rev.dataset.v677Review);return;} const dec=e.target.closest('[data-v677-decision]'); if(dec){e.preventDefault();const [d,id]=S(dec.dataset.v677Decision).split(':'); decide(id,d).catch(err=>toast(err.message||'تعذر حفظ القرار'));return;} const close=e.target.closest('[data-v677-review-close]'); if(close){e.preventDefault();document.querySelectorAll('.v677-review-overlay').forEach(x=>x.remove());return;} const cell=e.target.closest('[data-v677-cell]'); if(cell){cell.classList.toggle('marked'); const ov=e.target.closest('.v677-review-overlay'); if(ov){const d=getDraft(ov.dataset.id,ov.dataset.kind); const key=cell.dataset.v677Cell; if(cell.classList.contains('marked'))d.marks.add(key); else d.marks.delete(key);} return;}},true);
   document.addEventListener('dblclick',e=>{const cell=e.target.closest('[data-v677-cell]'); if(cell){const ov=e.target.closest('.v677-review-overlay'); const n=prompt('ملاحظة الأدمن'); if(n){cell.classList.add('marked','noted'); cell.title=n; if(ov){getDraft(ov.dataset.id,ov.dataset.kind).notes.push({key:cell.dataset.v677Cell,note:n,by:'الأدمن',at:now()});}}}},true);
   document.addEventListener('click',e=>{const btn=e.target.closest('[data-v677-open-review]'); if(!btn)return;},true);
   document.addEventListener('DOMContentLoaded',()=>{startLive();setTimeout(renderAll,300);}); window.addEventListener('hashchange',()=>setTimeout(renderAll,120)); setTimeout(()=>{startLive();renderAll();},500);
-  window.MZJ_V677_FLOW='v695-exec-release-by-template-order';
+  window.MZJ_V677_FLOW='v716-final-upload-visible-clean';
 })();
 
 /* MZJ v649 create campaign approved 3-step concept rebuild */
@@ -37510,3 +37771,262 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',inject); else inject();
 })();
+
+/* MZJ v702 - final file upload for completed task details + publish prep mirrors TASK required details */
+(function(){
+  const VERSION = 'v702-final-upload-publish-prep-task-details';
+  const S = v => (v == null ? '' : String(v)).trim();
+  const A = v => Array.isArray(v) ? v : (v == null ? [] : [v]);
+  const H = v => { try{ return typeof escapeHtml === 'function' ? escapeHtml(S(v)) : S(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }catch(_){ return S(v); } };
+  const N = v => { try{ return typeof identityClean === 'function' ? identityClean(v || '') : S(v).toLowerCase().replace(/[\s\u200f\u200e\-_\/]+/g,''); }catch(_){ return S(v).toLowerCase().replace(/[\s\u200f\u200e\-_\/]+/g,''); } };
+  const uniq = list => Array.from(new Set(A(list).flat(Infinity).map(S).filter(Boolean)));
+  let lastTaskDetailId = '';
+
+  function injectCss(){
+    if(document.getElementById('mzj-v702-final-publish-prep-css')) return;
+    const st = document.createElement('style');
+    st.id = 'mzj-v702-final-publish-prep-css';
+    st.textContent = `
+      .v702-final-upload-panel{margin-top:18px;border:1px solid rgba(142,74,54,.18);border-radius:22px;background:linear-gradient(135deg,#fff 0%,#fff8f2 52%,#fff 100%);box-shadow:0 18px 42px rgba(83,43,30,.08),inset 0 1px 0 rgba(255,255,255,.95);padding:18px;position:relative;overflow:hidden;direction:rtl}.v702-final-upload-panel:before{content:"";position:absolute;inset:0;border-inline-start:7px solid #8f4b3a;pointer-events:none}.v702-final-upload-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px}.v702-final-upload-head h3{margin:0;color:#2f1811;font-size:18px;font-weight:950}.v702-final-upload-head span{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:5px 11px;background:#eaf9ef;color:#138441;border:1px solid #9eddb5;font-weight:900;font-size:12px}.v702-final-upload-panel p{margin:0 0 14px;color:#795e52;font-size:13px}.v702-final-upload-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.v702-final-upload-actions .btn{box-shadow:0 10px 22px rgba(130,68,49,.14)}.v702-final-file-list{margin-top:12px;display:grid;gap:8px}.v702-final-file-list a,.v702-final-file-list span{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid rgba(143,75,58,.13);background:#fff;border-radius:13px;padding:8px 12px;color:#3b2119;text-decoration:none;font-weight:800}.v702-final-file-list small{color:#8f6b5e;font-weight:700}.publish-prep-task .prep-task-top h3{direction:ltr;unicode-bidi:plaintext;text-align:right}.prep-inline-content textarea{white-space:pre-wrap}`;
+    document.head.appendChild(st);
+  }
+  function campaignsList(){ try{ return Array.isArray(window.campaigns) ? window.campaigns : (Array.isArray(campaigns) ? campaigns : []); }catch(_){ return []; } }
+  function tasksOf(c){ const raw = c && (c.departmentTasks || c.tasks); if(Array.isArray(raw)) return raw.filter(Boolean); if(raw && typeof raw === 'object') return Object.values(raw).filter(Boolean); return []; }
+  function taskId(t){ return S(t && (t.id || t.taskId || t.code)); }
+  function locateTask(id){
+    const key = N(id);
+    for(const c of campaignsList()){
+      const t = tasksOf(c).find(x => N(taskId(x)) === key);
+      if(t) return { campaign:c, task:t };
+    }
+    try{ const t = typeof findTaskById === 'function' ? findTaskById(id) : null; const c = t && typeof campaignForTask === 'function' ? campaignForTask(t) : null; if(t) return { campaign:c || {}, task:t }; }catch(_){ }
+    return { campaign:null, task:null };
+  }
+  function roleOf(t){
+    try{ const r = typeof normalizeDepartmentRole === 'function' ? normalizeDepartmentRole(t?.departmentRole || t?.assignedDepartmentRole || t?.assignedDepartmentName || t?.contentSectionName || t?.departmentName || '') : ''; if(r) return r; }catch(_){ }
+    const text = N([t?.departmentRole,t?.assignedDepartmentRole,t?.assignedDepartmentName,t?.contentSectionName,t?.departmentName,t?.taskType,t?.source].join(' '));
+    if(text.includes('montage') || text.includes(N('مونتاج'))) return 'montage';
+    if(text.includes('shoot') || text.includes('photo') || text.includes(N('تصوير'))) return 'shooting';
+    if(text.includes('design') || text.includes(N('تصميم'))) return 'design';
+    if(text.includes('content') || text.includes(N('محتوى'))) return 'content';
+    return text;
+  }
+  function isStructureRequest(t){
+    const text = N([t?.taskType,t?.title,t?.name,t?.sourceRequestStep,t?.source].join(' '));
+    return !!(t?.structureRequest || t?.structureRequestTask || t?.needsStructureUpload || text.includes(N('طلب هيكل')) || text.includes('structurerequest'));
+  }
+  function isContentTemplate(t){
+    const text = N([t?.taskType,t?.source,t?.flowType].join(' '));
+    return !!(t?.contentTemplateTask || text.includes('tasktemplate') || text.includes(N('task template'))) && !isStructureRequest(t);
+  }
+  function isFinalUploadEligible(t){
+    const r = roleOf(t);
+    return !isStructureRequest(t) && (isContentTemplate(t) || ['content','montage','shooting','photography','design'].includes(r));
+  }
+  function progressOf(t){
+    try{ if(typeof taskProgress === 'function') return Math.max(0, Math.min(100, Number(taskProgress(t) || 0))); }catch(_){ }
+    const ex = t && t.execution || {};
+    return Math.max(0, Math.min(100, Number(ex.progress ?? t?.progress ?? 0) || 0));
+  }
+  function finalFiles(t){
+    const files = (typeof taskFiles === 'function') ? taskFiles(t) : A(t?.attachments);
+    return A(files).filter(f => f && (f.isFinal || f.uploadKind === 'final' || f.kind === 'final' || f.purpose === 'final'));
+  }
+  function fileUrl(f){ return S(f?.fileUrl || f?.downloadURL || f?.downloadUrl || f?.url || f?.storageUrl || f?.viewUrl || ''); }
+  function fileName(f, i){ return S(f?.fileName || f?.name || f?.title || ('الملف النهائي ' + (i+1))); }
+  function finalPanelHtml(t){
+    if(!t || !isFinalUploadEligible(t) || progressOf(t) < 100) return '';
+    const files = finalFiles(t);
+    const list = files.length ? `<div class="v702-final-file-list">${files.map((f,i)=>{ const url=fileUrl(f), name=fileName(f,i); return url ? `<a href="${H(url)}" target="_blank" rel="noopener"><b>${H(name)}</b><small>فتح</small></a>` : `<span><b>${H(name)}</b><small>مرفوع</small></span>`; }).join('')}</div>` : '';
+    return `<section class="v702-final-upload-panel" data-v702-final-panel="${H(taskId(t))}"><div class="v702-final-upload-head"><h3>رفع الملف النهائي</h3><span>${files.length ? 'مرفوع' : 'متاح بعد 100%'}</span></div><p>ارفع الملف النهائي هنا بعد اكتمال إجراءات التكليف. الرابط بيتحفظ في Storage ويتربط تلقائيًا بصفحة تجهيز النشر.</p><div class="v702-final-upload-actions"><button type="button" class="btn btn-primary" data-v702-final-file="${H(taskId(t))}">رفع الملف النهائي</button>${files.length ? '<b class="prep-ready-badge">✅ الملف النهائي موجود</b>' : ''}</div>${list}</section>`;
+  }
+  function appendFinalPanel(id){ return; }
+  const observer = new MutationObserver(() => setTimeout(() => appendFinalPanel(), 60));
+  function startObserver(){ const m = document.getElementById('taskModalContent'); if(m) observer.observe(m, { childList:true, subtree:false }); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startObserver); else startObserver();
+  document.addEventListener('mousedown', e => {
+    const btn = e.target?.closest?.('[data-v677-open],[data-open-task],[data-task-step],[data-v702-final-file]');
+    if(!btn) return;
+    lastTaskDetailId = btn.dataset.v677Open || btn.dataset.openTask || btn.dataset.taskStep || btn.dataset.v702FinalFile || lastTaskDetailId;
+    if(btn.dataset.v677Open || btn.dataset.openTask) setTimeout(() => appendFinalPanel(lastTaskDetailId), 180);
+  }, true);
+  if(typeof openTaskModal === 'function'){
+    const prevOpenTaskModalV702 = openTaskModal;
+    openTaskModal = function(task){
+      const t = task && typeof task === 'object' ? task : locateTask(task).task;
+      if(t) lastTaskDetailId = taskId(t);
+      const out = prevOpenTaskModalV702.apply(this, arguments);
+      setTimeout(() => appendFinalPanel(lastTaskDetailId), 120);
+      setTimeout(() => appendFinalPanel(lastTaskDetailId), 360);
+      return out;
+    };
+    try{ window.openTaskModal = openTaskModal; }catch(_){ }
+  }
+
+  function prepId(t){ return `task_${taskId(t) || t?.taskNo || t?.code || ''}`; }
+  function userCanSeeTask(t){
+    try{ if(typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin()) return true; }catch(_){ }
+    try{ if(typeof currentUserMatchesTaskExact === 'function' && currentUserMatchesTaskExact(t)) return true; }catch(_){ }
+    try{ if(typeof taskAssignedToCurrentUser === 'function' && taskAssignedToCurrentUser(t)) return true; }catch(_){ }
+    return false;
+  }
+  function currentTaskRequiredTasks(){
+    const out = [];
+    campaignsList().forEach(c => tasksOf(c).forEach(t => {
+      if(!t || isStructureRequest(t)) return;
+      if(!userCanSeeTask(t)) return;
+      out.push({ campaign:c, task:t });
+    }));
+    return out;
+  }
+  function tplObj(t){ return (t && typeof t.approvedContentTemplate === 'object' && t.approvedContentTemplate) || (t && typeof t.contentTaskTemplate === 'object' && t.contentTaskTemplate) || (t && typeof t.taskTemplate === 'object' && t.taskTemplate) || {}; }
+  function tplFields(t){
+    const tpl = tplObj(t);
+    const out = [];
+    A(tpl.taskTemplateFields).forEach(f => out.push({ key:S(f.key), label:S(f.label), value:S(f.value) }));
+    A(tpl.fields).forEach(f => out.push({ key:S(f.key), label:S(f.label), value:S(f.value) }));
+    A(tpl.parsedRows).forEach(row => {
+      A(row?.taskTemplateFields).forEach(f => out.push({ key:S(f.key), label:S(f.label), value:S(f.value) }));
+      const raw = row?.raw || row || {};
+      Object.keys(raw || {}).forEach(k => out.push({ key:k, label:k, value:S(raw[k]) }));
+    });
+    Object.keys(tpl || {}).forEach(k => { if(typeof tpl[k] !== 'object') out.push({ key:k, label:k, value:S(tpl[k]) }); });
+    const raw = t || {};
+    Object.keys(raw || {}).forEach(k => { if(typeof raw[k] !== 'object') out.push({ key:k, label:k, value:S(raw[k]) }); });
+    return out.filter(f => f.value);
+  }
+  function detailValue(t, keys, labels){
+    const wantedKeys = A(keys).map(N), wantedLabels = A(labels).map(N);
+    const fields = tplFields(t);
+    const found = fields.find(f => wantedKeys.includes(N(f.key)) || wantedLabels.includes(N(f.label)) || wantedLabels.includes(N(f.key)));
+    return S(found?.value || '');
+  }
+  function captionFromDetails(t){ return detailValue(t, ['caption','postCaption','copy','publishCaption'], ['الكابشن','كابشن','نص المنشور']) || S(t?.caption || t?.publishCaption || t?.copy || ''); }
+  function hashtagsFromDetails(t){ return detailValue(t, ['hashtags','hashTags','hashtagsText','tags','publishHashtags'], ['هاشتاج','الهاشتاج','الهاشتاجات','هاشتاجات']) || S(t?.hashtags || t?.hashtagsText || t?.publishHashtags || ''); }
+  function taskNo(t){
+    const values = [t?.structureRow?.taskNo,t?.structureRow?.structureTaskNo,t?.taskNo,t?.structureTaskNo,t?.taskNumber,t?.taskCode,t?.code,t?.id];
+    for(const raw of values){ const s=S(raw).toUpperCase(); const m=s.match(/(?:^|[-_\s])([A-Z]{1,4}\d{1,3})(?:$|[-_\s])/); if(m) return m[1]; }
+    return '';
+  }
+  function contentType(t){ return S(t?.structureRow?.contentType || t?.contentType || t?.creative || t?.product || t?.taskType || '').replace(/^تنفيذ\s*-?\s*/,'').replace(/^قسم\s*[^-]+-?/,'').trim(); }
+  function publishTitle(t){ const n=taskNo(t); const type=contentType(t); return [n,type].filter(Boolean).join(' - ') || (typeof shortTaskName === 'function' ? shortTaskName(t) : S(t?.taskType || t?.title || 'تاسك نشر')); }
+  function prepTaskFromRequired(pair){
+    const c = pair.campaign || {}, t = pair.task || {};
+    const base = {
+      id: prepId(t),
+      sourceType: 'task_required',
+      sourceLabel: t.assignedDepartmentName || t.contentSectionName || 'تاسك مطلوب',
+      title: publishTitle(t),
+      campaignName: c.campaignName || c.name || t.campaignName || c.campaignCode || t.campaignCode || '',
+      type: contentType(t) || (typeof prepTaskTypeLabel === 'function' ? prepTaskTypeLabel(t) : ''),
+      requiredFile: typeof prepTaskRequiredFileLabel === 'function' ? prepTaskRequiredFileLabel(t) : 'الملف النهائي',
+      platforms: typeof normalizePrepPlatformList === 'function' ? normalizePrepPlatformList(t.platforms || t.platform || c.platforms || c.platform || []) : A(t.platforms || t.platform),
+      platformTypes: t.platformTypes || {},
+      platformPublishing: Array.isArray(t.platformPublishing) ? t.platformPublishing : [],
+      postType: S(t.postType || t.publishType || ''),
+      postTypeLabel: S(t.postTypeLabel || ''),
+      requiredDimensions: t.requiredDimensions || null,
+      caption: captionFromDetails(t),
+      hashtags: hashtagsFromDetails(t),
+      publishDate: (typeof prepTaskDate === 'function' ? prepTaskDate(t, c) : '') || S(t.publishDate || t.scheduleDate || ''),
+      publishTime: S(t.publishTime || t.scheduleTime || ''),
+      deadline: S(t.deadline || t.dueDate || t.requiredDate || ''),
+      notes: S(t.notes || t.note || t.instructions || ''),
+      raw: t
+    };
+    return base;
+  }
+  if(typeof publishPrepTasksFromExistingTasks === 'function'){
+    publishPrepTasksFromExistingTasks = function(){ return currentTaskRequiredTasks().map(prepTaskFromRequired); };
+    try{ window.publishPrepTasksFromExistingTasks = publishPrepTasksFromExistingTasks; }catch(_){ }
+  }
+  if(typeof getPublishingPrepTasks === 'function'){
+    getPublishingPrepTasks = function(){
+      const map = new Map();
+      (typeof publishPrepTasksFromExistingTasks === 'function' ? publishPrepTasksFromExistingTasks() : []).forEach(t => { if(t && t.id && !map.has(t.id)) map.set(t.id, t); });
+      return Array.from(map.values());
+    };
+    try{ window.getPublishingPrepTasks = getPublishingPrepTasks; }catch(_){ }
+  }
+  if(typeof publishPrepTaskProgress === 'function'){
+    publishPrepTaskProgress = function(task){ return progressOf(task?.raw || task); };
+    try{ window.publishPrepTaskProgress = publishPrepTaskProgress; }catch(_){ }
+  }
+  if(typeof publishPrepEffectiveCaption === 'function'){
+    publishPrepEffectiveCaption = function(task, submission){ return S(submission?.caption || captionFromDetails(task?.raw || task) || task?.caption || ''); };
+    try{ window.publishPrepEffectiveCaption = publishPrepEffectiveCaption; }catch(_){ }
+  }
+  if(typeof publishPrepEffectiveHashtags === 'function'){
+    publishPrepEffectiveHashtags = function(task, submission){ return S(submission?.hashtags || hashtagsFromDetails(task?.raw || task) || task?.hashtags || ''); };
+    try{ window.publishPrepEffectiveHashtags = publishPrepEffectiveHashtags; }catch(_){ }
+  }
+  if(typeof publishPrepHasFinalFile === 'function'){
+    const oldHasFinalV702 = publishPrepHasFinalFile;
+    publishPrepHasFinalFile = function(task, submission){
+      if(submission?.fileName || submission?.finalFileName || submission?.finalFileUrl || submission?.fileUrl) return true;
+      const raw = task?.raw || task;
+      const files = finalFiles(raw);
+      if(files.length) return true;
+      return oldHasFinalV702 ? oldHasFinalV702.apply(this, arguments) : false;
+    };
+    try{ window.publishPrepHasFinalFile = publishPrepHasFinalFile; }catch(_){ }
+  }
+  if(typeof publishPrepFinalFileRecord === 'function'){
+    const oldFinalRecordV702 = publishPrepFinalFileRecord;
+    publishPrepFinalFileRecord = function(task, submission){
+      const subUrl = submission?.finalFileUrl || submission?.fileUrl || submission?.downloadURL || submission?.downloadUrl;
+      if(subUrl) return { fileUrl:subUrl, fileName:submission.finalFileName || submission.fileName || 'final-file', mimeType:submission.mimeType || submission.fileType || '' };
+      const f = finalFiles(task?.raw || task)[0];
+      if(f) return { ...f, fileUrl:fileUrl(f), fileName:fileName(f,0), mimeType:f.mimeType || f.type || '' };
+      return oldFinalRecordV702 ? oldFinalRecordV702.apply(this, arguments) : null;
+    };
+    try{ window.publishPrepFinalFileRecord = publishPrepFinalFileRecord; }catch(_){ }
+  }
+
+  async function saveTaskAttachments(t, record){
+    const files = (typeof taskFiles === 'function' ? taskFiles(t) : A(t.attachments));
+    const next = files.concat([record]);
+    if(typeof updateTaskOnFirebase === 'function') return updateTaskOnFirebase(taskId(t), { attachments:next, finalFile:record, finalFileUrl:fileUrl(record), finalFileName:fileName(record,0), finalUploadedAt:new Date().toISOString(), finalSubmitted:true, updatedAt:new Date().toISOString() }, { noRefresh:true });
+    const loc = locateTask(taskId(t));
+    if(loc.campaign){
+      const tasks = tasksOf(loc.campaign).map(x => N(taskId(x)) === N(taskId(t)) ? { ...x, attachments:next, finalFile:record, finalFileUrl:fileUrl(record), finalFileName:fileName(record,0), updatedAt:new Date().toISOString() } : x);
+      loc.campaign.departmentTasks = tasks;
+      if(typeof safeCollection === 'function') await safeCollection(window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns').doc(S(loc.campaign.id || loc.campaign.docId)).update({ departmentTasks:tasks, updatedAt: typeof serverTime === 'function' ? serverTime() : new Date() });
+    }
+  }
+  async function uploadFinalFile(id, file){
+    const loc = locateTask(id);
+    const t = loc.task;
+    if(!t) throw new Error('تعذر العثور على التاسك.');
+    if(progressOf(t) < 100) throw new Error('رفع الملف النهائي يظهر بعد وصول التاسك 100%.');
+    let record;
+    if(typeof uploadTaskFileToDrive === 'function') record = await uploadTaskFileToDrive(file, t, 'final');
+    else if(typeof uploadTaskFileToFirebaseStorage === 'function') record = await uploadTaskFileToFirebaseStorage(file, t, 'final');
+    else throw new Error('دالة الرفع غير متاحة.');
+    record = { ...(record || {}), uploadKind:'final', kind:'final', purpose:'final', isFinal:true, uploadedAt:new Date().toISOString() };
+    await saveTaskAttachments(t, record);
+    const pId = prepId(t);
+    if(typeof updatePublishPrepSubmission === 'function'){
+      await updatePublishPrepSubmission(pId, {
+        fileName:fileName(record,0), finalFileName:fileName(record,0), fileUrl:fileUrl(record), finalFileUrl:fileUrl(record), mimeType:record.mimeType || record.type || '', finalFileRecord:record, finalUploadedAt:new Date().toISOString(), status:'تم رفع الملف النهائي'
+      });
+    }
+    // Keep the currently-open task details UI stable after upload; re-opening the task will show the saved file.
+    try{ if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(_){ }
+    try{ if(typeof renderUserDashboard === 'function') renderUserDashboard(); }catch(_){ }
+    try{ if(typeof renderPublishPrepPage === 'function' && typeof getRoute === 'function' && getRoute() === 'publish-prep') renderPublishPrepPage(); }catch(_){ }
+    try{ if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(_){ }
+    try{ if(typeof renderUserDashboard === 'function') renderUserDashboard(); }catch(_){ }
+  }
+
+  const oldRenderPublishPrepV702 = typeof renderPublishPrepPage === 'function' ? renderPublishPrepPage : null;
+  if(oldRenderPublishPrepV702){
+    renderPublishPrepPage = function(){ const out = oldRenderPublishPrepV702.apply(this, arguments); injectCss(); return out; };
+    try{ window.renderPublishPrepPage = renderPublishPrepPage; }catch(_){ }
+  }
+  try{ window.MZJ_APP_VERSION='720'; window.MZJ_LAST_PATCH=VERSION; console.info(VERSION,'loaded'); }catch(_){ }
+})();
+
+
+/* MZJ v703 removed: final upload is integrated in execDetails original flow. */
+
