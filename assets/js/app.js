@@ -133,6 +133,8 @@ let mainDb = null;
 let mainAuth = null;
 let mainStorage = null;
 let stockDb = null;
+let stockAuth = null;
+let stockWorkflowAuthPromise = null;
 let departments = [];
 let users = [];
 let creatives = [];
@@ -154,6 +156,9 @@ let campaignTasks = [];
 let cars = [];
 let stockCarMeta = {};
 let stockFilterMode = "all";
+let stockRequestBranches = [];
+let stockPhotoRequests = [];
+let stockPhotoRequestsUnsubscribe = null;
 let systemSettings = {};
 let activeTaskModalMeta = null;
 let publishPrepSubmissionsCache = null;
@@ -278,7 +283,27 @@ function initFirebase(){
   try{
     const stockApp = firebase.apps.find(app => app.name === 'stockApp') || firebase.initializeApp(window.MZJ_STOCK_FIREBASE_CONFIG, 'stockApp');
     stockDb = firebase.firestore(stockApp);
+    if(firebase.auth){
+      try{
+        stockAuth = firebase.auth(stockApp);
+        try{ stockAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(_){}
+      }catch(authError){ console.error('Stock Firebase auth init error', authError); }
+    }
   }catch(error){ console.error('Stock Firebase init error', error); }
+}
+
+function ensureStockWorkflowAuth(){
+  if(!stockAuth) return Promise.resolve(null);
+  if(stockAuth.currentUser) return Promise.resolve(stockAuth.currentUser);
+  if(stockWorkflowAuthPromise) return stockWorkflowAuthPromise;
+  stockWorkflowAuthPromise = stockAuth.signInAnonymously()
+    .then(result => result && result.user ? result.user : stockAuth.currentUser)
+    .catch(error => {
+      console.error('Stock workflow anonymous auth error', error);
+      throw error;
+    })
+    .finally(() => { stockWorkflowAuthPromise = null; });
+  return stockWorkflowAuthPromise;
 }
 
 function userName(user){ return user?.name || user?.displayName || user?.username || user?.email || user?.id || ''; }
@@ -1800,6 +1825,254 @@ function cssEscape(value){
 }
 window.mzjHandleStockShotChange = handleStockShotSelectChange;
 
+
+function stockFallbackBranches(){ return ['الملتقى','القادسية','الصالة','الوكالة','المستودع']; }
+function loadStockPhotoRequestBranches(){
+  if(!stockDb) return;
+  ensureStockWorkflowAuth().then(() => {
+    stockDb.collection('meta').doc('lists').onSnapshot(doc => {
+      const data = doc.exists ? (doc.data() || {}) : {};
+      const branches = Array.isArray(data.branches) ? data.branches.map(normalizeText).filter(Boolean) : [];
+      stockRequestBranches = branches.length ? branches : stockFallbackBranches();
+      renderStockPhotoRequestModalBody();
+    }, error => {
+      console.warn('Stock request branches load error', error);
+      stockRequestBranches = stockFallbackBranches();
+      renderStockPhotoRequestModalBody();
+    });
+  }).catch(error => {
+    console.warn('Stock request branches auth error', error);
+    stockRequestBranches = stockFallbackBranches();
+    renderStockPhotoRequestModalBody();
+  });
+}
+
+function loadStockPhotoRequests(){
+  if(!stockDb || stockPhotoRequestsUnsubscribe) return;
+  ensureStockWorkflowAuth().then(() => {
+    if(stockPhotoRequestsUnsubscribe) return;
+    stockPhotoRequestsUnsubscribe = stockDb.collection('requests')
+      .where('type','==','photo')
+      .where('source','==','stock_photo_requests')
+      .limit(200)
+      .onSnapshot(snapshot => {
+        stockPhotoRequests = snapshot.docs
+          .map(doc => ({ id: doc.id, ...(doc.data() || {}) }))
+          .filter(item => item.type === 'photo' && item.source === 'stock_photo_requests')
+          .sort((a,b) => {
+            const ta = a.createdAt && a.createdAt.seconds ? Number(a.createdAt.seconds) : 0;
+            const tb = b.createdAt && b.createdAt.seconds ? Number(b.createdAt.seconds) : 0;
+            return tb - ta;
+          });
+        renderStockPhotoRequestsBadge();
+        renderStockPhotoRequestModalBody();
+      }, error => {
+        console.error('Stock photo requests load error', error);
+        stockPhotoRequests = [];
+        renderStockPhotoRequestsBadge();
+        renderStockPhotoRequestModalBody();
+      });
+  }).catch(error => {
+    console.error('Stock photo requests auth error', error);
+    stockPhotoRequests = [];
+    renderStockPhotoRequestsBadge();
+    renderStockPhotoRequestModalBody();
+  });
+}
+
+function renderStockPhotoRequestsBadge(){
+  const el = document.getElementById('stockPhotoRequestsCount');
+  if(!el) return;
+  el.textContent = String(stockPhotoRequests.filter(req => !req.step4At).length || 0);
+}
+function stockVinOf(car){
+  return normalizeText(pickFirstValue(car, ['vin','VIN','chassis','chassisNo','chassisNumber','frameNo','رقم الهيكل','رقم الشاسية','رقم الشاسيه']) || car?.id || '');
+}
+function stockCarNameOf(car){ return normalizeText(pickFirstValue(car, ['carName','name','modelName','vehicleName','السيارة','اسم السيارة']) || '—'); }
+function stockStatementOf(car){ return normalizeText(pickFirstValue(car, ['statement','category','trim','class','الفئة','البيان']) || '—'); }
+function stockExteriorOf(car){ return normalizeText(pickFirstValue(car, ['exteriorColor','externalColor','colorOut','outerColor','اللون الخارجي','الخارجي']) || '—'); }
+function stockInteriorOf(car){ return normalizeText(pickFirstValue(car, ['interiorColor','internalColor','colorIn','innerColor','اللون الداخلي','الداخلي']) || '—'); }
+function stockModelYearOf(car){ return normalizeText(pickFirstValue(car, ['model','modelYear','year','سنة الموديل','الموديل']) || '—'); }
+function stockCarByVin(vin){
+  const key = normalizeText(vin);
+  return cars.find(car => stockVinOf(car) === key || normalizeText(car.id) === key) || null;
+}
+function stockVinButtonsHtml(group){
+  const list = (group.cars || []).map(car => ({ vin: stockVinOf(car), car })).filter(item => item.vin);
+  if(!list.length) return '<span class="muted">—</span>';
+  return `<div class="stock-vin-buttons">${list.map(item => `<button class="stock-vin-btn" type="button" data-stock-photo-request-vin="${escapeHtml(item.vin)}">${escapeHtml(item.vin)}</button>`).join('')}</div>`;
+}
+function stockTimestampText(value){
+  if(!value) return '—';
+  if(value && typeof value.toDate === 'function') return formatDateShort(value.toDate());
+  if(value instanceof Date) return formatDateShort(value);
+  if(typeof value === 'object' && value.seconds) return formatDateShort(new Date(Number(value.seconds) * 1000));
+  return formatDateShort(value) || String(value);
+}
+function stockPhotoStepStage(req){
+  if(req?.step4At) return 4;
+  if(req?.step3At) return 3;
+  if(req?.step2At) return 2;
+  if(req?.step1At) return 1;
+  return 0;
+}
+function stockPhotoRequestTypeLabel(){ return 'تصوير'; }
+function ensureStockPhotoRequestModal(){
+  let modal = document.getElementById('stockPhotoRequestModal');
+  if(modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'stockPhotoRequestModal';
+  modal.className = 'stock-photo-request-modal';
+  modal.dataset.mode = 'create';
+  modal.innerHTML = '<div class="stock-photo-request-backdrop" data-close-stock-photo-request></div><section class="stock-photo-request-shell" role="dialog" aria-modal="true" aria-label="طلبات تصوير الاستوك"><div id="stockPhotoRequestModalBody"></div></section>';
+  document.body.appendChild(modal);
+  injectStockPhotoRequestStyle();
+  return modal;
+}
+function openStockPhotoRequestModal(mode = 'create', vin = ''){
+  const modal = ensureStockPhotoRequestModal();
+  modal.dataset.mode = mode || 'create';
+  modal.dataset.vin = normalizeText(vin || '');
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden', 'false');
+  document.documentElement.classList.add('stock-photo-request-open');
+  renderStockPhotoRequestModalBody();
+}
+function closeStockPhotoRequestModal(){
+  const modal = document.getElementById('stockPhotoRequestModal');
+  if(modal){ modal.classList.remove('show'); modal.setAttribute('aria-hidden', 'true'); }
+  document.documentElement.classList.remove('stock-photo-request-open');
+}
+function renderStockPhotoRequestModalBody(){
+  const modal = document.getElementById('stockPhotoRequestModal');
+  const body = document.getElementById('stockPhotoRequestModalBody');
+  if(!modal || !body || !modal.classList.contains('show')) return;
+  const mode = modal.dataset.mode || 'create';
+  const vin = modal.dataset.vin || '';
+  body.innerHTML = `<div class="stock-photo-request-head"><div><span>طلبات التصوير من الاستوك</span><h2>طلبات التصوير</h2><p>نفس إجراءات طلبات النقل/التصوير، هيكل واحد لكل طلب، وبدون تغيير مكان السيارة.</p></div><button class="task-modal-close stock-photo-close" type="button" data-close-stock-photo-request>×</button></div>
+  <div class="stock-photo-request-tabs">
+    <button type="button" class="${mode === 'create' ? 'active' : ''}" data-stock-photo-mode="create">إنشاء طلب</button>
+    <button type="button" class="${mode === 'follow' ? 'active' : ''}" data-stock-photo-mode="follow">متابعة الطلبات</button>
+    <button type="button" class="${mode === 'done' ? 'active' : ''}" data-stock-photo-mode="done">الطلبات المكتملة</button>
+  </div>
+  <div class="stock-photo-request-content">${mode === 'create' ? renderStockPhotoCreateBody(vin) : renderStockPhotoRequestsList(mode)}</div>`;
+}
+function renderStockPhotoCreateBody(vin){
+  const car = stockCarByVin(vin);
+  const place = car ? stockPlaceOf(car) : '';
+  const branchOptions = stockRequestBranches.length ? stockRequestBranches : stockFallbackBranches();
+  const options = ['<option value="">اختر مكان التصوير</option>', ...branchOptions.map(branch => `<option value="${escapeHtml(branch)}">${escapeHtml(branch)}</option>`)].join('');
+  const rows = car ? `<tr><td>1</td><td><strong>${escapeHtml(vin)}</strong></td><td>${escapeHtml(stockCarNameOf(car))}</td><td>${escapeHtml(stockStatementOf(car))}</td><td>${escapeHtml(stockExteriorOf(car))}</td><td>${escapeHtml(stockInteriorOf(car))}</td><td>${escapeHtml(stockModelYearOf(car))}</td><td>${escapeHtml(place || '—')}</td><td><button type="button" class="mini-btn danger" data-close-stock-photo-request>حذف</button></td></tr>` : `<tr><td colspan="9">اضغط على رقم الهيكل من جدول الاستوك لإنشاء طلب تصوير.</td></tr>`;
+  return `<div class="stock-photo-create-card">
+    <div class="stock-photo-form-strip">
+      <label class="field"><span>اختر القسم</span><select class="select" disabled><option selected>إنشاء طلب</option></select></label>
+      <label class="field"><span>نوع الطلب</span><select class="select" disabled><option selected>تصوير</option></select></label>
+      <label class="field"><span>مكان التصوير</span><select class="select" id="stockPhotoRequestPlace">${options}</select></label>
+      <label class="field"><span>تاريخ التصوير</span><input class="control" type="date" id="stockPhotoRequestDate" value="${escapeHtml(todayInputDate())}"></label>
+    </div>
+    <p class="stock-photo-help">اختار مكان التصوير + تاريخ التصوير ثم إرسال الطلب. كل رقم هيكل يتم فتحه في طلب مستقل.</p>
+    <div class="stock-photo-top-actions"><button type="button" class="btn btn-light" data-close-stock-photo-request>إلغاء</button><button type="button" class="btn btn-primary" data-submit-stock-photo-request="${escapeHtml(vin)}" ${car ? '' : 'disabled'}>إرسال الطلب</button></div>
+    <div class="stock-photo-table-wrap"><table class="stock-photo-request-table"><thead><tr><th>م</th><th>رقم الهيكل VIN</th><th>السيارة</th><th>الفئة</th><th>الخارجي</th><th>الداخلي</th><th>الموديل</th><th>المكان الحالي</th><th>حذف</th></tr></thead><tbody>${rows}</tbody></table></div>
+  </div>`;
+}
+function renderStockPhotoRequestsList(mode){
+  const completed = mode === 'done';
+  const list = stockPhotoRequests.filter(req => completed ? !!req.step4At : !req.step4At);
+  if(!list.length) return `<div class="empty-state">${completed ? 'لا توجد طلبات تصوير مكتملة.' : 'لا توجد طلبات تصوير قيد المتابعة.'}</div>`;
+  return `<div class="stock-photo-table-wrap"><table class="stock-photo-request-table"><thead><tr><th>التاريخ</th><th>النوع</th><th>رقم الهيكل</th><th>من</th><th>مكان التصوير</th><th>${completed ? 'تاريخ الاكتمال' : 'المرحلة'}</th><th>فتح</th></tr></thead><tbody>${list.map(req => {
+    const vin = (Array.isArray(req.vins) && req.vins[0]) || req.items?.[0]?.vin || '—';
+    const from = (Array.isArray(req.fromLocations) && req.fromLocations[0]) || req.items?.[0]?.fromLocation || '—';
+    const stage = stockPhotoStepStage(req);
+    return `<tr><td>${escapeHtml(stockTimestampText(req.createdAt))}</td><td>${stockPhotoRequestTypeLabel()}</td><td><strong>${escapeHtml(vin)}</strong></td><td>${escapeHtml(from)}</td><td>${escapeHtml(req.toLocation || '—')}</td><td>${completed ? escapeHtml(stockTimestampText(req.step4At)) : escapeHtml(['جديد','تم استلام الطلب','تم ارسال السيارة','تم استلام السيارة','تم الانتهاء'][stage] || 'جديد')}</td><td><button class="mini-btn" type="button" data-open-stock-photo-details="${escapeHtml(req.id)}">فتح</button></td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+function openStockPhotoRequestDetails(id){
+  const req = stockPhotoRequests.find(item => item.id === id);
+  if(!req) return showToast('لم يتم العثور على الطلب.');
+  const modal = ensureStockPhotoRequestModal();
+  modal.dataset.mode = 'details';
+  modal.dataset.vin = '';
+  modal.classList.add('show');
+  const body = document.getElementById('stockPhotoRequestModalBody');
+  const vin = (Array.isArray(req.vins) && req.vins[0]) || req.items?.[0]?.vin || '';
+  const car = stockCarByVin(vin) || {};
+  const rows = `<tr><td>1</td><td><strong>${escapeHtml(vin || '—')}</strong></td><td>${escapeHtml(stockCarNameOf(car))}</td><td>${escapeHtml(stockStatementOf(car))}</td><td>${escapeHtml(stockExteriorOf(car))}</td><td>${escapeHtml(stockInteriorOf(car))}</td><td>${escapeHtml(stockModelYearOf(car))}</td><td>${escapeHtml(req.items?.[0]?.fromLocation || stockPlaceOf(car) || '—')}</td></tr>`;
+  const steps = [
+    [1,'تم استلام الطلب','step1At'],[2,'تم ارسال السيارة','step2At'],[3,'تم استلام السيارة','step3At'],[4,'تم الانتهاء','step4At']
+  ].map(([step,label,key]) => {
+    const done = !!req[key];
+    const disabled = step > 1 && !req[`step${step-1}At`];
+    return `<button class="workflow-step ${done ? 'done' : ''}" type="button" data-stock-photo-step="${step}" data-stock-photo-request-id="${escapeHtml(req.id)}" ${done || disabled ? 'disabled' : ''}><span>${escapeHtml(label)}</span><strong>${done ? 'تم' : 'بانتظار الإجراء'}</strong><em>${escapeHtml(stockTimestampText(req[key]))}</em></button>`;
+  }).join('');
+  const canDelete = !req.step3At && !req.step4At;
+  body.innerHTML = `<div class="stock-photo-request-head"><div><span>تفاصيل طلب التصوير</span><h2>${escapeHtml(vin || 'طلب تصوير')}</h2><p>${escapeHtml([req.toLocation ? 'مكان التصوير: '+req.toLocation : '', req.photoDate ? 'تاريخ التصوير: '+req.photoDate : ''].filter(Boolean).join(' · '))}</p></div><button class="task-modal-close" type="button" data-close-stock-photo-request>×</button></div>
+    <div class="stock-photo-request-tabs"><button type="button" data-stock-photo-mode="create">إنشاء طلب</button><button type="button" data-stock-photo-mode="follow">متابعة الطلبات</button><button type="button" data-stock-photo-mode="done">الطلبات المكتملة</button></div>
+    <div class="modal-section"><div class="modal-section-title"><h3>مراحل الطلب</h3><span>${stockPhotoRequestTypeLabel()}</span></div><div class="modal-steps-grid">${steps}</div></div>
+    <div class="modal-section"><div class="modal-section-title"><h3>بيانات السيارة</h3><span>هيكل واحد</span></div><div class="stock-photo-table-wrap"><table class="stock-photo-request-table"><thead><tr><th>م</th><th>رقم الهيكل VIN</th><th>السيارة</th><th>الفئة</th><th>الخارجي</th><th>الداخلي</th><th>الموديل</th><th>المكان الحالي</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+    <div class="stock-photo-actions"><button type="button" class="btn btn-light" data-stock-photo-mode="follow">رجوع للمتابعة</button>${canDelete ? `<button type="button" class="btn btn-danger-soft" data-delete-stock-photo-request="${escapeHtml(req.id)}">حذف الطلب</button>` : ''}</div>`;
+}
+async function submitStockPhotoRequest(vin){
+  const car = stockCarByVin(vin);
+  if(!stockDb || !car) return showToast('لم يتم العثور على السيارة.');
+  const toLocation = normalizeText(document.getElementById('stockPhotoRequestPlace')?.value || '');
+  const photoDate = normalizeText(document.getElementById('stockPhotoRequestDate')?.value || '');
+  if(!toLocation) return showToast('اختر مكان التصوير.');
+  if(!photoDate) return showToast('اختر تاريخ التصوير.');
+  await ensureStockWorkflowAuth();
+  const user = getCurrentUserIdentity();
+  const fromLocation = stockPlaceOf(car);
+  await stockDb.collection('requests').add({
+    type: 'photo',
+    source: 'stock_photo_requests',
+    items: [{ vin, fromLocation }],
+    vins: [vin],
+    fromLocations: [fromLocation],
+    toLocation,
+    photoDate,
+    createdBy: user.name || user.email || user.uid || 'web',
+    createdByUid: user.uid || user.id || '',
+    createdAt: serverTime(),
+    step1At: null, step2At: null, step3At: null, step4At: null,
+    step1By: null, step2By: null, step3By: null, step4By: null
+  });
+  showToast('تم إرسال طلب التصوير.');
+  openStockPhotoRequestModal('follow');
+}
+async function markStockPhotoRequestStep(id, step){
+  const req = stockPhotoRequests.find(item => item.id === id);
+  if(!stockDb || !req) return;
+  if(step > 1 && !req[`step${step-1}At`]) return showToast('نفّذ المرحلة السابقة أولاً.');
+  await ensureStockWorkflowAuth();
+  const user = getCurrentUserIdentity();
+  const update = {};
+  update[`step${step}At`] = serverTime();
+  update[`step${step}By`] = user.name || user.email || user.uid || 'web';
+  await stockDb.collection('requests').doc(id).set(update, { merge:true });
+  showToast('تم تحديث الطلب.');
+  setTimeout(() => openStockPhotoRequestDetails(id), 250);
+}
+async function deleteStockPhotoRequest(id){
+  const req = stockPhotoRequests.find(item => item.id === id);
+  if(!stockDb || !req) return;
+  if(req.step3At || req.step4At) return showToast('لا يمكن حذف الطلب بعد استلام السيارة.');
+  if(!confirm('حذف طلب التصوير؟')) return;
+  await ensureStockWorkflowAuth();
+  await stockDb.collection('requests').doc(id).delete();
+  showToast('تم حذف الطلب.');
+  openStockPhotoRequestModal('follow');
+}
+function injectStockPhotoRequestStyle(){
+  if(document.getElementById('stockPhotoRequestStyle')) return;
+  const style = document.createElement('style');
+  style.id = 'stockPhotoRequestStyle';
+  style.textContent = `
+  html.stock-photo-request-open,html.stock-photo-request-open body{overflow:hidden!important}
+  #stock .stock-photo-requests-card{cursor:pointer}
+  .stock-vin-list{text-align:center!important}.stock-vin-buttons{display:grid;grid-template-columns:1fr;gap:6px;justify-items:center}.stock-vin-btn{border:1px solid var(--border);background:#fff;border-radius:10px;padding:6px 12px;font-weight:900;color:var(--primary);cursor:pointer;min-width:88px}.stock-vin-btn:hover,.stock-vin-btn-single:hover{background:#fff4ed;box-shadow:0 5px 16px rgba(90,51,41,.14)}
+  .stock-photo-request-modal{position:fixed!important;inset:0!important;z-index:2147483000!important;display:none!important;direction:rtl}.stock-photo-request-modal.show{display:block!important}.stock-photo-request-backdrop{position:fixed!important;inset:0!important;background:rgba(45,23,19,.42)!important;backdrop-filter:blur(4px)!important}.stock-photo-request-shell{position:fixed!important;inset:18px!important;z-index:2147483001!important;background:linear-gradient(180deg,#fffdfb,#fbf2eb)!important;border:1px solid var(--border)!important;border-radius:26px!important;box-shadow:0 30px 90px rgba(45,23,19,.32)!important;overflow:auto!important;padding:20px!important;direction:rtl!important;max-width:none!important;width:auto!important;height:auto!important;margin:0!important}.stock-photo-close{position:absolute!important;top:18px!important;left:18px!important;float:none!important}.stock-photo-request-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;border-bottom:1px solid var(--border);padding:16px 8px 16px 54px;margin-bottom:16px}.stock-photo-request-head span{color:var(--secondary);font-size:13px;font-weight:900}.stock-photo-request-head h2{margin:4px 0;font-size:30px;color:var(--primary)}.stock-photo-request-head p{margin:0;color:var(--muted);font-weight:800}.stock-photo-request-tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.stock-photo-request-tabs button{border:1px solid var(--border);background:#fff;border-radius:14px;padding:11px 18px;font-weight:900;color:var(--primary);cursor:pointer}.stock-photo-request-tabs button.active{background:var(--primary);color:#fff}.stock-photo-create-card{background:rgba(255,255,255,.72);border:1px solid var(--border);border-radius:22px;padding:16px}.stock-photo-form-strip{display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:12px;align-items:end}.stock-photo-help{margin:10px 0 16px;color:var(--muted);font-weight:800;text-align:left}.stock-photo-top-actions,.stock-photo-actions{display:flex;justify-content:flex-start;gap:10px;flex-wrap:wrap;margin:12px 0}.stock-photo-request-table{width:100%;border-collapse:separate;border-spacing:0 8px}.stock-photo-request-table th{font-size:12px;color:var(--muted);text-align:center;padding:6px}.stock-photo-request-table td{background:#fff;border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:12px 10px;text-align:center;font-weight:900}.stock-photo-request-table td:first-child{border-radius:0 12px 12px 0;border-right:1px solid var(--border)}.stock-photo-request-table td:last-child{border-radius:12px 0 0 12px;border-left:1px solid var(--border)}.stock-photo-table-wrap{overflow:auto}.stock-photo-form-card,.stock-photo-table-card{background:rgba(255,255,255,.75);border:1px solid var(--border);border-radius:20px;padding:14px}.stock-photo-form-grid{display:grid;gap:12px}.stock-photo-create-grid{display:block}.stock-photo-request-content .empty-state{background:#fff;border:1px solid var(--border);border-radius:18px;padding:22px;text-align:center;font-weight:900}.modal-steps-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:10px}@media(max-width:1000px){.stock-photo-form-strip{grid-template-columns:1fr 1fr}.modal-steps-grid{grid-template-columns:1fr 1fr}}@media(max-width:650px){.stock-photo-request-shell{inset:8px!important;padding:12px!important}.stock-photo-form-strip,.modal-steps-grid{grid-template-columns:1fr}.stock-photo-request-head h2{font-size:24px}}`;
+  document.head.appendChild(style);
+}
+
 function stockPlaceOf(car){
   return normalizeText(pickFirstValue(car, [
     'place', 'carPlace', 'stockPlace', 'location', 'site', 'yard', 'branch', 'showroom',
@@ -1851,7 +2124,7 @@ function stockChipHtml(name, count = null, extraClass = ''){
 function renderStockError(){
   ['stockTotalCars','dashboardCarsCount','stockAvailableAfterExclude','stockAvailableForSale','stockReserved','stockUnderDelivery'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = '—'; });
   const tbody = document.getElementById('stockSummaryRows');
-  if(tbody) tbody.innerHTML = '<tr class="empty-row"><td colspan="8">تعذر تحميل بيانات الاستوك.</td></tr>';
+  if(tbody) tbody.innerHTML = '<tr class="empty-row"><td colspan="9">تعذر تحميل بيانات الاستوك.</td></tr>';
 }
 function stockGroupKeyFromCar(car){
   const carName = normalizeText(car.carName || '—') || '—';
@@ -1920,6 +2193,7 @@ function renderStockFilterCards(counts, labels){
     </button>`).join('');
 }
 function renderStock(){
+  try{ injectStockPhotoRequestStyle(); }catch(_){}
   const tbody = document.getElementById('stockSummaryRows');
   const setText = (id, value) => { const el = document.getElementById(id); if(el) el.textContent = value; };
   const visibleCars = cars.filter(car => isReadableStockCar(car) && !isExcludedStockStatus(stockStatusOf(car)));
@@ -1927,7 +2201,7 @@ function renderStock(){
   stockFilterMode = filterSelect?.value || stockFilterMode || 'all';
   const allRows = stockRowsWithMeta();
   updateStockDynamicFilterOptions(allRows);
-  const rows = filterStockRowsAdvanced(filterStockRows(allRows, stockFilterMode));
+  const groups = filterStockRowsAdvanced(filterStockRows(allRows, stockFilterMode));
   updateStockFilterLabels(filterSelect, allRows);
   const stockAllCount = stockRowsCount(allRows);
   const stockNotShotCount = stockRowsCount(filterStockRows(allRows, 'not-photographed'));
@@ -1936,31 +2210,37 @@ function renderStock(){
   setText('stockAvailableAfterExclude', stockAllCount || '—');
   setText('stockNotPhotographedCount', stockNotShotCount || 0);
   setText('stockUnusedContentCount', stockUnusedCount || 0);
-  setText('stockAvailableForSale', stockRowsCount(rows) || '—');
+  setText('stockAvailableForSale', stockRowsCount(groups) || '—');
   document.querySelectorAll('.stock-summary-filter-card[data-stock-filter-card]').forEach(card => {
     card.classList.toggle('active', (card.dataset.stockFilterCard || 'all') === stockFilterMode);
   });
   setText('stockReserved', '—');
   setText('stockUnderDelivery', '—');
   if(!tbody) return;
-  if(!visibleCars.length){ tbody.innerHTML = '<tr class="empty-row"><td colspan="8">لا توجد بيانات استوك متاحة.</td></tr>'; return; }
-  if(!rows.length){ tbody.innerHTML = '<tr class="empty-row"><td colspan="8">لا توجد سيارات مطابقة للفلتر الحالي.</td></tr>'; return; }
-  tbody.innerHTML = rows.map((group, index) => {
+  if(!visibleCars.length){ tbody.innerHTML = '<tr class="empty-row"><td colspan="9">لا توجد بيانات استوك متاحة.</td></tr>'; return; }
+  if(!groups.length){ tbody.innerHTML = '<tr class="empty-row"><td colspan="9">لا توجد سيارات مطابقة للفلتر الحالي.</td></tr>'; return; }
+  const rows = [];
+  groups.forEach(group => {
     const photographedValue = group.isPhotographed ? 'yes' : (group.meta.photographedValue || 'no');
     const publishDetails = stockGroupPublishDetails(group);
     const usageText = publishDetails.length ? `مستخدمة في ${publishDetails.length} منشور` : (group.isUsed ? `مستخدمة في ${group.usage.length} تاسك` : 'غير مستخدمة');
     const publishMini = publishDetails.length ? `<small>${escapeHtml(uniqueList(publishDetails.map(item => item.month).filter(Boolean)).join('، '))}</small>` : '';
-    return `<tr data-stock-group="${escapeHtml(group.key)}">
-      <td>${index + 1}</td>
-      <td class="stock-key"><strong>${escapeHtml([group.carName, group.statement].filter(Boolean).join(' - '))}</strong></td>
-      <td>${escapeHtml(group.exteriorColor || '—')}</td>
-      <td>${escapeHtml(group.interiorColor || '—')}</td>
-      <td><span class="stock-count">${group.count}</span></td>
-      <td><select class="stock-shot-select ${stockShotSavingKeys.has(stockGroupDocId(group.key)) ? 'is-saving' : ''}" data-stock-shot="${escapeHtml(group.key)}" onchange="window.mzjHandleStockShotChange && window.mzjHandleStockShotChange(this)"><option value="no"${photographedValue !== 'yes' ? ' selected' : ''}>لا</option><option value="yes"${photographedValue === 'yes' ? ' selected' : ''}>نعم</option></select></td>
-      <td><span class="stock-use-badge ${group.isUsed ? 'is-used' : 'is-unused'}">${escapeHtml(usageText)}</span>${publishMini}</td>
-      <td><button class="mini-btn" type="button" data-stock-usage="${escapeHtml(group.key)}">سجل الاستخدام</button></td>
-    </tr>`;
-  }).join('');
+    (group.cars || []).forEach(car => {
+      const vin = stockVinOf(car) || normalizeText(car.id || '');
+      rows.push(`<tr data-stock-group="${escapeHtml(group.key)}" data-stock-vin="${escapeHtml(vin)}">
+        <td>${rows.length + 1}</td>
+        <td class="stock-vin-list"><button class="stock-vin-btn stock-vin-btn-single" type="button" data-stock-photo-request-vin="${escapeHtml(vin)}">${escapeHtml(vin || '—')}</button></td>
+        <td class="stock-key"><strong>${escapeHtml([group.carName, group.statement].filter(Boolean).join(' - '))}</strong></td>
+        <td>${escapeHtml(group.exteriorColor || '—')}</td>
+        <td>${escapeHtml(group.interiorColor || '—')}</td>
+        <td><span class="stock-count">1</span></td>
+        <td><select class="stock-shot-select ${stockShotSavingKeys.has(stockGroupDocId(group.key)) ? 'is-saving' : ''}" data-stock-shot="${escapeHtml(group.key)}" onchange="window.mzjHandleStockShotChange && window.mzjHandleStockShotChange(this)"><option value="no"${photographedValue !== 'yes' ? ' selected' : ''}>لا</option><option value="yes"${photographedValue === 'yes' ? ' selected' : ''}>نعم</option></select></td>
+        <td><span class="stock-use-badge ${group.isUsed ? 'is-used' : 'is-unused'}">${escapeHtml(usageText)}</span>${publishMini}</td>
+        <td><button class="mini-btn" type="button" data-stock-usage="${escapeHtml(group.key)}">سجل الاستخدام</button></td>
+      </tr>`);
+    });
+  });
+  tbody.innerHTML = rows.join('') || '<tr class="empty-row"><td colspan="9">لا توجد سيارات مطابقة للفلتر الحالي.</td></tr>';
 }
 function showStockUsageModal(groupKey){
   const group = stockRowsWithMeta().find(item => item.key === groupKey);
@@ -7045,6 +7325,24 @@ function bindDepartments(){
   document.addEventListener('click', event => {
     if(event.target.closest('[data-close-stock-usage]')) document.getElementById('stockUsageModal')?.classList.remove('show');
   });
+  document.addEventListener('click', event => {
+    const vinBtn = event.target.closest('[data-stock-photo-request-vin]');
+    if(vinBtn){ event.preventDefault(); openStockPhotoRequestModal('create', vinBtn.dataset.stockPhotoRequestVin || ''); return; }
+    const openFollow = event.target.closest('[data-stock-photo-requests-open]');
+    if(openFollow){ event.preventDefault(); openStockPhotoRequestModal(openFollow.dataset.stockPhotoRequestsOpen || 'follow'); return; }
+    const closeReq = event.target.closest('[data-close-stock-photo-request]');
+    if(closeReq){ event.preventDefault(); closeStockPhotoRequestModal(); return; }
+    const modeBtn = event.target.closest('[data-stock-photo-mode]');
+    if(modeBtn){ event.preventDefault(); openStockPhotoRequestModal(modeBtn.dataset.stockPhotoMode || 'follow'); return; }
+    const submitBtn = event.target.closest('[data-submit-stock-photo-request]');
+    if(submitBtn){ event.preventDefault(); submitStockPhotoRequest(submitBtn.dataset.submitStockPhotoRequest || '').catch(error => { console.error('Submit stock photo request failed', error); showToast((error && error.message) || 'تعذر إرسال طلب التصوير.'); }); return; }
+    const detailsBtn = event.target.closest('[data-open-stock-photo-details]');
+    if(detailsBtn){ event.preventDefault(); openStockPhotoRequestDetails(detailsBtn.dataset.openStockPhotoDetails || ''); return; }
+    const stepBtn = event.target.closest('[data-stock-photo-step][data-stock-photo-request-id]');
+    if(stepBtn){ event.preventDefault(); markStockPhotoRequestStep(stepBtn.dataset.stockPhotoRequestId || '', Number(stepBtn.dataset.stockPhotoStep || 0)).catch(error => { console.error('Update stock photo request failed', error); showToast((error && error.message) || 'تعذر تحديث الطلب.'); }); return; }
+    const deleteBtn = event.target.closest('[data-delete-stock-photo-request]');
+    if(deleteBtn){ event.preventDefault(); deleteStockPhotoRequest(deleteBtn.dataset.deleteStockPhotoRequest || '').catch(error => { console.error('Delete stock photo request failed', error); showToast((error && error.message) || 'تعذر حذف الطلب.'); }); return; }
+  });
 }
 
 
@@ -10871,6 +11169,8 @@ function bootstrapData(){
   // loadCampaignTasks(); // تم إلغاء الاعتماد على campaign_tasks
   loadStock();
   loadStockMeta();
+  loadStockPhotoRequestBranches();
+  loadStockPhotoRequests();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
