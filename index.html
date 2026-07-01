@@ -18,7 +18,7 @@
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&amp;display=swap" rel="stylesheet"/>
-<link href="assets/css/style.css?v=732" rel="stylesheet">
+<link href="assets/css/style.css?v=97" rel="stylesheet">
 <link href="assets/favicon.png" rel="icon" type="image/x-icon"/>
 </link></head>
 <body>
@@ -99,8 +99,18 @@
 <div class="card dashboard-detail" id="dashboardCampaignDetail"></div>
 </section>
 <section class="view" data-title="الحملات" id="campaigns">
-<div class="page-head"><div class="page-title"><h1>إدارة الحملات</h1><p>إنشاء ومتابعة الحملات التسويقية.</p></div><a class="btn btn-primary" href="#create-campaign">＋ إنشاء حملة</a></div>
-<div class="card"><div class="filters"><input class="control" placeholder="ابحث عن حملة" type="search"/><select class="select"><option>كل الحالات</option></select></div><div class="campaign-list" id="campaignsList"><div class="empty-state">لا توجد حملات حتى الآن.</div></div></div>
+<div class="page-head campaigns-management-head"><div class="page-title"><h1>إدارة الحملات</h1><p>إدارة ومتابعة جميع الحملات التسويقية.</p></div><a class="btn btn-primary" href="#create-campaign">＋ إنشاء حملة</a></div>
+<div class="card campaigns-management-card">
+  <div class="campaigns-management-toolbar">
+    <button class="btn btn-light" type="button" data-campaign-management-filter-reset>تصفية</button>
+    <input class="control" id="campaignManagementSearch" data-campaign-management-filter placeholder="ابحث باسم الحملة أو الكود..." type="search"/>
+    <select class="select" id="campaignManagementType" data-campaign-management-filter><option value="">كل الأنواع</option></select>
+    <select class="select" id="campaignManagementStatus" data-campaign-management-filter><option value="">كل الحالات</option></select>
+    <label class="campaigns-date-filter"><span>من تاريخ</span><input class="control" id="campaignManagementFrom" data-campaign-management-filter type="date"/></label>
+    <label class="campaigns-date-filter"><span>إلى تاريخ</span><input class="control" id="campaignManagementTo" data-campaign-management-filter type="date"/></label>
+  </div>
+  <div class="campaign-list campaigns-management-list" id="campaignsList"><div class="empty-state">لا توجد حملات حتى الآن.</div></div>
+</div>
 </section>
 <section class="view" data-title="إنشاء حملة" id="create-campaign">
 <div class="page-head campaign-builder-head v533-create-head">
@@ -1034,6 +1044,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="assets/js/jszip.min.js?v=160"></script>
-<script src="assets/js/app.js?v=732"></script>
+<script src="assets/js/app.js?v=99"></script>
 </input></input></input></input></body>
 </html>
