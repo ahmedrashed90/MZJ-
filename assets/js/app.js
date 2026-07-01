@@ -2126,15 +2126,28 @@ async function submitStockPhotoRequest(){
   openStockPhotoRequestModal('follow');
 }
 
-async function markStockPhotoRequestCarsAsPhotographed(req){
+function stockPhotoRequestGroupKeys(req){
   const items = Array.isArray(req?.items) && req.items.length ? req.items : (Array.isArray(req?.vins) ? req.vins.map(vin => ({ vin })) : []);
-  const groupKeys = uniqueList(items.map(item => {
+  return uniqueList(items.map(item => {
     const car = stockCarByVin(item.vin || item);
     return car ? stockGroupKeyFromCar(car) : '';
   }).filter(Boolean));
+}
+
+function stockPhotoCarsMatchingGroupKeys(groupKeys){
+  const keys = new Set((groupKeys || []).map(normalizeText).filter(Boolean));
+  if(!keys.size) return [];
+  return cars.filter(car => keys.has(stockGroupKeyFromCar(car)));
+}
+
+async function markStockPhotoRequestCarsAsPhotographed(req){
+  const groupKeys = stockPhotoRequestGroupKeys(req);
   for(const groupKey of groupKeys){
+    // التصوير هنا على مستوى نفس Unique Spec Key + اللون الخارجي + اللون الداخلي
+    // وليس على رقم الهيكل المختار فقط.
     await saveStockShotStatus(groupKey, 'yes');
   }
+  return stockPhotoCarsMatchingGroupKeys(groupKeys).length;
 }
 async function markStockPhotoRequestStep(id, step){
   const req = stockPhotoRequests.find(item => item.id === id);
@@ -2146,10 +2159,11 @@ async function markStockPhotoRequestStep(id, step){
   update[`step${step}At`] = serverTime();
   update[`step${step}By`] = user.name || user.email || user.uid || 'web';
   await stockDb.collection('requests').doc(id).set(update, { merge:true });
+  let updatedCarsCount = 0;
   if(step === 4 && req.type === 'photo' && req.source === 'stock_photo_requests'){
-    await markStockPhotoRequestCarsAsPhotographed(req);
+    updatedCarsCount = await markStockPhotoRequestCarsAsPhotographed(req);
   }
-  showToast(step === 4 ? 'تم إنهاء الطلب وتحديث حالة التصوير.' : 'تم تحديث الطلب.');
+  showToast(step === 4 ? `تم إنهاء الطلب وتحديث حالة التصوير لكل الهياكل المطابقة (${updatedCarsCount || 0}).` : 'تم تحديث الطلب.');
   setTimeout(() => openStockPhotoRequestDetails(id), 250);
 }
 async function deleteStockPhotoRequest(id){
@@ -2159,11 +2173,22 @@ async function deleteStockPhotoRequest(id){
   if(req && (req.step3At || req.step4At)) return showToast('لا يمكن حذف الطلب بعد استلام السيارة.');
   if(!confirm('حذف طلب التصوير نهائيًا من قاعدة البيانات؟')) return;
   await ensureStockWorkflowAuth();
-  await stockDb.collection('requests').doc(requestId).delete();
-  stockPhotoRequests = stockPhotoRequests.filter(item => item.id !== requestId);
-  renderStockPhotoRequestsBadge();
-  showToast('تم حذف الطلب من قاعدة البيانات.');
-  openStockPhotoRequestModal('follow');
+  try{
+    await stockDb.collection('requests').doc(requestId).delete();
+    stockPhotoRequests = stockPhotoRequests.filter(item => item.id !== requestId);
+    renderStockPhotoRequestsBadge();
+    showToast('تم حذف الطلب من قاعدة البيانات.');
+    openStockPhotoRequestModal('follow');
+  }catch(error){
+    console.error('Delete stock photo request failed', error);
+    const message = String(error?.message || error || '');
+    if(message.toLowerCase().includes('permission')){
+      showToast('Firebase رفض حذف الطلب. لازم قواعد requests تسمح بحذف stock_photo_requests.');
+    }else{
+      showToast(message || 'تعذر حذف الطلب.');
+    }
+    throw error;
+  }
 }
 function injectStockPhotoRequestStyle(){
   if(document.getElementById('stockPhotoRequestStyle')) return;
