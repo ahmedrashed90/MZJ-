@@ -5,239 +5,146 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MZJ Publish</title>
-  <meta name="description" content="MZJ Publish is an internal marketing publishing system for connecting authorized social media accounts and publishing approved business content." />
+  <meta name="description" content="MZJ Publish is a web-based publishing platform for authorized users to connect social media accounts and publish approved marketing content." />
   <link rel="icon" type="image/png" href="/assets/favicon.png" />
   <link rel="apple-touch-icon" href="/assets/mzj-publish-app-icon-1024.png" />
   <style>
     :root {
-      --bg: #f8fafc;
+      --bg: #f7f5f2;
       --card: #ffffff;
-      --text: #0f172a;
-      --muted: #475569;
-      --border: #e2e8f0;
-      --brand: #5a2a1d;
-      --brand2: #c78242;
+      --text: #1d1b18;
+      --muted: #665f58;
+      --line: #e5ded6;
+      --brand: #5a2b1d;
+      --brand2: #c8894f;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: Arial, Helvetica, sans-serif;
-      background: linear-gradient(180deg, #ffffff 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, #fff 0%, var(--bg) 100%);
       color: var(--text);
       line-height: 1.6;
     }
-    .wrap {
-      width: min(980px, calc(100% - 32px));
-      margin: 0 auto;
-      padding: 48px 0;
-    }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 42px 22px; }
     header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 24px;
-      margin-bottom: 56px;
+      gap: 18px;
+      margin-bottom: 34px;
     }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      text-decoration: none;
-      color: var(--text);
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand img { width: 76px; height: 76px; object-fit: contain; }
+    .brand h1 { margin: 0; font-size: 30px; letter-spacing: -0.03em; }
+    .brand p { margin: 3px 0 0; color: var(--muted); }
+    .hero {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 34px;
+      box-shadow: 0 12px 32px rgba(62, 42, 27, 0.08);
     }
-    .brand img {
-      width: 70px;
-      height: 70px;
-      object-fit: contain;
-      background: #fff;
-      border: 1px solid var(--border);
+    .hero h2 { margin: 0 0 12px; font-size: 34px; line-height: 1.18; }
+    .hero p { margin: 0; max-width: 780px; color: var(--muted); font-size: 17px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      margin: 22px 0;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
       border-radius: 18px;
-      padding: 10px;
+      padding: 22px;
     }
-    .brand strong {
-      display: block;
-      font-size: 22px;
-      line-height: 1.1;
-    }
-    .brand span {
-      display: block;
-      color: var(--muted);
-      font-size: 14px;
-      margin-top: 4px;
-    }
-    nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: flex-end;
-    }
-    nav a, .btn {
+    .card h3 { margin: 0 0 8px; font-size: 19px; }
+    .card p, .card li { color: var(--muted); }
+    .card p { margin: 0; }
+    section { margin-top: 22px; }
+    .wide { grid-column: span 3; }
+    ul { margin: 10px 0 0 20px; padding: 0; }
+    .links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+    a.btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-height: 40px;
-      padding: 10px 16px;
+      padding: 11px 16px;
       border-radius: 999px;
-      border: 1px solid var(--border);
-      color: var(--text);
+      border: 1px solid var(--line);
+      color: var(--brand);
       text-decoration: none;
       background: #fff;
-      font-weight: 600;
-      font-size: 14px;
+      font-weight: 700;
     }
-    .btn.primary {
-      background: var(--brand);
-      border-color: var(--brand);
-      color: #fff;
-    }
-    .hero {
-      display: grid;
-      grid-template-columns: 1.2fr .8fr;
-      gap: 28px;
-      align-items: stretch;
-      margin-bottom: 28px;
-    }
-    .panel {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 28px;
-      box-shadow: 0 20px 60px rgba(15, 23, 42, .08);
-      padding: 34px;
-    }
-    h1 {
-      margin: 0 0 18px;
-      font-size: clamp(34px, 6vw, 58px);
-      line-height: 1.05;
-      letter-spacing: -1.6px;
-    }
-    h1 span { color: var(--brand); }
-    .lead {
-      margin: 0 0 24px;
-      color: var(--muted);
-      font-size: 18px;
-      max-width: 720px;
-    }
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 24px;
-    }
-    h2 {
-      margin: 0 0 12px;
-      font-size: 22px;
-    }
-    p { margin: 0 0 14px; }
-    ul {
-      margin: 12px 0 0;
-      padding-left: 20px;
-      color: var(--muted);
-    }
-    li { margin: 7px 0; }
-    .info-card {
-      border-radius: 22px;
-      background: #fff7ed;
-      border: 1px solid #fed7aa;
-      padding: 24px;
-    }
-    .info-card strong {
-      color: var(--brand);
-      font-size: 18px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-top: 16px;
-    }
-    .mini {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      padding: 22px;
-    }
-    .mini b { display: block; margin-bottom: 8px; }
-    .mini p { color: var(--muted); margin: 0; font-size: 14px; }
-    footer {
-      margin-top: 34px;
-      color: var(--muted);
-      font-size: 14px;
-      text-align: center;
-    }
-    footer a { color: var(--brand); font-weight: 700; text-decoration: none; }
+    a.btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+    footer { color: var(--muted); margin-top: 26px; font-size: 14px; }
     @media (max-width: 760px) {
-      header, .hero { grid-template-columns: 1fr; display: block; }
-      nav { justify-content: flex-start; margin-top: 18px; }
-      .panel { padding: 24px; }
+      header { align-items: flex-start; flex-direction: column; }
       .grid { grid-template-columns: 1fr; }
+      .wide { grid-column: span 1; }
+      .hero h2 { font-size: 28px; }
     }
   </style>
 </head>
 <body>
   <main class="wrap">
     <header>
-      <a class="brand" href="/mzj-publish.html" aria-label="MZJ Publish home">
+      <div class="brand">
         <img src="/assets/favicon.png" alt="MZJ logo" />
-        <span>
-          <strong>MZJ Publish</strong>
-          <span>Internal Marketing Publishing System</span>
-        </span>
-      </a>
-      <nav aria-label="Public links">
-        <a href="/privacy-policy.html">Privacy Policy</a>
-        <a href="/terms-of-service.html">Terms of Service</a>
-        <a href="/data-deletion.html">Data Deletion</a>
-        <a class="btn primary" href="/">Open Dashboard</a>
-      </nav>
+        <div>
+          <h1>MZJ Publish</h1>
+          <p>Web-based social media publishing platform</p>
+        </div>
+      </div>
     </header>
 
     <section class="hero">
-      <div class="panel">
-        <h1><span>MZJ Publish</span> for approved social media publishing.</h1>
-        <p class="lead">
-          MZJ Publish is an internal marketing publishing system used by authorized business users to connect social media accounts and publish approved marketing content.
-        </p>
-        <div class="actions">
-          <a class="btn primary" href="/">Open Dashboard</a>
-          <a class="btn" href="/privacy-policy.html">Privacy Policy</a>
-          <a class="btn" href="/terms-of-service.html">Terms of Service</a>
-        </div>
+      <h2>Connect social accounts and publish approved marketing content.</h2>
+      <p>
+        MZJ Publish is a web-based publishing platform for authorized users to connect social media accounts,
+        manage approved publishing jobs, and publish marketing content to the accounts they are authorized to manage.
+      </p>
+      <div class="links">
+        <a class="btn primary" href="/privacy-policy.html">Privacy Policy</a>
+        <a class="btn" href="/terms-of-service.html">Terms of Service</a>
+        <a class="btn" href="/data-deletion.html">Data Deletion</a>
       </div>
-      <aside class="info-card">
-        <strong>About this service</strong>
-        <p>
-          This website provides public information about the MZJ Publish application, including the service purpose, privacy policy, terms of service, and data deletion information.
-        </p>
-        <ul>
-          <li>Application name: MZJ Publish</li>
-          <li>Website: https://mzj.vercel.app/mzj-publish.html</li>
-          <li>Access: authorized internal users only</li>
-        </ul>
-      </aside>
     </section>
 
-    <section class="grid" aria-label="Features">
-      <div class="mini">
-        <b>Connect accounts</b>
-        <p>Authorized users can connect approved social media accounts for business publishing workflows.</p>
+    <section class="grid">
+      <div class="card">
+        <h3>Account Connection</h3>
+        <p>Authorized users can connect supported social accounts using platform-approved login and authorization flows.</p>
       </div>
-      <div class="mini">
-        <b>Publish approved content</b>
-        <p>The system helps schedule and publish content that has been reviewed and approved by the business team.</p>
+      <div class="card">
+        <h3>Publishing Workflow</h3>
+        <p>Users create or receive approved publishing jobs containing media, captions, hashtags, platforms, and publishing time.</p>
       </div>
-      <div class="mini">
-        <b>Manage publishing status</b>
-        <p>Users can track publishing jobs, platform connection status, and publishing history from the dashboard.</p>
+      <div class="card">
+        <h3>Publishing Status</h3>
+        <p>The platform records publishing status, errors, and publishing history so authorized users can monitor content delivery.</p>
+      </div>
+
+      <div class="card wide">
+        <h3>TikTok Integration</h3>
+        <p>
+          MZJ Publish uses TikTok Login and the TikTok Content Posting API to allow authorized users to connect TikTok accounts
+          they manage and publish approved marketing content through a controlled web-based workflow.
+        </p>
+        <ul>
+          <li>TikTok account authorization is performed by the user through TikTok Login.</li>
+          <li>Only accounts authorized by the user are available for publishing.</li>
+          <li>Publishing actions are initiated for approved content jobs managed inside MZJ Publish.</li>
+          <li>The platform does not sell TikTok user data and does not expose access tokens to public frontend code.</li>
+        </ul>
       </div>
     </section>
 
     <footer>
-      <p>
-        MZJ Publish · Internal marketing publishing system ·
-        <a href="/privacy-policy.html">Privacy Policy</a> ·
-        <a href="/terms-of-service.html">Terms of Service</a> ·
-        <a href="/data-deletion.html">Data Deletion</a>
-      </p>
+      <strong>Contact:</strong> me.ahmed.rashed@icloud.com<br />
+      MZJ Publish is operated for authorized publishing workflows and connected account management.
     </footer>
   </main>
 </body>
