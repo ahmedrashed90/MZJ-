@@ -11597,3 +11597,17 @@ body:has(.v732-edit-popup){overflow:hidden!important}.v732-edit-popup ~ .topbar,
 .cc-platform-values label{display:flex;flex-direction:column;gap:6px;border:1px solid rgba(150,83,65,.12);background:#fff;border-radius:12px;padding:8px}
 .cc-platform-values span{font-size:11px;color:#6d5850;font-weight:700}
 .cc-platform-values input{height:36px;border:1px solid rgba(150,83,65,.14);border-radius:10px;background:#fffaf7;padding:6px 8px;font-family:inherit}
+
+/* v722 - content Task Template admin note */
+.v722-admin-note-section{margin-top:14px!important}
+.v722-admin-note-input{width:100%;min-height:110px;border:1px solid #ead7cb;border-radius:16px;background:#fffdfb;padding:14px;color:#2b1711;font-family:inherit;font-weight:700;resize:vertical;box-sizing:border-box;outline:none;direction:rtl;text-align:right;line-height:1.8}
+.v722-admin-note-input:focus{border-color:#8a4a38;box-shadow:0 0 0 3px rgba(138,74,56,.10)}
+.v722-admin-note-actions{justify-content:flex-start!important;margin-top:10px!important}
+.v722-admin-note-readonly{border:1px solid #ead7cb;border-radius:16px;background:#fffdfb;padding:14px;color:#2b1711;font-weight:800;line-height:1.8;white-space:pre-wrap}
+
+/* v722 - content Task Template admin note */
+.v722-admin-note-section{margin-top:14px!important}
+.v722-admin-note-input{width:100%;min-height:110px;border:1px solid #ead7cb;border-radius:16px;background:#fffdfb;padding:14px;color:#2b1711;font-family:inherit;font-weight:700;resize:vertical;box-sizing:border-box;outline:none;direction:rtl;text-align:right;line-height:1.8}
+.v722-admin-note-input:focus{border-color:#8a4a38;box-shadow:0 0 0 3px rgba(138,74,56,.10)}
+.v722-admin-note-actions{justify-content:flex-start!important;margin-top:10px!important}
+.v722-admin-note-readonly{border:1px solid #ead7cb;border-radius:16px;background:#fffdfb;padding:14px;color:#2b1711;font-weight:800;line-height:1.8;white-space:pre-wrap}
