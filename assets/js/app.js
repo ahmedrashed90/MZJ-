@@ -38688,10 +38688,45 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function rawTaskPanel(t){
     const r=t&&t.rawSource;
     if(!r || !r.linked || roleNorm(t.departmentRole)==='content') return '';
-    const rawPath=S(r.rawWindowsPath), outPath=S(r.userOutputWindowsPath||r.outputWindowsPath);
-    const rawUrl=S(r.rawFolderUrl), outUrl=S(r.userOutputFolderUrl||r.outputFolderUrl);
+
+    const drive=S(r.driveLetter||'Z:') || 'Z:';
+    const monthKey=S(r.monthKey) || S(t.monthKey) || S(t.campaignStartDate||t.publishStartDate||t.createdAt).slice(0,7) || (new Date().toISOString().slice(0,7));
+
+    // مهم: نستخدم اسم الحملة للفولدر لو موجود، وليس كود الحملة.
+    // هذا يمنع فتح مسارات قديمة مثل MZJ-REPOST-2026-07 بعد تعديل النظام ليستخدم اسم الحملة.
+    const campaignFolder=safeFolderName(
+      t.campaignName ||
+      t.name ||
+      r.campaignFolderName ||
+      r.campaignDisplayName ||
+      t.campaignCode ||
+      r.campaignCode ||
+      'campaign'
+    );
+
+    const creativeFolder=safeFolderName(
+      r.creativeFolderName ||
+      t.creativeFolderName ||
+      t.rawFolderName ||
+      t.creativeShortCode && t.creativeIndex ? `N${String(Number(t.creativeIndex)||1).padStart(2,'0')}-${t.creativeShortCode}` : '' ||
+      t.creativeName ||
+      t.creative ||
+      t.product ||
+      'creative'
+    );
+
+    const makePath=(...parts)=> drive + '\\' + parts.map(safeFolderName).filter(Boolean).join('\\') + '\\';
+
+    // فتح الخام يفتح فولدر 01-RAW الخاص بالكرييتيف.
+    const rawPath=makePath(monthKey,campaignFolder,creativeFolder,'01-RAW');
+
+    // فتح فولدر التسليم يفتح 02-OUTPUT الخاص بالكرييتيف، وليس Z فقط ولا كود الحملة القديم.
+    const outPath=makePath(monthKey,campaignFolder,creativeFolder,'02-OUTPUT');
+
+    const rawUrl=S(r.rawFolderUrl);
+    const outUrl=S(r.outputFolderUrl);
     const openBtn=(label,path,url)=>`<button type="button" class="btn btn-light" data-open-raidrive-folder="${H(path)}" data-fallback-url="${H(url)}">${H(label)}</button>`;
-    return `<div class="v677-panel v742-raw-task-panel"><h3>الداتا الخام</h3><p class="v677-note">افتح 01-RAW للخام، وافتح 02-OUTPUT لتسليم اليوزر التنفيذي.</p><div class="v677-actions">${openBtn('فتح الخام',rawPath,rawUrl)}${openBtn('فتح فولدر التسليم',outPath,outUrl)}</div></div>`;
+    return `<div class="v677-panel v742-raw-task-panel"><h3>الداتا الخام</h3><p class="v677-note">فتح الخام يفتح 01-RAW، وفتح فولدر التسليم يفتح 02-OUTPUT الخاص بالكرييتيف.</p><div class="v677-actions">${openBtn('فتح الخام',rawPath,rawUrl)}${openBtn('فتح فولدر التسليم',outPath,outUrl)}</div></div>`;
   }
   function raidriveFileUrl(path){
     const p=S(path);
@@ -41828,3 +41863,6 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
     if(copy){ ev.preventDefault(); ev.stopPropagation(); copyPath(copy.getAttribute('data-copy-raidrive-path')); return; }
   }, true);
 })();
+
+
+/* v751 - raw task buttons build exact RaiDrive task paths from campaign name and creative folder */
