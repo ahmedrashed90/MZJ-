@@ -337,14 +337,60 @@ function findDepartmentByRole(role){
     return aliases.some(alias => name === alias || name.includes(alias) || slug === alias || slug.includes(alias));
   });
 }
+function resolveUserRecord(value){
+  const source = (value && typeof value === 'object') ? value : { id: value, uid: value, email: String(value || '').includes('@') ? value : '' };
+  const found = findUserByAnyIdentity([source, source.id, source.uid, source.email, source.emailLower, source.name, source.displayName, source.username]);
+  const base = found || {};
+  const id = base.id || base.uid || source.id || source.uid || source.email || source.emailLower || source.name || source.displayName || '';
+  const email = base.email || source.email || (String(source.id || source.uid || '').includes('@') ? (source.id || source.uid) : '') || '';
+  const name = userName(base) || source.displayName || source.name || source.username || source.label || email || id;
+  return {
+    ...source,
+    ...base,
+    id,
+    uid: base.uid || source.uid || id,
+    email,
+    emailLower: base.emailLower || source.emailLower || String(email || '').toLowerCase(),
+    name,
+    displayName: base.displayName || source.displayName || name,
+    username: base.username || source.username || ''
+  };
+}
+function uniqueUsersByIdentity(list){
+  const result = [];
+  const seen = new Set();
+  (list || []).forEach(item => {
+    const user = resolveUserRecord(item);
+    const keys = uniqueIdentityKeys([user, user.id, user.uid, user.email, user.emailLower, user.name, user.displayName, user.username]);
+    const mainKey = keys[0] || identityClean(user.id || user.email || userName(user));
+    if(!mainKey || keys.some(key => seen.has(key))) return;
+    keys.forEach(key => seen.add(key));
+    result.push(user);
+  });
+  return result;
+}
+function departmentMemberValues(dep){
+  if(!dep) return [];
+  return [
+    ...(Array.isArray(dep.users) ? dep.users : []),
+    ...(Array.isArray(dep.members) ? dep.members : []),
+    ...(Array.isArray(dep.userIds) ? dep.userIds : []),
+    ...(Array.isArray(dep.memberUids) ? dep.memberUids : []),
+    ...(Array.isArray(dep.memberEmails) ? dep.memberEmails : []),
+    ...(Array.isArray(dep.memberNames) ? dep.memberNames : [])
+  ];
+}
+function usersForDepartment(dep){
+  return uniqueUsersByIdentity(departmentMemberValues(dep));
+}
 function usersForRole(role){
   const dep = findDepartmentByRole(role);
-  if(!dep || !Array.isArray(dep.userIds) || !dep.userIds.length) return [];
-  return dep.userIds.map(id => users.find(user => user.id === id)).filter(Boolean);
+  return usersForDepartment(dep);
 }
 function multiUserOptionsForRole(role, selectedIds = []){
+  const selected = Array.isArray(selectedIds) ? selectedIds.map(String) : [];
   const list = usersForRole(role);
-  const options = list.map(user => `<option value="${escapeHtml(user.id)}"${selectedIds.includes(user.id) ? ' selected' : ''}>${escapeHtml(userName(user))}</option>`).join('');
+  const options = list.map(user => `<option value="${escapeHtml(user.id)}"${selected.includes(String(user.id)) ? ' selected' : ''}>${escapeHtml(userName(user))}</option>`).join('');
   return options || '<option value="" disabled>لا توجد يوزرات في هذا القسم</option>';
 }
 function rolePickerHtml(role, extraClass, label){
@@ -541,12 +587,13 @@ function taskTypeOptionsForSection(sectionId, selectedValue = ''){
 
 function usersForContentSection(sectionId){
   const section = contentSections.find(item => item.id === sectionId);
-  const ids = Array.isArray(section?.userIds) ? section.userIds : Array.isArray(section?.memberUids) ? section.memberUids : Array.isArray(section?.users) ? section.users : [];
-  if(ids.length) return ids.map(id => users.find(user => user.id === id)).filter(Boolean);
+  const sectionUsers = usersForDepartment(section);
+  if(sectionUsers.length) return sectionUsers;
   const departmentId = section?.departmentId || section?.department || section?.contentDepartmentId || '';
   if(departmentId){
-    const dep = departments.find(item => item.id === departmentId || item.name === departmentId);
-    if(dep?.userIds?.length) return dep.userIds.map(id => users.find(user => user.id === id)).filter(Boolean);
+    const dep = departments.find(item => item.id === departmentId || item.name === departmentId || item.slug === departmentId);
+    const depUsers = usersForDepartment(dep);
+    if(depUsers.length) return depUsers;
   }
   return users;
 }
@@ -1242,7 +1289,7 @@ function renderDepartments(){
   list.innerHTML = departments.map(dep => `
     <article class="department-item">
       <div class="item-head"><h3>${escapeHtml(dep.name)}</h3><div class="item-actions"><button type="button" class="mini-btn" data-edit-department="${escapeHtml(dep.id)}">تعديل</button><button type="button" class="mini-btn danger" data-delete-department="${escapeHtml(dep.id)}">حذف</button></div></div>
-      <div class="chip-list">${namesFromIds(dep.userIds).length ? namesFromIds(dep.userIds).map(name => `<span class="chip">${escapeHtml(name)}</span>`).join('') : '<span class="chip"><small>لا توجد يوزرات داخل القسم</small></span>'}</div>
+      <div class="chip-list">${usersForDepartment(dep).length ? usersForDepartment(dep).map(user => `<span class="chip">${escapeHtml(userName(user))}</span>`).join('') : '<span class="chip"><small>لا توجد يوزرات داخل القسم</small></span>'}</div>
     </article>`).join('');
 }
 function assignmentActionsDepartmentOptions(selected = ''){
@@ -34995,9 +35042,23 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     return list.length ? list : A(users);
   }
   function usersForDepartment(depId){
-    const dep = A(departments).find(d => S(d.id) === S(depId) || S(d.name) === S(depId));
-    const ids = uniq([A(dep?.userIds), A(dep?.users), A(dep?.members), A(dep?.memberUids)].flat());
-    return ids.map(id => findUser(id)).filter(Boolean);
+    const dep = A(departments).find(d => S(d.id) === S(depId) || S(d.name) === S(depId) || S(d.slug) === S(depId));
+    if(typeof globalThis.usersForDepartment === 'function'){
+      const fromGlobal = globalThis.usersForDepartment(dep);
+      if(A(fromGlobal).length) return fromGlobal;
+    }
+    const values = [A(dep?.users), A(dep?.members), A(dep?.userIds), A(dep?.memberUids), A(dep?.memberEmails)].flat();
+    const out=[]; const seen=new Set();
+    values.forEach((raw,i)=>{
+      const rec = findUser(raw) || findUser(raw?.id || raw?.uid || raw?.email || raw?.name);
+      const item = rec ? {...raw, ...rec} : (typeof raw === 'object' ? raw : {id:raw,uid:raw,email:S(raw).includes('@')?raw:'',name:raw});
+      const id = S(item.id || item.uid || item.email || item.name || 'u_'+i);
+      const key = (typeof identityClean === 'function' ? identityClean(id || item.email || item.name) : String(id).toLowerCase());
+      if(!key || seen.has(key)) return;
+      seen.add(key);
+      out.push({...item,id,uid:S(item.uid||id),name:cname(item)||S(item.email||id)});
+    });
+    return out;
   }
   function nonContentDepartments(){ return A(departments).filter(d => role(d.name || d.slug || d.id) !== 'content' && !/محتو|content/i.test(S(d.name || d.slug || d.id))); }
   function depName(id){ const d=A(departments).find(x=>S(x.id)===S(id)||S(x.name)===S(id)); return S(d?.name || id); }
@@ -39242,7 +39303,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     mapLocal(); state.loading=false; state.loaded=true; render();
   }
   function usersForRole(role){const r=roleNorm(role); const out=[]; const users=state.refs.users;
-    A(state.refs.departments).forEach(dep=>{const dr=roleNorm(dep.id||dep.slug||dep.name||dep.department); if(dr!==r)return; [...A(dep.members),...A(dep.users)].forEach((raw,i)=>{const rec=users.find(u=>norm(u.id)===norm(raw.id||raw.uid||raw.email)||norm(u.uid)===norm(raw.uid||raw.id)||norm(u.email)===norm(raw.email)); out.push({...(rec||{}),...raw,id:S(raw.id||raw.uid||raw.email||rec?.id||rec?.uid||'u_'+r+'_'+i),name:S(raw.name||raw.displayName||rec?.name||rec?.email||raw.email||raw.id||'مستخدم'),email:S(raw.email||rec?.email||'')});}); [...A(dep.memberUids),...A(dep.memberEmails),...A(dep.userIds)].forEach((key)=>{const rec=users.find(u=>[u.id,u.uid,u.email].some(v=>norm(v)===norm(key))); out.push(rec?rec:{id:S(key),uid:S(key),email:S(S(key).includes('@')?key:''),name:S(key)});});});
+    A(state.refs.departments).forEach(dep=>{const dr=roleNorm(dep.id||dep.slug||dep.name||dep.department); if(dr!==r)return; [...A(dep.members),...A(dep.users)].forEach((raw,i)=>{const rec=users.find(u=>norm(u.id)===norm(raw.id||raw.uid||raw.email)||norm(u.uid)===norm(raw.uid||raw.id)||norm(u.email)===norm(raw.email)); out.push({...raw,...(rec||{}),id:S(rec?.id||rec?.uid||raw.id||raw.uid||raw.email||'u_'+r+'_'+i),name:S(rec?.name||rec?.displayName||raw.name||raw.displayName||rec?.email||raw.email||raw.id||'مستخدم'),email:S(rec?.email||raw.email||'')});}); [...A(dep.memberUids),...A(dep.memberEmails),...A(dep.userIds)].forEach((key)=>{const rec=users.find(u=>[u.id,u.uid,u.email].some(v=>norm(v)===norm(key))); out.push(rec?rec:{id:S(key),uid:S(key),email:S(S(key).includes('@')?key:''),name:S(key)});});});
     if(!out.length)users.filter(u=>roleNorm(u.department)===r).forEach(u=>out.push(u)); return uniq(out,x=>x.id||x.uid||x.email||x.name);
   }
   const contentUsers=()=>usersForRole('content');
@@ -40823,17 +40884,34 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     return 'montage';
   }
   function usersForRole(role){
-    const users = getList('users'); const r = roleNorm(role);
-    return users.filter(u => {
-      const raw = [u.role,u.departmentRole,u.department,u.departmentName,u.section,u.sectionName,u.contentSectionName,u.assignedDepartmentName,u.group,u.jobTitle,u.title].map(S).join(' ');
-      const z = norm(raw);
-      if(r === 'content') return z.includes('content') || z.includes('كاتب') || z.includes('محتو');
-      if(r === 'shooting') return z.includes('shoot') || z.includes('photo') || z.includes('تصوير');
-      if(r === 'design') return z.includes('design') || z.includes('تصميم');
-      if(r === 'montage') return z.includes('montage') || z.includes('edit') || z.includes('مونتاج');
-      if(r === 'publish') return z.includes('publish') || z.includes('نشر');
-      return roleNorm(raw) === r;
+    const r = roleNorm(role);
+    const sourceUsers = getList('users');
+    const sourceDeps = getList('departments');
+    const out = [];
+    const seen = new Set();
+    function sameRole(dep){
+      return roleNorm([dep?.id, dep?.slug, dep?.name, dep?.department].map(S).join(' ')) === r;
+    }
+    function findUserLocal(raw){
+      const vals = typeof raw === 'object' ? [raw.id, raw.uid, raw.email, raw.emailLower, raw.name, raw.displayName, raw.username] : [raw];
+      const keys = vals.map(norm).filter(Boolean);
+      return sourceUsers.find(u => [u.id,u.uid,u.email,u.emailLower,u.name,u.displayName,u.username].map(norm).some(v => v && keys.includes(v)));
+    }
+    function pushUser(raw, index){
+      const rec = findUserLocal(raw);
+      const obj = typeof raw === 'object' ? raw : { id: raw, uid: raw, email: S(raw).includes('@') ? raw : '', name: raw };
+      const merged = rec ? { ...obj, ...rec } : obj;
+      const id = S(merged.id || merged.uid || merged.email || merged.name || ('u_'+r+'_'+index));
+      const email = S(merged.email || (S(id).includes('@') ? id : ''));
+      const key = norm(merged.uid || id || email || merged.name);
+      if(!key || seen.has(key)) return;
+      seen.add(key);
+      out.push({ ...merged, id, uid:S(merged.uid || id), email, name:S(merged.name || merged.displayName || rec?.name || rec?.displayName || email || id) });
+    }
+    sourceDeps.filter(sameRole).forEach(dep => {
+      [A(dep.users), A(dep.members), A(dep.userIds), A(dep.memberUids), A(dep.memberEmails)].flat().forEach(pushUser);
     });
+    return out;
   }
   function allUsers(){ return getList('users'); }
   function userById(role,id){ return usersForRole(role).find(u=>uidOf(u)===S(id)) || allUsers().find(u=>uidOf(u)===S(id)) || {id,name:id}; }
