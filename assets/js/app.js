@@ -38685,48 +38685,71 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     return lines.length?`<div class="v677-panel"><h3>مواعيد وملاحظات التكليف</h3><div class="v677-info">${lines.join('')}</div></div>`:'';
   }
   function detailsActions(t){const ss=statusOf(t,'structure'),ts=statusOf(t,'template'); if(isContent(t)){const phase=isTemplateContentTask(t)||ss==='approved'; return `${phase?rowDetailsPanel(t):''}<div class="v677-panel"><h3>إجراءات الكاتب</h3><div class="v677-actions">${phase?`<button type="button" class="btn btn-light" data-v677-task-template="${H(taskId(t))}">تحميل Task Template</button>${['pending','received','needs_changes'].includes(ts)?fileButton(taskId(t),'template','إرفاق Task Template Excel'):''}`:`<button type="button" class="btn btn-light" data-v677-structure-template="${H(taskId(t))}">تحميل قالب الهيكل بالأكواد</button>${['pending','received','needs_changes'].includes(ss)?fileButton(taskId(t),'structure','إرفاق هيكل الحملة Excel'):''}`}</div>${ss==='in_review'?'<p class="v677-note">تم رفع الهيكل وفي انتظار مراجعة الأدمن.</p>':''}${ts==='in_review'?'<p class="v677-note">تم رفع Task Template وفي انتظار مراجعة الأدمن.</p>':''}</div>`;} return execDetails(t);}
+  function rawLocalSafeFolderName(value){
+    return S(value||'')
+      .trim()
+      .replace(/[\\/:*?"<>|]/g,'-')
+      .replace(/\s+/g,'-')
+      .replace(/-+/g,'-')
+      .replace(/^\.+/g,'')
+      .replace(/^-+|-+$/g,'');
+  }
+  function rawDriveJoin(drive, parts){
+    const root=S(drive||'Z:') || 'Z:';
+    const clean=A(parts).map(rawLocalSafeFolderName).filter(Boolean);
+    return root + '\\' + clean.join('\\') + (clean.length?'\\':'');
+  }
+  function rawMonthKeyFromTask(t,r){
+    const direct=S(r&&r.monthKey) || S(t&&t.monthKey);
+    if(direct) return direct;
+    const dates=[t&&t.campaignStartDate,t&&t.startDate,t&&t.publishStartDate,t&&t.publish_start_date,t&&t.createdAt].map(S).filter(Boolean);
+    const found=dates.map(x=>x.slice(0,7)).find(x=>/^\d{4}-\d{2}$/.test(x));
+    return found || (new Date().toISOString().slice(0,7));
+  }
+  function rawCampaignFolderFromTask(t,r){
+    return rawLocalSafeFolderName(
+      (r&&r.campaignFolderName) ||
+      (r&&r.campaignDisplayName) ||
+      (t&&t.campaignName) ||
+      (t&&t.name) ||
+      (t&&t.campaignTitle) ||
+      (t&&t.campaignCode) ||
+      (r&&r.campaignCode) ||
+      'campaign'
+    );
+  }
+  function rawCreativeFolderFromTask(t,r){
+    const byRaw=S(r&&r.creativeFolderName);
+    if(byRaw) return rawLocalSafeFolderName(byRaw);
+    const idx=Number(t&&t.creativeIndex)||0;
+    const short=S(t&&t.creativeShortCode);
+    if(idx && short) return rawLocalSafeFolderName(`N${String(idx).padStart(2,'0')}-${short}`);
+    return rawLocalSafeFolderName(
+      (t&&t.creativeFolderName) ||
+      (t&&t.rawFolderName) ||
+      (t&&t.creativeName) ||
+      (t&&t.creative) ||
+      (t&&t.product) ||
+      'creative'
+    );
+  }
   function rawTaskPanel(t){
     const r=t&&t.rawSource;
     if(!r || !r.linked || roleNorm(t.departmentRole)==='content') return '';
 
     const drive=S(r.driveLetter||'Z:') || 'Z:';
-    const monthKey=S(r.monthKey) || S(t.monthKey) || S(t.campaignStartDate||t.publishStartDate||t.createdAt).slice(0,7) || (new Date().toISOString().slice(0,7));
+    const monthKey=rawMonthKeyFromTask(t,r);
+    const campaignFolder=rawCampaignFolderFromTask(t,r);
+    const creativeFolder=rawCreativeFolderFromTask(t,r);
 
-    // مهم: نستخدم اسم الحملة للفولدر لو موجود، وليس كود الحملة.
-    // هذا يمنع فتح مسارات قديمة مثل MZJ-REPOST-2026-07 بعد تعديل النظام ليستخدم اسم الحملة.
-    const campaignFolder=safeFolderName(
-      t.campaignName ||
-      t.name ||
-      r.campaignFolderName ||
-      r.campaignDisplayName ||
-      t.campaignCode ||
-      r.campaignCode ||
-      'campaign'
-    );
+    // لا نعتمد هنا على r.rawWindowsPath القديم لأنه ممكن يكون محفوظ بكود الحملة.
+    // نبني المسار من بيانات التاسك الحالية حتى لا نكسر زر تفاصيل ولا نفتح Z فقط.
+    const rawPath=rawDriveJoin(drive,[monthKey,campaignFolder,creativeFolder,'01-RAW']);
+    const outPath=rawDriveJoin(drive,[monthKey,campaignFolder,creativeFolder,'02-OUTPUT']);
 
-    const creativeFolder=safeFolderName(
-      r.creativeFolderName ||
-      t.creativeFolderName ||
-      t.rawFolderName ||
-      t.creativeShortCode && t.creativeIndex ? `N${String(Number(t.creativeIndex)||1).padStart(2,'0')}-${t.creativeShortCode}` : '' ||
-      t.creativeName ||
-      t.creative ||
-      t.product ||
-      'creative'
-    );
-
-    const makePath=(...parts)=> drive + '\\' + parts.map(safeFolderName).filter(Boolean).join('\\') + '\\';
-
-    // فتح الخام يفتح فولدر 01-RAW الخاص بالكرييتيف.
-    const rawPath=makePath(monthKey,campaignFolder,creativeFolder,'01-RAW');
-
-    // فتح فولدر التسليم يفتح 02-OUTPUT الخاص بالكرييتيف، وليس Z فقط ولا كود الحملة القديم.
-    const outPath=makePath(monthKey,campaignFolder,creativeFolder,'02-OUTPUT');
-
-    const rawUrl=S(r.rawFolderUrl);
-    const outUrl=S(r.outputFolderUrl);
+    const rawUrl=S(r.rawFolderUrl), outUrl=S(r.outputFolderUrl||r.userOutputFolderUrl);
     const openBtn=(label,path,url)=>`<button type="button" class="btn btn-light" data-open-raidrive-folder="${H(path)}" data-fallback-url="${H(url)}">${H(label)}</button>`;
-    return `<div class="v677-panel v742-raw-task-panel"><h3>الداتا الخام</h3><p class="v677-note">فتح الخام يفتح 01-RAW، وفتح فولدر التسليم يفتح 02-OUTPUT الخاص بالكرييتيف.</p><div class="v677-actions">${openBtn('فتح الخام',rawPath,rawUrl)}${openBtn('فتح فولدر التسليم',outPath,outUrl)}</div></div>`;
+    return `<div class="v677-panel v742-raw-task-panel"><h3>الداتا الخام</h3><p class="v677-note">فتح الخام يفتح 01-RAW الخاص بالكرييتيف، وفتح فولدر التسليم يفتح 02-OUTPUT الخاص بنفس الكرييتيف.</p><div class="v677-actions">${openBtn('فتح الخام',rawPath,rawUrl)}${openBtn('فتح فولدر التسليم',outPath,outUrl)}</div></div>`;
   }
   function raidriveFileUrl(path){
     const p=S(path);
@@ -41829,6 +41852,7 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
 
 
 /* v750 - direct mzjfolder user-gesture launch */
+/* v752 - clean raw task paths without breaking task details */
 (function(){
   function S(v){ return v == null ? '' : String(v).trim(); }
   function toast(m){ try{ if(typeof showToast==='function') showToast(m); else console.log(m); }catch(_){ console.log(m); } }
@@ -41863,6 +41887,3 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
     if(copy){ ev.preventDefault(); ev.stopPropagation(); copyPath(copy.getAttribute('data-copy-raidrive-path')); return; }
   }, true);
 })();
-
-
-/* v751 - raw task buttons build exact RaiDrive task paths from campaign name and creative folder */
