@@ -38741,15 +38741,16 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const monthKey=rawMonthKeyFromTask(t,r);
     const campaignFolder=rawCampaignFolderFromTask(t,r);
     const creativeFolder=rawCreativeFolderFromTask(t,r);
+    const userFolder=rawLocalSafeFolderName((r&&r.userFolderName) || (t&&t.userName) || (t&&t.assignedToName) || '');
 
-    // لا نعتمد هنا على r.rawWindowsPath القديم لأنه ممكن يكون محفوظ بكود الحملة.
-    // نبني المسار من بيانات التاسك الحالية حتى لا نكسر زر تفاصيل ولا نفتح Z فقط.
-    const rawPath=rawDriveJoin(drive,[monthKey,campaignFolder,creativeFolder,'01-RAW']);
-    const outPath=rawDriveJoin(drive,[monthKey,campaignFolder,creativeFolder,'02-OUTPUT']);
+    // v753: نستخدم المسارات المحفوظة من rawSource أولاً لأنها راجعة من إنشاء الفولدرات الحقيقي.
+    // لو مش موجودة، نبنيها من اسم الحملة + الكرييتيف + اليوزر بدون الرجوع لكود الحملة القديم.
+    const rawPath=S(r.rawWindowsPath) || rawDriveJoin(drive,[monthKey,campaignFolder,creativeFolder,'01-RAW']);
+    const outPath=S(r.userOutputWindowsPath) || S(r.outputWindowsPath) || rawDriveJoin(drive,[monthKey,campaignFolder,creativeFolder,'02-OUTPUT',userFolder]);
 
-    const rawUrl=S(r.rawFolderUrl), outUrl=S(r.outputFolderUrl||r.userOutputFolderUrl);
-    const openBtn=(label,path,url)=>`<button type="button" class="btn btn-light" data-open-raidrive-folder="${H(path)}" data-fallback-url="${H(url)}">${H(label)}</button>`;
-    return `<div class="v677-panel v742-raw-task-panel"><h3>الداتا الخام</h3><p class="v677-note">فتح الخام يفتح 01-RAW الخاص بالكرييتيف، وفتح فولدر التسليم يفتح 02-OUTPUT الخاص بنفس الكرييتيف.</p><div class="v677-actions">${openBtn('فتح الخام',rawPath,rawUrl)}${openBtn('فتح فولدر التسليم',outPath,outUrl)}</div></div>`;
+    const rawUrl=S(r.rawFolderUrl), outUrl=S(r.userOutputFolderUrl||r.outputFolderUrl);
+    const openBtn=(label,path,url)=>`<button type="button" class="btn btn-light" data-open-raidrive-folder="${H(path)}" data-fallback-url="${H(url)}" title="${H(path)}">${H(label)}</button>`;
+    return `<div class="v677-panel v742-raw-task-panel"><h3>الداتا الخام</h3><p class="v677-note">فتح الخام يفتح فولدر 01-RAW للكرييتيف، وفتح فولدر التسليم يفتح فولدر اليوزر داخل 02-OUTPUT.</p><div class="v677-actions">${openBtn('فتح الخام',rawPath,rawUrl)}${openBtn('فتح فولدر التسليم',outPath,outUrl)}</div><div class="v677-note" style="font-size:11px;direction:ltr;text-align:left;margin-top:8px">RAW: ${H(rawPath)}<br>OUTPUT: ${H(outPath)}</div></div>`;
   }
   function raidriveFileUrl(path){
     const p=S(path);
