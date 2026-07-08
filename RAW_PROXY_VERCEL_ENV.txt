@@ -1,0 +1,6 @@
+Vercel Environment Variables:
+
+MZJ_RAW_API_URL=http://152.239.121.92:8080/api/create-raw-folders
+MZJ_RAW_API_TOKEN=MZJ_RAW_SECRET_2026_CHANGE_ME
+
+After adding/updating environment variables, redeploy the project.
