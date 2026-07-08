@@ -62,6 +62,7 @@ window.MZJ_CREATIVES_COLLECTION = "marketing_creatives";
 window.MZJ_TASK_TYPES_COLLECTION = "marketing_task_types";
 window.MZJ_CONTENT_SECTIONS_COLLECTION = "content_categories";
 window.MZJ_CAMPAIGN_CODES_COLLECTION = "marketing_campaign_codes";
+window.MZJ_CAMPAIGN_COUNTERS_COLLECTION = "marketing_campaign_counters";
 window.MZJ_CAMPAIGN_TYPES_COLLECTION = "marketing_campaign_types";
 window.MZJ_ORDER_STATUSES_COLLECTION = "marketing_order_statuses";
 window.MZJ_FUNNELS_COLLECTION = "marketing_funnels";
@@ -3414,12 +3415,51 @@ function campaignCodeSequenceFromBase(code, base){
   const match = cleanCode.match(new RegExp(`^${escapeRegExp(cleanBase)}-(\\d{2,})$`));
   return match ? Math.max(2, Number(match[1]) || 0) : 0;
 }
+function formatCampaignCodeFromSequence(base, seq){
+  const cleanBase = normalizeText(base || '').toUpperCase();
+  const n = Number(seq || 0);
+  if(!cleanBase) return '';
+  if(n <= 1) return cleanBase;
+  return `${cleanBase}-${String(n).padStart(2, '0')}`;
+}
+function localMaxCampaignSequenceForBase(base){
+  return (campaigns || []).reduce((max, campaign) => Math.max(max, campaignCodeSequenceFromBase(campaign.campaignCode || campaign.campaign_code || '', base)), 0);
+}
+function campaignCounterDocId(base){
+  return safeFirestoreDocId(`campaign-counter-${normalizeText(base || '').toUpperCase()}`);
+}
 function nextCampaignCodeForType(item, date = new Date()){
   const base = campaignMonthlyBaseCode(item, date);
   if(!base) return '';
-  const maxSeq = (campaigns || []).reduce((max, campaign) => Math.max(max, campaignCodeSequenceFromBase(campaign.campaignCode || campaign.campaign_code || '', base)), 0);
-  if(maxSeq <= 0) return base;
-  return `${base}-${String(maxSeq + 1).padStart(2, '0')}`;
+  const maxSeq = localMaxCampaignSequenceForBase(base);
+  return formatCampaignCodeFromSequence(base, maxSeq + 1);
+}
+async function reserveCampaignCodeForType(item, date = new Date()){
+  const base = campaignMonthlyBaseCode(item, date);
+  if(!base) return { campaignCode: '', campaignSerial: 1, monthlyBaseCode: '' };
+  const collectionName = window.MZJ_CAMPAIGN_COUNTERS_COLLECTION || 'marketing_campaign_counters';
+  const counterRef = safeCollection(collectionName).doc(campaignCounterDocId(base));
+  const localMax = localMaxCampaignSequenceForBase(base);
+  try{
+    const reserved = await mainDb.runTransaction(async transaction => {
+      const snap = await transaction.get(counterRef);
+      const current = snap.exists ? Number((snap.data() || {}).lastSequence || 0) : 0;
+      const nextSeq = Math.max(current, localMax) + 1;
+      transaction.set(counterRef, {
+        id: counterRef.id,
+        baseCode: base,
+        lastSequence: nextSeq,
+        updatedAt: serverTime(),
+        createdAt: snap.exists ? ((snap.data() || {}).createdAt || serverTime()) : serverTime()
+      }, { merge: true });
+      return nextSeq;
+    });
+    return { campaignCode: formatCampaignCodeFromSequence(base, reserved), campaignSerial: reserved, monthlyBaseCode: base };
+  }catch(error){
+    console.error('Campaign counter reservation failed', error);
+    const fallbackSeq = localMax + 1;
+    return { campaignCode: formatCampaignCodeFromSequence(base, fallbackSeq), campaignSerial: fallbackSeq, monthlyBaseCode: base, fallback: true };
+  }
 }
 function generateCampaignCode(){
   const output = document.getElementById('campaignCodeInput');
@@ -7066,11 +7106,11 @@ async function saveCampaignToFirebase(){
   const publishStartDateValue = request.publish_start_date || document.getElementById('publishStartDate')?.value || '';
   const publishEndDateValue = request.publish_end_date || document.getElementById('publishEndDate')?.value || '';
   const typeItem = campaignTypes.find(type => type.id === document.getElementById('campaignTypeSelect')?.value || type.name === document.getElementById('campaignTypeSelect')?.value);
-  const freshCampaignCode = typeItem ? nextCampaignCodeForType(typeItem) : '';
-  if(freshCampaignCode && document.getElementById('campaignCodeInput')) document.getElementById('campaignCodeInput').value = freshCampaignCode;
-  const campaignCode = freshCampaignCode || document.getElementById('campaignCodeInput')?.value || '';
-  const monthlyBaseCode = campaignMonthlyBaseCode(typeItem || {}, new Date());
-  const campaignMonthlySequence = campaignCodeSequenceFromBase(campaignCode, monthlyBaseCode) || 1;
+  const reservedCode = typeItem ? await reserveCampaignCodeForType(typeItem) : { campaignCode: document.getElementById('campaignCodeInput')?.value || '', campaignSerial: 1, monthlyBaseCode: '' };
+  if(reservedCode?.campaignCode && document.getElementById('campaignCodeInput')) document.getElementById('campaignCodeInput').value = reservedCode.campaignCode;
+  const campaignCode = reservedCode?.campaignCode || document.getElementById('campaignCodeInput')?.value || '';
+  const monthlyBaseCode = reservedCode?.monthlyBaseCode || campaignMonthlyBaseCode(typeItem || {}, new Date());
+  const campaignMonthlySequence = Number(reservedCode?.campaignSerial || campaignCodeSequenceFromBase(campaignCode, monthlyBaseCode) || 1);
   const payload = {
     ...request,
     campaignCode,
