@@ -38691,8 +38691,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const rawPath=S(r.rawWindowsPath), outPath=S(r.userOutputWindowsPath||r.outputWindowsPath);
     const rawUrl=S(r.rawFolderUrl), outUrl=S(r.userOutputFolderUrl||r.outputFolderUrl);
     const openBtn=(label,path,url)=>`<button type="button" class="btn btn-light" data-open-raidrive-folder="${H(path)}" data-fallback-url="${H(url)}">${H(label)}</button>`;
-    const copyBtn=(label,path)=>`<button type="button" class="btn btn-light" data-copy-raidrive-path="${H(path)}">${H(label)}</button>`;
-    return `<div class="v677-panel v742-raw-task-panel"><h3>الداتا الخام</h3><p class="v677-note">الخام في 01-RAW، والتسليم في 02-OUTPUT باسم اليوزر التنفيذي.</p><div class="v677-actions">${openBtn('فتح الخام',rawPath,rawUrl)}${openBtn('فتح فولدر التسليم',outPath,outUrl)}${copyBtn('نسخ مسار الخام',rawPath)}${copyBtn('نسخ مسار التسليم',outPath)}</div></div>`;
+    return `<div class="v677-panel v742-raw-task-panel"><h3>الداتا الخام</h3><p class="v677-note">افتح 01-RAW للخام، وافتح 02-OUTPUT لتسليم اليوزر التنفيذي.</p><div class="v677-actions">${openBtn('فتح الخام',rawPath,rawUrl)}${openBtn('فتح فولدر التسليم',outPath,outUrl)}</div></div>`;
   }
   function raidriveFileUrl(path){
     const p=S(path);
@@ -41793,11 +41792,11 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
 })();
 
 
-/* v746 - robust RaiDrive button fallback */
+
+/* v749 - direct mzjfolder opener only, no copy fallback on open */
 (function(){
   function S(v){ return v == null ? '' : String(v).trim(); }
   function toast(m){ try{ if(typeof showToast==='function') showToast(m); else console.log(m); }catch(_){ console.log(m); } }
-  function fileUrl(path){ return 'file:///' + S(path).replace(/\\/g,'/').replace(/^([A-Za-z]):/, '$1:'); }
   async function copyPath(path){
     const value=S(path);
     if(!value){ alert('المسار غير محفوظ على هذا التاسك. أعد إنشاء فولدرات الخام ثم احفظ الحملة.'); return false; }
@@ -41810,11 +41809,20 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
   }
   function openPath(path,url){
     const value=S(path);
-    if(!value){ alert('المسار غير محفوظ على هذا التاسك. أعد إنشاء فولدرات الخام ثم احفظ الحملة.'); if(url) window.open(url,'_blank'); return; }
-    copyPath(value);
+    if(!value){ alert('مسار RaiDrive غير محفوظ على هذا التاسك. أعد إنشاء فولدرات الخام ثم احفظ الحملة.'); if(url) window.open(url,'_blank'); return; }
     const proto='mzjfolder://open?path=' + encodeURIComponent(value);
-    try{ window.location.href = proto; toast('لو ظهرت رسالة المتصفح اضغط Open. لو لم يفتح الفولدر، افتح Windows Explorer والصق المسار المنسوخ.'); return; }catch(_){ }
-    window.prompt('المتصفح منع فتح الفولدر مباشرة. انسخ المسار وافتحه في Windows Explorer:', value);
+    try{
+      const a=document.createElement('a');
+      a.href=proto;
+      a.style.display='none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ try{ a.remove(); }catch(_){} }, 1000);
+      toast('لو ظهرت رسالة المتصفح اضغط Open لفتح Windows Explorer.');
+      return;
+    }catch(_){ }
+    try{ window.location.href=proto; toast('لو ظهرت رسالة المتصفح اضغط Open.'); return; }catch(_){ }
+    alert('لم يستطع المتصفح فتح بروتوكول mzjfolder. تأكد من تشغيل install-mzjfolder-protocol.bat على الجهاز.');
   }
   window.MZJ_COPY_RAIDRIVE_PATH=copyPath;
   window.MZJ_OPEN_RAIDRIVE_PATH=openPath;
