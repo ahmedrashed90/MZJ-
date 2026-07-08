@@ -41793,7 +41793,7 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
 
 
 
-/* v749 - direct mzjfolder opener only, no copy fallback on open */
+/* v750 - direct mzjfolder user-gesture launch */
 (function(){
   function S(v){ return v == null ? '' : String(v).trim(); }
   function toast(m){ try{ if(typeof showToast==='function') showToast(m); else console.log(m); }catch(_){ console.log(m); } }
@@ -41811,18 +41811,9 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
     const value=S(path);
     if(!value){ alert('مسار RaiDrive غير محفوظ على هذا التاسك. أعد إنشاء فولدرات الخام ثم احفظ الحملة.'); if(url) window.open(url,'_blank'); return; }
     const proto='mzjfolder://open?path=' + encodeURIComponent(value);
-    try{
-      const a=document.createElement('a');
-      a.href=proto;
-      a.style.display='none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(function(){ try{ a.remove(); }catch(_){} }, 1000);
-      toast('لو ظهرت رسالة المتصفح اضغط Open لفتح Windows Explorer.');
-      return;
-    }catch(_){ }
-    try{ window.location.href=proto; toast('لو ظهرت رسالة المتصفح اضغط Open.'); return; }catch(_){ }
-    alert('لم يستطع المتصفح فتح بروتوكول mzjfolder. تأكد من تشغيل install-mzjfolder-protocol.bat على الجهاز.');
+    // مهم: إطلاق البروتوكول لازم يحصل مباشرة داخل ضغطة المستخدم.
+    // لذلك لا نستخدم a.click أو setTimeout قبل فتح mzjfolder.
+    window.location.href = proto;
   }
   window.MZJ_COPY_RAIDRIVE_PATH=copyPath;
   window.MZJ_OPEN_RAIDRIVE_PATH=openPath;
