@@ -38694,17 +38694,60 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const copyBtn=(label,path)=>`<button type="button" class="btn btn-light" data-copy-raidrive-path="${H(path)}">${H(label)}</button>`;
     return `<div class="v677-panel v742-raw-task-panel"><h3>الداتا الخام</h3><p class="v677-note">الخام في 01-RAW، والتسليم في 02-OUTPUT باسم اليوزر التنفيذي.</p><div class="v677-actions">${openBtn('فتح الخام',rawPath,rawUrl)}${openBtn('فتح فولدر التسليم',outPath,outUrl)}${copyBtn('نسخ مسار الخام',rawPath)}${copyBtn('نسخ مسار التسليم',outPath)}</div></div>`;
   }
-  function openRaidrivePath(path,url){
+  function raidriveFileUrl(path){
     const p=S(path);
-    if(p){
-      const fileUrl='file:///'+p.replace(/\\/g,'/').replace(/^([A-Za-z]):/, '$1:');
-      try{ window.open(fileUrl,'_blank'); return; }catch(_){ }
-    }
-    if(url) window.open(url,'_blank');
+    if(!p) return '';
+    return 'file:///' + p.replace(/\\/g,'/').replace(/^([A-Za-z]):/, '$1:');
   }
   async function copyTextValue(text){
-    try{ await navigator.clipboard.writeText(S(text)); toast('تم نسخ المسار.'); }
-    catch(_){ const ta=document.createElement('textarea'); ta.value=S(text); document.body.appendChild(ta); ta.select(); try{document.execCommand('copy'); toast('تم نسخ المسار.');}catch(e){alert(S(text));} ta.remove(); }
+    const value=S(text);
+    if(!value){ alert('المسار غير محفوظ على هذا التاسك. أعد إنشاء فولدرات الخام ثم احفظ الحملة.'); return false; }
+    try{
+      if(navigator.clipboard && window.isSecureContext){
+        await navigator.clipboard.writeText(value);
+        toast('تم نسخ المسار.');
+        return true;
+      }
+    }catch(_){ }
+    try{
+      const ta=document.createElement('textarea');
+      ta.value=value;
+      ta.setAttribute('readonly','readonly');
+      ta.style.position='fixed';
+      ta.style.top='-1000px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok=document.execCommand('copy');
+      ta.remove();
+      if(ok){ toast('تم نسخ المسار.'); return true; }
+    }catch(_){ }
+    window.prompt('انسخ المسار وافتحه في Windows Explorer:', value);
+    return false;
+  }
+  function openRaidrivePath(path,url){
+    const p=S(path);
+    if(!p){
+      alert('مسار RaiDrive غير محفوظ على هذا التاسك. أعد إنشاء فولدرات الخام ثم احفظ الحملة.');
+      if(url) window.open(url,'_blank');
+      return;
+    }
+    // ننسخ المسار دائمًا كاحتياطي لأن Chrome قد يمنع فتح file:// من صفحة ويب.
+    copyTextValue(p);
+    const fileUrl=raidriveFileUrl(p);
+    try{
+      const a=document.createElement('a');
+      a.href=fileUrl;
+      a.target='_blank';
+      a.rel='noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast('لو الفولدر لم يفتح، افتح Windows Explorer والصق المسار المنسوخ.');
+      return;
+    }catch(_){ }
+    try{ window.open(fileUrl,'_blank'); return; }catch(_){ }
+    if(url) window.open(url,'_blank');
   }
   function templateData(t){
     const src=t.approvedContentTemplate||t.contentTaskTemplate||t.taskTemplate||{};
@@ -41747,4 +41790,39 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
     stepWrap.__mzj_v738_preserve=true; try{toggleTaskStep=stepWrap;window.toggleTaskStep=stepWrap;}catch(_){window.toggleTaskStep=stepWrap;}
   }
   try{window.MZJ_APP_VERSION='v738-preserve-approved-template-on-exec-actions';window.MZJ_LAST_PATCH='v738-preserve-approved-template-on-exec-actions';console.info(VERSION,'loaded');}catch(_){ }
+})();
+
+
+/* v746 - robust RaiDrive button fallback */
+(function(){
+  function S(v){ return v == null ? '' : String(v).trim(); }
+  function toast(m){ try{ if(typeof showToast==='function') showToast(m); else console.log(m); }catch(_){ console.log(m); } }
+  function fileUrl(path){ return 'file:///' + S(path).replace(/\\/g,'/').replace(/^([A-Za-z]):/, '$1:'); }
+  async function copyPath(path){
+    const value=S(path);
+    if(!value){ alert('المسار غير محفوظ على هذا التاسك. أعد إنشاء فولدرات الخام ثم احفظ الحملة.'); return false; }
+    try{ if(navigator.clipboard && window.isSecureContext){ await navigator.clipboard.writeText(value); toast('تم نسخ المسار.'); return true; } }catch(_){ }
+    try{
+      const ta=document.createElement('textarea'); ta.value=value; ta.setAttribute('readonly','readonly'); ta.style.position='fixed'; ta.style.top='-1000px'; document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok=document.execCommand('copy'); ta.remove(); if(ok){ toast('تم نسخ المسار.'); return true; }
+    }catch(_){ }
+    window.prompt('انسخ المسار وافتحه في Windows Explorer:', value); return false;
+  }
+  function openPath(path,url){
+    const value=S(path);
+    if(!value){ alert('المسار غير محفوظ على هذا التاسك. أعد إنشاء فولدرات الخام ثم احفظ الحملة.'); if(url) window.open(url,'_blank'); return; }
+    copyPath(value);
+    const u=fileUrl(value);
+    try{ const a=document.createElement('a'); a.href=u; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); toast('لو الفولدر لم يفتح، افتح Windows Explorer والصق المسار المنسوخ.'); return; }catch(_){ }
+    try{ window.open(u,'_blank'); return; }catch(_){ }
+    if(url) window.open(url,'_blank');
+  }
+  window.MZJ_COPY_RAIDRIVE_PATH=copyPath;
+  window.MZJ_OPEN_RAIDRIVE_PATH=openPath;
+  document.addEventListener('click', function(ev){
+    const open=ev.target.closest && ev.target.closest('[data-open-raidrive-folder]');
+    if(open){ ev.preventDefault(); ev.stopPropagation(); openPath(open.getAttribute('data-open-raidrive-folder'), open.getAttribute('data-fallback-url')); return; }
+    const copy=ev.target.closest && ev.target.closest('[data-copy-raidrive-path]');
+    if(copy){ ev.preventDefault(); ev.stopPropagation(); copyPath(copy.getAttribute('data-copy-raidrive-path')); return; }
+  }, true);
 })();
