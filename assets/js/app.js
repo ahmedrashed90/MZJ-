@@ -9059,10 +9059,73 @@ function scheduleDataViewPlatformText(item){
   const types = uniqueList([item.postTypeLabels, item.postTypes, item.types, item.postType, item.type].flat().map(normalizeText).filter(Boolean));
   return [platforms.join('، '), types.join('، ')].filter(Boolean).join(' - ');
 }
+function scheduleDataViewSplitValues(value){
+  if(value == null) return [];
+  if(Array.isArray(value)) return uniqueList(value.flatMap(scheduleDataViewSplitValues));
+  if(typeof value === 'object') return scheduleDataViewSplitValues(value.label || value.name || value.value || value.title || value.id || '');
+  return uniqueList(normalizeText(value || '').split(/[,،]/).map(normalizeText).filter(Boolean));
+}
+function scheduleDataViewTypeForPlatform(platformTypes, rawPlatform, displayPlatform){
+  if(!platformTypes || typeof platformTypes !== 'object') return '';
+  const targets = uniqueList([rawPlatform, displayPlatform, scheduleDataViewPlatformName(rawPlatform), scheduleDataViewPlatformName(displayPlatform)].map(value => normalizeText(value || '').toLowerCase()).filter(Boolean));
+  for(const key of Object.keys(platformTypes)){
+    const keyNames = uniqueList([key, scheduleDataViewPlatformName(key)].map(value => normalizeText(value || '').toLowerCase()).filter(Boolean));
+    if(keyNames.some(name => targets.includes(name))) return platformTypes[key];
+  }
+  return '';
+}
+function scheduleDataViewPostTypeNames(row, platformName = ''){
+  const names = [];
+  const addName = value => scheduleDataViewSplitValues(value).forEach(item => { const text = normalizeText(item || ''); if(text) names.push(text); });
+  const addResolved = value => scheduleDataViewSplitValues(value).forEach(item => {
+    const text = scheduleDataViewPostTypeName({ postType:item }, platformName) || normalizeText(item || '');
+    if(text) names.push(text);
+  });
+  ['postTypeLabel','publishTypeLabel','typeLabel','postTypeName','postTypeLabels','postTypesLabels','publishTypeLabels','typeLabels'].forEach(key => addName(row?.[key]));
+  ['postType','publishType','postTypes','publishTypes'].forEach(key => addResolved(row?.[key]));
+  if(!names.length) addResolved(row?.types);
+  if(!names.length && row?._allowTypeFallback) addResolved(row?.type);
+  return uniqueList(names.map(normalizeText).filter(Boolean));
+}
+function scheduleDataViewPlatformRows(item){
+  const rows = [];
+  const addRows = (platform, typeValues) => {
+    const cleanPlatform = scheduleDataViewPlatformName(platform) || scheduleDataViewCleanName(platform) || normalizeText(platform || '') || '—';
+    const types = Array.isArray(typeValues) && typeValues.length ? typeValues : ['—'];
+    types.forEach(type => rows.push({ platform: cleanPlatform, postType: normalizeText(type || '') || '—' }));
+  };
+  if(Array.isArray(item.platformPublishing) && item.platformPublishing.length){
+    const fallbackPlatforms = scheduleDataViewSplitValues(item.platforms);
+    item.platformPublishing.forEach((row, index) => {
+      const platform = row?.platformLabel || row?.platformName || row?.platform || fallbackPlatforms[index] || '';
+      const displayPlatform = scheduleDataViewPlatformName(platform) || scheduleDataViewCleanName(platform) || normalizeText(platform || '');
+      addRows(displayPlatform, scheduleDataViewPostTypeNames(row, displayPlatform));
+    });
+  }
+  if(!rows.length){
+    const rawPlatforms = uniqueList([item.platforms, item.platformIds, item.platform].flatMap(scheduleDataViewSplitValues).filter(Boolean));
+    const platformTypes = item.platformTypes && typeof item.platformTypes === 'object' ? item.platformTypes : {};
+    rawPlatforms.forEach(rawPlatform => {
+      const platform = scheduleDataViewPlatformName(rawPlatform) || scheduleDataViewCleanName(rawPlatform) || normalizeText(rawPlatform || '');
+      const typeValue = scheduleDataViewTypeForPlatform(platformTypes, rawPlatform, platform);
+      addRows(platform, scheduleDataViewPostTypeNames({ postTypes:typeValue, postType:typeValue }, platform));
+    });
+  }
+  if(!rows.length){
+    const platform = item.platform || '';
+    addRows(platform, scheduleDataViewPostTypeNames({ ...item, _allowTypeFallback:true }, scheduleDataViewPlatformName(platform) || platform));
+  }
+  return rows.length ? rows : [{ platform: '—', postType: '—' }];
+}
 function renderScheduleSummary(campaign){
   const list = campaignScheduleRowsForDataView(campaign);
   if(!list.length) return '<div class="empty-state mini-empty">لا يوجد جدول نشر.</div>';
-  return `<div class="compact-table"><table><thead><tr><th>التاريخ</th><th>المخرج</th><th>المنصات وأنواع النشر</th></tr></thead><tbody>${list.map(item => `<tr><td>${escapeHtml(item.date || item.publishDate || '')}</td><td>${escapeHtml(scheduleDataViewCreativeName(campaign, item))}</td><td>${escapeHtml(scheduleDataViewPlatformText(item) || '—')}</td></tr>`).join('')}</tbody></table></div>`;
+  const rows = list.flatMap(item => {
+    const date = item.date || item.publishDate || '';
+    const output = scheduleDataViewCreativeName(campaign, item);
+    return scheduleDataViewPlatformRows(item).map(row => ({ date, output, ...row }));
+  });
+  return `<div class="compact-table"><table><thead><tr><th>التاريخ</th><th>المخرج</th><th>المنصة</th><th>نوع النشر</th></tr></thead><tbody>${rows.map(item => `<tr><td>${escapeHtml(item.date || '')}</td><td>${escapeHtml(item.output || '—')}</td><td>${escapeHtml(item.platform || '—')}</td><td>${escapeHtml(item.postType || '—')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function budgetItemTotal(item){
   const rawAds = item?.adsCount ?? item?.ads_count ?? '';
