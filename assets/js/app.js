@@ -38867,6 +38867,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function renderDeptTaskGroups(pairs, emptyText, opts){
     const groups={};
     const showProgress=!!(opts&&opts.showProgress);
+    const startClosed=!!(opts&&opts.startClosed);
     (pairs||[]).forEach(x=>{const k=deptKeyForTask(x.t); (groups[k]||(groups[k]=[])).push(x);});
     const html=deptGroupOrder.map(k=>{
       const list=groups[k]||[];
@@ -38876,7 +38877,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
       const pct=list.length?Math.round((doneUnits/list.length)*100):0;
       const doneText=Number.isInteger(doneUnits)?String(doneUnits):String(Math.round(doneUnits*10)/10);
       const stat=showProgress?`${doneText}/${list.length} · ${pct}%`:list.length;
-      return `<details class="v736-dept-accordion" open><summary><strong>${H(deptGroupLabels[k])}</strong><span>${H(stat)}</span></summary><div class="v736-dept-task-list">${list.map(x=>card(x.c,x.t,false)).join('')}</div></details>`;
+      return `<details class="v736-dept-accordion"${startClosed?'':' open'}><summary><strong>${H(deptGroupLabels[k])}</strong><span>${H(stat)}</span></summary><div class="v736-dept-task-list">${list.map(x=>card(x.c,x.t,false)).join('')}</div></details>`;
     }).join('');
     return html || `<div class="v677-empty">${H(emptyText||'لا توجد تاسكات.')}</div>`;
   }
@@ -38901,7 +38902,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
       const c=item.campaign;
       const pairs=(item.related||[]).map(t=>({c,t}));
       const pct=Math.max(0,Math.min(100,Math.round(Number(item.progress||0))));
-      return `<details class="v737-ready-campaign"><summary><div class="v737-ready-campaign-head"><div class="v737-ready-campaign-title"><strong>${H(campaignDisplayName(c)||'حملة')}</strong><span>${H(item.total||pairs.length)}</span></div><p class="v737-ready-campaign-meta">${H(campaignCodeLabel(c))} · ${H(pct)}%</p><div class="v737-ready-campaign-progress"><i style="width:${H(pct)}%"></i></div></div></summary><div class="v737-ready-campaign-body">${renderDeptTaskGroups(pairs,'لا توجد تاسكات لهذه الحملة.',{showProgress:true})}</div></details>`;
+      return `<details class="v737-ready-campaign"><summary><div class="v737-ready-campaign-head"><div class="v737-ready-campaign-title"><strong>${H(campaignDisplayName(c)||'حملة')}</strong><span>${H(item.total||pairs.length)}</span></div><p class="v737-ready-campaign-meta">${H(campaignCodeLabel(c))} · ${H(pct)}%</p><div class="v737-ready-campaign-progress"><i style="width:${H(pct)}%"></i></div></div></summary><div class="v737-ready-campaign-body">${renderDeptTaskGroups(pairs,'لا توجد تاسكات لهذه الحملة.',{showProgress:true,startClosed:true})}</div></details>`;
     }).join('');
     return html ? `<div class="v737-ready-campaigns">${html}</div>` : `<div class="v677-empty">${H(emptyText||'لا توجد حملات في جاهزية المطلوب.')}</div>`;
   }
