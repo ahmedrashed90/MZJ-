@@ -8446,7 +8446,7 @@ function renderCampaignManagementTable(containerId, limit = 50){
 function renderDatabasePage(){
   const body = document.getElementById('databaseCampaignRows');
   if(!body) return;
-  if(!campaigns.length){ body.innerHTML = '<tr><td colspan="11">لا توجد حملات محفوظة.</td></tr>'; return; }
+  if(!campaigns.length){ body.innerHTML = '<tr><td colspan="10">لا توجد حملات محفوظة.</td></tr>'; return; }
   body.innerHTML = campaigns.map((campaign, index) => {
     const cDate = campaignDateValue(campaign);
     return `<tr>
@@ -8458,7 +8458,6 @@ function renderDatabasePage(){
       <td>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '')}</td>
       <td>${formatDateShort(campaignStartPublishDate(campaign))}</td>
       <td>${formatDateShort(campaignEndDate(campaign))}</td>
-      <td class="db-department-cell">${databaseDepartmentCell(campaign,'publish',['النشر','نشر'])}</td>
       <td><button type="button" class="mini-btn db-view-data-btn" data-view-campaign-data="${escapeHtml(campaignStableId(campaign))}">عرض البيانات</button></td>
       <td class="db-actions"><button type="button" class="mini-btn danger" data-delete-campaign="${escapeHtml(campaignStableId(campaign))}">مسح</button><button type="button" class="mini-btn" data-archive-campaign="${escapeHtml(campaignStableId(campaign))}">أرشيف</button></td>
     </tr>`;
