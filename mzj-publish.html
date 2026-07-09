@@ -1,151 +1,53 @@
-
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MZJ Publish</title>
-  <meta name="description" content="MZJ Publish is a web-based publishing platform for authorized users to connect social media accounts and publish approved marketing content." />
-  <link rel="icon" type="image/png" href="/assets/favicon.png" />
-  <link rel="apple-touch-icon" href="/assets/mzj-publish-app-icon-1024.png" />
-  <style>
-    :root {
-      --bg: #f7f5f2;
-      --card: #ffffff;
-      --text: #1d1b18;
-      --muted: #665f58;
-      --line: #e5ded6;
-      --brand: #5a2b1d;
-      --brand2: #c8894f;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
-      background: linear-gradient(180deg, #fff 0%, var(--bg) 100%);
-      color: var(--text);
-      line-height: 1.6;
-    }
-    .wrap { max-width: 1040px; margin: 0 auto; padding: 42px 22px; }
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px;
-      margin-bottom: 34px;
-    }
-    .brand { display: flex; align-items: center; gap: 14px; }
-    .brand img { width: 76px; height: 76px; object-fit: contain; }
-    .brand h1 { margin: 0; font-size: 30px; letter-spacing: -0.03em; }
-    .brand p { margin: 3px 0 0; color: var(--muted); }
-    .hero {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      padding: 34px;
-      box-shadow: 0 12px 32px rgba(62, 42, 27, 0.08);
-    }
-    .hero h2 { margin: 0 0 12px; font-size: 34px; line-height: 1.18; }
-    .hero p { margin: 0; max-width: 780px; color: var(--muted); font-size: 17px; }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 18px;
-      margin: 22px 0;
-    }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 22px;
-    }
-    .card h3 { margin: 0 0 8px; font-size: 19px; }
-    .card p, .card li { color: var(--muted); }
-    .card p { margin: 0; }
-    section { margin-top: 22px; }
-    .wide { grid-column: span 3; }
-    ul { margin: 10px 0 0 20px; padding: 0; }
-    .links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
-    a.btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 11px 16px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      color: var(--brand);
-      text-decoration: none;
-      background: #fff;
-      font-weight: 700;
-    }
-    a.btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
-    footer { color: var(--muted); margin-top: 26px; font-size: 14px; }
-    @media (max-width: 760px) {
-      header { align-items: flex-start; flex-direction: column; }
-      .grid { grid-template-columns: 1fr; }
-      .wide { grid-column: span 1; }
-      .hero h2 { font-size: 28px; }
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MZJ Publish</title>
+<meta name="description" content="MZJ Publish is a web-based publishing platform for authorized users to connect social accounts and publish approved marketing content." />
+<link rel="icon" type="image/png" href="/assets/favicon.png" />
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+
+<style>
+:root{--ink:#0f172a;--muted:#475569;--line:#e2e8f0;--card:#fff;--bg:#f8fafc;--brand:#4a2417;--accent:#c88447}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink);line-height:1.65}
+.wrap{max-width:980px;margin:0 auto;padding:32px 20px 56px}
+header{display:flex;align-items:center;gap:18px;padding:22px 24px;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 28px rgba(15,23,42,.06);margin-bottom:28px}
+header img{width:82px;height:82px;object-fit:contain;border-radius:18px;background:#fff;border:1px solid var(--line);padding:8px}
+h1{margin:0;font-size:34px;letter-spacing:-.02em}.subtitle{margin:2px 0 0;color:var(--muted);font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px;box-shadow:0 8px 24px rgba(15,23,42,.04);margin-bottom:18px}
+h2{margin:0 0 12px;font-size:23px}p{margin:0 0 14px}ul{margin:8px 0 0 22px;padding:0}
+a{color:var(--brand);font-weight:700;text-decoration:none;border-bottom:1px solid rgba(74,36,23,.25)}
+.links{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px}.badge{display:inline-flex;align-items:center;border:1px solid rgba(200,132,71,.45);background:rgba(200,132,71,.08);border-radius:999px;padding:6px 12px;color:var(--brand);font-weight:700;font-size:13px;margin-right:8px;margin-bottom:8px}
+footer{color:var(--muted);font-size:14px;padding:18px 4px 0}
+</style>
+
 </head>
 <body>
-  <main class="wrap">
-    <header>
-      <div class="brand">
-        <img src="/assets/favicon.png" alt="MZJ logo" />
-        <div>
-          <h1>MZJ Publish</h1>
-          <p>Web-based social media publishing platform</p>
-        </div>
-      </div>
-    </header>
+<main class="wrap">
+<header>
+<img src="/assets/mzj-publish-app-icon-1024.png" alt="MZJ Publish app icon" />
+<div><h1>MZJ Publish</h1><p class="subtitle">Web-based publishing platform for approved marketing content.</p></div>
+</header>
 
-    <section class="hero">
-      <h2>Connect social accounts and publish approved marketing content.</h2>
-      <p>
-        MZJ Publish is a web-based publishing platform for authorized users to connect social media accounts,
-        manage approved publishing jobs, and publish marketing content to the accounts they are authorized to manage.
-      </p>
-      <div class="links">
-        <a class="btn primary" href="/privacy-policy.html">Privacy Policy</a>
-        <a class="btn" href="/terms-of-service.html">Terms of Service</a>
-        <a class="btn" href="/data-deletion.html">Data Deletion</a>
-      </div>
-    </section>
+<section class="card"><h2>About MZJ Publish</h2>
+<p>MZJ Publish is a web-based publishing platform for authorized users to connect social media accounts they manage and publish approved marketing content through a structured publishing workflow.</p>
+<p>The platform supports account connection, publishing job preparation, scheduling, publishing status tracking, and content posting for approved media assets.</p>
+<div><span class="badge">TikTok Login</span><span class="badge">Content Posting API</span><span class="badge">Approved content workflow</span></div>
+</section>
+<section class="card"><h2>TikTok Integration</h2>
+<p>MZJ Publish uses TikTok Login so authorized users can connect TikTok accounts they manage. The Content Posting API is used to publish approved marketing content selected by the authorized user.</p>
+<p>The workflow is designed for users who manage social media content and need a clear process for preparing, approving, scheduling, and publishing posts.</p>
+</section>
+<section class="card"><h2>How the workflow works</h2>
+<ul><li>The user opens MZJ Publish.</li><li>The user connects a TikTok account using TikTok Login.</li><li>The user selects or prepares approved marketing content.</li><li>The user chooses the publishing destination and schedule.</li><li>MZJ Publish posts approved content through the connected account using the Content Posting API.</li></ul>
+</section>
+<section class="card"><h2>Policy pages</h2>
+<p>These public pages explain how the platform works, how data is used, and the applicable terms.</p>
+<div class="links"><a href="/privacy-policy.html">Privacy Policy</a><a href="/terms-of-service.html">Terms of Service</a><a href="/data-deletion.html">Data Deletion</a></div>
+</section>
 
-    <section class="grid">
-      <div class="card">
-        <h3>Account Connection</h3>
-        <p>Authorized users can connect supported social accounts using platform-approved login and authorization flows.</p>
-      </div>
-      <div class="card">
-        <h3>Publishing Workflow</h3>
-        <p>Users create or receive approved publishing jobs containing media, captions, hashtags, platforms, and publishing time.</p>
-      </div>
-      <div class="card">
-        <h3>Publishing Status</h3>
-        <p>The platform records publishing status, errors, and publishing history so authorized users can monitor content delivery.</p>
-      </div>
-
-      <div class="card wide">
-        <h3>TikTok Integration</h3>
-        <p>
-          MZJ Publish uses TikTok Login and the TikTok Content Posting API to allow authorized users to connect TikTok accounts
-          they manage and publish approved marketing content through a controlled web-based workflow.
-        </p>
-        <ul>
-          <li>TikTok account authorization is performed by the user through TikTok Login.</li>
-          <li>Only accounts authorized by the user are available for publishing.</li>
-          <li>Publishing actions are initiated for approved content jobs managed inside MZJ Publish.</li>
-          <li>The platform does not sell TikTok user data and does not expose access tokens to public frontend code.</li>
-        </ul>
-      </div>
-    </section>
-
-    <footer>
-      <strong>Contact:</strong> me.ahmed.rashed@icloud.com<br />
-      MZJ Publish is operated for authorized publishing workflows and connected account management.
-    </footer>
-  </main>
+<footer><strong>MZJ Publish</strong> · Contact: me.ahmed.rashed@icloud.com</footer>
+</main>
 </body>
 </html>
