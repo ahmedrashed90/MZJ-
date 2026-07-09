@@ -1242,6 +1242,7 @@ function loadUsers(){
   if(!mainDb) return;
   safeCollection(window.MZJ_USERS_COLLECTION).onSnapshot(snapshot => {
     users = snapshot.docs.map(doc => { const data = doc.data() || {}; return { id: doc.id, uid: data.uid || doc.id, name: getDocName(data) || doc.id, displayName: data.displayName || '', username: data.username || '', email: data.email || '', emailLower: data.emailLower || String(data.email || '').toLowerCase(), department: data.department || '', departmentId: data.departmentId || '', departmentIds: Array.isArray(data.departmentIds) ? data.departmentIds : [], role: data.role || '', password: data.password || data.pass || '', pass: data.pass || data.password || '', pages: normalizePagesList([...(Array.isArray(data.pages) ? data.pages : []), ...(Array.isArray(data.pagesAccess) ? data.pagesAccess : [])]), pagesAccess: normalizePagesList([...(Array.isArray(data.pages) ? data.pages : []), ...(Array.isArray(data.pagesAccess) ? data.pagesAccess : [])]), themeSettings: data.themeSettings || null }; });
+    try{ window.users = users; }catch(_){ }
     const before = JSON.stringify(getCurrentUser() || {});
     syncCurrentSessionUserFromUsers();
     refreshDynamicSelects(); renderDepartments(); renderUsersPermissions(); renderAdminDashboard(); renderTasksPage();
@@ -1279,6 +1280,7 @@ function loadDepartments(){
         assignmentActions: Array.isArray(data.assignmentActions) ? data.assignmentActions.map(normalizeAssignmentAction).filter(item => item.label) : []
       };
     });
+    try{ window.departments = departments; }catch(_){ }
     renderDepartments(); renderAssignmentActions(); refreshDynamicSelects(); renderAdminDashboard(); renderTasksPage();
     updateTopbarUser();
     const count = document.getElementById('dashboardDepartmentsCount'); if(count) count.textContent = departments.length || '—';
@@ -7844,13 +7846,30 @@ function setDashboardMode(mode){
   }
 }
 
+function dateValueFromAny(value){
+  if(!value) return null;
+  if(value instanceof Date) return value;
+  if(value && typeof value.toDate === 'function') return value.toDate();
+  if(value && typeof value === 'object'){
+    const seconds = value.seconds ?? value._seconds;
+    if(seconds != null && !Number.isNaN(Number(seconds))){
+      const nanos = Number(value.nanoseconds ?? value._nanoseconds ?? 0) || 0;
+      return new Date((Number(seconds) * 1000) + Math.floor(nanos / 1000000));
+    }
+    const nested = value.iso || value.date || value.value || value.timestamp || value.updatedAt || value.createdAt;
+    if(nested && nested !== value) return dateValueFromAny(nested);
+    return null;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 function formatDateShort(value){
   if(!value) return '—';
   try{
-    const date = value.toDate ? value.toDate() : new Date(value);
-    if(Number.isNaN(date.getTime())) return escapeHtml(value);
+    const date = dateValueFromAny(value);
+    if(!date) return (value && typeof value === 'object') ? '—' : (escapeHtml(value) || '—');
     return date.toLocaleDateString('ar-SA');
-  }catch(_){ return escapeHtml(value); }
+  }catch(_){ return (value && typeof value === 'object') ? '—' : (escapeHtml(value) || '—'); }
 }
 
 function shortCampaignTitle(campaign){
@@ -8329,7 +8348,6 @@ function campaignInfoPanelHtml(campaign){
     ['نوع الحملة', campaignTypeText(campaign)],
     ['هدف الحملة', campaign.campaign_goal || campaign.campaignGoal || ''],
     ['المطلوب من كاتب المحتوى', campaign.content_writer_brief || campaign.contentWriterBrief || ''],
-    ['موعد تسليم الهيكل', campaign.structure_deadline || campaign.structureDeadline, true],
     ['تاريخ الإنشاء', campaign.createdAt, true],
     ['آخر تحديث', campaign.updatedAt, true]
   ];
@@ -8385,7 +8403,7 @@ function campaignInlineDetailHtml(campaign){
       <article class="campaign-detail-section campaign-budget-section"><h3>الميزانية</h3>${renderBudgetSummary(campaign)}</article>
       <article class="campaign-detail-section campaign-results-section"><h3>ملف نتائج الحملة</h3>${campaignResultPanelHtml(campaign)}</article>
       <article class="campaign-detail-section campaign-links-section"><h3>روابط الحملة</h3>${campaignLinksPanelHtml(campaign)}</article>
-      <article class="campaign-detail-section campaign-tasks-section"><h3>كل المطلوب من التاسكات واليوزرات</h3>${buildTaskSummaryList(campaign)}</article>
+      <article class="campaign-detail-section campaign-tasks-section"><h3>التاسكات التنفيذية واليوزرات</h3>${buildTaskSummaryList(campaign)}</article>
     </div>
   </section>`;
 }
@@ -8510,8 +8528,19 @@ function dbIsApprovedExecutionTask(task){
   if(isCampaignContentWritingTask(task) && !taskDbHasApprovedTemplateSignal(task) && !task?.contentTemplateApproved && !task?.taskTemplateApproved) return false;
   return true;
 }
+function dbIsExecutionTaskForDataView(task){
+  const role = taskDashboardRole(task);
+  if(['shooting','photography','design','montage','publish','publishing'].includes(role)) return true;
+  const text = identityClean([task?.flowType, task?.source, task?.taskType, task?.title, task?.name, task?.departmentRole, task?.assignedDepartmentRole, task?.assignedDepartmentName, task?.departmentCode, task?.executionDepartmentCode, task?.taskNo, task?.taskCode, task?.fullTaskCode].filter(Boolean).join(' '));
+  return Boolean(
+    task?.executionTask === true || task?.isExecutionTask === true || task?.flowType === 'execution_task' || task?.execution ||
+    ['design','shooting','photography','montage','publish','تصميم','تصوير','مونتاج','نشر'].some(key => text.includes(identityClean(key)))
+  );
+}
 function dbApprovedExecutionTasks(campaign){
-  return tasksForCampaign(campaign).filter(dbIsApprovedExecutionTask);
+  const source = tasksForCampaign(campaign);
+  const executionTasks = source.filter(task => dbIsExecutionTaskForDataView(task) && !isCampaignContentWritingTask(task));
+  return executionTasks.length ? executionTasks : source.filter(dbIsApprovedExecutionTask);
 }
 function dbTaskTemplateGoal(task){
   const values = dbNestedValues(task, ['goal','contentGoal','objective','taskGoal'], ['الهدف']);
@@ -8609,7 +8638,7 @@ function taskOneLineRow(task, campaign){
 }
 function buildTaskSummaryList(campaign){
   const list = dbApprovedExecutionTasks(campaign);
-  if(!list.length) return '<div class="empty-state soft-empty">لا توجد تاسكات تنفيذية معتمدة بعد اعتماد الهيكل.</div>';
+  if(!list.length) return '<div class="empty-state soft-empty">لا توجد تاسكات تنفيذية لهذه الحملة.</div>';
   return `<div class="compact-table db-task-lines-wrap"><table class="db-task-lines-table"><thead><tr><th>رقم التاسك</th><th>التاسك</th><th>اليوزر</th><th>القسم</th><th>الحالة</th><th>التقدم</th><th>التاريخ المطلوب</th><th>مختصر المطلوب</th></tr></thead><tbody>${list.map(task => taskOneLineRow(task, campaign)).join('')}</tbody></table></div>`;
 }
 function openOwnerTasksModal(campaignId, ownerKey){
@@ -8687,7 +8716,6 @@ function campaignFullDataGrid(campaign){
     ['اسم الحملة', campaignNameText(campaign)],
     ['هدف الحملة', campaign.campaign_goal || campaign.campaignGoal || ''],
     ['المطلوب من كاتب المحتوى', campaign.content_writer_brief || campaign.contentWriterBrief || ''],
-    ['موعد تسليم الهيكل', campaign.structure_deadline || campaign.structureDeadline, true],
     ['عدد التاسكات', campaignTaskStats(campaign).total],
     ['التاسكات المستلمة', campaignTaskStats(campaign).received || '—'],
     ['التاسكات المكتملة', campaignTaskStats(campaign).completed || '—'],
@@ -8708,7 +8736,7 @@ function openCampaignDataModal(campaignId){
       <div class="modal-head-actions campaign-data-actions"><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button><button type="button" class="mini-btn pdf-export-btn" data-export-campaign-pdf="${escapeHtml(id)}">تصدير PDF</button><button type="button" class="mini-btn" data-export-campaign-schedule="${escapeHtml(id)}">تصدير جدول النشر</button><button type="button" class="mini-btn" data-export-campaign-audit="${escapeHtml(id)}">تصدير مراجعة Excel</button></div>
     </div>
     <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>بيانات الحملة كاملة</h3></div>${campaignFullDataGrid(campaign)}</div>
-    <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>كل المطلوب من التاسكات واليوزرات</h3></div>${buildTaskSummaryList(campaign)}</div>
+    <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>التاسكات التنفيذية واليوزرات</h3></div>${buildTaskSummaryList(campaign)}</div>
     <div class="campaign-data-two-cols">
       <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>عرض جدول النشر</h3></div>${renderScheduleSummary(campaign)}</div>
       <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>عرض الميزانية</h3></div>${renderBudgetSummary(campaign)}</div>
@@ -8729,7 +8757,7 @@ function exportCampaignDataPdf(campaignId){
   const safeTitle = escapeHtml(title || 'بيانات الحملة');
   const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${safeTitle}</title><style>
     @page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{font-family:Tahoma,Arial,sans-serif;direction:rtl;color:#2d1713;margin:0;background:#fff;font-size:11px}h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:18px 0 8px;border-bottom:2px solid #6f3f34;padding-bottom:6px}.report-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;border:2px solid #6f3f34;border-radius:14px;padding:12px;margin-bottom:12px}.meta{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:8px 0 14px}.meta div{border:1px solid #ead0c4;border-radius:10px;padding:8px;background:#fffaf6}.meta span{display:block;color:#8e7166;font-weight:700;font-size:10px}.meta strong{display:block;margin-top:4px;font-size:11px}.print-table-wrap{overflow:visible!important;border:1px solid #ead0c4;border-radius:10px}.print-table,.compact-table table{width:100%;border-collapse:collapse!important;min-width:0!important}.print-table th,.print-table td,.compact-table th,.compact-table td{border:1px solid #ead0c4!important;padding:7px!important;text-align:right!important;vertical-align:top!important;white-space:normal!important;line-height:1.65!important}.print-table th,.compact-table th{background:#f2e5dc!important;color:#2d1713!important;font-weight:900!important}.empty-state{border:1px dashed #ead0c4;border-radius:10px;padding:14px;text-align:center;color:#8e7166}.footer{margin-top:14px;color:#8e7166;font-size:10px;text-align:left}@media print{button{display:none!important}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
-  </style></head><body><section class="report-head"><div><h1>تقرير بيانات الحملة</h1><strong>${safeTitle}</strong></div><div>تاريخ التصدير: ${escapeHtml(formatDateShort(new Date()))}</div></section><section class="meta"><div><span>تاريخ الحملة</span><strong>${escapeHtml(formatDateShort(campaign.campaign_date || campaign.campaignDate || campaign.createdAt))}</strong></div><div><span>بداية النشر</span><strong>${escapeHtml(formatDateShort(campaignStartPublishDate(campaign)))}</strong></div><div><span>نهاية النشر</span><strong>${escapeHtml(formatDateShort(campaignEndDate(campaign)))}</strong></div><div><span>نوع الحملة</span><strong>${escapeHtml(campaignTypeText(campaign))}</strong></div><div><span>كود الحملة</span><strong>${escapeHtml(campaignCodeText(campaign))}</strong></div><div><span>اسم الحملة</span><strong>${escapeHtml(campaignNameText(campaign))}</strong></div><div><span>هدف الحملة</span><strong>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '')}</strong></div><div><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(campaign.content_writer_brief || campaign.contentWriterBrief || '')}</strong></div><div><span>موعد تسليم الهيكل</span><strong>${escapeHtml(formatDateShort(campaign.structure_deadline || campaign.structureDeadline))}</strong></div></section><h2>كل المطلوب من التاسكات واليوزرات</h2>${printableCompactTable(tasksHtml)}<h2>جدول النشر</h2>${printableCompactTable(renderScheduleSummary(campaign))}<h2>الميزانية</h2>${printableCompactTable(renderBudgetSummary(campaign))}<h2>روابط الحملة</h2>${printableCompactTable(campaignLinksHtml(campaign))}<div class="footer">MZJ Workspace</div><script>window.onload=function(){setTimeout(function(){window.focus();window.print();},250)}<\/script></body></html>`;
+  </style></head><body><section class="report-head"><div><h1>تقرير بيانات الحملة</h1><strong>${safeTitle}</strong></div><div>تاريخ التصدير: ${escapeHtml(formatDateShort(new Date()))}</div></section><section class="meta"><div><span>تاريخ الحملة</span><strong>${escapeHtml(formatDateShort(campaign.campaign_date || campaign.campaignDate || campaign.createdAt))}</strong></div><div><span>بداية النشر</span><strong>${escapeHtml(formatDateShort(campaignStartPublishDate(campaign)))}</strong></div><div><span>نهاية النشر</span><strong>${escapeHtml(formatDateShort(campaignEndDate(campaign)))}</strong></div><div><span>نوع الحملة</span><strong>${escapeHtml(campaignTypeText(campaign))}</strong></div><div><span>كود الحملة</span><strong>${escapeHtml(campaignCodeText(campaign))}</strong></div><div><span>اسم الحملة</span><strong>${escapeHtml(campaignNameText(campaign))}</strong></div><div><span>هدف الحملة</span><strong>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '')}</strong></div><div><span>المطلوب من كاتب المحتوى</span><strong>${escapeHtml(campaign.content_writer_brief || campaign.contentWriterBrief || '')}</strong></div></section><h2>التاسكات التنفيذية واليوزرات</h2>${printableCompactTable(tasksHtml)}<h2>جدول النشر</h2>${printableCompactTable(renderScheduleSummary(campaign))}<h2>الميزانية</h2>${printableCompactTable(renderBudgetSummary(campaign))}<h2>روابط الحملة</h2>${printableCompactTable(campaignLinksHtml(campaign))}<div class="footer">MZJ Workspace</div><script>window.onload=function(){setTimeout(function(){window.focus();window.print();},250)}<\/script></body></html>`;
   const printWindow = window.open('', '_blank');
   if(!printWindow){ alert('المتصفح منع فتح نافذة التصدير. اسمح بالـ popups وجرب تاني.'); return; }
   printWindow.document.open();
@@ -38666,7 +38694,25 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function locate(id){id=S(id); for(const c of campaignsList()){const arr=tasks(c); const idx=arr.findIndex(t=>taskId(t)===id); if(idx>-1)return{campaign:c,tasks:arr,task:arr[idx],index:idx};} return null;}
   async function persist(c, arr){c.departmentTasks=arr; c.taskCount=arr.length; c.updatedAt=now(); const col=db(); if(!col||!campaignId(c))throw new Error('تعذر الاتصال بقاعدة البيانات'); await col.doc(campaignId(c)).update({departmentTasks:arr,taskCount:arr.length,updatedAt:server()}); try{window.campaigns=campaignsList().map(x=>campaignId(x)===campaignId(c)?c:x);}catch(_){} }
   async function updateTask(id, mut){const loc=locate(id); if(!loc)throw new Error('التاسك غير موجود'); const arr=loc.tasks.map((t,i)=>i===loc.index?mut({...t}):{...t}); await persist(loc.campaign,arr); renderAll();}
-  function canSee(t){if(isAdmin())return true; const u=currentUser(); const keys=[u.uid,u.id,u.email,u.name,u.displayName].map(S).filter(Boolean); const vals=[t.assignedToId,t.assignedToUid,t.assignedToEmail,t.assignedToName,t.userId,t.userUid,t.userEmail,t.userName,t.assigneeUid,t.assigneeName,t.displayName].map(S).filter(Boolean); return keys.some(k=>vals.includes(k)||vals.map(norm).includes(norm(k)));}
+  function canSee(t){
+    if(isAdmin()) return true;
+    const u = currentUser();
+    const flat = value => (Array.isArray(value) ? value : [value]).flat ? (Array.isArray(value) ? value : [value]).flat(5) : (Array.isArray(value) ? value : [value]);
+    const collect = values => {
+      const out = [];
+      flat(values).forEach(value => {
+        if(value && typeof value === 'object'){
+          out.push(value.id, value.uid, value.userId, value.userUid, value.email, value.userEmail, value.name, value.displayName, value.userName, value.username, value.assignedToId, value.assignedToUid, value.assignedToEmail, value.assignedToName, value.assigneeId, value.assigneeUid, value.assigneeEmail, value.assigneeName);
+        }else out.push(value);
+      });
+      return out.map(S).filter(Boolean);
+    };
+    const keys = collect([u.uid, u.id, u.email, u.emailLower, u.name, u.displayName, u.username]);
+    try{ if(typeof currentUserIdentityKeys === 'function') keys.push(...collect(currentUserIdentityKeys())); }catch(_){ }
+    const vals = collect([t.assignedToId, t.assignedToUid, t.assignedToEmail, t.assignedToName, t.userId, t.userUid, t.userEmail, t.userName, t.assigneeId, t.assigneeUid, t.assigneeEmail, t.assigneeName, t.displayName, t.assignedTo, t.assignee, t.user, t.users, t.assignedUsers, t.assignees, t.userIds, t.userUids, t.userEmails, t.userNames, t.assignedToIds, t.assignedToUids, t.assignedToEmails, t.assignedToNames, t.assigneeIds, t.assigneeUids, t.assigneeEmails, t.assigneeNames]);
+    const normVals = vals.map(norm);
+    return keys.some(k => vals.includes(k) || normVals.includes(norm(k)));
+  }
   function stableTaskKey(t){const row=t.structureRow||t.approvedStructureRow||{}; const raw=row.raw||{}; return S(t.contentExecutionPairKey||t.linkedExecutionPairKey||t.mzjTaskLinkKey||t.taskNo||t.taskCode||t.fullTaskCode||t.canonicalTaskCode||raw['رقم التاسك']||taskId(t)||t.taskType||creativeName(t));}
   function allPairs(){const seen=new Set(),out=[]; campaignsList().forEach(c=>tasks(c).forEach(t=>{const key=[campaignId(c)||c.campaignCode||c.name,stableTaskKey(t),t.assignedToId||t.userId||t.assignedToUid||t.userUid||'',t.departmentRole||t.assignedDepartmentRole||'',isTemplateContentTask(t)?'template':isExecution(t)?'execution':'content'].join('|'); if(!seen.has(key)){seen.add(key);out.push({c,t});}})); return out;}
   function css(){let st=by('v677FlowStyle'); if(st) return; st=document.createElement('style'); st.id='v677FlowStyle'; st.textContent=`
@@ -38761,8 +38807,29 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function renderUser(){css(); const b=by('adminDashboardBoard'); if(!b)return; const showDone=!!window.__MZJ_V686_SHOW_DONE__; const all=allPairs().filter(x=>canSee(x.t) && !(isExecution(x.t)&&x.t.execution&&x.t.execution.status==='waiting')); const visible=all.filter(x=>showDone?isCompletedForUser(x.t):!isCompletedForUser(x.t)); const groups=[['new','جديد / لم يتم الاستلام'],['work','تم الاستلام / جاري العمل'],['review','في المراجعة'],['changes','محتاج تعديل']]; const doneHtml=`<section class="v677-kanban-col"><h2>التاسكات المنتهية</h2>${visible.map(x=>card(x.c,x.t,false)).join('')||'<div class="v677-empty">لا توجد تاسكات منتهية.</div>'}</section>`; const board=showDone?doneHtml:groups.map(([k,title])=>`<section class="v677-kanban-col"><h2>${title}</h2>${visible.filter(x=>userTaskBucket(x.t)===k).map(x=>card(x.c,x.t,false)).join('')||'<div class="v677-empty">لا توجد تاسكات.</div>'}</section>`).join(''); b.innerHTML=`<div class="v677-user-toolbar"><button type="button" class="btn ${showDone?'btn-primary':'btn-light'}" data-v686-toggle-done>${showDone?'إخفاء التاسكات المنتهية':'التاسكات المنتهية'}</button></div><div class="v677-user-kanban">${board}</div>`;}
   function renderAll(){try{if(isAdmin())renderAdmin();else renderUser();}catch(e){console.warn(VERSION,e);}}
   let renderTimer=null; function scheduleRender(){clearTimeout(renderTimer); renderTimer=setTimeout(renderAll,80);}
-  function startLive(){if(window.__MZJ_V677_LIVE__)return; const col=db(); if(!col||typeof col.onSnapshot!=='function')return; window.__MZJ_V677_LIVE__=true; try{window.__MZJ_V677_UNSUB__=col.onSnapshot(snap=>{const list=[]; snap.forEach(doc=>list.push({id:doc.id,docId:doc.id,...(doc.data()||{})})); window.campaigns=list; scheduleRender();},err=>console.warn(VERSION,'live listener',err));}catch(e){console.warn(VERSION,'live start failed',e);}}
-  window.renderAdminDashboard=function(){renderAll();}; window.renderUserDashboard=function(){renderAll();}; window.renderTasksPage=function(){renderAll();};
+  function startLive(){
+    if(window.__MZJ_V677_LIVE__) return;
+    const col = db();
+    if(!col || typeof col.onSnapshot !== 'function') return;
+    window.__MZJ_V677_LIVE__ = true;
+    try{
+      window.__MZJ_V677_UNSUB__ = col.onSnapshot(snap => {
+        const list = [];
+        snap.forEach(doc => list.push({ id:doc.id, docId:doc.id, ...(doc.data() || {}) }));
+        try{ campaigns = list; }catch(_){ }
+        try{ window.campaigns = list; }catch(_){ }
+        const route = (typeof getRoute === 'function') ? getRoute() : '';
+        try{ if(typeof renderCampaigns === 'function') renderCampaigns(); }catch(_){ }
+        try{ if(route === 'tasks' && typeof renderTasksPage === 'function') renderTasksPage(); }catch(_){ }
+        try{ if(route === 'reports' && typeof renderDatabasePage === 'function') renderDatabasePage(); }catch(_){ }
+        try{ if(route === 'calendar' && typeof renderCalendarPage === 'function') renderCalendarPage(); }catch(_){ }
+        try{ if(route === 'publish-prep' && typeof renderPublishPrepPage === 'function') renderPublishPrepPage(); }catch(_){ }
+        try{ if(typeof refreshOpenTaskModal === 'function') refreshOpenTaskModal(); }catch(_){ }
+        scheduleRender();
+      }, err => console.warn(VERSION, 'live listener', err));
+    }catch(e){ console.warn(VERSION, 'live start failed', e); }
+  }
+  window.renderAdminDashboard=function(){renderAll();}; window.renderUserDashboard=function(){renderAll();};
   function dataCards(c,t,mode){
     const creativeLines=(A(t.creativeItems).length?A(t.creativeItems).map((it,i)=>`${i+1}. ${S(it.name||it.creativeName||it.creative||creativeName(t))}`).filter(Boolean):S(creativeName(t)).split(/[،,]+/).map(x=>x.trim()).filter(Boolean));
     const carLines=cars(t);
