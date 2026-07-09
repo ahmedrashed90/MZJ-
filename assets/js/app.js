@@ -7759,7 +7759,7 @@ function taskDelayDays(task){
   return diff > 0 ? diff : 0;
 }
 function taskWorkflowStatus(task){
-  const progress = taskProgress(task);
+  const progress = trackingTaskProgress(task);
   const raw = normalizeStatus(task.status || task.taskStatus || task.state || '');
   const structure = taskStructure(task);
   if(raw.includes('rejected') || raw.includes('مرفوض')) return 'rejected';
@@ -7774,9 +7774,54 @@ function taskWorkflowStatus(task){
 function statusLabelFromKey(key){
   return { waiting:'قائمة الانتظار', active:'نشطة', review:'بانتظار المراجعة', needs_changes:'مطلوبة تعديل', approved:'معتمدة', rejected:'مرفوضة' }[key] || key;
 }
+function trackingTaskTemplateProgress(task){
+  const tpl = task?.taskTemplate || task?.contentTaskTemplate || task?.approvedContentTemplate || {};
+  const statusText = normalizeStatus([task?.status, task?.state, task?.taskStatus, task?.taskTemplateStatus, task?.templateReviewStatus, tpl?.status, tpl?.reviewStatus].join(' '));
+  const approved = task?.contentTemplateApproved === true || task?.taskTemplateApproved === true || statusText.includes('approved') || statusText.includes('task_template_approved') || statusText.includes('معتمد');
+  if(approved) return 100;
+  const uploaded = Boolean(
+    tpl.fileName || tpl.fileUrl || tpl.downloadURL || tpl.downloadUrl || tpl.uploadedAt ||
+    task?.taskTemplateFileName || task?.taskTemplateFileUrl || task?.taskTemplateUploadedAt ||
+    (Array.isArray(tpl.sheetRows) && tpl.sheetRows.length) ||
+    (Array.isArray(tpl.taskTemplateFields) && tpl.taskTemplateFields.length) ||
+    statusText.includes('in_review') || statusText.includes('pending_review') || statusText.includes('revised') || statusText.includes('مراجعة')
+  );
+  if(uploaded) return 50;
+  const current = Number(task?.progress || 0);
+  return Math.max(0, Math.min(50, Number.isNaN(current) ? 0 : current));
+}
+function trackingIsTaskTemplate(task){
+  const text = normalizeStatus([task?.contentTemplateTask, task?.taskTemplateTask, task?.flowType, task?.taskTemplateFlow, task?.source, task?.taskType, task?.title, task?.name, task?.status].join(' '));
+  return Boolean(task?.contentTemplateTask === true || task?.taskTemplateTask === true || text.includes('task_template') || text.includes('tasktemplate') || text.includes('contenttemplate') || text.includes('task template'));
+}
+function trackingTaskHasFinalFile(task){
+  const files = [task?.attachments, task?.files, task?.finalFiles, task?.submissions, task?.uploadedFiles].flat().filter(Boolean);
+  return Boolean(task?.finalFile || task?.finalFileUrl || task?.finalFileName || task?.finalUploadedAt || task?.finalSubmitted || task?.finalSubmission?.fileUrl || task?.finalSubmissionUrl || files.some(file => file?.isFinal || file?.uploadKind === 'final' || file?.kind === 'final' || file?.purpose === 'final'));
+}
+function trackingTaskProgress(task){
+  if(trackingIsTaskTemplate(task)) return trackingTaskTemplateProgress(task);
+  if(trackingTaskHasFinalFile(task)) return 100;
+  return taskProgress(task);
+}
 function averageProgress(list){
   if(!list.length) return 0;
-  return Math.round(list.reduce((sum, item) => sum + taskProgress(item), 0) / list.length);
+  return Math.round(list.reduce((sum, item) => sum + trackingTaskProgress(item), 0) / list.length);
+}
+function trackingCampaignSnapshot(campaign){
+  try{
+    if(typeof campaignTasksSnapshot === 'function'){
+      const snap = campaignTasksSnapshot(campaign);
+      const related = Array.isArray(snap?.related) ? snap.related : [];
+      const total = Number(snap?.total ?? related.length) || related.length;
+      if(total) return { campaign, tasks:related, total, progress:Math.max(0, Math.min(100, Math.round(Number(snap.progress || 0)))) };
+    }
+  }catch(_){ }
+  const list = tasksForCampaign(campaign);
+  return { campaign, tasks:list, total:list.length, progress:averageProgress(list) };
+}
+function trackingCampaignAverage(rows){
+  if(!rows.length) return 0;
+  return Math.round(rows.reduce((sum, item) => sum + Number(item.progress || 0), 0) / rows.length);
 }
 function renderTasksPage(){
   const board = document.getElementById('tasksBoard'); if(!board) return;
@@ -7792,7 +7837,7 @@ function renderTasksPage(){
     const dept = taskDepartmentLabel(task);
     if(dept && dept !== 'قسم' && dept !== 'غير محدد') (deptMap[dept] ||= []).push(task);
   });
-  const campaignRows = campaigns.map(campaign => { const list = tasksForCampaign(campaign); return { campaign, tasks:list, progress:averageProgress(list) }; }).filter(item => item.tasks.length);
+  const campaignRows = campaigns.map(trackingCampaignSnapshot).filter(item => item.total);
   const metric = (label, value, hint = '', tone = '') => `<article class="monitor-metric ${tone}"><span>${label}</span><strong>${value}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ''}</article>`;
   const bar = (label, value, total) => { const pct = total ? Math.round((value / total) * 100) : 0; return `<div class="monitor-bar-row"><div><b>${escapeHtml(label)}</b><span>${value} تاسك</span></div><div class="monitor-bar"><i style="width:${Math.min(100,pct)}%"></i></div></div>`; };
   const progressRow = (label, pct, meta = '') => `<div class="monitor-progress-row"><div><b>${escapeHtml(label)}</b><span>${escapeHtml(meta)}</span></div><strong>${pct}%</strong><div class="task-card-progress"><span style="width:${Math.min(100,pct)}%"></span></div></div>`;
@@ -7806,7 +7851,7 @@ function renderTasksPage(){
     <div class="monitor-action-strip"><span>📊 متابعة مباشرة</span><span>آخر تحديث: ${escapeHtml(formatDateShort(new Date()))}</span><span>${isAdmin ? 'رؤية أدمن كاملة' : 'رؤية حسب صلاحياتك'}</span></div>
     <div class="monitor-hero-card">
       <div><p>نظرة عامة</p><h2>متابعة الحملات والتاسكات</h2><span>${escapeHtml(dashboardSubtitle)}</span></div>
-      <strong>${averageProgress(tasks)}%</strong>
+      <strong>${campaignRows.length ? trackingCampaignAverage(campaignRows) : averageProgress(tasks)}%</strong>
     </div>
     <div class="monitor-metrics compact-metrics">
       ${metric('إجمالي الحملات', campaigns.length, `${activeCampaigns.length} نشطة`, 'tone-campaigns')}
@@ -7819,7 +7864,7 @@ function renderTasksPage(){
       <section class="monitor-panel"><h2>عدد التاسكات في كل حالة</h2>${statusKeys.map(key => bar(statusLabelFromKey(key), key === 'approved' ? totalDone : (counts[key] || 0), tasks.length)).join('') || '<div class="empty-state mini-empty">لا توجد بيانات.</div>'}</section>
       <section class="monitor-panel"><h2>التاسكات المتأخرة</h2>${delayedRows.length ? delayedRows.map(task => `<article class="monitor-task-row"><div><b>${shortTaskName(task)}</b><span>${escapeHtml(task.campaignName || '')} · ${taskOwnerName(task)}</span></div><strong>${taskDelayDays(task)} يوم</strong></article>`).join('') : '<div class="empty-state mini-empty">لا توجد تاسكات متأخرة.</div>'}</section>
       <section class="monitor-panel"><h2>التأخير عند كل موظف</h2>${employeeDelayRows.length ? employeeDelayRows.map(row => `<article class="monitor-task-row"><div><b>${escapeHtml(row.name)}</b><span>${row.late} متأخر من ${row.total} تاسك</span></div><strong>${row.days} يوم</strong></article>`).join('') : '<div class="empty-state mini-empty">لا توجد بيانات موظفين.</div>'}</section>
-      <section class="monitor-panel"><h2>نسبة اكتمال كل حملة</h2>${campaignRows.length ? campaignRows.map(item => progressRow(item.campaign.campaignName || item.campaign.name || item.campaign.campaignCode || 'حملة', item.progress, `${item.tasks.length} تاسك`)).join('') : '<div class="empty-state mini-empty">لا توجد حملات.</div>'}</section>
+      <section class="monitor-panel"><h2>نسبة اكتمال كل حملة</h2>${campaignRows.length ? campaignRows.map(item => progressRow(item.campaign.campaignName || item.campaign.name || item.campaign.campaignCode || 'حملة', item.progress, `${item.total} تاسك`)).join('') : '<div class="empty-state mini-empty">لا توجد حملات.</div>'}</section>
       <section class="monitor-panel"><h2>أداء كل قسم</h2>${Object.entries(deptMap).length ? Object.entries(deptMap).map(([name, list]) => progressRow(name, averageProgress(list), `${list.length} تاسك`)).join('') : '<div class="empty-state mini-empty">لا توجد بيانات أقسام.</div>'}</section>
       <section class="monitor-panel"><h2>أداء كل موظف</h2>${employeeDelayRows.length ? employeeDelayRows.map(row => progressRow(row.name, row.progress, `${row.total} تاسك / تأخير ${row.days} يوم`)).join('') : '<div class="empty-state mini-empty">لا توجد بيانات موظفين.</div>'}</section>
     </div>
@@ -8945,41 +8990,79 @@ async function importPublishScheduleFile(file){
   }
 }
 function campaignScheduleRowsForDataView(campaign){
-  const direct = Array.isArray(campaign?.publishSchedule) ? campaign.publishSchedule.filter(item => item && (item.date || item.publishDate)) : [];
+  return Array.isArray(campaign?.publishSchedule)
+    ? campaign.publishSchedule.filter(item => item && (item.date || item.publishDate))
+    : [];
+}
+function scheduleDataViewLooksLikeId(value){
+  const text = normalizeText(value || '');
+  return /^[A-Za-z0-9_-]{16,}$/.test(text) && !/[\u0600-\u06FF\s]/.test(text) && /[A-Z]/.test(text) && /[a-z]/.test(text) && /\d/.test(text);
+}
+function scheduleDataViewCleanName(value){
+  const text = normalizeText(value || '');
+  if(!text || /^cr_[a-z0-9_\-]+$/i.test(text) || /^platform_[a-z0-9_\-]+$/i.test(text) || scheduleDataViewLooksLikeId(text)) return '';
+  return text;
+}
+function scheduleDataViewCreativeName(campaign, item){
+  const direct = scheduleDataViewCleanName(item.productCreative || item.creativeName || item.creativeLabel || item.productName || item.productLabel);
+  if(direct) return direct;
+  const raw = normalizeText(item.productId || item.product || item.creativeId || item.creative || item.output || '');
+  const list = Array.isArray(campaign?.creatives) ? campaign.creatives : [];
+  const norm = value => normalizeText(value || '').toLowerCase();
+  const foundIndex = list.findIndex(creative => [creative?.id, creative?.creativeId, creative?.productId, creative?.name, creative?.label, creative?.creativeName, creative?.creative, creative?.type].some(value => norm(value) === norm(raw)));
+  const found = foundIndex >= 0 ? list[foundIndex] : null;
+  if(found){
+    const known = typeof budgetResolvedCreative === 'function' ? budgetResolvedCreative(found.creativeId || found.creative || found.name || found.type, campaign) : '';
+    const name = scheduleDataViewCleanName(found.label || found.creativeName || found.name || found.title || found.productCreative || found.product || found.creative || known || found.creativeId);
+    if(name) return /#\s*\d+$/i.test(name) ? name : `${name} #${foundIndex + 1}`;
+  }
+  if(typeof budgetResolvedCreative === 'function'){
+    const resolved = scheduleDataViewCleanName(budgetResolvedCreative(raw, campaign));
+    if(resolved) return resolved;
+  }
+  return scheduleDataViewCleanName(raw) || '—';
+}
+function scheduleDataViewPlatformName(value){
+  const raw = normalizeText(value || '');
+  if(!raw) return '';
+  if(typeof budgetResolvedPlatform === 'function'){
+    const resolved = budgetResolvedPlatform(raw);
+    if(resolved) return resolved;
+  }
+  return /^platform_[a-z0-9_\-]+$/i.test(raw) || scheduleDataViewLooksLikeId(raw) ? '' : raw;
+}
+function scheduleDataViewPostTypeName(row, platformName = ''){
+  const raw = normalizeText(row?.postTypeLabel || row?.publishTypeLabel || row?.typeLabel || row?.postTypeName || row?.postType || row?.publishType || row?.type || '');
+  if(!raw) return '';
   try{
-    const cid = normalizeText(campaignStableId(campaign));
-    const code = normalizeText(campaignCodeText(campaign));
-    const name = normalizeText(campaignNameText(campaign));
-    const matchCampaign = item => {
-      const itemCode = normalizeText(item.campaignCode || item.raw?.campaignCode || '');
-      const itemName = normalizeText(item.campaignName || item.raw?.campaignName || '');
-      const itemId = normalizeText(item.campaignId || item.raw?.campaignId || item.id || '');
-      return (cid && itemId === cid) || (code && itemCode === code) || (name && itemName === name);
-    };
-    const extra = [];
-    if(typeof publishEntriesFromCampaigns === 'function') extra.push(...publishEntriesFromCampaigns().filter(matchCampaign));
-    if(typeof publishEntriesFromPrepSubmissions === 'function') extra.push(...publishEntriesFromPrepSubmissions().filter(matchCampaign));
-    const seen = new Set();
-    return [...direct, ...extra].filter(item => {
-      const date = item.date || item.publishDate || '';
-      if(!date) return false;
-      const key = [date, item.output || item.title || item.calendarTitle || '', item.platform || (Array.isArray(item.platforms) ? item.platforms.join(',') : ''), item.time || item.publishTime || ''].join('|');
-      if(seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }catch(_){ return direct; }
+    if(typeof postTypesForPlatform === 'function'){
+      const found = (postTypesForPlatform(platformName || row?.platform || row?.platformLabel || '') || []).find(type => normalizeText(type.value || type.id || type.name || type.label) === raw || normalizeText(type.label || type.name || type.value || type.id) === raw);
+      if(found) return normalizeText(found.label || found.name || found.value || raw);
+    }
+  }catch(_){ }
+  return raw;
+}
+function scheduleDataViewPlatformText(item){
+  if(Array.isArray(item.platformPublishing) && item.platformPublishing.length){
+    const fallbackPlatforms = Array.isArray(item.platforms) ? item.platforms : [];
+    return item.platformPublishing.map((row, index) => {
+      const platform = normalizeText(row.platformLabel || row.platformName || scheduleDataViewPlatformName(row.platform) || scheduleDataViewPlatformName(fallbackPlatforms[index]));
+      const type = scheduleDataViewPostTypeName(row, platform);
+      return [platform, type].filter(Boolean).join(' - ');
+    }).filter(Boolean).join('، ');
+  }
+  const platforms = uniqueList([item.platforms, item.platformIds, item.platform].flat().map(value => scheduleDataViewPlatformName(value)).filter(Boolean));
+  const platformTypes = item.platformTypes && typeof item.platformTypes === 'object' ? item.platformTypes : {};
+  if(platforms.length && Object.keys(platformTypes).length){
+    return platforms.map(platform => [platform, scheduleDataViewPostTypeName({ postType: platformTypes[platform] }, platform)].filter(Boolean).join(' - ')).join('، ');
+  }
+  const types = uniqueList([item.postTypeLabels, item.postTypes, item.types, item.postType, item.type].flat().map(normalizeText).filter(Boolean));
+  return [platforms.join('، '), types.join('، ')].filter(Boolean).join(' - ');
 }
 function renderScheduleSummary(campaign){
   const list = campaignScheduleRowsForDataView(campaign);
   if(!list.length) return '<div class="empty-state mini-empty">لا يوجد جدول نشر.</div>';
-  const platformText = item => {
-    if(Array.isArray(item.platformPublishing) && item.platformPublishing.length){
-      return item.platformPublishing.map(row => [row.platform, row.postTypeLabel || row.postType].filter(Boolean).join(' - ')).filter(Boolean).join('، ');
-    }
-    return Array.isArray(item.platforms) ? item.platforms.join('، ') : (item.platform || '');
-  };
-  return `<div class="compact-table"><table><thead><tr><th>التاريخ</th><th>المخرج</th><th>المنصات وأنواع النشر</th><th>ملاحظة</th></tr></thead><tbody>${list.map(item => `<tr><td>${escapeHtml(item.date || item.publishDate || '')}</td><td>${escapeHtml(item.output || item.title || item.calendarTitle || item.postTypeLabel || '')}</td><td>${escapeHtml(platformText(item))}</td><td>${escapeHtml(item.note || item.notes || item.calendarMeta || '')}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="compact-table"><table><thead><tr><th>التاريخ</th><th>المخرج</th><th>المنصات وأنواع النشر</th></tr></thead><tbody>${list.map(item => `<tr><td>${escapeHtml(item.date || item.publishDate || '')}</td><td>${escapeHtml(scheduleDataViewCreativeName(campaign, item))}</td><td>${escapeHtml(scheduleDataViewPlatformText(item) || '—')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function budgetItemTotal(item){
   const rawAds = item?.adsCount ?? item?.ads_count ?? '';
