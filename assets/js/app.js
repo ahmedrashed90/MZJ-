@@ -25517,8 +25517,20 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   }
   async function saveTemplateDoc(task, templatePatch){
     const base = independentDocBase(task, 'task_template');
-    const id = docSafe(templatePatch?.externalDocId || templatePatch?.templateUploadId || `${base.campaignId}_${base.taskId || base.taskNo || 'template'}_${base.uploadedById || base.uploadedByEmail || 'user'}_${Date.now()}`);
-    const payload = cleanLargeWorkbookFields({ ...base, ...templatePatch, id, externalDocId:id, templateUploadId:id, updatedAt:nowIso(), uploadKind:'task_template' });
+    const campaign = taskCampaign(task);
+    const writer = txt(task?.contentWriterId || task?.userId || task?.assignedToId || base.userId || '');
+    const creative = txt(task?.creativeInstanceId || base.creativeInstanceId || '');
+    const candidates = (Array.isArray(campaign?.departmentTasks) ? campaign.departmentTasks : []).filter(t=>{
+      if(!t || roleOf(t)==='content') return false;
+      const isExec = !!(t.executionTask || t.isExecutionTask || t.flowType==='execution_task' || ['design','montage','shooting','photography','publish'].includes(roleOf(t)));
+      if(!isExec) return false;
+      if(creative && txt(t.creativeInstanceId) !== creative) return false;
+      const ids = [t.contentWriterId,t.linkedContentUserId,t.linkedContentWriterId,t.upstreamUserIds,t.dependsOnContentUserIds].flat().map(txt).filter(Boolean);
+      return writer ? ids.includes(writer) : false;
+    });
+    const executionTaskIds = Array.from(new Set(candidates.map(t=>txt(t.id||t.taskId)).filter(Boolean)));
+    const id = docSafe(templatePatch?.externalDocId || templatePatch?.templateUploadId || base.taskId || `${base.campaignId}_${base.taskNo || 'template'}_${base.uploadedById || base.uploadedByEmail || 'user'}`);
+    const payload = cleanLargeWorkbookFields({ ...base, ...templatePatch, id, externalDocId:id, templateUploadId:id, contentTaskId:txt(task?.id||task?.taskId||base.taskId), sourceContentTaskId:txt(task?.id||task?.taskId||base.taskId), contentWriterId:writer, contentWriterName:txt(task?.contentWriterName||task?.userName||task?.assignedToName||base.userName), creativeInstanceId:creative, executionTaskId:executionTaskIds.length===1?executionTaskIds[0]:'', executionTaskIds, linkedExecutionTaskIds:executionTaskIds, updatedAt:nowIso(), uploadKind:'task_template' });
     await safeCollection(TEMPLATE_COLL).doc(id).set(payload, { merge:true });
     const i = state.templates.findIndex(x => x.id === id || x.externalDocId === id || x.templateUploadId === id);
     if(i >= 0) state.templates[i] = { ...state.templates[i], ...payload }; else state.templates.unshift(payload);
@@ -37332,12 +37344,46 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   }
   function locateTask(id){
     const key = norm(id);
+    const templateCache = window.MZJ_TASK_TEMPLATE_DOC_CACHE;
+    const externalTemplates = window.__MZJ_INDEPENDENT_UPLOADS__?.templates || [];
+    const externalDoc = (()=>{
+      try{
+        if(templateCache?.get){
+          const direct = templateCache.get(S(id));
+          if(direct) return direct;
+          for(const d of templateCache.values()){
+            const keys=[d?.id,d?.taskTemplateDocumentId,d?.contentTaskId,d?.sourceContentTaskId,d?.executionTaskId].map(norm).filter(Boolean);
+            if(keys.includes(key)) return d;
+          }
+        }
+        return externalTemplates.find(d=>[d?.id,d?.taskTemplateDocumentId,d?.contentTaskId,d?.sourceContentTaskId,d?.executionTaskId].map(norm).filter(Boolean).includes(key)) || null;
+      }catch(_){ return null; }
+    })();
     for(const c of campaignsList()){
       const tasks = tasksOf(c);
       for(let i=0;i<tasks.length;i++){
         const t = tasks[i];
-        const keys = [t.id,t.taskId,t.docId,t.contentExecutionPairKey,t.linkedExecutionPairKey,t.taskNo,t.structureTaskNo].map(norm).filter(Boolean);
-        if(keys.includes(key)) return {campaign:c, task:t, index:i, tasks};
+        const keys = [t.id,t.taskId,t.docId,t.taskTemplateDocumentId,t.contentExecutionPairKey,t.linkedExecutionPairKey,t.taskNo,t.structureTaskNo].map(norm).filter(Boolean);
+        if(keys.includes(key)){
+          const doc = externalDoc || (()=>{
+            try{
+              const ids=[t.taskTemplateDocumentId,t.linkedTaskTemplateDocumentId,t.linkedContentTemplateTaskId,t.id,t.taskId].map(S).filter(Boolean);
+              for(const x of ids){ if(templateCache?.get?.(x)) return templateCache.get(x); }
+              return externalTemplates.find(d=>ids.includes(S(d?.id)) || ids.includes(S(d?.contentTaskId)) || ids.includes(S(d?.sourceContentTaskId)) || ids.includes(S(d?.executionTaskId))) || null;
+            }catch(_){ return null; }
+          })();
+          const payload = doc?.taskTemplate || doc?.approvedContentTemplate || doc?.contentTaskTemplate || null;
+          const hydrated = doc ? {...t,...doc,id:S(t.id||t.taskId||doc.contentTaskId||doc.id),taskId:S(t.taskId||t.id||doc.contentTaskId||doc.id),taskTemplate:payload||t.taskTemplate,taskTemplateDocumentId:S(doc.id||t.taskTemplateDocumentId)} : t;
+          return {campaign:c, task:hydrated, index:i, tasks};
+        }
+      }
+    }
+    if(externalDoc){
+      const c=campaignsList().find(x=>norm(campaignId(x))===norm(externalDoc.campaignId||externalDoc.campaignDocId||''));
+      if(c){
+        const tasks=tasksOf(c); const base=tasks.find(t=>norm(taskId(t))===norm(externalDoc.contentTaskId||externalDoc.sourceContentTaskId||externalDoc.id))||{};
+        const payload=externalDoc.taskTemplate||externalDoc.approvedContentTemplate||externalDoc.contentTaskTemplate||null;
+        return {campaign:c,task:{...base,...externalDoc,id:S(base.id||base.taskId||externalDoc.contentTaskId||externalDoc.id),taskId:S(base.taskId||base.id||externalDoc.contentTaskId||externalDoc.id),taskTemplate:payload||base.taskTemplate,taskTemplateDocumentId:S(externalDoc.id)},index:tasks.indexOf(base),tasks};
       }
     }
     try{ const t = typeof findTaskById === 'function' ? findTaskById(id) : null; const c = t && typeof campaignForTask === 'function' ? campaignForTask(t) : null; if(t && c) return {campaign:c, task:t, index:tasksOf(c).findIndex(x => taskId(x) === taskId(t)), tasks:tasksOf(c)}; }catch(_){}
@@ -42686,7 +42732,7 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
 
 /* MZJ v763 - external Task Template documents + exact execution links + final upload after last admin approval */
 (function(){
-  const VERSION='v763-external-template-exact-link-final-after-last-approval';
+  const VERSION='v764-external-template-review-link-fix';
   const CAMPAIGNS_COLLECTION=window.MZJ_CAMPAIGNS_COLLECTION||'marketing_campaigns';
   const TEMPLATES_COLLECTION='campaign_task_templates';
   const S=v=>(v==null?'':String(v)).trim();
@@ -42723,7 +42769,16 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
   function hydrate(t){const d=docForTask(t);if(!d)return t;const p=d.taskTemplate||d.approvedContentTemplate||d.contentTaskTemplate||d.templateData||null;if(!p)return t;return {...t,taskTemplate:p,contentTaskTemplate:p,approvedContentTemplate:(N(d.status||d.reviewStatus).includes('approved')?p:t.approvedContentTemplate),taskTemplateDocumentId:S(d.id||t.taskTemplateDocumentId),contentTemplateApproved:N(d.status||d.reviewStatus).includes('approved'),taskTemplateApproved:N(d.status||d.reviewStatus).includes('approved'),contentWriterId:S(d.contentWriterId||t.contentWriterId),contentWriterName:S(d.contentWriterName||t.contentWriterName)};}
   async function writeTemplateDoc(id,data){const c=col(TEMPLATES_COLLECTION);if(!c||!id)return;const doc=clean({...data,id,taskTemplateDocumentId:id,updatedAt:now()});await c.doc(id).set(doc,{merge:true});cache.set(id,doc);}
   async function persistCampaign(c,tasks){const id=campaignId(c);if(!id)throw new Error('تعذر تحديد الحملة');const stripped=tasks.map(stripTask).map(clean);await col(CAMPAIGNS_COLLECTION).doc(id).update({departmentTasks:stripped,taskCount:stripped.length,updatedAt:server()});c.departmentTasks=stripped;c.taskCount=stripped.length;c.updatedAt=now();}
-  function locate(id){for(const c of campaignsList()){const t=tasksOf(c).find(x=>idOf(x)===S(id));if(t)return {campaign:c,task:hydrate(t)};}return {campaign:null,task:null};}
+  function locate(id){
+    const wanted=S(id);
+    for(const c of campaignsList()){
+      const t=tasksOf(c).find(x=>[idOf(x),S(x?.taskTemplateDocumentId),S(x?.linkedTaskTemplateDocumentId),S(x?.linkedContentTemplateTaskId)].filter(Boolean).includes(wanted));
+      if(t)return {campaign:c,task:hydrate(t)};
+    }
+    const d=cache.get(wanted)||Array.from(cache.values()).find(x=>[S(x?.id),S(x?.contentTaskId),S(x?.sourceContentTaskId),S(x?.executionTaskId)].includes(wanted));
+    if(d){const c=campaignsList().find(x=>campaignId(x)===S(d.campaignId||d.campaignDocId));if(c){const base=tasksOf(c).find(t=>idOf(t)===S(d.contentTaskId||d.sourceContentTaskId))||{};const p=d.taskTemplate||d.approvedContentTemplate||d.contentTaskTemplate||null;return {campaign:c,task:{...base,...d,id:S(base.id||base.taskId||d.contentTaskId||d.id),taskId:S(base.taskId||base.id||d.contentTaskId||d.id),taskTemplate:p||base.taskTemplate,taskTemplateDocumentId:S(d.id)}};}}
+    return {campaign:null,task:null};
+  }
   async function decide(id,decision){
     const {campaign,task}=locate(id);if(!campaign||!task){try{showToast('تعذر العثور على Task Template.');}catch(_){}return;}
     const status=decision==='rejected'?'rejected':(decision==='needs_changes'?'needs_changes':'approved');
@@ -42732,21 +42787,23 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
     const sourceDocId=idOf(task);
     const sourceDoc={campaignId:campaignId(campaign),campaignCode:campaign.campaignCode||'',campaignName:campaign.campaignName||'',contentTaskId:sourceDocId,sourceContentTaskId:sourceDocId,contentWriterId:cwId,contentWriterName:cwName,creativeInstanceId:cr,status,reviewStatus:status,taskTemplateStatus:status,taskTemplate:clean({...payload,status,reviewStatus:status,...(status==='approved'?{approvedAt:stamp}:{}),contentWriterId:cwId,contentWriterName:cwName}),uploadedAt:payload.uploadedAt||task.uploadedAt||stamp,...(status==='approved'?{approvedAt:stamp}:{})};
     await writeTemplateDoc(sourceDocId,sourceDoc);
-    let linked=0;
+    let linked=0; const templateWrites=[];
     const next=tasksOf(campaign).map(raw=>{
       const t={...raw};
       if(idOf(t)===sourceDocId)return stripTask({...t,taskTemplateDocumentId:sourceDocId,taskTemplateStatus:status,templateReviewStatus:status,reviewStatus:status,contentTemplateApproved:status==='approved',taskTemplateApproved:status==='approved',status:status==='approved'?'task_template_approved':status,progress:status==='approved'?100:Number(t.progress||0),updatedAt:stamp});
-      const exact=isExec(t)&&S(writerId(t,{}))===cwId&&creativeKey(t)===cr;
+      const explicitIds=[...(Array.isArray(sourceDoc.executionTaskIds)?sourceDoc.executionTaskIds:[]),...(Array.isArray(sourceDoc.linkedExecutionTaskIds)?sourceDoc.linkedExecutionTaskIds:[]),S(sourceDoc.executionTaskId)].map(S).filter(Boolean);
+      const linkedWriterIds=[t?.contentWriterId,t?.linkedContentUserId,t?.linkedContentWriterId,t?.upstreamUserIds,t?.dependsOnContentUserIds].flat().map(S).filter(Boolean);
+      const exact=isExec(t)&&((explicitIds.length&&explicitIds.includes(idOf(t)))||(!explicitIds.length&&linkedWriterIds.includes(cwId)&&creativeKey(t)===cr));
       if(!exact)return stripTask(t);
       linked++;
       const execId=idOf(t);
-      writeTemplateDoc(execId,{...sourceDoc,id:execId,executionTaskId:execId,executionUserId:S(t.assignedToId||t.userId),executionUserName:S(t.assignedToName||t.userName),executionDepartmentRole:roleOf(t),sourceContentTaskId:sourceDocId,contentTaskId:sourceDocId});
+      templateWrites.push(writeTemplateDoc(execId,{...sourceDoc,id:execId,executionTaskId:execId,executionTaskIds:[execId],linkedExecutionTaskIds:[execId],executionUserId:S(t.assignedToId||t.userId),executionUserName:S(t.assignedToName||t.userName),executionDepartmentRole:roleOf(t),sourceContentTaskId:sourceDocId,contentTaskId:sourceDocId}));
       return stripTask({...t,taskTemplateDocumentId:execId,linkedTaskTemplateDocumentId:execId,linkedContentTemplateTaskId:sourceDocId,contentWriterId:cwId,contentWriterName:cwName,linkedContentUserId:cwId,linkedContentUserName:cwName,linkedContentWriterId:cwId,linkedContentWriterName:cwName,linkedContentTemplateStatus:status,waitingForTaskTemplate:status!=='approved',waitingForContent:status!=='approved',waitingForApproval:status!=='approved',waitingQueue:status!=='approved',status:status==='approved'?'ready_execution':status,state:status==='approved'?'ready_execution':status,taskStatus:status==='approved'?'جاهز للتنفيذ':t.taskStatus,dashboardStatusLabel:status==='approved'?'جاهز للتنفيذ':t.dashboardStatusLabel,updatedAt:stamp});
     });
-    await persistCampaign(campaign,next);
+    await Promise.all(templateWrites); await persistCampaign(campaign,next);
     try{document.querySelectorAll('.task-template-review-popup,.structure-review-popup,.structure-review-modal').forEach(e=>e.remove());refreshOpenTaskModal?.();renderAdminDashboard?.();renderUserDashboard?.();renderTasksPage?.();showToast(status==='approved'?`تم اعتماد Task Template وربطه بـ ${linked} تاسك تنفيذي مطابق فقط.`:'تم تحديث حالة Task Template.');}catch(_){}
   }
-  window.MZJ_v763_decideTaskTemplate=decide;window.MZJ_v516_decideTaskTemplate=decide;window.MZJ_v570_decideTaskTemplate=decide;window.MZJ_v522_decideTaskTemplate=decide;window.v174SetTaskTemplateDecision=decide;window.v171ApproveTaskTemplate=id=>decide(id,'approved');
+  window.MZJ_v764_decideTaskTemplate=decide;window.MZJ_v763_decideTaskTemplate=decide;window.MZJ_v516_decideTaskTemplate=decide;window.MZJ_v570_decideTaskTemplate=decide;window.MZJ_v522_decideTaskTemplate=decide;window.v174SetTaskTemplateDecision=decide;window.v171ApproveTaskTemplate=id=>decide(id,'approved');
   try{v174SetTaskTemplateDecision=decide;v171ApproveTaskTemplate=window.v171ApproveTaskTemplate;}catch(_){}
   const oldTasks=typeof tasksForCampaign==='function'?tasksForCampaign:null;if(oldTasks){tasksForCampaign=function(c){return (oldTasks.apply(this,arguments)||[]).map(hydrate);};window.tasksForCampaign=tasksForCampaign;}
   const oldFind=typeof findTaskById==='function'?findTaskById:null;if(oldFind){findTaskById=function(id){const t=oldFind.apply(this,arguments);return t?hydrate(t):t;};window.findTaskById=findTaskById;}
@@ -42761,5 +42818,5 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
   async function migrate(){for(const c of campaignsList()){let changed=false;const next=[];for(const raw of tasksOf(c)){const t={...raw},p=templatePayload(t);if(p&&Object.keys(p).length){const did=S(t.taskTemplateDocumentId||idOf(t));await writeTemplateDoc(did,{campaignId:campaignId(c),campaignCode:c.campaignCode||'',campaignName:c.campaignName||'',contentTaskId:isContent(t)?idOf(t):S(t.linkedContentTemplateTaskId||''),sourceContentTaskId:isContent(t)?idOf(t):S(t.linkedContentTemplateTaskId||''),executionTaskId:isExec(t)?idOf(t):'',contentWriterId:writerId(t,p),contentWriterName:writerName(t,p),creativeInstanceId:creativeKey(t),status:S(t.taskTemplateStatus||p.status||p.reviewStatus||''),reviewStatus:S(t.templateReviewStatus||p.reviewStatus||p.status||''),taskTemplate:clean(p),uploadedAt:p.uploadedAt||t.uploadedAt||now()});t.taskTemplateDocumentId=did;changed=true;}next.push(stripTask(t));}if(changed)try{await persistCampaign(c,next);}catch(e){console.warn(VERSION,'migration skipped',e);}}}
   try{const tc=col(TEMPLATES_COLLECTION);if(tc?.onSnapshot)tc.onSnapshot(s=>{s.forEach(d=>cache.set(d.id,{id:d.id,...d.data()}));try{renderUserDashboard?.();}catch(_){}},e=>console.warn(VERSION,'template listener',e));}catch(_){}
   setTimeout(migrate,1200);setInterval(migrate,12000);
-  try{window.MZJ_APP_VERSION='763';window.MZJ_LAST_PATCH=VERSION;console.info(VERSION,'loaded');}catch(_){}
+  try{window.MZJ_APP_VERSION='764';window.MZJ_LAST_PATCH=VERSION;console.info(VERSION,'loaded');}catch(_){}
 })();
