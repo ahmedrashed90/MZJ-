@@ -30361,6 +30361,10 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   }
   document.addEventListener('click', function(event){
     const btn=event.target?.closest?.('button'); if(!btn) return;
+    // Modern dashboard receive buttons are handled by the active v677 flow below.
+    // Do not let this legacy catch-all receive handler intercept them or rebuild
+    // their task context from the grouped campaign card.
+    if(btn.matches('[data-v677-receive]')) return;
     const text=norm(btn.textContent||'');
     if(!(text.includes(norm('تم الاستلام')) || text.includes(norm('تأكيد الاستلام')) || text.includes(norm('لم يستلم')) || btn.dataset.action === 'receive-content-task')) return;
     event.preventDefault(); event.stopPropagation(); if(event.stopImmediatePropagation) event.stopImmediatePropagation();
