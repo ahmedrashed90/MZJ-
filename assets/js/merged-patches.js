@@ -7762,10 +7762,7 @@ function dbTaskOwnerSummaryGroupKey(task){
     task?.departmentName,
     taskDepartmentLabel(task)
   ].filter(Boolean).join(' ')) || identityClean(taskDepartmentLabel(task) || 'غير محدد');
-  const taskKind = trackingIsTaskTemplate(task) || role === 'content'
-    ? 'task_template'
-    : (dbIsExecutionTaskForDataView(task) ? 'execution_task' : identityClean(task?.flowType || task?.taskType || 'task'));
-  return [owner, role, taskKind].join('__');
+  return [owner, role].join('__');
 }
 function dbTaskOwnerSummaryRows(campaign, sourceTasks){
   const list = Array.isArray(sourceTasks) ? sourceTasks : [];
@@ -38219,9 +38216,30 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const related=pairs.map(x=>x.t);
     const total=related.length;
     const done=related.filter(readinessTaskDone).length;
-    const units=related.reduce((sum,t)=>sum+readinessTaskUnitValue(t),0);
-    const progress=total?Math.round((units/total)*100):0;
-    return{campaign:c,related,total,received:related.filter(t=>t.received||t.receivedConfirmed).length,progress,done,publish:0,allReady:total>0&&done===total,keepStructureInReadiness:true};
+
+    // تقدم الحملة موزون بالتساوي بين الأقسام المشاركة:
+    // 1) تقدم التاسك يأتي من إجراءات التكليف.
+    // 2) تقدم القسم = متوسط تقدم تاسكاته.
+    // 3) تقدم الحملة = متوسط تقدم الأقسام، حتى لا يأخذ القسم ذو التاسكات الأكثر وزنًا أكبر.
+    const departmentMap=new Map();
+    pairs.forEach(pair=>{
+      const key=deptKeyForTask(pair.t);
+      if(!departmentMap.has(key)) departmentMap.set(key,[]);
+      departmentMap.get(key).push(pair.t);
+    });
+    const departmentProgress={};
+    const departmentValues=[];
+    departmentMap.forEach((list,key)=>{
+      if(!list.length) return;
+      const value=list.reduce((sum,t)=>sum+taskProgressValue(t),0)/list.length;
+      departmentProgress[key]=Math.max(0,Math.min(100,value));
+      departmentValues.push(departmentProgress[key]);
+    });
+    const progress=departmentValues.length
+      ? Math.max(0,Math.min(100,Math.round(departmentValues.reduce((sum,value)=>sum+value,0)/departmentValues.length)))
+      : 0;
+
+    return{campaign:c,related,total,received:related.filter(t=>t.received||t.receivedConfirmed).length,progress,done,publish:0,allReady:total>0&&done===total,keepStructureInReadiness:true,departmentProgress};
   }
   try{campaignTasksSnapshot=function(c){return taskListSnapshot(c);};window.campaignTasksSnapshot=campaignTasksSnapshot;}catch(_){}
   try{renderCampaignInlineTasks=function(c){const published=campaignReleasedToPublish(c);const snap=taskListSnapshot(c,published?{includeReleased:true,publishOnly:true}:null);return `<div class="campaign-inline-tasks">${snap.related.length?snap.related.map(t=>card(c,t,false)).join(''):'<div class="v677-empty">لا توجد تاسكات مطلوبة لهذه الحملة.</div>'}</div>`;};window.renderCampaignInlineTasks=renderCampaignInlineTasks;}catch(_){}
