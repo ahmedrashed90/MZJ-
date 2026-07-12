@@ -7672,18 +7672,43 @@ function shortDatabaseTaskNumber(task){
 function taskTemplateGoalBrief(task){
   return dbTaskTemplateGoal(task);
 }
+function dbTaskOwnerSummaryGroupKey(task){
+  const owner = taskOwnerKey(task);
+  if(!owner) return '';
+  const role = normalizeDepartmentRole([
+    task?.departmentRole,
+    task?.assignedDepartmentRole,
+    task?.assignedDepartmentName,
+    task?.contentSectionName,
+    task?.departmentName,
+    taskDepartmentLabel(task)
+  ].filter(Boolean).join(' ')) || identityClean(taskDepartmentLabel(task) || 'غير محدد');
+  const taskKind = trackingIsTaskTemplate(task) || role === 'content'
+    ? 'task_template'
+    : (dbIsExecutionTaskForDataView(task) ? 'execution_task' : identityClean(task?.flowType || task?.taskType || 'task'));
+  return [owner, role, taskKind].join('__');
+}
 function dbTaskOwnerSummaryRows(campaign, sourceTasks){
   const list = Array.isArray(sourceTasks) ? sourceTasks : [];
-  const ownerKeys = uniqueList(list.map(task => taskOwnerKey(task)).filter(Boolean));
-  return ownerKeys.map(key => {
-    const ownerTasks = list.filter(task => taskOwnerKey(task) === key);
+  const groupKeys = uniqueList(list.map(task => dbTaskOwnerSummaryGroupKey(task)).filter(Boolean));
+  return groupKeys.map(key => {
+    const ownerTasks = list.filter(task => dbTaskOwnerSummaryGroupKey(task) === key);
     const total = ownerTasks.length;
     const notStarted = ownerTasks.filter(task => !taskStartedForDatabase(task)).length;
     const active = ownerTasks.filter(task => taskStartedForDatabase(task) && !taskCompletedForDatabase(task)).length;
     const delayed = ownerTasks.filter(task => isTaskDelayed(task, campaign)).length;
     const nearestRequired = earliestTaskDate(ownerTasks.filter(task => !taskCompletedForDatabase(task)), task => taskRequiredDate(task, campaign));
     const latestReceived = latestTaskDate(ownerTasks, task => taskReceivedDate(task));
-    return { owner: ownerTasks[0] ? rawTaskOwnerName(ownerTasks[0]) : 'بدون مسؤول', department: ownerTasks[0] ? taskDepartmentLabel(ownerTasks[0]) : '—', total, notStarted, active, delayed, nearestRequired, latestReceived };
+    return {
+      owner: ownerTasks[0] ? rawTaskOwnerName(ownerTasks[0]) : 'بدون مسؤول',
+      department: ownerTasks[0] ? taskDepartmentLabel(ownerTasks[0]) : '—',
+      total,
+      notStarted,
+      active,
+      delayed,
+      nearestRequired,
+      latestReceived
+    };
   });
 }
 function dbTaskOwnerSummaryTable(campaign, sourceTasks){
