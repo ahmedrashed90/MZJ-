@@ -11723,3 +11723,231 @@ body:has(.v732-edit-popup){overflow:hidden!important}.v732-edit-popup ~ .topbar,
     grid-template-columns:1fr!important;
   }
 }
+
+/* Task Template revision notes layout */
+.task-revision-section{
+  display:grid!important;
+  gap:16px!important;
+  padding:18px!important;
+}
+.task-revision-heading{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:16px!important;
+  direction:rtl!important;
+  text-align:right!important;
+}
+.task-revision-heading h3{
+  margin:0 0 6px!important;
+  font-size:20px!important;
+  color:#2d1e18!important;
+}
+.task-revision-heading p{
+  margin:0!important;
+  color:#8f7469!important;
+  font-size:13px!important;
+  font-weight:800!important;
+  line-height:1.7!important;
+}
+.task-revision-count{
+  flex:0 0 auto!important;
+  min-width:38px!important;
+  height:38px!important;
+  padding:0 10px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border-radius:999px!important;
+  background:#fff0e6!important;
+  border:1px solid #efcdbc!important;
+  color:#a55331!important;
+  font-weight:900!important;
+  font-size:14px!important;
+}
+.task-revision-list{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:14px!important;
+  width:100%!important;
+  min-width:0!important;
+}
+.task-revision-card{
+  display:grid!important;
+  gap:12px!important;
+  width:100%!important;
+  min-width:0!important;
+  padding:16px!important;
+  border:1px solid #edcdbf!important;
+  border-radius:20px!important;
+  background:linear-gradient(180deg,#fffaf7 0%,#fff 100%)!important;
+  box-shadow:0 8px 22px rgba(91,52,38,.05)!important;
+  direction:rtl!important;
+  text-align:right!important;
+}
+.task-revision-card-head{
+  display:grid!important;
+  grid-template-columns:auto minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:12px!important;
+  padding-bottom:12px!important;
+  border-bottom:1px solid #f0ddd3!important;
+}
+.task-revision-card-head>div{
+  display:grid!important;
+  gap:3px!important;
+  min-width:0!important;
+}
+.task-revision-card-head small,
+.task-revision-note>span,
+.task-revision-current>span{
+  color:#9a776b!important;
+  font-size:11px!important;
+  font-weight:900!important;
+}
+.task-revision-card-head strong{
+  color:#2d1d17!important;
+  font-size:16px!important;
+  line-height:1.6!important;
+  white-space:pre-wrap!important;
+  overflow-wrap:anywhere!important;
+}
+.task-revision-number{
+  width:34px!important;
+  height:34px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border-radius:50%!important;
+  background:#fff!important;
+  border:1px solid #edcdbf!important;
+  color:#a55331!important;
+  font-size:13px!important;
+  font-weight:900!important;
+}
+.task-revision-status{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:8px 13px!important;
+  border-radius:999px!important;
+  background:#ffe9dd!important;
+  color:#b24f2c!important;
+  border:1px solid #f3c8b5!important;
+  font-size:12px!important;
+  font-weight:900!important;
+  white-space:nowrap!important;
+}
+.task-revision-note,
+.task-revision-current{
+  display:grid!important;
+  gap:7px!important;
+  min-width:0!important;
+  padding:13px 15px!important;
+  border-radius:16px!important;
+}
+.task-revision-note{
+  background:#fff2e9!important;
+  border:1px solid #f0cbbb!important;
+}
+.task-revision-current{
+  background:#fff!important;
+  border:1px solid #eadbd3!important;
+}
+.task-revision-note p,
+.task-revision-current p{
+  margin:0!important;
+  color:#34221b!important;
+  font-size:14px!important;
+  font-weight:800!important;
+  line-height:1.9!important;
+  white-space:pre-wrap!important;
+  word-break:break-word!important;
+  overflow-wrap:anywhere!important;
+}
+@media (max-width:720px){
+  .task-revision-section{padding:13px!important;}
+  .task-revision-heading{align-items:center!important;}
+  .task-revision-card{padding:13px!important;}
+  .task-revision-card-head{grid-template-columns:auto minmax(0,1fr)!important;}
+  .task-revision-status{grid-column:1/-1!important;justify-self:start!important;}
+}
+
+
+
+/* Campaign Management + Database table layout: full width and compact controls */
+#campaigns .campaigns-management-card{
+  padding:14px 0 0!important;
+  overflow:hidden!important;
+}
+#campaigns .campaigns-management-toolbar{
+  padding-inline:14px!important;
+}
+#campaigns .campaign-management-table-wrap{
+  width:100%!important;
+  margin:0!important;
+  border-right:0!important;
+  border-left:0!important;
+  border-bottom:0!important;
+  border-radius:0!important;
+}
+#campaigns .campaign-management-table th:nth-child(11),
+#campaigns .campaign-management-table td:nth-child(11){
+  width:210px!important;
+  min-width:210px!important;
+}
+#campaigns .campaign-row-actions{
+  flex-wrap:nowrap!important;
+  gap:5px!important;
+}
+#campaigns .campaign-row-actions .mini-btn{
+  min-width:0!important;
+  padding:7px 9px!important;
+  white-space:nowrap!important;
+}
+
+#reports .database-card{
+  padding:0!important;
+  overflow:hidden!important;
+}
+#reports .database-table-wrap{
+  width:100%!important;
+  margin:0!important;
+  border-right:0!important;
+  border-left:0!important;
+  border-bottom:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+}
+#reports .database-table{
+  min-width:1240px!important;
+}
+#reports .database-table th:nth-child(9),
+#reports .database-table td:nth-child(9){
+  width:108px!important;
+  min-width:108px!important;
+}
+#reports .database-table th:nth-child(10),
+#reports .database-table td:nth-child(10){
+  width:148px!important;
+  min-width:148px!important;
+}
+#reports .db-view-data-btn{
+  min-width:88px!important;
+  width:auto!important;
+  padding:7px 9px!important;
+  white-space:nowrap!important;
+}
+#reports .db-actions{
+  display:flex!important;
+  flex-wrap:nowrap!important;
+  justify-content:center!important;
+  align-items:center!important;
+  gap:5px!important;
+}
+#reports .db-actions .mini-btn{
+  width:auto!important;
+  min-width:58px!important;
+  padding:7px 8px!important;
+  white-space:nowrap!important;
+}
