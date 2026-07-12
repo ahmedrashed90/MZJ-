@@ -2495,15 +2495,19 @@ function adminDashboardTasksForCampaign(campaign){
 }
 function campaignRequiredProgressFromTasks(related){
   const roles = ['content','shooting','design','montage'];
-  const activeRoles = roles.filter(role => (related || []).some(task => taskDashboardRole(task) === role));
+  const relevant = (related || []).filter(task => task && !task.hidden && !task.__hiddenDuplicateTemplateTask && !task.__structureApprovedHidden && !task.structureRequest && !task.structureRequestTask && !task.needsStructureUpload);
+  const taskValue = task => {
+    try{ if(typeof trackingTaskProgress === 'function') return Math.max(0, Math.min(100, Number(trackingTaskProgress(task) || 0))); }catch(_){ }
+    try{ if(typeof taskFinalUploadProgress === 'function') return Math.max(0, Math.min(100, Number(taskFinalUploadProgress(task) || 0))); }catch(_){ }
+    try{ return Math.max(0, Math.min(100, Number(taskProgress(task) || 0))); }catch(_){ return Math.max(0, Math.min(100, Number(task?.progress || 0))); }
+  };
+  const activeRoles = roles.filter(role => relevant.some(task => taskDashboardRole(task) === role));
   if(!activeRoles.length) return 0;
-  const roleWeight = 100 / activeRoles.length;
-  return Math.min(100, Math.round(activeRoles.reduce((total, role) => {
-    const tasks = (related || []).filter(task => taskDashboardRole(task) === role);
-    if(!tasks.length) return total;
-    const avg = tasks.reduce((sum, task) => sum + taskProgress(task), 0) / tasks.length;
-    return total + (avg * roleWeight / 100);
-  }, 0)));
+  const departmentValues = activeRoles.map(role => {
+    const tasks = relevant.filter(task => taskDashboardRole(task) === role);
+    return tasks.length ? tasks.reduce((sum, task) => sum + taskValue(task), 0) / tasks.length : 0;
+  });
+  return Math.max(0, Math.min(100, Math.round(departmentValues.reduce((sum, value) => sum + value, 0) / departmentValues.length)));
 }
 function fallbackTasksFromCampaign(campaign){
   const fallback = [];
@@ -6684,16 +6688,11 @@ function taskDelayDays(task){
   return diff > 0 ? diff : 0;
 }
 function taskWorkflowStatus(task){
+  // توحيد الحالة في المتابعة مع قاعدة البيانات وجاهزية المطلوب:
+  // 0% انتظار، 1-99% نشط، 100% معتمد/مكتمل.
   const progress = trackingTaskProgress(task);
-  const raw = normalizeStatus(task.status || task.taskStatus || task.state || '');
-  const structure = taskStructure(task);
-  if(raw.includes('rejected') || raw.includes('مرفوض')) return 'rejected';
-  if(raw.includes('needs') || raw.includes('changes') || raw.includes('تعديل') || structure.status === 'needs_changes') return 'needs_changes';
-  if(progress >= 100 || raw.includes('done') || raw.includes('complete') || raw.includes('approved') || raw.includes('معتمد')) return 'approved';
-  const steps = Array.isArray(task.steps) ? task.steps : [];
-  const waitingAdmin = steps.some((step, index) => step.adminOnly && !step.done && steps.slice(0, index).every(prev => prev.done));
-  if(waitingAdmin || raw.includes('review') || raw.includes('مراجعة')) return 'review';
-  if(task.received || task.receivedConfirmed || progress > 0 || raw.includes('progress') || raw.includes('received')) return 'active';
+  if(progress >= 100) return 'approved';
+  if(progress > 0) return 'active';
   return 'waiting';
 }
 function statusLabelFromKey(key){
@@ -6724,25 +6723,56 @@ function trackingTaskHasFinalFile(task){
   return Boolean(task?.finalFile || task?.finalFileUrl || task?.finalFileName || task?.finalUploadedAt || task?.finalSubmitted || task?.finalSubmission?.fileUrl || task?.finalSubmissionUrl || files.some(file => file?.isFinal || file?.uploadKind === 'final' || file?.kind === 'final' || file?.purpose === 'final'));
 }
 function trackingTaskProgress(task){
+  try{
+    if(typeof window.MZJ_CANONICAL_TASK_PROGRESS === 'function'){
+      return Math.max(0, Math.min(100, Math.round(Number(window.MZJ_CANONICAL_TASK_PROGRESS(task) || 0))));
+    }
+  }catch(_){ }
   if(trackingIsTaskTemplate(task)) return trackingTaskTemplateProgress(task);
-  if(trackingTaskHasFinalFile(task)) return 100;
-  return taskProgress(task);
+  const values = [Number(task?.progress || 0), Number(task?.execution?.progress || 0), Number(task?.readinessProgress || 0)];
+  try{ values.push(Number(taskFinalUploadProgress(task) || 0)); }catch(_){ }
+  try{ values.push(Number(taskProgress(task) || 0)); }catch(_){ }
+  const valid = values.filter(Number.isFinite);
+  return Math.max(0, Math.min(100, Math.round(valid.length ? Math.max(...valid) : 0)));
 }
 function averageProgress(list){
   if(!list.length) return 0;
   return Math.round(list.reduce((sum, item) => sum + trackingTaskProgress(item), 0) / list.length);
 }
 function trackingCampaignSnapshot(campaign){
+  // المصدر الموحّد: نفس Snapshot المستخدم فعليًا في كارت جاهزية المطلوب.
+  // includeReleased مهم حتى تظل الحملات المنقولة إلى قسم النشر محسوبة 100% في المتابعة والإدارة.
   try{
-    if(typeof campaignTasksSnapshot === 'function'){
-      const snap = campaignTasksSnapshot(campaign);
-      const related = Array.isArray(snap?.related) ? snap.related : [];
-      const total = Number(snap?.total ?? related.length) || related.length;
-      if(total) return { campaign, tasks:related, total, progress:Math.max(0, Math.min(100, Math.round(Number(snap.progress || 0)))) };
+    if(typeof window.MZJ_CANONICAL_CAMPAIGN_SNAPSHOT === 'function'){
+      const snap = window.MZJ_CANONICAL_CAMPAIGN_SNAPSHOT(campaign, { includeReleased:true }) || {};
+      const related = Array.isArray(snap.related) ? snap.related.filter(Boolean) : [];
+      return {
+        campaign,
+        tasks:related,
+        total:Number(snap.total) || related.length,
+        progress:Math.max(0, Math.min(100, Math.round(Number(snap.progress || 0))))
+      };
     }
   }catch(_){ }
-  const list = tasksForCampaign(campaign);
-  return { campaign, tasks:list, total:list.length, progress:averageProgress(list) };
+  try{
+    if(typeof campaignTasksSnapshot === 'function'){
+      const snap = campaignTasksSnapshot(campaign) || {};
+      const related = Array.isArray(snap.related) ? snap.related.filter(Boolean) : [];
+      if(related.length){
+        const progress = Number(snap.progress);
+        return {
+          campaign,
+          tasks:related,
+          total:Number(snap.total) || related.length,
+          progress:Number.isFinite(progress)
+            ? Math.max(0, Math.min(100, Math.round(progress)))
+            : campaignRequiredProgressFromTasks(related)
+        };
+      }
+    }
+  }catch(_){ }
+  const list = (typeof tasksForCampaign === 'function' ? (tasksForCampaign(campaign) || []) : (campaign?.departmentTasks || [])).filter(Boolean);
+  return { campaign, tasks:list, total:list.length, progress:campaignRequiredProgressFromTasks(list) };
 }
 function trackingCampaignAverage(rows){
   if(!rows.length) return 0;
@@ -6751,8 +6781,11 @@ function trackingCampaignAverage(rows){
 function renderTasksPage(){
   const board = document.getElementById('tasksBoard'); if(!board) return;
   const isAdmin = isCurrentUserAdmin();
-  const tasks = isAdmin ? campaigns.flatMap(campaign => tasksForCampaign(campaign)) : getVisibleTasksForCurrentUser();
-  const activeCampaigns = campaigns.filter(campaign => normalizeStatus(campaign.status || '').includes('archived') === false);
+  const campaignRows = campaigns.map(trackingCampaignSnapshot).filter(item => item.total);
+  // الأدمن يرى نفس قائمة التاسكات التي تحسب منها جاهزية المطلوب، بدون Dedup إضافي.
+  // كل علاقة Task Template/تنفيذ مستقلة حتى لو تشابه رقم التاسك أو الكرييتيف.
+  const tasks = (isAdmin ? campaignRows.flatMap(item => item.tasks) : getVisibleTasksForCurrentUser()).filter(Boolean);
+  const activeCampaigns = campaignRows.filter(item => item.progress < 100 && !normalizeStatus(item.campaign?.status || '').includes('archived')).map(item => item.campaign);
   const counts = tasks.reduce((acc, task) => { const key = taskWorkflowStatus(task); acc[key] = (acc[key] || 0) + 1; return acc; }, {});
   const delayedTasks = tasks.filter(task => taskDelayDays(task) > 0);
   const employeeMap = {};
@@ -6762,14 +6795,13 @@ function renderTasksPage(){
     const dept = taskDepartmentLabel(task);
     if(dept && dept !== 'قسم' && dept !== 'غير محدد') (deptMap[dept] ||= []).push(task);
   });
-  const campaignRows = campaigns.map(trackingCampaignSnapshot).filter(item => item.total);
   const metric = (label, value, hint = '', tone = '') => `<article class="monitor-metric ${tone}"><span>${label}</span><strong>${value}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ''}</article>`;
   const bar = (label, value, total) => { const pct = total ? Math.round((value / total) * 100) : 0; return `<div class="monitor-bar-row"><div><b>${escapeHtml(label)}</b><span>${value} تاسك</span></div><div class="monitor-bar"><i style="width:${Math.min(100,pct)}%"></i></div></div>`; };
   const progressRow = (label, pct, meta = '') => `<div class="monitor-progress-row"><div><b>${escapeHtml(label)}</b><span>${escapeHtml(meta)}</span></div><strong>${pct}%</strong><div class="task-card-progress"><span style="width:${Math.min(100,pct)}%"></span></div></div>`;
   const employeeDelayRows = Object.entries(employeeMap).map(([name, list]) => ({ name, late:list.filter(task => taskDelayDays(task) > 0).length, days:list.reduce((sum, task) => sum + taskDelayDays(task), 0), total:list.length, progress:averageProgress(list) })).sort((a,b) => b.days - a.days || b.late - a.late);
   const delayedRows = delayedTasks.sort((a,b) => taskDelayDays(b) - taskDelayDays(a)).slice(0, 20);
   const statusKeys = ['waiting','active'];
-  const totalDone = (counts.approved || 0) + (counts.rejected || 0);
+  const totalDone = counts.approved || 0;
   if(totalDone) statusKeys.push('approved');
   const dashboardSubtitle = `${activeCampaigns.length} حملة نشطة · ${tasks.length} تاسك · ${delayedTasks.length} متأخر`;
   board.innerHTML = `<section class="monitor-page professional-monitor">
@@ -7330,15 +7362,27 @@ function campaignLatestActivityValue(campaign){
   return new Date(Math.max(...values));
 }
 function campaignTaskStats(campaign){
-  const approved = dbApprovedExecutionTasks(campaign);
-  const list = approved.length ? approved : tasksForCampaign(campaign).filter(task => !isCampaignContentWritingTask(task));
+  let list = [];
+  let snapshotProgress = null;
+  try{
+    if(typeof window.MZJ_CANONICAL_CAMPAIGN_SNAPSHOT === 'function'){
+      const snap = window.MZJ_CANONICAL_CAMPAIGN_SNAPSHOT(campaign, { includeReleased:true }) || {};
+      list = Array.isArray(snap.related) ? snap.related.filter(Boolean) : [];
+      snapshotProgress = Number(snap.progress);
+    }else if(typeof trackingCampaignSnapshot === 'function'){
+      const snap = trackingCampaignSnapshot(campaign);
+      list = Array.isArray(snap?.tasks) ? snap.tasks : [];
+      snapshotProgress = Number(snap?.progress);
+    }
+  }catch(_){ }
+  if(!list.length) list = tasksForCampaign(campaign).filter(task => !isCampaignContentWritingTask(task));
   const total = list.length;
-  const completed = list.filter(task => taskCompletedForDatabase(task) || taskProgress(task) >= 100).length;
+  const completed = list.filter(task => taskCompletedForDatabase(task) || trackingTaskProgress(task) >= 100).length;
   const received = list.filter(task => task.received || task.receivedConfirmed).length;
   const delayed = list.filter(task => isTaskDelayed(task, campaign)).length;
-  const notStarted = list.filter(task => !taskStartedForDatabase(task)).length;
+  const notStarted = list.filter(task => trackingTaskProgress(task) <= 0 && !taskStartedForDatabase(task)).length;
   const active = Math.max(0, total - completed - notStarted);
-  const progress = total ? Math.round((completed / total) * 100) : 0;
+  const progress = Number.isFinite(snapshotProgress) ? Math.max(0, Math.min(100, Math.round(snapshotProgress))) : campaignRequiredProgressFromTasks(list);
   return { list, total, completed, received, delayed, notStarted, active, progress };
 }
 function campaignManagementStatus(campaign){
@@ -38241,6 +38285,11 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
 
     return{campaign:c,related,total,received:related.filter(t=>t.received||t.receivedConfirmed).length,progress,done,publish:0,allReady:total>0&&done===total,keepStructureInReadiness:true,departmentProgress};
   }
+  // تصدير مصدر الحساب الوحيد لباقي الصفحات: المتابعة وإدارة الحملات وقاعدة البيانات.
+  try{
+    window.MZJ_CANONICAL_TASK_PROGRESS = taskProgressValue;
+    window.MZJ_CANONICAL_CAMPAIGN_SNAPSHOT = function(c, opts){ return taskListSnapshot(c, opts || {}); };
+  }catch(_){ }
   try{campaignTasksSnapshot=function(c){return taskListSnapshot(c);};window.campaignTasksSnapshot=campaignTasksSnapshot;}catch(_){}
   try{renderCampaignInlineTasks=function(c){const published=campaignReleasedToPublish(c);const snap=taskListSnapshot(c,published?{includeReleased:true,publishOnly:true}:null);return `<div class="campaign-inline-tasks">${snap.related.length?snap.related.map(t=>card(c,t,false)).join(''):'<div class="v677-empty">لا توجد تاسكات مطلوبة لهذه الحملة.</div>'}</div>`;};window.renderCampaignInlineTasks=renderCampaignInlineTasks;}catch(_){}
   function readyCampaignCard(item){
@@ -39936,14 +39985,21 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   const prevSnapshotV721 = typeof campaignTasksSnapshot === 'function' ? campaignTasksSnapshot : null;
   if(prevSnapshotV721){
     campaignTasksSnapshot = function(campaign){
+      // لا نعيد حساب النسبة هنا بمنطق قديم؛ نستخدم نفس Snapshot الخاص ببطاقة جاهزية المطلوب.
+      try{
+        if(typeof window.MZJ_CANONICAL_CAMPAIGN_SNAPSHOT === 'function'){
+          const canonical = window.MZJ_CANONICAL_CAMPAIGN_SNAPSHOT(campaign, { includeReleased:true }) || {};
+          const related = Array.isArray(canonical.related) ? canonical.related.filter(Boolean) : [];
+          let structureAttached = Number(canonical.structureAttached || 0) || 0;
+          try{ structureAttached = typeof campaignStructureAttachedCount === 'function' ? campaignStructureAttachedCount(related) : structureAttached; }catch(_){ }
+          return { ...canonical, related, total:Number(canonical.total) || related.length, received:related.filter(task => task && (task.received || task.receivedConfirmed)).length, progress:Math.max(0,Math.min(100,Math.round(Number(canonical.progress || 0)))), structureAttached };
+        }
+      }catch(_){ }
       const snap = prevSnapshotV721.apply(this, arguments) || {};
-      const related = typeof adminDashboardTasksForCampaign === 'function' ? (adminDashboardTasksForCampaign(campaign) || []) : (snap.related || []);
-      const received = related.filter(task => task && (task.received || task.receivedConfirmed)).length;
-      let progress = Number(snap.progress || 0) || 0;
-      try{ if(typeof campaignRequiredProgressFromTasks === 'function') progress = campaignRequiredProgressFromTasks(related); }catch(_){ }
+      const related = Array.isArray(snap.related) ? snap.related.filter(Boolean) : [];
       let structureAttached = Number(snap.structureAttached || 0) || 0;
       try{ structureAttached = typeof campaignStructureAttachedCount === 'function' ? campaignStructureAttachedCount(related) : structureAttached; }catch(_){ }
-      return { ...snap, related, total:related.length, received, progress, structureAttached };
+      return { ...snap, related, total:related.length, received:related.filter(task => task && (task.received || task.receivedConfirmed)).length, progress:Math.max(0,Math.min(100,Math.round(Number(snap.progress || 0)))), structureAttached };
     };
     try{ window.campaignTasksSnapshot = campaignTasksSnapshot; }catch(_){ }
   }
@@ -40189,7 +40245,20 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     return S(t && (t.creativeName || t.creative || t.product || t.contentType || t.taskType || t.title || t.name));
   }
   function carsOf(t){ return uniq([t&&t.selectedCar, t&&t.car, t&&t.carName, t&&t.vehicle, t&&t.vehicleName, t&&t.selectedCars, t&&t.cars, t&&t.carIds]); }
-  function groupKey(c, t){ return [norm(campaignKey(c)), norm(contentKind(t)), norm(carsOf(t).join(' '))].filter(Boolean).join('|') || [norm(campaignTitle(c)), norm(taskKey(t) || contentKind(t))].join('|'); }
+  function creativeInstanceKey(t){
+    const direct = first(t&&t.creativeInstanceId, t&&t.creativeRowId, t&&t.campaignCreativeInstanceId, t&&t.campaignCreativeRowId);
+    if(direct) return norm(direct);
+    const serialSource = [t&&t.taskNo,t&&t.taskCode,t&&t.fullTaskCode,t&&t.canonicalTaskCode,t&&t.id,t&&t.taskId,t&&t.title,t&&t.name].map(S).join(' ');
+    const serialMatch = serialSource.match(/(?:^|[-_\s])(N\d{1,3})(?:$|[-_\s])/i) || serialSource.match(/(N\d{1,3})/i);
+    if(serialMatch) return serialMatch[1].toUpperCase();
+    return norm(first(t&&t.creativeId, t&&t.creativeName, t&&t.creative, t&&t.product, t&&t.contentType, contentKind(t)));
+  }
+  function groupKey(c, t){
+    const campaign = norm(campaignKey(c) || campaignTitle(c));
+    const instance = creativeInstanceKey(t);
+    const car = norm(carsOf(t).join(' '));
+    return [campaign, instance, car].filter(Boolean).join('|') || [campaign, norm(taskKey(t))].filter(Boolean).join('|');
+  }
   function finalUrl(f){ return S(f && (f.fileUrl || f.finalFileUrl || f.downloadURL || f.downloadUrl || f.url || f.storageUrl || f.viewUrl)); }
   function finalName(f){ return S(f && (f.fileName || f.finalFileName || f.name || f.title)); }
   function taskFilesSafe(t){ return safe(() => typeof taskFiles === 'function' ? A(taskFiles(t)) : A(t && t.attachments).concat(A(t && t.files)), A(t && t.attachments).concat(A(t && t.files))); }
@@ -40457,21 +40526,27 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     if(raw.includes('MOTION')) return 'MOTION';
     return S(task&&task.type||task&&task.requiredFile||task&&task.title||'تاسك');
   }
+  function exactCreativeTitle(task){
+    const raw = task&&task.raw || {};
+    // نفس الدالة المستخدمة في قاعدة البيانات لأنها ترجع اسم الكرييتيف الكامل المختار.
+    try{
+      if(typeof dbTaskCreativeLabel === 'function'){
+        const label = S(dbTaskCreativeLabel(raw)) || S(dbTaskCreativeLabel(task));
+        if(label && label !== '—') return label;
+      }
+    }catch(_){ }
+    const candidates = [
+      raw.creativeName, raw.creative, raw.contentType, raw.product,
+      task&&task.creativeName, task&&task.creative, task&&task.contentType, task&&task.product,
+      task&&task.type, task&&task.requiredFile, task&&task.title
+    ].map(S).filter(Boolean);
+    const generic = new Set(['REEL','CAROUSEL','POST','STORY','VIDEO','PANNER','MOTION','GIF','PRINT']);
+    const full = candidates.find(value => !generic.has(value.toUpperCase()));
+    return full || candidates[0] || baseKind(task);
+  }
   function shortTitleMap(tasks){
-    const groups = new Map();
-    tasks.forEach(task => {
-      const key = [N(task.campaignName), N(baseKind(task))].join('|');
-      if(!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(task.id);
-    });
     const map = {};
-    tasks.forEach(task => {
-      const kind = baseKind(task);
-      const key = [N(task.campaignName), N(kind)].join('|');
-      const ids = groups.get(key) || [];
-      const idx = ids.indexOf(task.id);
-      map[task.id] = ids.length > 1 ? `${kind} ${idx + 1}` : kind;
-    });
+    tasks.forEach(task => { map[task.id] = exactCreativeTitle(task); });
     return map;
   }
   function subline(task){ return [task&&task.campaignName, taskDepartment(task)].map(S).filter(Boolean).join(' · '); }
