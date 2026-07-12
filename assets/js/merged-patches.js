@@ -38099,8 +38099,9 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function taskReceivedForRequired(t){const st=S(t&&t.status||'').toLowerCase();return !!(t&&(t.received===true||t.receivedConfirmed===true||S(t.receivedAt)||st==='received'||st==='in_progress'));}
   function readinessTaskDone(t){const ts=statusOf(t,'template');const st=S(t&&t.status||'').toLowerCase();return !!((isTemplateContentTask(t)&&(ts==='approved'||t.contentTemplateApproved===true||t.taskTemplateApproved===true||st==='task_template_approved'))||taskProgressValue(t)>=100||hasFinalFile(t)||finalDeliveryReady(t)||isCompletedForUser(t));}
   function readinessTaskUnitValue(t){
-    if(isTemplateContentTask(t)) return Math.max(0,Math.min(1,taskProgressValue(t)/100));
-    return readinessTaskDone(t) ? 1 : 0;
+    // جاهزية المطلوب تعتمد على التقدم الفعلي لكل تاسك، وليس فقط اكتماله.
+    // مثال: تاسك واحد 35% من أصل 3 يظهر متوسط القسم 12% بدل 0%.
+    return Math.max(0,Math.min(1,taskProgressValue(t)/100));
   }
   function taskListPairs(){return allPairs().filter(x=>!campaignReleasedToPublish(x.c) && !taskReceivedForRequired(x.t) && (!isStructureOnlyTask(x.t) || !isCompletedForUser(x.t)) && (!isTemplateContentTask(x.t) || !isCompletedForUser(x.t)));}
   function isPublishVisibleTask(t){return !!(t && !isStructureOnlyTask(t) && !isTemplateContentTask(t));}
@@ -38169,11 +38170,10 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const html=deptGroupOrder.map(k=>{
       const list=groups[k]||[];
       if(!list.length)return '';
-      const doneUnits=list.reduce((sum,x)=>sum+readinessTaskUnitValue(x.t),0);
-      const doneTasks=list.filter(x=>readinessTaskDone(x.t)).length;
-      const pct=list.length?Math.round((doneUnits/list.length)*100):0;
-      const doneText=Number.isInteger(doneUnits)?String(doneUnits):String(Math.round(doneUnits*10)/10);
-      const stat=showProgress?`${doneText}/${list.length} · ${pct}%`:list.length;
+      const progressUnits=list.reduce((sum,x)=>sum+readinessTaskUnitValue(x.t),0);
+      const startedTasks=list.filter(x=>taskProgressValue(x.t)>0).length;
+      const pct=list.length?Math.round((progressUnits/list.length)*100):0;
+      const stat=showProgress?`${startedTasks}/${list.length} · ${pct}%`:list.length;
       return `<details class="v736-dept-accordion"${startClosed?'':' open'}><summary><strong>${H(deptGroupLabels[k])}</strong><span>${H(stat)}</span></summary><div class="v736-dept-task-list">${list.map(x=>card(x.c,x.t,false)).join('')}</div></details>`;
     }).join('');
     return html || `<div class="v677-empty">${H(emptyText||'لا توجد تاسكات.')}</div>`;

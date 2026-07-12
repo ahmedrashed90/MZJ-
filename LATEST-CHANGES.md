@@ -7,3 +7,8 @@
 - Campaign Management and Database tables fill their cards.
 - `عرض البيانات` and `إجراءات` columns are compact instead of consuming excessive width.
 - No changes to task pairing, distribution, approvals, uploads, or dashboard filtering.
+
+## جاهزية المطلوب - تقدم الأقسام
+- متوسط تقدم كل قسم أصبح يعتمد على النسبة الفعلية لكل تاسك.
+- عداد القسم يعرض عدد التاسكات التي بدأت فعليًا من إجمالي التاسكات.
+- مثال: 35% + 0% + 0% يعرض 1/3 و12% بدل 0/3 و0%.
