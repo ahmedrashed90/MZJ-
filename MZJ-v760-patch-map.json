@@ -1,0 +1,3883 @@
+{
+  "file": "/mnt/data/mzj_merge_work/assets/js/app.js",
+  "line_count": 42620,
+  "block_count": 209,
+  "blocks": [
+    {
+      "version": "v517",
+      "title": "/* MZJ v517 early flow click guard */",
+      "start": 2,
+      "end": 1093,
+      "lines": 1092,
+      "functions": [
+        "MZJAddPlatformPostTypeRow",
+        "MZJSetPlatformPostTypesRows",
+        "MZJSyncPlatformPostTypesTextarea",
+        "__MZJ_V517_EARLY_FLOW_GUARD__"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v84",
+      "title": "// v84 hard fix: refreshDynamicSelects no longer removes platform post-type controls",
+      "start": 1094,
+      "end": 1094,
+      "lines": 1,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v83",
+      "title": "// v83 hard fix: جدول النشر - إظهار نوع النشر والأبعاد فور اختيار المنصة بدون الحاجة لتحديث الجدول",
+      "start": 1095,
+      "end": 4093,
+      "lines": 2999,
+      "functions": [
+        "MZJForceRefreshPublishAgendaPlatformTypes",
+        "__mzjUploadDetailsOpen",
+        "activeUploadProgressState",
+        "lastNotificationKeys",
+        "mzjHandleStockShotChange",
+        "notificationAudioCtx",
+        "notificationAudioUnlocked",
+        "notificationSnapshotReady"
+      ],
+      "events": 4,
+      "styles": [
+        "mzj-upload-progress-ui-style"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v32",
+      "title": "// v32: final media upload is allowed by Storage Rules during the current integration stage.",
+      "start": 4094,
+      "end": 5126,
+      "lines": 1033,
+      "functions": [
+        "activeTaskModalMeta",
+        "activeUploadProgressState",
+        "lastTime",
+        "publishPrepFirestoreReady",
+        "publishPrepSubmissionsCache"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v133",
+      "title": "// v133 exact fix: in the approved structure display we are rendering the real Excel template.",
+      "start": 5127,
+      "end": 12058,
+      "lines": 6932,
+      "functions": [
+        "__MZJ_CALENDAR_ENTRIES_BY_DATE__",
+        "forcedExecutionHeader",
+        "platformConnectionsCache",
+        "publishComposerEditingId",
+        "publishPrepFirestoreReady",
+        "publishPrepSubmissionsCache",
+        "socialMetaConnected",
+        "socialTikTokConnected",
+        "socialTikTokUser",
+        "socialYouTubeChannel",
+        "socialYouTubeConnected",
+        "val"
+      ],
+      "events": 110,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v148",
+      "title": "// v148: download fix for templates that do not contain xl/sharedStrings.xml.",
+      "start": 12059,
+      "end": 12164,
+      "lines": 106,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v156",
+      "title": "// v156 override: exact template download with creative short code, department code and user code columns.",
+      "start": 12165,
+      "end": 12248,
+      "lines": 84,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v159",
+      "title": "// v159 final fixes: exact 21 Campaign Logic fields, formatted link-code columns, ignore code-only rows.",
+      "start": 12249,
+      "end": 12390,
+      "lines": 142,
+      "functions": [
+        "downloadStructureTemplateForTaskExact",
+        "isRealStructureDistributionRow",
+        "isStructureCodeOnlyValue",
+        "structureDisplayRowHasRealExecutionData",
+        "userCodeFromIdentity"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v160",
+      "title": "// v160 fixes: hide user picker in structure distribution, filter generated code-only rows harder, and shorten visible task names.",
+      "start": 12391,
+      "end": 12503,
+      "lines": 113,
+      "functions": [
+        "collectStructurePopupMeta",
+        "isRealStructureDistributionRow",
+        "openStructureDistributionPopup",
+        "saveStructureDistributionPopup",
+        "shortTaskName",
+        "structureContentTaskLabel",
+        "structureDistributionRows"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v161",
+      "title": "// v161 fix: تجهيز النشر يقرأ تاسكات الهيكل الموزعة بعد اختيار المنصات وتاريخ النشر.",
+      "start": 12504,
+      "end": 12570,
+      "lines": 67,
+      "functions": [
+        "publishPrepTasksFromExistingTasks"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v162",
+      "title": "// v162: one structure request per campaign row, no content section inside creative step, link execution roles to all step-1 content writers.",
+      "start": 12571,
+      "end": 12693,
+      "lines": 123,
+      "functions": [
+        "buildDepartmentTasks",
+        "collectCampaignRows",
+        "ensurePanelHasAllRoleAssignments",
+        "structureRequestAdded"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v163",
+      "title": "/* v163 - per content writer structure tasks + execution users linked to selected content writers */",
+      "start": 12694,
+      "end": 12782,
+      "lines": 89,
+      "functions": [
+        "buildDepartmentTasks",
+        "contentDependencyPickerHtml",
+        "creativeAssignmentRoleBlocksHtml",
+        "refreshContentDependencyPickers",
+        "selectedContentDependency"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v164",
+      "title": "/* v164 - no default content-writer checks + remove execution angle/highlight columns from template */",
+      "start": 12783,
+      "end": 12912,
+      "lines": 130,
+      "functions": [
+        "downloadStructureTemplateForTaskExact",
+        "refreshContentDependencyPickers",
+        "selectedContentDependency"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v165",
+      "title": "/* v165 - per-user content-writer linking inside execution roles + clearer dashboard names + full task details scroll */",
+      "start": 12913,
+      "end": 13204,
+      "lines": 292,
+      "functions": [
+        "downloadStructureTemplateForTaskExact",
+        "refreshContentDependencyPickers",
+        "selectedContentDependency",
+        "selectedRoleTaskFromPanel",
+        "syncPanelDynamicState"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v171",
+      "title": "/* v171 - content task template workflow linked to execution tasks */",
+      "start": 13205,
+      "end": 13428,
+      "lines": 224,
+      "functions": [
+        "buildStructureTaskFromRow",
+        "buildTaskDetailHtml",
+        "saveStructureDistribution"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v172",
+      "title": "/* v172 - exact Task Template parser: key/value sheet uploaded by content writer */",
+      "start": 13429,
+      "end": 13591,
+      "lines": 163,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v177",
+      "title": "/* v177 - Task Template must use real uploaded file data only, never fallback to structure task fields */",
+      "start": 13592,
+      "end": 14006,
+      "lines": 415,
+      "functions": [],
+      "events": 2,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v172",
+      "title": "/* v172 - task template exact file support */",
+      "start": 14007,
+      "end": 14011,
+      "lines": 5,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v182",
+      "title": "/* v182 - keep normal task details as a vertical scrollable detail view, not the structure sheet layout */",
+      "start": 14012,
+      "end": 14025,
+      "lines": 14,
+      "functions": [
+        "openTaskModal"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v184",
+      "title": "/* v184 - Publish Prep shows approved execution tasks from structure only, with approved Task Template caption/hashtags */",
+      "start": 14026,
+      "end": 14173,
+      "lines": 148,
+      "functions": [
+        "getPublishingPrepTasks",
+        "publishPrepSearchText",
+        "publishPrepTasksFromExistingTasks"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v187",
+      "title": "/* v187 fix: make Publish Prep meta edit button open/save reliably */",
+      "start": 14174,
+      "end": 14327,
+      "lines": 154,
+      "functions": [
+        "MZJ_LAST_PATCH",
+        "openPublishPrepEditModal",
+        "savePublishPrepEditModal"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "publish_prep"
+    },
+    {
+      "version": "v188",
+      "title": "/* v188 fix: Publish Prep must list every eligible publishing task, not only the latest approved structure subset. */",
+      "start": 14328,
+      "end": 14489,
+      "lines": 162,
+      "functions": [
+        "renderPublishPrepPage"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v195",
+      "title": "/* v195 - polished Task Template naming + always open approved structure */",
+      "start": 14490,
+      "end": 14556,
+      "lines": 67,
+      "functions": [
+        "openStructureReviewPopup",
+        "renderStructureSection",
+        "shortTaskName"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v196",
+      "title": "/* v196 - Task Template clean column C + stable approved structure open for admins */",
+      "start": 14557,
+      "end": 14602,
+      "lines": 46,
+      "functions": [
+        "openStructureReviewPopup",
+        "renderStructureSection"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v197",
+      "title": "/* v197 - keep approved structure request visible for admin readiness dashboard */",
+      "start": 14603,
+      "end": 14731,
+      "lines": 129,
+      "functions": [
+        "adminDashboardTasksForCampaign",
+        "campaignTasksSnapshot",
+        "renderAdminDashboard",
+        "renderCampaignInlineTasks",
+        "v197IsMainStructureRequest"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v198",
+      "title": "/* v198 - details after structure distribution + creative types + content Task Template access */",
+      "start": 14732,
+      "end": 14894,
+      "lines": 163,
+      "functions": [
+        "buildTaskDetailHtml",
+        "findTaskById",
+        "renderCampaignInlineTasks",
+        "renderTaskDetail"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v199",
+      "title": "/* v199 - shooting executor to content writer deadline inside step 2 */",
+      "start": 14895,
+      "end": 15036,
+      "lines": 142,
+      "functions": [
+        "refreshContentDependencyPickers",
+        "selectedContentDependency",
+        "selectedRoleTaskFromPanel",
+        "syncPanelDynamicState"
+      ],
+      "events": 2,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v200",
+      "title": "/* v200 - per shooting/content-writer deadline rows */",
+      "start": 15037,
+      "end": 15207,
+      "lines": 171,
+      "functions": [
+        "selectedContentDependency",
+        "selectedRoleTaskFromPanel"
+      ],
+      "events": 2,
+      "styles": [
+        "v200ContentWriterDeadlineStyle"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v212",
+      "title": "// v212: do not rebuild shooting rows while the native calendar is being opened/used.",
+      "start": 15208,
+      "end": 15217,
+      "lines": 10,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v202",
+      "title": "/* v202 - campaign goal in step 1 and visible in all task details */",
+      "start": 15218,
+      "end": 15241,
+      "lines": 24,
+      "functions": [
+        "buildTaskDetailHtml"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v206",
+      "title": "/* v206 - show selected structure creatives and per-content-writer deadlines in step 2 */",
+      "start": 15242,
+      "end": 15468,
+      "lines": 227,
+      "functions": [
+        "buildCampaignTaskDocs",
+        "buildTaskDetailHtml",
+        "campaignWizardSetStep",
+        "collectCampaignRows",
+        "openCreativeAssignmentPopup",
+        "refreshCreativeAssignmentPanels",
+        "saveCreativeAssignmentPopup"
+      ],
+      "events": 2,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v207",
+      "title": "/* v207 - force visible content-writer deadlines in step 2 after selecting structure creatives */",
+      "start": 15469,
+      "end": 15628,
+      "lines": 160,
+      "functions": [
+        "campaignWizardSetStep"
+      ],
+      "events": 2,
+      "styles": [
+        "v207StructureDeadlineStyle"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v209",
+      "title": "/* v209 - content-writer deadlines for all execution sections */",
+      "start": 15629,
+      "end": 15656,
+      "lines": 28,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v213",
+      "title": "// v213: keep dates independent per creative + section + executor + writer.",
+      "start": 15657,
+      "end": 15813,
+      "lines": 157,
+      "functions": [
+        "selectedContentDependency",
+        "selectedRoleTaskFromPanel"
+      ],
+      "events": 2,
+      "styles": [
+        "v209AllSectionWriterDeadlinesStyle"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v210",
+      "title": "// v210: Do not re-render the assignment panel while the user is opening/using",
+      "start": 15814,
+      "end": 15826,
+      "lines": 13,
+      "functions": [],
+      "events": 1,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v211",
+      "title": "/* v211 - stable inline date selectors for linked writer deadlines */",
+      "start": 15827,
+      "end": 15929,
+      "lines": 103,
+      "functions": [],
+      "events": 7,
+      "styles": [
+        "v211StableDateSelectStyle"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v212",
+      "title": "/* v212 - restore native calendar picker and keep deadline rows stable */",
+      "start": 15930,
+      "end": 15958,
+      "lines": 29,
+      "functions": [],
+      "events": 1,
+      "styles": [
+        "v212NativeDatePickerStyle"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v217",
+      "title": "// v217: protect native date picker from later document-level rebuild/cleanup listeners.",
+      "start": 15959,
+      "end": 15981,
+      "lines": 23,
+      "functions": [],
+      "events": 2,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v213",
+      "title": "/* v213 - isolate writer deadlines per section and compact creative chooser */",
+      "start": 15982,
+      "end": 16028,
+      "lines": 47,
+      "functions": [],
+      "events": 1,
+      "styles": [
+        "v213WriterDeadlineAndCreativeCompactStyle"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v217",
+      "title": "// v217: do not touch/re-style date inputs while the picker is opening or active.",
+      "start": 16029,
+      "end": 16048,
+      "lines": 20,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v214",
+      "title": "/* v214 - remove duplicate writer deadline blocks and stop sticky inner scroll */",
+      "start": 16049,
+      "end": 16110,
+      "lines": 62,
+      "functions": [],
+      "events": 1,
+      "styles": [
+        "v214DeadlineDuplicateScrollFixStyle"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v217",
+      "title": "// v217: never run cleanup from date input events; cleanup mutates the input/row and closes the native calendar.",
+      "start": 16111,
+      "end": 16130,
+      "lines": 20,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v215",
+      "title": "/* v215 - section notes in creative assignment step 2 */",
+      "start": 16131,
+      "end": 16161,
+      "lines": 31,
+      "functions": [],
+      "events": 4,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v216",
+      "title": "/* v216 - fill structure template content type rows by selected creative quantities */",
+      "start": 16162,
+      "end": 16289,
+      "lines": 128,
+      "functions": [
+        "downloadStructureTemplateForTaskExact"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v219",
+      "title": "/* v219 - robust Task Template field reparse from stored uploaded XLSX */",
+      "start": 16290,
+      "end": 16292,
+      "lines": 3,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v220",
+      "title": "/* v220 - Dashboard Task Template badges + content approval waiting state + owner color settings */",
+      "start": 16293,
+      "end": 16543,
+      "lines": 251,
+      "functions": [
+        "campaignTasksSnapshot",
+        "fillSettingsForm",
+        "receivedClass",
+        "receivedLabel",
+        "renderAdminDashboard",
+        "renderCampaignInlineTasks",
+        "renderUsersPermissions"
+      ],
+      "events": 2,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v221",
+      "title": "/* v221 - keep owner colors in Firebase only + cleaner dashboard task number display */",
+      "start": 16544,
+      "end": 16752,
+      "lines": 209,
+      "functions": [
+        "campaignTasksSnapshot",
+        "fillSettingsForm",
+        "receivedClass",
+        "receivedLabel",
+        "renderAdminDashboard",
+        "renderCampaignInlineTasks",
+        "renderUsersPermissions"
+      ],
+      "events": 2,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v222",
+      "title": "/* v222 - show only real task number from sheet + show approved content writer beside execution assignee */",
+      "start": 16753,
+      "end": 16974,
+      "lines": 222,
+      "functions": [
+        "buildStructureTaskFromRow",
+        "campaignTasksSnapshot",
+        "mergeStructureAdditionIntoExistingTask",
+        "receivedClass",
+        "receivedLabel",
+        "renderAdminDashboard",
+        "renderCampaignInlineTasks"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v132",
+      "title": "/* v132 - exact approved structure execution headers */",
+      "start": 16975,
+      "end": 16975,
+      "lines": 1,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v223",
+      "title": "/* v223 - show approved source content writer only + full real task code as card text */",
+      "start": 16976,
+      "end": 17325,
+      "lines": 350,
+      "functions": [
+        "buildStructureTaskFromRow",
+        "campaignTasksSnapshot",
+        "mergeStructureAdditionIntoExistingTask",
+        "receivedClass",
+        "receivedLabel",
+        "renderAdminDashboard",
+        "renderCampaignInlineTasks"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v17",
+      "title": "// v17: بداية الاستخدام تكون 0 افتراضيًا دائمًا عند الاستيراد، حتى لو ملف CSV فيه قيمة مختلفة.",
+      "start": 17326,
+      "end": 18824,
+      "lines": 1499,
+      "functions": [
+        "checklistApplyingCaptionStyle",
+        "checklistRendering",
+        "checklistStudioReady",
+        "done",
+        "dragging",
+        "mzjChecklistPickVideoForShot",
+        "renderChecklistReelStudio"
+      ],
+      "events": 50,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v11",
+      "title": "// v11 player/timeline fix: real video playback preview instead of frame-by-frame seeking.",
+      "start": 18825,
+      "end": 19027,
+      "lines": 203,
+      "functions": [
+        "drawPreviewAt",
+        "previewChecklistVideo",
+        "startPreviewPlayback",
+        "toggleChecklistPreview"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v19",
+      "title": "// v19: expose checklist data for Reference Slots and CapCut draft export.",
+      "start": 19028,
+      "end": 19043,
+      "lines": 16,
+      "functions": [
+        "mzjChecklistGetActiveShots",
+        "mzjChecklistGetAllShots",
+        "mzjChecklistGetFileForShot",
+        "mzjChecklistGetMediaFiles",
+        "mzjChecklistSetNativeFileForShot"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v19",
+      "title": "/* v19 Reference-Based Editing: Slots are the selection UI + CapCut Draft export beta */",
+      "start": 19044,
+      "end": 19577,
+      "lines": 534,
+      "functions": [
+        "mzjReferenceRefreshSlots"
+      ],
+      "events": 12,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v33",
+      "title": "// v33 Local Publisher: platform/content-type times, web controls, and Electron command requests.",
+      "start": 19578,
+      "end": 19792,
+      "lines": 215,
+      "functions": [],
+      "events": 1,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v92",
+      "title": "/* MZJ v92 - Sequential creative car choice flow */",
+      "start": 19793,
+      "end": 19944,
+      "lines": 152,
+      "functions": [
+        "collectCampaignRows",
+        "creativeAssignmentPanelHtml",
+        "refreshCreativePopupPanels",
+        "selectedCarsFromCreativePanel",
+        "updateCreativePanelCarVisibility",
+        "updateProductOutput"
+      ],
+      "events": 3,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v93",
+      "title": "/* MZJ v93 - Full redesign for campaign step 2 popup: vertical creatives, cars beside, departments beside, duplicate creative instances */",
+      "start": 19945,
+      "end": 20311,
+      "lines": 367,
+      "functions": [
+        "collectCampaignRows",
+        "creativeAssignmentPanelHtml",
+        "ensureCreativeAssignmentPopup",
+        "getCreativePopupSelected",
+        "openCreativeAssignmentPopup",
+        "popupCreativeCheckboxList",
+        "refreshCreativePopupPanels",
+        "reloadCreativesForPopup",
+        "saveCreativeAssignmentPopup",
+        "setCreativePopupActive",
+        "updateProductOutput"
+      ],
+      "events": 3,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v94",
+      "title": "/* MZJ v94 - Fix step 2 redesign: only saved creatives create rows, and only ONE structure request task per campaign */",
+      "start": 20312,
+      "end": 20392,
+      "lines": 81,
+      "functions": [
+        "buildCampaignTaskDocs",
+        "collectCampaignRows"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v95",
+      "title": "/* MZJ v95 - Legacy cleanup: collapse old duplicated structure requests created by v93/v94 for existing campaigns. */",
+      "start": 20393,
+      "end": 20564,
+      "lines": 172,
+      "functions": [
+        "buildCampaignTaskDocs",
+        "cleanupCampaignDuplicateStructureRequests",
+        "mzjCollapseDuplicateStructureRequests",
+        "renderCampaignDetail",
+        "tasksForCampaign"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v98",
+      "title": "/* MZJ v98 - Larger Campaign Management budget popup with funnel totals and per-platform values. */",
+      "start": 20565,
+      "end": 20989,
+      "lines": 425,
+      "functions": [
+        "addBudgetItem",
+        "budgetItemTotal",
+        "collectBudgetRows",
+        "openCampaignEditModal",
+        "productOptions",
+        "renderBudgetSummary",
+        "renderCampaignCards",
+        "updateBudgetGrandTotal"
+      ],
+      "events": 4,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v104",
+      "title": "/* MZJ v104 - Cars in Content Execution Direction template/review. */",
+      "start": 20990,
+      "end": 20992,
+      "lines": 3,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v105",
+      "title": "/* MZJ v105 - Final structure car pipeline: task details + template + review fields. */",
+      "start": 20993,
+      "end": 21177,
+      "lines": 185,
+      "functions": [
+        "buildCampaignTaskDocs",
+        "buildTaskDetailHtml",
+        "downloadStructureTemplateForTaskExact",
+        "mzjCarsForStructureRow",
+        "mzjStructureTaskCarsText"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v106",
+      "title": "/* MZJ v106 - structure template rows only for current content writer task, no repeated 50 rows. */",
+      "start": 21178,
+      "end": 21359,
+      "lines": 182,
+      "functions": [
+        "downloadStructureTemplateForTaskExact"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v121",
+      "title": "/* v121 - campaign audit Excel export/import review only (no writes to marketing_campaigns) */",
+      "start": 21360,
+      "end": 21530,
+      "lines": 171,
+      "functions": [
+        "exportCampaignAuditWorkbook"
+      ],
+      "events": 2,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v122",
+      "title": "/* v122 - make campaign audit Excel controls visible after budget card override */",
+      "start": 21531,
+      "end": 21570,
+      "lines": 40,
+      "functions": [
+        "renderCampaignCards"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v134",
+      "title": "// v134: removed the dashboard \"رفع شيت مراجعة حملة\" tool.",
+      "start": 21571,
+      "end": 21588,
+      "lines": 18,
+      "functions": [
+        "renderAdminDashboard"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v124",
+      "title": "/* v124 - fix Campaign Audit Excel long-cell export limit (based on v123) */",
+      "start": 21589,
+      "end": 21795,
+      "lines": 207,
+      "functions": [
+        "exportCampaignAuditWorkbook",
+        "renderCampaignCards"
+      ],
+      "events": 2,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v125",
+      "title": "/* MZJ v125 - Fix structure request and template to use saved creative instances without dedupe */",
+      "start": 21796,
+      "end": 22054,
+      "lines": 259,
+      "functions": [
+        "buildCampaignTaskDocs",
+        "buildDepartmentTasks",
+        "collectCampaignRows",
+        "downloadStructureTemplateForTask",
+        "mzjCampaignCreativeRowsForStructureTask",
+        "structureTemplateRowsForTask",
+        "tasksForCampaign"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v126",
+      "title": "/* MZJ v126 - restore exact styled structure template while keeping v125 multi-instance rows. */",
+      "start": 22055,
+      "end": 22218,
+      "lines": 164,
+      "functions": [
+        "downloadStructureTemplateForTask"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v127",
+      "title": "/* MZJ v127 - fix structure template download trigger and fallback. */",
+      "start": 22219,
+      "end": 22396,
+      "lines": 178,
+      "functions": [
+        "downloadStructureTemplateForTask"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v128",
+      "title": "/* MZJ v128 - use the real styled structure Excel template file and fill rows without fallback ugly sheet. */",
+      "start": 22397,
+      "end": 23858,
+      "lines": 1462,
+      "functions": [
+        "downloadStructureTemplateForTask",
+        "downloadStructureTemplateForTaskExact"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v139",
+      "title": "/* v139 - safe Storage persistence for Structure + Task Template, no departmentTasks map corruption */",
+      "start": 23859,
+      "end": 24102,
+      "lines": 244,
+      "functions": [
+        "ensureStructureSheetLoaded",
+        "reloadStructureSheetFromStoredFile",
+        "setStructureStatus",
+        "targetCampaign",
+        "targetTask",
+        "tasksForCampaign",
+        "updateTaskOnFirebase",
+        "uploadStructureFileForTask"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v140",
+      "title": "/* v140 - explicit structure upload UI + array-only recovery for structure and Task Template storage */",
+      "start": 24103,
+      "end": 24302,
+      "lines": 200,
+      "functions": [
+        "ensureStructureSheetLoaded",
+        "isCampaignStructureTask",
+        "matched",
+        "reloadStructureSheetFromStoredFile",
+        "renderStructureSection",
+        "renderStructureWorkbookTable",
+        "tasksForCampaign",
+        "updateTaskOnFirebase",
+        "uploadStructureFileForTask"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v141",
+      "title": "/* v141 - fix receive persistence + Task Template upload on Storage only */",
+      "start": 24303,
+      "end": 24595,
+      "lines": 293,
+      "functions": [
+        "buildTaskDetailHtml",
+        "matched",
+        "toggleTaskReceived",
+        "updateTaskOnFirebase"
+      ],
+      "events": 2,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v142",
+      "title": "/* v142 - targeted fix: non-content receive persistence + Task Template upload visibility, without changing campaign creation */",
+      "start": 24596,
+      "end": 24648,
+      "lines": 53,
+      "functions": [
+        "buildTaskDetailHtml",
+        "tasksForCampaign"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v143",
+      "title": "/* v143 - dedupe Task Template tasks and show approved content template on execution tasks only */",
+      "start": 24649,
+      "end": 24805,
+      "lines": 157,
+      "functions": [
+        "buildTaskDetailHtml",
+        "findTaskById",
+        "refreshOpenTaskModal",
+        "tasksForCampaign"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v144",
+      "title": "/* v144 - show approved content Task Template fields inside linked execution task details only */",
+      "start": 24806,
+      "end": 25004,
+      "lines": 199,
+      "functions": [
+        "buildTaskDetailHtml",
+        "findTaskById",
+        "tasksForCampaign"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v146",
+      "title": "/* v146 - targeted recovery from v144: multi content structure uploads + approved content template in execution details + hide aggregate tasks */",
+      "start": 25005,
+      "end": 25284,
+      "lines": 280,
+      "functions": [
+        "buildTaskDetailHtml",
+        "findTaskById",
+        "taskStructure",
+        "tasksForCampaign",
+        "uploadStructureFileForTask"
+      ],
+      "events": 0,
+      "styles": [
+        "v146-approved-content-style"
+      ],
+      "category": "task_template"
+    },
+    {
+      "version": "v152",
+      "title": "/* v152 - independent upload documents for Structure + Task Template (no campaign doc growth) */",
+      "start": 25285,
+      "end": 25585,
+      "lines": 301,
+      "functions": [
+        "__MZJ_INDEPENDENT_UPLOADS__",
+        "findTaskById",
+        "taskStructure",
+        "tasksForCampaign",
+        "updateTaskOnFirebase",
+        "uploadStructureFileForTask"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v401",
+      "title": "/* v401 - campaign structure flow fix: one structure task per content writer, preserve creative-car mapping, user-specific structure upload badges, keep execution tasks waiting unt",
+      "start": 25586,
+      "end": 25809,
+      "lines": 224,
+      "functions": [
+        "buildCampaignTaskDocs",
+        "buildDepartmentTasks",
+        "isTaskWaitingForDependency",
+        "taskStructure",
+        "tasksForCampaign"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v402",
+      "title": "/* v402 - hide pre-approval execution waiting tasks from content writers. */",
+      "start": 25810,
+      "end": 25858,
+      "lines": 49,
+      "functions": [
+        "getVisibleTasksForCurrentUser"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v404",
+      "title": "/* v404 - content structure upload is per writer + content template tasks appear only after structure approval. */",
+      "start": 25859,
+      "end": 25994,
+      "lines": 136,
+      "functions": [
+        "getVisibleTasksForCurrentUser",
+        "taskStructure",
+        "taskStructureAttached",
+        "taskStructureAttachedBadge"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v405",
+      "title": "/* v405 - Task Template ownership per content writer + approved content data on all linked execution tasks. */",
+      "start": 25995,
+      "end": 26221,
+      "lines": 227,
+      "functions": [
+        "buildTaskDetailHtml",
+        "findTaskById",
+        "taskTemplateBadge",
+        "tasksForCampaign"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v409",
+      "title": "/* v409 - multi-department user membership: content writer tasks should not depend on single user.department field. */",
+      "start": 26222,
+      "end": 26357,
+      "lines": 136,
+      "functions": [
+        "buildDepartmentTasks",
+        "departmentForUser",
+        "getVisibleTasksForCurrentUser",
+        "tasksForCampaign",
+        "usersForRole"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v411",
+      "title": "/* v411 - content dependency split: execution waiting tasks are scoped per content writer; v410 wizard UI reverted by building from v409 base. */",
+      "start": 26358,
+      "end": 26529,
+      "lines": 172,
+      "functions": [
+        "buildDepartmentTasks",
+        "renderTaskCard",
+        "taskDependencyApproved"
+      ],
+      "events": 0,
+      "styles": [
+        "v411-content-waiting-chip-style"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v414",
+      "title": "/* MZJ v414 - Four-stage Campaign Builder + clean studio safeguards */",
+      "start": 26530,
+      "end": 26659,
+      "lines": 130,
+      "functions": [
+        "campaignWizardMove",
+        "campaignWizardSetStep",
+        "openCreativeAssignmentPopup"
+      ],
+      "events": 2,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v417",
+      "title": "/* MZJ v417 - Creative Studio UX + wizard navigation hard fix */",
+      "start": 26660,
+      "end": 26731,
+      "lines": 72,
+      "functions": [
+        "openCreativeAssignmentPopup"
+      ],
+      "events": 4,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v418",
+      "title": "/* MZJ v418 - Creative Studio polish: full overlay, clean current header, search focus */",
+      "start": 26732,
+      "end": 26779,
+      "lines": 48,
+      "functions": [
+        "openCreativeAssignmentPopup"
+      ],
+      "events": 2,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v423",
+      "title": "/* MZJ v423 - Safe UI only: show selected creative details as 4 cards without touching save logic */",
+      "start": 26780,
+      "end": 26856,
+      "lines": 77,
+      "functions": [
+        "creativeAssignmentPanelHtml",
+        "openCreativeAssignmentPopup"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v426",
+      "title": "/* MZJ v426 - dashboard content phase visibility: structure first, execution waiting after approval */",
+      "start": 26857,
+      "end": 26996,
+      "lines": 140,
+      "functions": [
+        "getVisibleTasksForCurrentUser"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v427",
+      "title": "/* MZJ v427 - strict content writer dashboard: hide execution tasks until that writer structure is admin-approved */",
+      "start": 26997,
+      "end": 27131,
+      "lines": 135,
+      "functions": [
+        "getVisibleTasksForCurrentUser"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v428",
+      "title": "/* MZJ v428 - hard gate execution waiting tasks when current user still has pending content structure in same campaign */",
+      "start": 27132,
+      "end": 27285,
+      "lines": 154,
+      "functions": [
+        "getVisibleTasksForCurrentUser"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v429",
+      "title": "/* MZJ v429 - robust content structure dashboard visibility by writer assignment */",
+      "start": 27286,
+      "end": 27482,
+      "lines": 197,
+      "functions": [
+        "getVisibleTasksForCurrentUser",
+        "shortTaskName"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v430",
+      "title": "/* MZJ v430 - exact content structure owner visibility + detail open fix */",
+      "start": 27483,
+      "end": 27579,
+      "lines": 97,
+      "functions": [
+        "getVisibleTasksForCurrentUser",
+        "renderTaskDetail"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v431",
+      "title": "/* MZJ v431 - keep waiting tasks visible for non-content assignees while content structure is pending */",
+      "start": 27580,
+      "end": 27744,
+      "lines": 165,
+      "functions": [
+        "getVisibleTasksForCurrentUser"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v432",
+      "title": "/* MZJ v432 - authoritative one execution task per executor/content-writer pair (no car/quantity duplicates) */",
+      "start": 27745,
+      "end": 28064,
+      "lines": 320,
+      "functions": [
+        "buildDepartmentTasks"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v446",
+      "title": "/* MZJ v446 - authoritative dashboard visibility from stored executor/content pairs */",
+      "start": 28065,
+      "end": 28301,
+      "lines": 237,
+      "functions": [
+        "adminDashboardTasksForCampaign",
+        "campaignTasksSnapshot",
+        "getVisibleTasksForCurrentUser",
+        "renderTaskDetail"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v447",
+      "title": "/* MZJ v447 - content structure count label + detailed PDF budget by creative/platform */",
+      "start": 28302,
+      "end": 28381,
+      "lines": 80,
+      "functions": [
+        "renderBudgetSummary"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v448",
+      "title": "/* MZJ v448 - clean legacy task generation and rebuild canonical executor/content pairs */",
+      "start": 28382,
+      "end": 28825,
+      "lines": 444,
+      "functions": [
+        "adminDashboardTasksForCampaign",
+        "buildDepartmentTasks",
+        "campaignTasksSnapshot",
+        "getVisibleTasksForCurrentUser",
+        "renderTaskDetail"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v450",
+      "title": "/* MZJ v450 - exact executive dashboard task detail by card key */",
+      "start": 28826,
+      "end": 28933,
+      "lines": 108,
+      "functions": [
+        "findTaskById",
+        "openTaskModal",
+        "renderTaskDetail"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v450",
+      "title": "// v450: لا نعتمد على ترتيب الكروت بصرياً/DOM لأن RTL والجروبات ممكن تعكس الترتيب.",
+      "start": 28934,
+      "end": 28973,
+      "lines": 40,
+      "functions": [
+        "renderUserDashboard"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v452",
+      "title": "/* MZJ v452 - force executive detail from clicked card writer/pair */",
+      "start": 28974,
+      "end": 29171,
+      "lines": 198,
+      "functions": [
+        "buildTaskDetailHtml",
+        "findTaskById",
+        "openTaskModal",
+        "renderTaskDetail",
+        "renderUserDashboard"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v453",
+      "title": "/* MZJ v453 - hard patch executive detail writer field after render */",
+      "start": 29172,
+      "end": 29341,
+      "lines": 170,
+      "functions": [
+        "MZJ_FORCED_DETAIL_TASK",
+        "findTaskById",
+        "openTaskModal",
+        "renderTaskDetail"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v454",
+      "title": "/* MZJ v454 - writer-owned structure + content template waiting tasks + reliable receive */",
+      "start": 29342,
+      "end": 29528,
+      "lines": 187,
+      "functions": [
+        "buildTaskDetailHtml",
+        "findTaskById",
+        "getVisibleTasksForCurrentUser",
+        "taskStructure",
+        "toggleTaskReceived"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v455",
+      "title": "/* MZJ v455 - direct Firebase task receipt + writer-owned structure authoritative */",
+      "start": 29529,
+      "end": 29685,
+      "lines": 157,
+      "functions": [
+        "MZJ_DIRECT_PATCH_TASK",
+        "toggleTaskReceived",
+        "updateTaskOnFirebase",
+        "uploadStructureFileForTask"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v456",
+      "title": "/* MZJ v456 - real content flow: receive + writer owned structure + template tasks from all sources */",
+      "start": 29686,
+      "end": 29869,
+      "lines": 184,
+      "functions": [
+        "MZJ_V456_LOCATE_TASK",
+        "MZJ_V456_PATCH_TASK",
+        "campaignForTask",
+        "findTaskById",
+        "getVisibleTasksForCurrentUser",
+        "tasksForCampaign",
+        "toggleTaskReceived",
+        "updateTaskOnFirebase"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v457",
+      "title": "/* MZJ v457 - canonical writer-owned structures and per-task template documents */",
+      "start": 29870,
+      "end": 30197,
+      "lines": 328,
+      "functions": [
+        "MZJ_V457_LISTENERS_READY",
+        "findTaskById",
+        "getVisibleTasksForCurrentUser",
+        "saveStructureDistribution",
+        "setStructureStatus",
+        "taskStructure",
+        "tasksForCampaign",
+        "updateTaskOnFirebase"
+      ],
+      "events": 3,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v458",
+      "title": "/* MZJ v458 - hard writer-owned structure receive and template flow */",
+      "start": 30198,
+      "end": 30430,
+      "lines": 233,
+      "functions": [
+        "MZJ_V458_LISTENERS_READY",
+        "findTaskById",
+        "saveStructureDistribution",
+        "taskStructure"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v459",
+      "title": "/* MZJ v459 - receive button campaign id from task id */",
+      "start": 30431,
+      "end": 30438,
+      "lines": 8,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "task_details"
+    },
+    {
+      "version": "v461",
+      "title": "/* MZJ v461 - hard override receive content task from current campaigns */",
+      "start": 30439,
+      "end": 30582,
+      "lines": 144,
+      "functions": [
+        "MZJ_APP_VERSION",
+        "MZJ_LAST_PATCH",
+        "MZJ_V461_RECEIVE_CLICK_BOUND",
+        "MZJ_V461_RECEIVE_TASK",
+        "toggleTaskReceived"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "task_details"
+    },
+    {
+      "version": "v462",
+      "title": "/* MZJ v462 - hard isolate campaign structure uploads per content writer */",
+      "start": 30583,
+      "end": 30786,
+      "lines": 204,
+      "functions": [
+        "findTaskById",
+        "taskStructure",
+        "taskStructureAttached",
+        "taskStructureAttachedBadge",
+        "tasksForCampaign",
+        "uploadStructureFileForTask"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v463",
+      "title": "/* MZJ v463 - guarantee content Task Template visibility after approved structure distribution */",
+      "start": 30787,
+      "end": 30988,
+      "lines": 202,
+      "functions": [
+        "getVisibleTasksForCurrentUser",
+        "saveStructureDistribution"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v464",
+      "title": "/* MZJ v464 - approved structure owner is authoritative for Task Template distribution */",
+      "start": 30989,
+      "end": 31163,
+      "lines": 175,
+      "functions": [
+        "getVisibleTasksForCurrentUser",
+        "saveStructureDistribution"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v465",
+      "title": "/* MZJ v465 - sync Task Template receive/upload state to admin dashboard */",
+      "start": 31164,
+      "end": 31345,
+      "lines": 182,
+      "functions": [
+        "MZJ_TASK_TEMPLATE_DOCS",
+        "findTaskById",
+        "taskTemplateAttached",
+        "taskTemplateBadge",
+        "toggleTaskReceived"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v465b",
+      "title": "/* MZJ v465b - preserve raw campaign Task Template state before virtual regeneration */",
+      "start": 31346,
+      "end": 31367,
+      "lines": 22,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v466",
+      "title": "/* MZJ v466 - approve Task Template without hiding existing execution tasks + close popup */",
+      "start": 31368,
+      "end": 31476,
+      "lines": 109,
+      "functions": [],
+      "events": 1,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v467",
+      "title": "/* MZJ v467 - restore already distributed tasks after Task Template approval */",
+      "start": 31477,
+      "end": 31594,
+      "lines": 118,
+      "functions": [
+        "getVisibleTasksForCurrentUser",
+        "v171ApproveTaskTemplate"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v468",
+      "title": "/* MZJ v468 - exact Task Template attachment/approval scope + dashboard dedupe */",
+      "start": 31595,
+      "end": 31743,
+      "lines": 149,
+      "functions": [
+        "taskTemplateAttached",
+        "taskTemplateBadge",
+        "v171ApproveTaskTemplate"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v470",
+      "title": "/* MZJ v470 - single-source structure distribution, no duplicate generated tasks */",
+      "start": 31744,
+      "end": 31847,
+      "lines": 104,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v491",
+      "title": "/* MZJ v491 - rebuilt campaign/task flow from scratch around sheet codes */",
+      "start": 31848,
+      "end": 32019,
+      "lines": 172,
+      "functions": [
+        "adminDashboardTasksForCampaign",
+        "buildDepartmentTasks",
+        "getVisibleTasksForCurrentUser",
+        "saveStructureDistribution",
+        "setStructureStatus",
+        "tasksForCampaign",
+        "toggleTaskReceived"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v492",
+      "title": "/* MZJ v492 - structure approve triggers clean distribution immediately */",
+      "start": 32020,
+      "end": 32045,
+      "lines": 26,
+      "functions": [
+        "setStructureStatus"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v493",
+      "title": "/* MZJ v493 - Task Template review buttons update execution task by sheet-code keys */",
+      "start": 32046,
+      "end": 32183,
+      "lines": 138,
+      "functions": [
+        "matchedExec",
+        "v493DecideTaskTemplate"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v498",
+      "title": "/* MZJ v498 - authoritative approval writes campaign departmentTasks after distribution */",
+      "start": 32184,
+      "end": 32259,
+      "lines": 76,
+      "functions": [
+        "MZJ_v498_approveStructureAuthoritative",
+        "MZJ_v498_decideTemplateAuthoritative"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v494",
+      "title": "/* MZJ v494 - hard override structure approval + task template approval by sheet codes */",
+      "start": 32260,
+      "end": 32326,
+      "lines": 67,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v495",
+      "title": "// v495: match by the sheet-code key, but do not fail when the older execution card",
+      "start": 32327,
+      "end": 32406,
+      "lines": 80,
+      "functions": [
+        "MZJ_v494_approveStructureHard",
+        "MZJ_v494_decideTemplateHard",
+        "matched"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v499",
+      "title": "/* MZJ v499 - post-distribution authoritative sync for approved structures */",
+      "start": 32407,
+      "end": 32538,
+      "lines": 132,
+      "functions": [
+        "MZJ_v498_approveStructureAuthoritative",
+        "MZJ_v499_hardSyncApprovedStructure"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v500",
+      "title": "/* MZJ v500 - cache-busted approved structure watcher and stale execution task fixer */",
+      "start": 32539,
+      "end": 32602,
+      "lines": 64,
+      "functions": [
+        "MZJ_v499_hardSyncApprovedStructure",
+        "MZJ_v500_syncAllApprovedStructures"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v501",
+      "title": "/* MZJ v501 - fix approved structure no longer shown as waiting for structure + realtime campaign cleanup */",
+      "start": 32603,
+      "end": 32660,
+      "lines": 58,
+      "functions": [
+        "MZJ_v499_hardSyncApprovedStructure",
+        "MZJ_v500_syncAllApprovedStructures",
+        "MZJ_v501_syncAllApprovedStructures",
+        "MZJ_v501_syncApprovedStructureCampaign"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v502",
+      "title": "/* MZJ v502 - luxury user task details layout only */",
+      "start": 32661,
+      "end": 32946,
+      "lines": 286,
+      "functions": [
+        "anchor",
+        "openTaskModal",
+        "refreshOpenTaskModal"
+      ],
+      "events": 2,
+      "styles": [
+        "mzj-v502-task-detail-style"
+      ],
+      "category": "dashboard"
+    },
+    {
+      "version": "v503",
+      "title": "/* v503 - stable readiness inline task expansion only */",
+      "start": 32947,
+      "end": 33062,
+      "lines": 116,
+      "functions": [
+        "MZJ_V503_OPEN_READY_CAMPAIGN",
+        "renderAdminDashboard",
+        "toggleCampaignInlineTasks"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v504",
+      "title": "/* v504 - robust user task detail assignment actions only */",
+      "start": 33063,
+      "end": 33177,
+      "lines": 115,
+      "functions": [],
+      "events": 1,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v505",
+      "title": "/* v505 - strict first content user approval waiting detector only */",
+      "start": 33178,
+      "end": 33296,
+      "lines": 119,
+      "functions": [
+        "MZJ_v505_needsContentApproval",
+        "campaignTasksSnapshot",
+        "receivedClass",
+        "receivedLabel",
+        "renderAdminDashboard"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v506",
+      "title": "/* v506 - split execution dashboard cards per linked content writer */",
+      "start": 33297,
+      "end": 33469,
+      "lines": 173,
+      "functions": [
+        "MZJ_v506_splitExecByLinkedWriters",
+        "adminDashboardTasksForCampaign",
+        "buildDepartmentTasks",
+        "campaignTasksSnapshot",
+        "getVisibleTasksForCurrentUser",
+        "tasksForCampaign"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v507",
+      "title": "/* v507 - use legacy per-writer execution pairing logic from v470 without importing old bugs */",
+      "start": 33470,
+      "end": 33542,
+      "lines": 73,
+      "functions": [
+        "buildDepartmentTasks"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v508",
+      "title": "/* v508 - repair dashboard campaign snapshot after v507 per-writer split */",
+      "start": 33543,
+      "end": 33597,
+      "lines": 55,
+      "functions": [
+        "MZJ_LAST_PATCH",
+        "campaignTasksSnapshot"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v509",
+      "title": "/* v509 - professional Task Template review + readable approved script layout (UI/read only) */",
+      "start": 33598,
+      "end": 33763,
+      "lines": 166,
+      "functions": [
+        "MZJ_v509_taskTemplateFields",
+        "buildTaskDetailHtml",
+        "v171OpenTaskTemplateReview",
+        "v175RenderTaskTemplateReviewView"
+      ],
+      "events": 0,
+      "styles": [
+        "v509-task-template-layout-style"
+      ],
+      "category": "task_template"
+    },
+    {
+      "version": "v510",
+      "title": "/* v510 - stabilize content structure count + persist approved Task Template display after refresh */",
+      "start": 33764,
+      "end": 33977,
+      "lines": 214,
+      "functions": [
+        "adminDashboardTasksForCampaign",
+        "buildDepartmentTasks",
+        "buildTaskDetailHtml",
+        "findTaskById",
+        "getVisibleTasksForCurrentUser",
+        "tasksForCampaign"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v516",
+      "title": "/* MZJ v516 - final campaign flow rewrite from source (structure -> content template -> execution) */",
+      "start": 33978,
+      "end": 34088,
+      "lines": 111,
+      "functions": [
+        "MZJ_v516_approveStructure",
+        "MZJ_v516_decideTaskTemplate",
+        "buildDepartmentTasks",
+        "isTaskWaitingForDependency",
+        "setStructureStatus",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v519",
+      "title": "/* v519 - approved Task Template release + clean visible task numbers + no final-file gate for content tasks */",
+      "start": 34089,
+      "end": 34252,
+      "lines": 164,
+      "functions": [
+        "buildTaskDetailHtml",
+        "isTaskWaitingForDependency",
+        "publishPrepHasFinalFile",
+        "shortTaskName",
+        "structureTaskNumber",
+        "taskWorkflowStatus",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v520",
+      "title": "/* v520 - strict Task Template approval matching: no duplicate content cards, no broad template injection */",
+      "start": 34253,
+      "end": 34401,
+      "lines": 149,
+      "functions": [
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v519_approveTaskTemplate",
+        "MZJ_v520_approveTaskTemplate",
+        "v171ApproveTaskTemplate",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v522",
+      "title": "/* v522 - structure approval releases same writer execution tasks; Task Template data is scoped by full task code suffix (B01/N01) */",
+      "start": 34402,
+      "end": 34562,
+      "lines": 161,
+      "functions": [
+        "MZJ_v516_approveStructure",
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v520_approveTaskTemplate",
+        "MZJ_v522_approveStructure",
+        "MZJ_v522_decideTaskTemplate",
+        "isTaskWaitingForDependency",
+        "v171ApproveTaskTemplate",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v523",
+      "title": "/* v523 - unified task-code templates + exact approved template scope + exec stays active, not completed */",
+      "start": 34563,
+      "end": 34760,
+      "lines": 198,
+      "functions": [
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v520_approveTaskTemplate",
+        "MZJ_v522_decideTaskTemplate",
+        "MZJ_v523_decideTaskTemplate",
+        "shortTaskName",
+        "structureTaskNumber",
+        "taskWorkflowStatus",
+        "v171ApproveTaskTemplate",
+        "v174SetTaskTemplateDecision",
+        "v194TaskTemplateSeedValues"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v524",
+      "title": "/* MZJ v524 - authoritative campaign document linking: structure -> template -> exact execution */",
+      "start": 34761,
+      "end": 34852,
+      "lines": 92,
+      "functions": [
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v520_approveTaskTemplate",
+        "MZJ_v522_decideTaskTemplate",
+        "MZJ_v523_decideTaskTemplate",
+        "MZJ_v524_approveStructure",
+        "MZJ_v524_decideTaskTemplate",
+        "saveStructureDistribution",
+        "shortTaskName",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "structure"
+    },
+    {
+      "version": "v525",
+      "title": "/* MZJ v525 - strict user-facing task suffixes + exact approved template visibility */",
+      "start": 34853,
+      "end": 34920,
+      "lines": 68,
+      "functions": [
+        "MZJ_v525_decideTaskTemplate",
+        "actualTaskNo",
+        "shortTaskName",
+        "structureTaskNumber"
+      ],
+      "events": 0,
+      "styles": [
+        "v525-approved-content-style"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v526",
+      "title": "/* MZJ v526 - hard stop broad template fallback + forced user-facing suffix everywhere */",
+      "start": 34921,
+      "end": 34991,
+      "lines": 71,
+      "functions": [
+        "actualTaskNo",
+        "shortTaskName",
+        "structureTaskNumber"
+      ],
+      "events": 0,
+      "styles": [
+        "v526-template-style"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v527",
+      "title": "/* MZJ v527 - no template bleed: exact suffix/pair only + execution never completed by content template */",
+      "start": 34992,
+      "end": 35072,
+      "lines": 81,
+      "functions": [
+        "MZJ_v527_decideTaskTemplate"
+      ],
+      "events": 0,
+      "styles": [
+        "v527-template-style"
+      ],
+      "category": "task_template"
+    },
+    {
+      "version": "v528",
+      "title": "/* MZJ v528 - one-to-one content template binding; content completes, execution stays manual */",
+      "start": 35073,
+      "end": 35168,
+      "lines": 96,
+      "functions": [
+        "MZJ_v528_decideTaskTemplate"
+      ],
+      "events": 0,
+      "styles": [
+        "v528-template-style"
+      ],
+      "category": "task_template"
+    },
+    {
+      "version": "v529",
+      "title": "/* MZJ v529 - fix Task Template review buttons id binding */",
+      "start": 35169,
+      "end": 35237,
+      "lines": 69,
+      "functions": [
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v524_decideTaskTemplate",
+        "MZJ_v525_decideTaskTemplate",
+        "MZJ_v526_decideTaskTemplate",
+        "MZJ_v527_decideTaskTemplate",
+        "MZJ_v528_decideTaskTemplate",
+        "MZJ_v529_decideTaskTemplate",
+        "v171OpenTaskTemplateReview",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v530",
+      "title": "/* MZJ v530 - define campaign collection global for Task Template approval handlers */",
+      "start": 35238,
+      "end": 35269,
+      "lines": 32,
+      "functions": [
+        "MZJ_LAST_PATCH",
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v524_decideTaskTemplate",
+        "MZJ_v525_decideTaskTemplate",
+        "MZJ_v526_decideTaskTemplate",
+        "MZJ_v527_decideTaskTemplate",
+        "MZJ_v528_decideTaskTemplate",
+        "MZJ_v529_decideTaskTemplate",
+        "MZJ_v530_decideTaskTemplate",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v531",
+      "title": "/* MZJ v531 - clean create campaign page and one-to-one clean creation model */",
+      "start": 35270,
+      "end": 35791,
+      "lines": 522,
+      "functions": [
+        "MZJ_v531_buildCleanDepartmentTasks",
+        "MZJ_v531_renderCreateCampaign"
+      ],
+      "events": 4,
+      "styles": [
+        "v550SavedCreativeList",
+        "v550SavedCreatives"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v533",
+      "title": "/* MZJ v533 - clean one-page create campaign layout matching approved concept */",
+      "start": 35792,
+      "end": 35890,
+      "lines": 99,
+      "functions": [
+        "renderRoute"
+      ],
+      "events": 1,
+      "styles": [
+        "v533CreateCampaignStyle"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v534",
+      "title": "/* MZJ v534 - hard clean create campaign DOM and fit approved one-page layout */",
+      "start": 35891,
+      "end": 35957,
+      "lines": 67,
+      "functions": [],
+      "events": 1,
+      "styles": [
+        "v534CreateCampaignStyle"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v543",
+      "title": "/* MZJ v543 - v537/v538 legacy create-campaign overrides removed; stable v543 logic below */",
+      "start": 35958,
+      "end": 35959,
+      "lines": 2,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v543",
+      "title": "/* MZJ v543 - stable creative selection from v538 source */",
+      "start": 35960,
+      "end": 36019,
+      "lines": 60,
+      "functions": [],
+      "events": 2,
+      "styles": [
+        "v543CreateCampaignStableStyle"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v545",
+      "title": "/* MZJ v545 - safe create campaign layout cleanup from v543 */",
+      "start": 36020,
+      "end": 36132,
+      "lines": 113,
+      "functions": [],
+      "events": 3,
+      "styles": [
+        "v545CreateCampaignSafeStyle"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v546",
+      "title": "/* MZJ v546 - targeted create campaign visual cleanup from v545 */",
+      "start": 36133,
+      "end": 36207,
+      "lines": 75,
+      "functions": [],
+      "events": 2,
+      "styles": [
+        "v546CreateCampaignTargetedStyle"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v548",
+      "title": "/* MZJ v548 - saved creative cards and inline content-writer receiving dates */",
+      "start": 36208,
+      "end": 36282,
+      "lines": 75,
+      "functions": [],
+      "events": 3,
+      "styles": [
+        "v548CreateCampaignSaveStyle"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v550",
+      "title": "/* MZJ v550 - multiple saved creatives container */",
+      "start": 36283,
+      "end": 36303,
+      "lines": 21,
+      "functions": [],
+      "events": 1,
+      "styles": [
+        "v550SavedCreativeStyle"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v552",
+      "title": "/* MZJ v552 - stable inline writer receiving date picker */",
+      "start": 36304,
+      "end": 36394,
+      "lines": 91,
+      "functions": [],
+      "events": 3,
+      "styles": [
+        "v551InlineWriterDateFixStyle"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v553",
+      "title": "/* MZJ v553 - remove legacy empty review-save panel */",
+      "start": 36395,
+      "end": 36457,
+      "lines": 63,
+      "functions": [],
+      "events": 2,
+      "styles": [
+        "v553RemoveEmptyReviewSaveStyle"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v557",
+      "title": "/* MZJ v557 - reliable car search and marketing_campaigns save guard */",
+      "start": 36458,
+      "end": 36607,
+      "lines": 150,
+      "functions": [
+        "saveCampaignToFirebase"
+      ],
+      "events": 3,
+      "styles": [
+        "v557CarSearchStyle"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v558",
+      "title": "/* MZJ v558 - single campaign save guard: prevent duplicate marketing_campaigns writes */",
+      "start": 36608,
+      "end": 36679,
+      "lines": 72,
+      "functions": [
+        "__MZJ_CREATE_CAMPAIGN_SAVING__",
+        "originalSaveFn"
+      ],
+      "events": 2,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v559",
+      "title": "/* MZJ v559 - user dashboards/cards/details only (content + execution), keep theme/background intact */",
+      "start": 36680,
+      "end": 36976,
+      "lines": 297,
+      "functions": [
+        "buildTaskDetailHtml",
+        "renderUserDashboard"
+      ],
+      "events": 1,
+      "styles": [
+        "v559UserCardsDetailsStyle"
+      ],
+      "category": "dashboard"
+    },
+    {
+      "version": "v560",
+      "title": "/* MZJ v560 - user dashboard transparency + safe creative labels */",
+      "start": 36977,
+      "end": 36995,
+      "lines": 19,
+      "functions": [],
+      "events": 1,
+      "styles": [
+        "v560UserTransparencyFix"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v568",
+      "title": "/* MZJ v568 - multi-department user dashboard without section switching; do not change content flow */",
+      "start": 36996,
+      "end": 37181,
+      "lines": 186,
+      "functions": [
+        "buildTaskDetailHtml",
+        "renderUserDashboard",
+        "toggleTaskStep"
+      ],
+      "events": 1,
+      "styles": [
+        "v568MultiDeptDashboardStyle"
+      ],
+      "category": "dashboard"
+    },
+    {
+      "version": "v569",
+      "title": "/* MZJ v569 - show campaign selected cars in content structure task details/dashboard without changing theme */",
+      "start": 37182,
+      "end": 37235,
+      "lines": 54,
+      "functions": [
+        "buildTaskDetailHtml"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v570",
+      "title": "/* MZJ v570 - clean structure and task template review engine */",
+      "start": 37236,
+      "end": 37431,
+      "lines": 196,
+      "functions": [],
+      "events": 4,
+      "styles": [
+        "v570CleanReviewStyle"
+      ],
+      "category": "task_template"
+    },
+    {
+      "version": "v581",
+      "title": "/* MZJ v581 - targeted flow fixes only: structure label, safe Task Template approval, linked content label */",
+      "start": 37432,
+      "end": 37501,
+      "lines": 70,
+      "functions": [
+        "MZJ_v516_approveStructure",
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v570_approveStructure",
+        "MZJ_v570_decideTaskTemplate",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v583",
+      "title": "/* MZJ v583 - targeted Task Template approval/detail fixes only */",
+      "start": 37502,
+      "end": 37614,
+      "lines": 113,
+      "functions": [
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v570_decideTaskTemplate",
+        "MZJ_v583_decideTaskTemplate",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v584",
+      "title": "/* MZJ v584 - inline review notes visibility + execution detail cleanup */",
+      "start": 37615,
+      "end": 37663,
+      "lines": 49,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v585",
+      "title": "/* MZJ v585 - persistent inline review notes + keep execution tasks execution after Task Template approval */",
+      "start": 37664,
+      "end": 37820,
+      "lines": 157,
+      "functions": [],
+      "events": 0,
+      "styles": [
+        "mzj-v585-style"
+      ],
+      "category": "task_template"
+    },
+    {
+      "version": "v586",
+      "title": "/* MZJ v586 - unified review notes storage + hard execution task lock after template approval */",
+      "start": 37821,
+      "end": 37918,
+      "lines": 98,
+      "functions": [],
+      "events": 1,
+      "styles": [
+        "mzj-v586-style"
+      ],
+      "category": "task_template"
+    },
+    {
+      "version": "v588",
+      "title": "/* MZJ v588 - strict Task Template vs execution separation after structure/template approval */",
+      "start": 37919,
+      "end": 38056,
+      "lines": 138,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v589",
+      "title": "/* MZJ v589 - only requested fixes: one approved Task Template section + safer multi-creative saving */",
+      "start": 38057,
+      "end": 38140,
+      "lines": 84,
+      "functions": [],
+      "events": 1,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v590",
+      "title": "/* MZJ v590 - strict multi creative in create campaign builder */",
+      "start": 38141,
+      "end": 38154,
+      "lines": 14,
+      "functions": [],
+      "events": 1,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v589b",
+      "title": "/* MZJ v589b - save current creative before choosing the next one */",
+      "start": 38155,
+      "end": 38176,
+      "lines": 22,
+      "functions": [],
+      "events": 1,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v593",
+      "title": "/* MZJ v593 - clean content-exec linking + safe template upload + dashboard cards */",
+      "start": 38177,
+      "end": 38407,
+      "lines": 231,
+      "functions": [],
+      "events": 3,
+      "styles": [
+        "mzj-v593-style"
+      ],
+      "category": "dashboard"
+    },
+    {
+      "version": "v612",
+      "title": "/* MZJ v612 - old-source safe create layout + per executor content writer/date + exact exec status */",
+      "start": 38408,
+      "end": 38611,
+      "lines": 204,
+      "functions": [],
+      "events": 4,
+      "styles": [
+        "mzj-v612-style"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v615",
+      "title": "/* MZJ v615 - transplanted v603 create link behavior on v612 */",
+      "start": 38612,
+      "end": 38683,
+      "lines": 72,
+      "functions": [],
+      "events": 2,
+      "styles": [
+        "v603AuthoritativeStyle"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v615",
+      "title": "/* MZJ v615 - capture create-campaign save buttons for transplanted v603 save */",
+      "start": 38684,
+      "end": 38700,
+      "lines": 17,
+      "functions": [],
+      "events": 1,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v217",
+      "title": "/* v217 - date picker stability fix: date-input events no longer trigger assignment panel cleanup while the native picker is open. */",
+      "start": 38701,
+      "end": 38703,
+      "lines": 3,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v618",
+      "title": "/* v618 - keep v603 linked writer date fields stable.",
+      "start": 38704,
+      "end": 38720,
+      "lines": 17,
+      "functions": [],
+      "events": 1,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v619",
+      "title": "/* MZJ v619 - keep user theme buttons visible above executive dashboard title */",
+      "start": 38721,
+      "end": 38734,
+      "lines": 14,
+      "functions": [],
+      "events": 0,
+      "styles": [
+        "mzj-v619-dashboard-theme-spacing"
+      ],
+      "category": "dashboard"
+    },
+    {
+      "version": "v756",
+      "title": "/* MZJ v756 - clean dashboard flow with strict final-upload progress and campaign groups */",
+      "start": 38735,
+      "end": 39242,
+      "lines": 508,
+      "functions": [
+        "__MZJ_V677_FLOW__",
+        "__MZJ_V677_LIVE__",
+        "campaigns",
+        "renderAdminDashboard"
+      ],
+      "events": 0,
+      "styles": [
+        "v677FlowStyle",
+        "v737ReadyCampaignCss"
+      ],
+      "category": "dashboard"
+    },
+    {
+      "version": "v753",
+      "title": "// v753: نستخدم المسارات المحفوظة من rawSource أولاً لأنها راجعة من إنشاء الفولدرات الحقيقي.",
+      "start": 39243,
+      "end": 39948,
+      "lines": 706,
+      "functions": [
+        "refreshOpenTaskModal"
+      ],
+      "events": 6,
+      "styles": [
+        "mzj-v696-exec-template-layout"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v649",
+      "title": "/* MZJ v649 create campaign approved 3-step concept rebuild */",
+      "start": 39949,
+      "end": 40179,
+      "lines": 231,
+      "functions": [
+        "__MZJ_V649_CREATE_CAMPAIGN__"
+      ],
+      "events": 5,
+      "styles": [
+        "mzj-v649-create-campaign-css"
+      ],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v699",
+      "title": "/* MZJ v699 - luxury owner/writer badges with stronger professional border */",
+      "start": 40180,
+      "end": 40193,
+      "lines": 14,
+      "functions": [],
+      "events": 1,
+      "styles": [
+        "mzj-v698-readiness-owner-progress-style",
+        "mzj-v699-readiness-owner-progress-style"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v702",
+      "title": "/* MZJ v702 - final file upload for completed task details + publish prep mirrors TASK required details */",
+      "start": 40194,
+      "end": 40450,
+      "lines": 257,
+      "functions": [
+        "getPublishingPrepTasks",
+        "openTaskModal",
+        "publishPrepEffectiveCaption",
+        "publishPrepEffectiveHashtags",
+        "publishPrepFinalFileRecord",
+        "publishPrepHasFinalFile",
+        "publishPrepTaskProgress",
+        "publishPrepTasksFromExistingTasks",
+        "renderPublishPrepPage"
+      ],
+      "events": 2,
+      "styles": [
+        "mzj-v702-final-publish-prep-css"
+      ],
+      "category": "publish_prep"
+    },
+    {
+      "version": "v703",
+      "title": "/* MZJ v703 removed: final upload is integrated in execDetails original flow. */",
+      "start": 40451,
+      "end": 40453,
+      "lines": 3,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "publish_prep"
+    },
+    {
+      "version": "v721",
+      "title": "/* v721 - restore structure request in TASK required/readiness until admin approval */",
+      "start": 40454,
+      "end": 40563,
+      "lines": 110,
+      "functions": [
+        "adminDashboardTasksForCampaign",
+        "campaignTasksSnapshot",
+        "tasksForCampaign"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v723",
+      "title": "/* v723 - keep publish release button independent from campaign card open */",
+      "start": 40564,
+      "end": 40573,
+      "lines": 10,
+      "functions": [],
+      "events": 1,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v726",
+      "title": "/* MZJ v726 - publish prep reconcile duplicate task cards and final-file metadata */",
+      "start": 40574,
+      "end": 40749,
+      "lines": 176,
+      "functions": [
+        "getPublishingPrepTasks",
+        "publishPrepEffectivePlatforms",
+        "publishPrepFinalFileRecord",
+        "publishPrepHasEffectivePlatformTypeData",
+        "publishPrepHasFinalFile",
+        "publishPrepTaskProgress"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "publish_prep"
+    },
+    {
+      "version": "v729",
+      "title": "/* MZJ v729 - publish prep uses real dashboard tasks only */",
+      "start": 40750,
+      "end": 40970,
+      "lines": 221,
+      "functions": [
+        "getPublishingPrepTasks",
+        "publishPrepFinalFileRecord",
+        "publishPrepHasFinalFile",
+        "publishPrepTaskProgress"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v730",
+      "title": "/* v730 publish prep page only redesign */",
+      "start": 40971,
+      "end": 41027,
+      "lines": 57,
+      "functions": [
+        "renderPublishPrepPage"
+      ],
+      "events": 3,
+      "styles": [],
+      "category": "publish_prep"
+    },
+    {
+      "version": "v732",
+      "title": "/* v732 - publish prep only: short names + clean edit modal + multi post types */",
+      "start": 41028,
+      "end": 41129,
+      "lines": 102,
+      "functions": [
+        "renderPublishPrepPage"
+      ],
+      "events": 3,
+      "styles": [],
+      "category": "publish_prep"
+    },
+    {
+      "version": "v97",
+      "title": "/* v97 - admin notification targets + reliable task action notifications */",
+      "start": 41130,
+      "end": 41335,
+      "lines": 206,
+      "functions": [
+        "__MZJ_ADD_ADMIN_NOTIFICATION__",
+        "__MZJ_V97_ADMIN_NOTIFICATIONS__",
+        "adminNotificationItems",
+        "notificationItemHtml",
+        "pushAdminCampaignNotification",
+        "showLiveNotification",
+        "updateTaskOnFirebase"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v97",
+      "title": "/* v97 - admin notification targets + reliable task action notifications */",
+      "start": 41336,
+      "end": 41542,
+      "lines": 207,
+      "functions": [
+        "__MZJ_ADD_ADMIN_NOTIFICATION__",
+        "__MZJ_V97_ADMIN_NOTIFICATIONS__",
+        "adminNotificationItems",
+        "notificationItemHtml",
+        "pushAdminCampaignNotification",
+        "showLiveNotification",
+        "updateTaskOnFirebase"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v717",
+      "title": "/* MZJ v717 - clean 5 step campaign creation flow refinements */",
+      "start": 41543,
+      "end": 41947,
+      "lines": 405,
+      "functions": [],
+      "events": 6,
+      "styles": [
+        "mzj-v717-clean-flow-css"
+      ],
+      "category": "other"
+    },
+    {
+      "version": "v722",
+      "title": "/* v722 - content Task Template details: remove content fields and add admin note */",
+      "start": 41948,
+      "end": 41950,
+      "lines": 3,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v723",
+      "title": "/* v723 - clean 5-step flow: open execution tasks after Task Template approval */",
+      "start": 41951,
+      "end": 42036,
+      "lines": 86,
+      "functions": [
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v522_decideTaskTemplate",
+        "MZJ_v570_decideTaskTemplate",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v724",
+      "title": "/* v724 - correct content-first flow: approving Task Template releases existing execution task cards */",
+      "start": 42037,
+      "end": 42250,
+      "lines": 214,
+      "functions": [
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v522_decideTaskTemplate",
+        "MZJ_v570_decideTaskTemplate",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v725",
+      "title": "/* v725 - final content-first release: approved Task Template makes the existing execution task visible and carries approved details */",
+      "start": 42251,
+      "end": 42457,
+      "lines": 207,
+      "functions": [
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v522_decideTaskTemplate",
+        "MZJ_v570_decideTaskTemplate",
+        "getVisibleTasksForCurrentUser",
+        "isTaskWaitingForDependency",
+        "tasksForCampaign",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v726",
+      "title": "/* MZJ v726 - remove legacy task-distribution conflict: content-first Task Template approval releases existing execution tasks by pair/writer/creative */",
+      "start": 42458,
+      "end": 42575,
+      "lines": 118,
+      "functions": [
+        "MZJ_v516_decideTaskTemplate",
+        "MZJ_v522_decideTaskTemplate",
+        "MZJ_v570_decideTaskTemplate",
+        "MZJ_v724_decideTaskTemplate",
+        "MZJ_v725_decideTaskTemplate",
+        "MZJ_v726_decideTaskTemplate",
+        "MZJ_v726_repairApprovedTemplateExecutions",
+        "v174SetTaskTemplateDecision"
+      ],
+      "events": 0,
+      "styles": [],
+      "category": "campaign_creation"
+    },
+    {
+      "version": "v729",
+      "title": "/* MZJ v729: execution task template view shows script only as split scenes/slides, no duplicate full script block. */",
+      "start": 42576,
+      "end": 42577,
+      "lines": 2,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v736",
+      "title": "/* MZJ v736 - direct dashboard grouping; removed legacy admin post-process patches. */",
+      "start": 42578,
+      "end": 42578,
+      "lines": 1,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v735",
+      "title": "/* MZJ v735: Task Template approval stays active; not completed/hidden. */",
+      "start": 42579,
+      "end": 42581,
+      "lines": 3,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "task_template"
+    },
+    {
+      "version": "v737",
+      "title": "/* MZJ v737: readiness column shows each campaign first; opening it reveals department task groups. */",
+      "start": 42582,
+      "end": 42584,
+      "lines": 3,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "dashboard"
+    },
+    {
+      "version": "v750",
+      "title": "/* v750 - direct mzjfolder user-gesture launch */",
+      "start": 42585,
+      "end": 42585,
+      "lines": 1,
+      "functions": [],
+      "events": 0,
+      "styles": [],
+      "category": "other"
+    },
+    {
+      "version": "v752",
+      "title": "/* v752 - clean raw task paths without breaking task details */",
+      "start": 42586,
+      "end": 42620,
+      "lines": 35,
+      "functions": [
+        "MZJ_COPY_RAIDRIVE_PATH",
+        "MZJ_OPEN_RAIDRIVE_PATH",
+        "copyRaiDrivePath",
+        "copyRaidrivePath",
+        "openRaiDrivePath",
+        "openRaidrivePath"
+      ],
+      "events": 1,
+      "styles": [],
+      "category": "task_details"
+    }
+  ],
+  "override_chains": [
+    {
+      "name": "getVisibleTasksForCurrentUser",
+      "count": 21,
+      "lines": [
+        25849,
+        25977,
+        26334,
+        26950,
+        27083,
+        27235,
+        27424,
+        27546,
+        27692,
+        28280,
+        28783,
+        29447,
+        29860,
+        30085,
+        30978,
+        31139,
+        31571,
+        32012,
+        33449,
+        33944,
+        42389
+      ]
+    },
+    {
+      "name": "tasksForCampaign",
+      "count": 20,
+      "lines": [
+        20494,
+        21958,
+        23934,
+        24168,
+        24612,
+        24773,
+        24962,
+        25233,
+        25527,
+        25730,
+        26178,
+        26320,
+        29855,
+        30076,
+        30709,
+        32010,
+        33441,
+        33926,
+        40537,
+        42360
+      ]
+    },
+    {
+      "name": "buildTaskDetailHtml",
+      "count": 19,
+      "lines": [
+        13418,
+        14858,
+        15228,
+        15439,
+        21071,
+        24577,
+        24629,
+        24798,
+        24978,
+        25255,
+        26196,
+        29052,
+        29514,
+        33735,
+        33969,
+        34182,
+        36934,
+        37152,
+        37221
+      ]
+    },
+    {
+      "name": "findTaskById",
+      "count": 16,
+      "lines": [
+        14768,
+        24786,
+        24965,
+        25241,
+        25523,
+        26184,
+        28884,
+        29060,
+        29307,
+        29456,
+        29783,
+        30094,
+        30423,
+        30701,
+        31300,
+        33963
+      ]
+    },
+    {
+      "name": "buildDepartmentTasks",
+      "count": 13,
+      "lines": [
+        12666,
+        12765,
+        21949,
+        25715,
+        26312,
+        26460,
+        28034,
+        28768,
+        31948,
+        33425,
+        33528,
+        33920,
+        34041
+      ]
+    },
+    {
+      "name": "campaignTasksSnapshot",
+      "count": 10,
+      "lines": [
+        14645,
+        16459,
+        16703,
+        16925,
+        17141,
+        28268,
+        28772,
+        33238,
+        33457,
+        40547
+      ]
+    },
+    {
+      "name": "renderAdminDashboard",
+      "count": 9,
+      "lines": [
+        14675,
+        16467,
+        16718,
+        16940,
+        17156,
+        21578,
+        33034,
+        33279,
+        39154
+      ]
+    },
+    {
+      "name": "shortTaskName",
+      "count": 8,
+      "lines": [
+        12460,
+        14515,
+        27467,
+        34135,
+        34704,
+        34848,
+        34902,
+        34972
+      ]
+    },
+    {
+      "name": "taskStructure",
+      "count": 8,
+      "lines": [
+        25081,
+        25501,
+        25781,
+        25920,
+        29384,
+        29982,
+        30276,
+        30681
+      ]
+    },
+    {
+      "name": "updateTaskOnFirebase",
+      "count": 8,
+      "lines": [
+        23940,
+        24184,
+        25556,
+        29601,
+        29820,
+        29990,
+        41224,
+        41430
+      ]
+    },
+    {
+      "name": "v174SetTaskTemplateDecision",
+      "count": 8,
+      "lines": [
+        34075,
+        34247,
+        34383,
+        34546,
+        34743,
+        34839,
+        35232,
+        35261
+      ]
+    },
+    {
+      "name": "adminDashboardTasksForCampaign",
+      "count": 7,
+      "lines": [
+        14638,
+        28265,
+        28770,
+        32011,
+        33433,
+        33935,
+        40542
+      ]
+    },
+    {
+      "name": "renderTaskDetail",
+      "count": 7,
+      "lines": [
+        14789,
+        27562,
+        28287,
+        28812,
+        28892,
+        29068,
+        29315
+      ]
+    },
+    {
+      "name": "buildCampaignTaskDocs",
+      "count": 6,
+      "lines": [
+        15407,
+        20362,
+        20558,
+        21086,
+        21940,
+        25708
+      ]
+    },
+    {
+      "name": "collectCampaignRows",
+      "count": 6,
+      "lines": [
+        12629,
+        15379,
+        19874,
+        20190,
+        20323,
+        21906
+      ]
+    },
+    {
+      "name": "downloadStructureTemplateForTaskExact",
+      "count": 6,
+      "lines": [
+        12310,
+        12826,
+        13100,
+        16187,
+        21099,
+        21272
+      ]
+    },
+    {
+      "name": "openCreativeAssignmentPopup",
+      "count": 6,
+      "lines": [
+        15352,
+        20094,
+        26653,
+        26718,
+        26762,
+        26842
+      ]
+    },
+    {
+      "name": "openTaskModal",
+      "count": 6,
+      "lines": [
+        14015,
+        28900,
+        29056,
+        29293,
+        32921,
+        40274
+      ]
+    },
+    {
+      "name": "renderCampaignInlineTasks",
+      "count": 6,
+      "lines": [
+        14661,
+        14877,
+        16522,
+        16741,
+        16963,
+        17179
+      ]
+    },
+    {
+      "name": "saveStructureDistribution",
+      "count": 6,
+      "lines": [
+        13301,
+        30139,
+        30413,
+        30965,
+        31147,
+        34831
+      ]
+    },
+    {
+      "name": "selectedContentDependency",
+      "count": 6,
+      "lines": [
+        12733,
+        12789,
+        13052,
+        14989,
+        15168,
+        15773
+      ]
+    },
+    {
+      "name": "uploadStructureFileForTask",
+      "count": 6,
+      "lines": [
+        24007,
+        24241,
+        25092,
+        25529,
+        29629,
+        30752
+      ]
+    },
+    {
+      "name": "isTaskWaitingForDependency",
+      "count": 5,
+      "lines": [
+        25751,
+        34078,
+        34149,
+        34559,
+        42367
+      ]
+    },
+    {
+      "name": "receivedClass",
+      "count": 5,
+      "lines": [
+        16381,
+        16715,
+        16937,
+        17153,
+        33266
+      ]
+    },
+    {
+      "name": "receivedLabel",
+      "count": 5,
+      "lines": [
+        16374,
+        16711,
+        16933,
+        17149,
+        33252
+      ]
+    },
+    {
+      "name": "setStructureStatus",
+      "count": 5,
+      "lines": [
+        24067,
+        30104,
+        31976,
+        32027,
+        34066
+      ]
+    },
+    {
+      "name": "downloadStructureTemplateForTask",
+      "count": 4,
+      "lines": [
+        22014,
+        22208,
+        22369,
+        23846
+      ]
+    },
+    {
+      "name": "getPublishingPrepTasks",
+      "count": 4,
+      "lines": [
+        14154,
+        40363,
+        40692,
+        40947
+      ]
+    },
+    {
+      "name": "publishPrepHasFinalFile",
+      "count": 4,
+      "lines": [
+        34166,
+        40384,
+        40711,
+        40953
+      ]
+    },
+    {
+      "name": "refreshContentDependencyPickers",
+      "count": 4,
+      "lines": [
+        12705,
+        12799,
+        13048,
+        14983
+      ]
+    },
+    {
+      "name": "renderUserDashboard",
+      "count": 4,
+      "lines": [
+        28958,
+        29165,
+        36869,
+        37133
+      ]
+    },
+    {
+      "name": "selectedRoleTaskFromPanel",
+      "count": 4,
+      "lines": [
+        13065,
+        14996,
+        15174,
+        15780
+      ]
+    },
+    {
+      "name": "structureTaskNumber",
+      "count": 4,
+      "lines": [
+        34127,
+        34701,
+        34896,
+        34966
+      ]
+    },
+    {
+      "name": "toggleTaskReceived",
+      "count": 4,
+      "lines": [
+        24472,
+        29494,
+        30552,
+        32016
+      ]
+    },
+    {
+      "name": "buildStructureTaskFromRow",
+      "count": 3,
+      "lines": [
+        13295,
+        16869,
+        17116
+      ]
+    },
+    {
+      "name": "campaignWizardSetStep",
+      "count": 3,
+      "lines": [
+        15343,
+        15612,
+        26625
+      ]
+    },
+    {
+      "name": "creativeAssignmentPanelHtml",
+      "count": 3,
+      "lines": [
+        19800,
+        19989,
+        26806
+      ]
+    },
+    {
+      "name": "publishPrepFinalFileRecord",
+      "count": 3,
+      "lines": [
+        40395,
+        40720,
+        40960
+      ]
+    },
+    {
+      "name": "publishPrepTaskProgress",
+      "count": 3,
+      "lines": [
+        40371,
+        40706,
+        40950
+      ]
+    },
+    {
+      "name": "publishPrepTasksFromExistingTasks",
+      "count": 3,
+      "lines": [
+        12553,
+        14143,
+        40359
+      ]
+    },
+    {
+      "name": "refreshOpenTaskModal",
+      "count": 3,
+      "lines": [
+        24802,
+        32931,
+        39711
+      ]
+    },
+    {
+      "name": "renderCampaignCards",
+      "count": 3,
+      "lines": [
+        20866,
+        21563,
+        21776
+      ]
+    },
+    {
+      "name": "renderStructureSection",
+      "count": 3,
+      "lines": [
+        14522,
+        14562,
+        24273
+      ]
+    },
+    {
+      "name": "taskTemplateBadge",
+      "count": 3,
+      "lines": [
+        26190,
+        31312,
+        31691
+      ]
+    },
+    {
+      "name": "MZJ_v499_hardSyncApprovedStructure",
+      "count": 2,
+      "lines": [
+        32594,
+        32654
+      ]
+    },
+    {
+      "name": "actualTaskNo",
+      "count": 2,
+      "lines": [
+        34899,
+        34969
+      ]
+    },
+    {
+      "name": "adminNotificationItems",
+      "count": 2,
+      "lines": [
+        41280,
+        41486
+      ]
+    },
+    {
+      "name": "ensureStructureSheetLoaded",
+      "count": 2,
+      "lines": [
+        24055,
+        24294
+      ]
+    },
+    {
+      "name": "exportCampaignAuditWorkbook",
+      "count": 2,
+      "lines": [
+        21481,
+        21742
+      ]
+    },
+    {
+      "name": "fillSettingsForm",
+      "count": 2,
+      "lines": [
+        16420,
+        16654
+      ]
+    },
+    {
+      "name": "isRealStructureDistributionRow",
+      "count": 2,
+      "lines": [
+        12281,
+        12429
+      ]
+    },
+    {
+      "name": "mergeStructureAdditionIntoExistingTask",
+      "count": 2,
+      "lines": [
+        16897,
+        17132
+      ]
+    },
+    {
+      "name": "notificationItemHtml",
+      "count": 2,
+      "lines": [
+        41306,
+        41512
+      ]
+    },
+    {
+      "name": "openStructureReviewPopup",
+      "count": 2,
+      "lines": [
+        14540,
+        14587
+      ]
+    },
+    {
+      "name": "pushAdminCampaignNotification",
+      "count": 2,
+      "lines": [
+        41214,
+        41420
+      ]
+    },
+    {
+      "name": "refreshCreativePopupPanels",
+      "count": 2,
+      "lines": [
+        19901,
+        20085
+      ]
+    },
+    {
+      "name": "reloadStructureSheetFromStoredFile",
+      "count": 2,
+      "lines": [
+        24034,
+        24278
+      ]
+    },
+    {
+      "name": "renderBudgetSummary",
+      "count": 2,
+      "lines": [
+        20877,
+        28356
+      ]
+    },
+    {
+      "name": "renderPublishPrepPage",
+      "count": 2,
+      "lines": [
+        14476,
+        40444
+      ]
+    },
+    {
+      "name": "renderUsersPermissions",
+      "count": 2,
+      "lines": [
+        16428,
+        16658
+      ]
+    },
+    {
+      "name": "saveCreativeAssignmentPopup",
+      "count": 2,
+      "lines": [
+        15361,
+        20143
+      ]
+    },
+    {
+      "name": "showLiveNotification",
+      "count": 2,
+      "lines": [
+        41318,
+        41524
+      ]
+    },
+    {
+      "name": "syncPanelDynamicState",
+      "count": 2,
+      "lines": [
+        13041,
+        14976
+      ]
+    },
+    {
+      "name": "taskStructureAttached",
+      "count": 2,
+      "lines": [
+        25945,
+        30690
+      ]
+    },
+    {
+      "name": "taskStructureAttachedBadge",
+      "count": 2,
+      "lines": [
+        25951,
+        30695
+      ]
+    },
+    {
+      "name": "taskTemplateAttached",
+      "count": 2,
+      "lines": [
+        31308,
+        31702
+      ]
+    },
+    {
+      "name": "taskWorkflowStatus",
+      "count": 2,
+      "lines": [
+        34156,
+        34756
+      ]
+    },
+    {
+      "name": "updateProductOutput",
+      "count": 2,
+      "lines": [
+        19855,
+        20168
+      ]
+    },
+    {
+      "name": "v171ApproveTaskTemplate",
+      "count": 2,
+      "lines": [
+        31551,
+        31715
+      ]
+    },
+    {
+      "name": "v171OpenTaskTemplateReview",
+      "count": 2,
+      "lines": [
+        33720,
+        35201
+      ]
+    }
+  ]
+}
