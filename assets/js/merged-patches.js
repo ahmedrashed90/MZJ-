@@ -7672,6 +7672,85 @@ function shortDatabaseTaskNumber(task){
 function taskTemplateGoalBrief(task){
   return dbTaskTemplateGoal(task);
 }
+
+const DB_DEPARTMENT_ORDER = Object.freeze({ content: 0, montage: 1, shooting: 2, design: 3, publish: 4, other: 9 });
+function dbTaskDepartmentRole(task){
+  return normalizeDepartmentRole([
+    task?.departmentRole,
+    task?.assignedDepartmentRole,
+    task?.assignedDepartmentName,
+    task?.departmentName,
+    task?.contentSectionName,
+    taskDepartmentLabel(task)
+  ].filter(Boolean).join(' ')) || 'other';
+}
+function dbTaskDepartmentRank(taskOrRole){
+  const role = typeof taskOrRole === 'string' ? normalizeDepartmentRole(taskOrRole) || taskOrRole : dbTaskDepartmentRole(taskOrRole);
+  return Object.prototype.hasOwnProperty.call(DB_DEPARTMENT_ORDER, role) ? DB_DEPARTMENT_ORDER[role] : DB_DEPARTMENT_ORDER.other;
+}
+function dbTaskSequenceNumber(task){
+  const values = [
+    typeof structureTaskNumber === 'function' ? structureTaskNumber(task) : '',
+    task?.taskNo,
+    task?.structureTaskNo,
+    task?.creativeCode,
+    task?.creativeInstanceId
+  ];
+  for(const value of values){
+    const match = normalizeText(value || '').match(/(?:^|\D)(\d{1,4})(?:\D|$)/);
+    if(match) return Number(match[1]);
+  }
+  return Number.MAX_SAFE_INTEGER;
+}
+function dbCleanCreativeLabel(value){
+  let clean = normalizeText(value || '');
+  if(!clean) return '';
+  clean = clean
+    .replace(/^task\s*template\s*[-–—:]*\s*/i, '')
+    .replace(/^تاسك\s*تمبليت\s*[-–—:]*\s*/i, '')
+    .replace(/^n\s*0*\d+\s*[-–—:]+\s*/i, '')
+    .replace(/^\d+\s*[-–—:]+\s*/, '')
+    .trim();
+  const generic = identityClean(clean);
+  if(['قسم المحتوى','قسم المونتاج','قسم التصوير','قسم التصميم','قسم النشر','المحتوى','المونتاج','التصوير','التصميم'].some(label => generic === identityClean(label))) return '';
+  return clean;
+}
+function dbTaskCreativeLabel(task){
+  const row = task?.structureRow || {};
+  const candidates = [
+    task?.creativeName,
+    task?.creative,
+    row?.creativeName,
+    row?.creative,
+    row?.productCreative,
+    task?.productCreative,
+    task?.contentType,
+    row?.contentType,
+    row?.content_type,
+    task?.structureTaskLabel,
+    task?.taskType,
+    task?.product,
+    row?.product
+  ];
+  for(const candidate of candidates){
+    const clean = dbCleanCreativeLabel(candidate);
+    if(clean) return clean;
+  }
+  return '—';
+}
+function dbSortTasksByDepartment(list){
+  return (Array.isArray(list) ? list : []).map((task, index) => ({ task, index })).sort((a, b) => {
+    const department = dbTaskDepartmentRank(a.task) - dbTaskDepartmentRank(b.task);
+    if(department) return department;
+    const sequence = dbTaskSequenceNumber(a.task) - dbTaskSequenceNumber(b.task);
+    if(sequence) return sequence;
+    const creative = dbTaskCreativeLabel(a.task).localeCompare(dbTaskCreativeLabel(b.task), 'ar');
+    if(creative) return creative;
+    const owner = rawTaskOwnerName(a.task).localeCompare(rawTaskOwnerName(b.task), 'ar');
+    if(owner) return owner;
+    return a.index - b.index;
+  }).map(item => item.task);
+}
 function dbTaskOwnerSummaryGroupKey(task){
   const owner = taskOwnerKey(task);
   if(!owner) return '';
@@ -7702,6 +7781,7 @@ function dbTaskOwnerSummaryRows(campaign, sourceTasks){
     return {
       owner: ownerTasks[0] ? rawTaskOwnerName(ownerTasks[0]) : 'بدون مسؤول',
       department: ownerTasks[0] ? taskDepartmentLabel(ownerTasks[0]) : '—',
+      departmentRole: ownerTasks[0] ? dbTaskDepartmentRole(ownerTasks[0]) : 'other',
       total,
       notStarted,
       active,
@@ -7709,6 +7789,10 @@ function dbTaskOwnerSummaryRows(campaign, sourceTasks){
       nearestRequired,
       latestReceived
     };
+  }).sort((a, b) => {
+    const department = dbTaskDepartmentRank(a.departmentRole) - dbTaskDepartmentRank(b.departmentRole);
+    if(department) return department;
+    return normalizeText(a.owner).localeCompare(normalizeText(b.owner), 'ar');
   });
 }
 function dbTaskOwnerSummaryTable(campaign, sourceTasks){
@@ -7717,8 +7801,7 @@ function dbTaskOwnerSummaryTable(campaign, sourceTasks){
   return `<div class="compact-table db-task-lines-wrap db-owner-summary-table-wrap"><table class="db-task-lines-table db-owner-summary-table"><thead><tr><th>اليوزر</th><th>القسم</th><th>عدد التاسكات</th><th>لم تبدأ</th><th>نشطة</th><th>متأخرة</th><th>أقرب تاريخ مطلوب</th><th>آخر تاريخ استلام</th></tr></thead><tbody>${rows.map(row => `<tr><td><b>${escapeHtml(row.owner)}</b></td><td>${escapeHtml(row.department)}</td><td>${escapeHtml(row.total)}</td><td>${escapeHtml(row.notStarted)}</td><td>${escapeHtml(row.active)}</td><td>${escapeHtml(row.delayed)}</td><td>${formatDateShort(row.nearestRequired)}</td><td>${formatDateShort(row.latestReceived)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function taskOneLineRow(task, campaign){
-  const row = task.structureRow || {};
-  const label = structureContentTaskLabel(row, taskContentType(task) || task.taskType || shortTaskName(task));
+  const label = dbTaskCreativeLabel(task);
   const brief = taskTemplateGoalBrief(task);
   return `<tr>
     <td><b>${escapeHtml(label)}</b></td>
@@ -7731,7 +7814,7 @@ function taskOneLineRow(task, campaign){
   </tr>`;
 }
 function buildTaskSummaryList(campaign){
-  const list = dbApprovedExecutionTasks(campaign);
+  const list = dbSortTasksByDepartment(dbApprovedExecutionTasks(campaign));
   if(!list.length) return '<div class="empty-state soft-empty">لا توجد تاسكات تنفيذية لهذه الحملة.</div>';
   const summary = dbTaskOwnerSummaryTable(campaign, list);
   const taskTable = `<div class="compact-table db-task-lines-wrap"><table class="db-task-lines-table"><thead><tr><th>التاسك</th><th>اليوزر</th><th>القسم</th><th>الحالة</th><th>التقدم</th><th>التاريخ المطلوب</th><th>مختصر المطلوب</th></tr></thead><tbody>${list.map(task => taskOneLineRow(task, campaign)).join('')}</tbody></table></div>`;
@@ -7743,11 +7826,11 @@ function openOwnerTasksModal(campaignId, ownerKey){
   const content = document.getElementById('campaignModalContent');
   if(!campaign || !modal || !content) return;
   const sourceTasks = dbApprovedExecutionTasks(campaign);
-  const list = (sourceTasks.length ? sourceTasks : tasksForCampaign(campaign)).filter(task => taskOwnerKey(task) === ownerKey);
+  const list = dbSortTasksByDepartment((sourceTasks.length ? sourceTasks : tasksForCampaign(campaign)).filter(task => taskOwnerKey(task) === ownerKey));
   const owner = list[0] ? rawTaskOwnerName(list[0]) : 'المسؤول';
   const summary = dbTaskOwnerSummaryTable(campaign, list);
   content.innerHTML = `<div class="task-modal-head"><div><span>تاسكات المسؤول</span><h2>${escapeHtml(owner)}</h2><p>${escapeHtml(campaign.campaignName || campaign.name || campaign.campaignCode || '')}</p></div><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div>
-    <div class="modal-section"><div class="modal-section-title"><h3>كل تاسكات المسؤول</h3></div>${list.length ? `${summary}<div class="compact-table db-task-lines-wrap"><table class="db-task-lines-table"><thead><tr><th>التاسك</th><th>القسم</th><th>الحالة</th><th>التقدم</th><th>التاريخ المطلوب</th><th>مختصر المطلوب</th></tr></thead><tbody>${list.map(task => { const row = task.structureRow || {}; const label = structureContentTaskLabel(row, taskContentType(task) || task.taskType || shortTaskName(task)); const brief = taskTemplateGoalBrief(task); return `<tr><td><b>${escapeHtml(label)}</b></td><td>${escapeHtml(taskDepartmentLabel(task))}</td><td>${escapeHtml(receivedLabel(task))}</td><td>${taskProgressForCampaignData(task)}%</td><td>${formatDateShort(taskRequiredDate(task, campaign))}</td><td>${escapeHtml(shortDbText(brief, 120))}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty-state mini-empty">لا توجد تاسكات لهذا المسؤول.</div>'}</div>`;
+    <div class="modal-section"><div class="modal-section-title"><h3>كل تاسكات المسؤول</h3></div>${list.length ? `${summary}<div class="compact-table db-task-lines-wrap"><table class="db-task-lines-table"><thead><tr><th>التاسك</th><th>القسم</th><th>الحالة</th><th>التقدم</th><th>التاريخ المطلوب</th><th>مختصر المطلوب</th></tr></thead><tbody>${list.map(task => { const label = dbTaskCreativeLabel(task); const brief = taskTemplateGoalBrief(task); return `<tr><td><b>${escapeHtml(label)}</b></td><td>${escapeHtml(taskDepartmentLabel(task))}</td><td>${escapeHtml(receivedLabel(task))}</td><td>${taskProgressForCampaignData(task)}%</td><td>${formatDateShort(taskRequiredDate(task, campaign))}</td><td>${escapeHtml(shortDbText(brief, 120))}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty-state mini-empty">لا توجد تاسكات لهذا المسؤول.</div>'}</div>`;
   modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open');
 }
 function campaignResultFileHtml(campaign){
