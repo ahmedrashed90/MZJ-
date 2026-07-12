@@ -6514,33 +6514,111 @@ function bindDepartments(){
 
 
 let calendarCursor = new Date();
-function publishEntriesFromCampaigns(){
-  return campaigns.flatMap(campaign => (campaign.publishSchedule || []).filter(item => item && item.date).map(item => ({
-    ...item,
-    campaignId: campaign.id,
-    campaignName: campaign.campaignName || campaign.name || 'حملة',
-    campaignCode: campaign.campaignCode || campaign.campaign_code || ''
-  })));
+function publishEntriesFromCampaigns(excludedScheduleKeys = new Set()){
+  return campaigns.flatMap(campaign => (campaign.publishSchedule || []).map((item, index) => ({ item, index })).filter(({item}) => item && (item.date || item.publishDate)).flatMap(({item, index}) => {
+    const campaignIdentity = normalizeText(campaign.id || campaign.campaignId || campaign.campaignCode || campaign.campaign_code || campaign.name || campaign.campaignName || '');
+    const scheduleKey = `${campaignIdentity}|${index}`;
+    if(excludedScheduleKeys.has(scheduleKey)) return [];
+    const publishing = Array.isArray(item.platformPublishing) && item.platformPublishing.length
+      ? item.platformPublishing
+      : (Array.isArray(item.platforms) ? item.platforms : [item.platform]).filter(Boolean).map(platform => ({
+          platform,
+          postType: Array.isArray(item.platformTypes?.[platform]) ? item.platformTypes[platform][0] : (item.platformTypes?.[platform] || item.postType || ''),
+          postTypeLabel: item.postTypeLabel || '',
+          publishDate: item.date || item.publishDate || '',
+          publishTime: item.time || item.publishTime || ''
+        }));
+    const rows = publishing.length ? publishing : [{ platform:item.platform || '', postType:item.postType || '', postTypeLabel:item.postTypeLabel || '', publishDate:item.date || item.publishDate || '', publishTime:item.time || item.publishTime || '' }];
+    return rows.map(pub => ({
+      ...item,
+      date: pub.publishDate || item.date || item.publishDate || '',
+      time: pub.publishTime || item.time || item.publishTime || '',
+      output: item.productCreative || item.creativeName || item.creative || item.output || item.title || 'منشور',
+      platform: pub.platform || '',
+      platforms: pub.platform ? [pub.platform] : (Array.isArray(item.platforms) ? item.platforms : []),
+      postType: pub.postType || item.postType || '',
+      postTypeLabel: pub.postTypeLabel || item.postTypeLabel || '',
+      postTypes: Array.isArray(pub.postTypes) ? pub.postTypes : (pub.postType ? [pub.postType] : []),
+      postTypesLabels: Array.isArray(pub.postTypesLabels) ? pub.postTypesLabels : (pub.postTypeLabel ? [pub.postTypeLabel] : []),
+      platformPublishing: [pub],
+      campaignId: campaign.id,
+      campaignName: campaign.campaignName || campaign.name || 'حملة',
+      campaignCode: campaign.campaignCode || campaign.campaign_code || '',
+      scheduleKey,
+      source: 'campaign-schedule'
+    })).filter(entry => entry.date);
+  }));
 }
 function publishEntriesFromPrepSubmissions(){
   const submissions = typeof getPublishPrepSubmissions === 'function' ? getPublishPrepSubmissions() : {};
   const tasks = typeof getPublishingPrepTasks === 'function' ? getPublishingPrepTasks() : [];
-  return Object.entries(submissions || {}).flatMap(([id, sub]) => {
-    if(!sub || !sub.publishDate) return [];
-    const task = tasks.find(item => String(item.id) === String(id) || (Array.isArray(item.relatedTaskIds) && item.relatedTaskIds.map(String).includes(String(id)))) || {};
-    const publishing = Array.isArray(sub.platformPublishing) && sub.platformPublishing.length ? sub.platformPublishing : [{ platform:(sub.platforms || [])[0] || '', postType:sub.postType || '', postTypeLabel:sub.postTypeLabel || '', publishDate:sub.publishDate, publishTime:sub.publishTime }];
-    return publishing.map(item => ({
-      date: item.publishDate || sub.publishDate,
-      time: item.publishTime || sub.publishTime || '',
-      output: item.postTypeLabel || sub.postTypeLabel || task.type || task.title || 'تجهيز نشر',
-      platform: item.platform || '',
-      platforms: item.platform ? [item.platform] : (Array.isArray(sub.platforms) ? sub.platforms : []),
-      caption: sub.caption || '',
-      note: 'تجهيز النشر',
-      campaignId: task.raw?.campaignId || task.campaignId || '',
-      campaignName: task.campaignName || sub.campaignName || '',
-      campaignCode: task.raw?.campaignCode || task.campaignCode || ''
-    })).filter(entry => entry.date);
+  return tasks.flatMap(task => {
+    const sub = typeof publishPrepSubmissionForTask === 'function'
+      ? publishPrepSubmissionForTask(task, submissions)
+      : (submissions?.[task.id] || {});
+    const campaign = typeof campaignForPrepTask === 'function' ? (campaignForPrepTask(task) || {}) : {};
+    const campaignIdentity = normalizeText(campaign.id || campaign.campaignId || campaign.campaignCode || campaign.campaign_code || task.raw?.campaignId || task.campaignId || task.campaignName || '');
+    const scheduleKey = Number.isInteger(task.scheduleRowIndex) ? `${campaignIdentity}|${task.scheduleRowIndex}` : '';
+    const effectivePublishing = typeof publishPrepEffectivePlatformPublishing === 'function'
+      ? publishPrepEffectivePlatformPublishing(task, sub)
+      : (Array.isArray(sub.platformPublishing) && sub.platformPublishing.length ? sub.platformPublishing : (task.platformPublishing || []));
+    const effectivePlatforms = typeof publishPrepEffectivePlatforms === 'function'
+      ? publishPrepEffectivePlatforms(task, sub)
+      : (sub.platforms || task.platforms || []);
+    const effectiveTypes = typeof publishPrepEffectivePlatformTypes === 'function'
+      ? publishPrepEffectivePlatformTypes(task, sub)
+      : (sub.platformTypes || task.platformTypes || {});
+    const fallbackDate = normalizeText(sub.publishDate || task.publishDate || '');
+    const fallbackTime = normalizeText(sub.publishTime || task.publishTime || '');
+
+    let publishing = Array.isArray(effectivePublishing) ? effectivePublishing.filter(Boolean) : [];
+    if(!publishing.length){
+      publishing = (Array.isArray(effectivePlatforms) ? effectivePlatforms : []).map(platform => {
+        const rawTypes = effectiveTypes?.[platform];
+        const postTypes = Array.isArray(rawTypes) ? rawTypes.filter(Boolean) : (rawTypes ? [rawTypes] : []);
+        return {
+          platform,
+          postTypes,
+          postTypesLabels: postTypes.map(value => postTypeLabel(value) || value),
+          postType: postTypes[0] || sub.postType || task.postType || '',
+          postTypeLabel: postTypes.length ? (postTypeLabel(postTypes[0]) || postTypes[0]) : (sub.postTypeLabel || task.postTypeLabel || ''),
+          publishDate: fallbackDate,
+          publishTime: fallbackTime
+        };
+      });
+    }
+    if(!publishing.length && fallbackDate){
+      publishing = [{ platform:'', postType:sub.postType || task.postType || '', postTypeLabel:sub.postTypeLabel || task.postTypeLabel || '', publishDate:fallbackDate, publishTime:fallbackTime }];
+    }
+
+    return publishing.map(item => {
+      const postTypes = Array.isArray(item.postTypes) ? item.postTypes.filter(Boolean) : (item.postType ? [item.postType] : []);
+      const postTypesLabels = Array.isArray(item.postTypesLabels) ? item.postTypesLabels.filter(Boolean) : (item.postTypeLabel ? [item.postTypeLabel] : postTypes.map(value => postTypeLabel(value) || value));
+      return {
+        date: item.publishDate || fallbackDate,
+        time: item.publishTime || fallbackTime,
+        output: task.scheduleOutput || task.title || task.type || 'تجهيز نشر',
+        platform: item.platform || '',
+        platforms: item.platform ? [item.platform] : (Array.isArray(effectivePlatforms) ? effectivePlatforms : []),
+        postType: item.postType || postTypes[0] || sub.postType || task.postType || '',
+        postTypeLabel: item.postTypeLabel || postTypesLabels[0] || sub.postTypeLabel || task.postTypeLabel || '',
+        postTypes,
+        postTypesLabels,
+        platformTypes: effectiveTypes || {},
+        platformPublishing: [{ ...item, postTypes, postTypesLabels }],
+        caption: sub.caption ?? task.caption ?? '',
+        hashtags: sub.hashtags ?? task.hashtags ?? '',
+        hashtagsText: sub.hashtagsText ?? sub.hashtags ?? task.hashtags ?? '',
+        note: 'تجهيز النشر',
+        taskId: task.id,
+        relatedTaskIds: task.relatedTaskIds || [],
+        campaignId: campaign.id || task.raw?.campaignId || task.campaignId || '',
+        campaignName: task.campaignName || campaign.campaignName || campaign.name || sub.campaignName || '',
+        campaignCode: campaign.campaignCode || campaign.campaign_code || task.raw?.campaignCode || task.campaignCode || '',
+        scheduleKey,
+        source: 'publish-prep'
+      };
+    }).filter(entry => entry.date);
   });
 }
 function calendarPlatformKeysForEntry(entry = {}){
@@ -6576,13 +6654,24 @@ function calendarEntryTitle(entry = {}){
 function calendarPostTypeForPlatform(entry = {}, platformKey = ''){
   if(platformKey && Array.isArray(entry.platformPublishing)){
     const match = entry.platformPublishing.find(item => normalizePublishPlatformName(item?.platform || '') === platformKey);
-    if(match) return match.postTypeLabel || postTypeLabel(match.postType || '') || '';
+    if(match){
+      const labels = Array.isArray(match.postTypesLabels) ? match.postTypesLabels.filter(Boolean) : [];
+      if(labels.length) return labels.join(' + ');
+      const types = Array.isArray(match.postTypes) ? match.postTypes.filter(Boolean) : [];
+      if(types.length) return types.map(value => postTypeLabel(value) || value).join(' + ');
+      return match.postTypeLabel || postTypeLabel(match.postType || '') || '';
+    }
   }
   if(platformKey && entry.platformTypes && typeof entry.platformTypes === 'object'){
     const pair = Object.entries(entry.platformTypes).find(([platform]) => normalizePublishPlatformName(platform) === platformKey);
-    if(pair) return postTypeLabel(pair[1] || '') || pair[1] || '';
+    if(pair){
+      const values = Array.isArray(pair[1]) ? pair[1] : [pair[1]];
+      return values.filter(Boolean).map(value => postTypeLabel(value || '') || value || '').filter(Boolean).join(' + ');
+    }
   }
-  return entry.typeLabel || postTypeLabel(entry.type || entry.postType || '') || '';
+  if(Array.isArray(entry.postTypesLabels) && entry.postTypesLabels.length) return entry.postTypesLabels.join(' + ');
+  if(Array.isArray(entry.postTypes) && entry.postTypes.length) return entry.postTypes.map(value => postTypeLabel(value) || value).join(' + ');
+  return entry.typeLabel || postTypeLabel(entry.type || entry.postType || '') || entry.postTypeLabel || '';
 }
 function calendarEntryMeta(entry = {}, platformFilter = ''){
   const keys = calendarPlatformKeysForEntry(entry).filter(key => key !== 'unknown');
@@ -6647,7 +6736,10 @@ function renderCalendarPage(){
   const first = new Date(year, month, 1);
   const last = new Date(year, month + 1, 0);
   if(title) title.textContent = first.toLocaleDateString('ar-SA', { month:'long', year:'numeric' });
-  const campaignEntries = publishEntriesFromCampaigns().map(entry => ({...entry, calendarTitle: entry.output || 'حملة', calendarMeta: [entry.platform, entry.time, entry.campaignName].filter(Boolean).join(' · ')}));
+  // تجهيز النشر هو المصدر الأحدث للتقويم. إذا وُجد تعديل لتاسك، نستبعد صف جدول النشر الأصلي المقابل حتى لا يظهر القديم والجديد معًا.
+  const prepEntries = publishEntriesFromPrepSubmissions().map(entry => ({...entry, calendarTitle: entry.output || 'تجهيز نشر', calendarMeta: [entry.platform, entry.time, entry.campaignName].filter(Boolean).join(' · ')}));
+  const claimedScheduleKeys = new Set(prepEntries.map(entry => entry.scheduleKey).filter(Boolean));
+  const campaignEntries = publishEntriesFromCampaigns(claimedScheduleKeys).map(entry => ({...entry, calendarTitle: entry.output || 'حملة', calendarMeta: [entry.platform, entry.time, entry.campaignName].filter(Boolean).join(' · ')}));
   const centerEntries = publishCenterSocialItems().filter(item => item.scheduleDate).map(item => ({
     ...item,
     date: item.scheduleDate,
@@ -6655,7 +6747,6 @@ function renderCalendarPage(){
     calendarTitle: `${postTypeLabel(item.type || 'post')} · ${item.sourceLabel || 'نشر'}`,
     calendarMeta: [(item.platforms || []).map(p => socialPlatformLabels[p] || p).join(' + '), item.scheduleTime || 'بدون وقت', item.status].filter(Boolean).join(' · ')
   }));
-  const prepEntries = publishEntriesFromPrepSubmissions().map(entry => ({...entry, calendarTitle: entry.output || 'تجهيز نشر', calendarMeta: [entry.platform, entry.time, entry.campaignName].filter(Boolean).join(' · ')}));
   const entries = [...campaignEntries, ...centerEntries, ...prepEntries];
   const byDate = entries.reduce((acc, entry) => { (acc[entry.date] ||= []).push(entry); return acc; }, {});
   window.__MZJ_CALENDAR_ENTRIES_BY_DATE__ = byDate;
@@ -9253,21 +9344,38 @@ function prepTaskScheduleCandidates(task, campaign){
   return uniqueList(values.map(prepMatchText).filter(Boolean));
 }
 function prepScheduleMatchScore(row, task, campaign){
-  const rowTexts = [row.output, row.title, row.contentType, row.type, row.platform, row.platforms, row.note, row.notes].map(prepMatchText).filter(Boolean);
+  const rowIds = uniqueList([
+    row?.productId, row?.creativeId, row?.creativeInstanceId, row?.productCreativeId,
+    row?.id, row?.scheduleId
+  ].map(v => normalizeText(v || '')).filter(Boolean));
+  const taskIds = uniqueList([
+    task?.productId, task?.creativeId, task?.creativeInstanceId,
+    task?.raw?.productId, task?.raw?.creativeId, task?.raw?.creativeInstanceId,
+    task?.raw?.creativeRowId, task?.raw?.selectedCreativeId
+  ].map(v => normalizeText(v || '')).filter(Boolean));
+  let score = 0;
+  if(rowIds.some(id => taskIds.includes(id))) score += 100;
+
+  const rowTexts = [
+    row?.productCreative, row?.creative, row?.creativeName, row?.product,
+    row?.output, row?.title, row?.contentType, row?.type,
+    row?.platform, row?.platforms, row?.note, row?.notes
+  ].map(prepMatchText).filter(Boolean);
   const rowBlob = rowTexts.join(' ');
   const candidates = prepTaskScheduleCandidates(task, campaign);
-  let score = 0;
   candidates.forEach(c => {
     if(!c) return;
-    if(rowBlob === c) score += 10;
-    else if(rowBlob.includes(c) || c.includes(rowBlob)) score += 6;
+    if(rowBlob === c) score += 20;
+    else if(rowBlob.includes(c) || c.includes(rowBlob)) score += 12;
     else {
       const parts = c.split(' ').filter(x => x.length > 2);
       const hits = parts.filter(part => rowBlob.includes(part)).length;
       if(hits >= 2) score += hits;
     }
   });
-  if(row.date && task.publishDate && row.date === task.publishDate) score += 2;
+  const rowDate = normalizeText(row?.date || row?.publishDate || '');
+  const taskDate = normalizeText(task?.publishDate || task?.date || task?.raw?.publishDate || '');
+  if(rowDate && taskDate && rowDate === taskDate) score += 3;
   return score;
 }
 function enrichPrepTaskFromSchedule(base, campaign, rawTask){
@@ -9280,28 +9388,56 @@ function enrichPrepTaskFromSchedule(base, campaign, rawTask){
     const baseType = prepMatchText(base.type || base.raw?.taskType || base.raw?.contentType || '');
     const byType = rows.map((row, index) => ({ row, index }))
       .find(item => {
-        const out = prepMatchText(`${item.row.output || ''} ${item.row.contentType || ''} ${item.row.type || ''}`);
+        const out = prepMatchText(`${item.row.productCreative || item.row.creative || item.row.output || ''} ${item.row.contentType || ''} ${item.row.type || ''}`);
         return baseType && (out.includes(baseType) || baseType.includes(out));
       });
     if(byType) best = { ...byType, score: 1 };
   }
   if(!best && rows.length === 1) best = { row: rows[0], index: 0, score: 1 };
   if(!best) return base;
+
   const row = best.row;
   const scheduleCaption = prepScheduleCaptionValue(row);
   const scheduleHashtags = prepScheduleHashtagValue(row);
-  const schedulePlatforms = normalizePrepPlatformList(row.platforms || row.platform);
+  const rawPublishing = Array.isArray(row.platformPublishing) ? row.platformPublishing : [];
+  const schedulePublishing = rawPublishing.map(item => {
+    const platform = normalizeText(item?.platformLabel || item?.platformName || item?.platform || '');
+    const postTypes = Array.isArray(item?.postTypes) ? item.postTypes.filter(Boolean) : (item?.postType ? [item.postType] : []);
+    const postTypesLabels = Array.isArray(item?.postTypesLabels) ? item.postTypesLabels.filter(Boolean) : (item?.postTypeLabel ? [item.postTypeLabel] : postTypes.map(value => postTypeLabel(value) || value));
+    return {
+      ...item,
+      platform,
+      postTypes,
+      postTypesLabels,
+      postType: item?.postType || postTypes[0] || '',
+      postTypeLabel: item?.postTypeLabel || postTypesLabels[0] || '',
+      publishDate: item?.publishDate || row.date || row.publishDate || '',
+      publishTime: item?.publishTime || row.time || row.publishTime || ''
+    };
+  }).filter(item => item.platform);
+  const schedulePlatforms = schedulePublishing.length
+    ? uniqueList(schedulePublishing.map(item => item.platform))
+    : normalizePrepPlatformList(row.platforms || row.platform);
+  const schedulePlatformTypes = { ...(row.platformTypes || {}) };
+  schedulePublishing.forEach(item => {
+    schedulePlatformTypes[item.platform] = item.postTypes.length > 1 ? item.postTypes : (item.postType || item.postTypes[0] || '');
+  });
   const schedulePostType = prepSchedulePostTypeData(row);
+  const scheduleTitle = row.productCreative || row.creativeName || row.creative || row.output || row.title || base.title;
   return {
     ...base,
     scheduleRowIndex: best.index,
-    scheduleOutput: row.output || row.title || base.title,
-    title: base.title || row.output || row.title || base.title,
+    scheduleRowId: row.id || row.scheduleId || '',
+    scheduleProductId: row.productId || row.creativeId || row.creativeInstanceId || '',
+    scheduleOutput: scheduleTitle,
+    title: scheduleTitle || base.title,
     caption: base.caption || scheduleCaption,
     hashtags: base.hashtags || scheduleHashtags,
     publishDate: row.date || row.publishDate || base.publishDate || '',
     publishTime: row.time || row.publishTime || base.publishTime || '',
-    platforms: base.platforms?.length ? base.platforms : schedulePlatforms,
+    platforms: schedulePlatforms.length ? schedulePlatforms : (base.platforms || []),
+    platformTypes: Object.keys(schedulePlatformTypes).length ? schedulePlatformTypes : (base.platformTypes || {}),
+    platformPublishing: schedulePublishing.length ? schedulePublishing : (base.platformPublishing || []),
     postType: base.postType || schedulePostType.value || '',
     postTypeLabel: base.postTypeLabel || schedulePostType.label || '',
     requiredDimensions: base.requiredDimensions || (schedulePostType.value ? { width: schedulePostType.width, height: schedulePostType.height } : null),
