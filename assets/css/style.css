@@ -11965,3 +11965,29 @@ body:has(.v732-edit-popup){overflow:hidden!important}.v732-edit-popup ~ .topbar,
 .creative-catalog-item .item-head h3{font-size:14px;line-height:1.65;overflow-wrap:anywhere}
 .creative-code-chip{direction:ltr;unicode-bidi:embed;font-weight:800;letter-spacing:.25px}
 @media (max-width:900px){.creative-department-items{grid-template-columns:1fr}}
+
+
+/* v25: keep notification bell at the top and show new notification cards at the bottom */
+.live-notification-popup,
+body .live-notification-popup,
+#liveNotificationPopup{
+  top:auto !important;
+  bottom:24px !important;
+  left:24px !important;
+  right:auto !important;
+  transform:translateY(18px) !important;
+}
+.live-notification-popup.show,
+#liveNotificationPopup.show{
+  transform:translateY(0) !important;
+}
+@media(max-width:780px){
+  .live-notification-popup,
+  body .live-notification-popup,
+  #liveNotificationPopup{
+    top:auto !important;
+    bottom:12px !important;
+    left:12px !important;
+    right:12px !important;
+  }
+}

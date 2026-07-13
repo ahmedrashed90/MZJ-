@@ -7631,7 +7631,7 @@ function campaignManagementFilteredList(limit = 50){
 function campaignProgressHtml(progress){ return `<div class="campaign-progress-line"><span>${escapeHtml(progress)}%</span><b><i style="width:${Math.max(0, Math.min(100, Number(progress) || 0))}%"></i></b></div>`; }
 function campaignManagementActionButtons(campaign){
   const id = escapeHtml(campaignStableId(campaign));
-  return `<div class="campaign-row-actions"><button type="button" class="mini-btn" data-select-campaign-row="${id}">عرض البيانات</button><button type="button" class="mini-btn" data-edit-campaign="${id}">تعديل</button><button type="button" class="mini-btn" data-archive-campaign="${id}">أرشفة</button><button type="button" class="mini-btn danger" data-delete-campaign="${id}">حذف</button></div>`;
+  return `<div class="campaign-row-actions"><button type="button" class="mini-btn" data-edit-campaign="${id}">تعديل</button><button type="button" class="mini-btn" data-archive-campaign="${id}">أرشفة</button><button type="button" class="mini-btn danger" data-delete-campaign="${id}">حذف</button></div>`;
 }
 function campaignInfoPanelHtml(campaign){
   const fields = [
