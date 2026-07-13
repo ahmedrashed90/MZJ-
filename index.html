@@ -619,8 +619,11 @@
 <summary><span>إضافة كريتيف</span><strong>فتح / إغلاق</strong></summary>
 <form class="form" id="creativeForm">
 <input id="creativeEditId" type="hidden">
+<label class="field"><span>القسم المرتبط بالكريتيف</span><select id="creativeDepartment" required=""><option value="">اختر القسم</option></select></label>
 <label class="field"><span>اسم الكريتيف</span><input id="creativeName" required="" type="text"/></label>
+<label class="field"><span>الكود المختصر</span><input id="creativeCode" placeholder="مثال: M-RL-SPEC-ST" required="" type="text"/></label>
 <div class="form-actions"><button class="btn btn-primary full" type="submit">حفظ الكريتيف</button><button class="btn btn-light" id="cancelCreativeEdit" type="button">إلغاء</button></div>
+<button class="btn btn-light creative-catalog-import-btn" id="applyCreativeCatalogBtn" type="button">تطبيق التقسيمة الجديدة للكرييتيفات</button>
 <p class="form-message" id="creativeMessage"></p>
 </input></form>
 </details>
@@ -1053,8 +1056,8 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="assets/js/jszip.min.js?v=160"></script>
-<script src="assets/js/app.js?v=760-core"></script>
-<script src="assets/js/merged-patches.js?v=calendar-publish-prep-sync-1"></script>
+<script src="assets/js/app.js?v=760-core-creative-catalog-v24"></script>
+<script src="assets/js/merged-patches.js?v=creative-department-catalog-v24"></script>
 <script src="assets/js/agenda.js?v=23-final-upload-agenda-label"></script>
 </input></input></input></input></body>
 </html>

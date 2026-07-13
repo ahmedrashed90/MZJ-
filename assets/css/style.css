@@ -11951,3 +11951,17 @@ body:has(.v732-edit-popup){overflow:hidden!important}.v732-edit-popup ~ .topbar,
   padding:7px 8px!important;
   white-space:nowrap!important;
 }
+
+
+/* v24 - creative catalog linked to departments */
+.creative-catalog-import-btn{width:100%;margin-top:4px}
+.creative-department-group{border:1px solid var(--line,#e5cbbe);border-radius:18px;padding:14px;background:rgba(255,255,255,.28);margin-bottom:14px}
+.creative-department-group:last-child{margin-bottom:0}
+.creative-department-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px 12px}
+.creative-department-group-head h3{margin:0;font-size:18px}
+.creative-department-group-head span{font-size:12px;color:var(--muted,#8e7166);background:var(--surface,#faf6f1);border:1px solid var(--line,#e5cbbe);border-radius:999px;padding:6px 10px}
+.creative-department-items{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.creative-catalog-item{margin:0;min-width:0}
+.creative-catalog-item .item-head h3{font-size:14px;line-height:1.65;overflow-wrap:anywhere}
+.creative-code-chip{direction:ltr;unicode-bidi:embed;font-weight:800;letter-spacing:.25px}
+@media (max-width:900px){.creative-department-items{grid-template-columns:1fr}}

@@ -141,6 +141,7 @@ function refreshDynamicSelects(){
   const departmentUsers = document.getElementById('departmentUsers');
   if(departmentUsers){ const selected = getSelectedValues(departmentUsers); departmentUsers.innerHTML = multiUserOptions(selected); }
   refreshAssignmentActionsDepartmentSelect();
+  refreshCreativeDepartmentSelect();
   generateCampaignCode();
   updateAllProductOutputs();
 }
@@ -222,7 +223,58 @@ function renderAssignmentActions(){
     <div class="chip-list"><span class="chip">${escapeHtml(row.dep.name)}</span><span class="chip">${Number(row.action.percent || 0)}%</span>${row.action.adminOnly ? '<span class="chip"><small>أدمن فقط</small></span>' : ''}</div>
   </article>`).join('');
 }
-function renderCreatives(){ renderNameList('creativesList', creatives, 'data-edit-creative', 'data-delete-creative', 'لا توجد كريتيفات حتى الآن.'); }
+function creativeDepartmentForItem(item){
+  if(!item) return null;
+  const direct = departments.find(dep => dep.id === item.departmentId || dep.id === item.linkedDepartmentId);
+  if(direct) return direct;
+  const wantedRole = normalizeDepartmentRole(item.departmentRole || item.departmentName || item.department || '');
+  return departments.find(dep => departmentRole(dep) === wantedRole) || null;
+}
+function creativeDepartmentName(item){
+  const dep = creativeDepartmentForItem(item);
+  return dep?.name || item?.departmentName || defaultRoleSectionName(normalizeDepartmentRole(item?.departmentRole || item?.departmentName || ''));
+}
+function creativeDepartmentOptions(selected = ''){
+  return '<option value="">اختر القسم</option>' + departments
+    .filter(dep => ['montage','design','shooting'].includes(departmentRole(dep)))
+    .map(dep => `<option value="${escapeHtml(dep.id)}"${selected === dep.id ? ' selected' : ''}>${escapeHtml(dep.name)}</option>`).join('');
+}
+function refreshCreativeDepartmentSelect(){
+  const select = document.getElementById('creativeDepartment');
+  if(!select) return;
+  const current = select.value;
+  select.innerHTML = creativeDepartmentOptions(current);
+}
+function renderCreatives(){
+  refreshCreativeDepartmentSelect();
+  const list = document.getElementById('creativesList');
+  if(!list) return;
+  if(!creatives.length){
+    list.innerHTML = '<div class="empty-state">لا توجد كريتيفات حتى الآن. اضغط «تطبيق التقسيمة الجديدة للكرييتيفات» لإضافتها.</div>';
+    return;
+  }
+  const roleOrder = { montage:1, design:2, shooting:3, other:9 };
+  const sorted = [...creatives].sort((a,b) => {
+    const roleA = normalizeDepartmentRole(a.departmentRole || creativeDepartmentName(a));
+    const roleB = normalizeDepartmentRole(b.departmentRole || creativeDepartmentName(b));
+    return (roleOrder[roleA] || 9) - (roleOrder[roleB] || 9)
+      || Number(a.order || 999) - Number(b.order || 999)
+      || normalizeText(a.name).localeCompare(normalizeText(b.name), 'ar');
+  });
+  const groups = new Map();
+  sorted.forEach(item => {
+    const name = creativeDepartmentName(item) || 'بدون قسم';
+    if(!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(item);
+  });
+  list.innerHTML = [...groups.entries()].map(([departmentName, items]) => `<section class="creative-department-group">
+    <div class="creative-department-group-head"><h3>${escapeHtml(departmentName)}</h3><span>${items.length} كريتيف</span></div>
+    <div class="creative-department-items">${items.map(item => `<article class="department-item creative-catalog-item">
+      <div class="item-head"><h3>${escapeHtml(item.name)}</h3><div class="item-actions"><button type="button" class="mini-btn" data-edit-creative="${escapeHtml(item.id)}">تعديل</button><button type="button" class="mini-btn danger" data-delete-creative="${escapeHtml(item.id)}">حذف</button></div></div>
+      <div class="chip-list"><span class="chip creative-code-chip">${escapeHtml(item.code || item.shortCode || creativeShortCodeForName(item.name))}</span><span class="chip"><small>${escapeHtml(departmentName)}</small></span></div>
+    </article>`).join('')}</div>
+  </section>`).join('');
+}
 function renderTaskTypes(){ renderNameList('taskTypesList', taskTypes, 'data-edit-task-type', 'data-delete-task-type', 'لا توجد أنواع تاسك حتى الآن.'); }
 function renderCampaignTypes(){
   const list = document.getElementById('campaignTypesList'); if(!list) return;
@@ -1758,12 +1810,23 @@ function defaultRoleSectionName(role){
 function defaultRoleTaskType(role){
   return {content:'كتابة المحتوى', shooting:'التصوير', design:'التصميم', montage:'المونتاج', publish:'النشر'}[role] || 'تاسك';
 }
+function creativeRecordForName(creativeName){
+  const key = identityClean(creativeName || '');
+  if(!key) return null;
+  return (Array.isArray(creatives) ? creatives : []).find(item => identityClean(item?.name || '') === key) || null;
+}
 function creativeDepartmentRole(creativeName){
+  const record = creativeRecordForName(creativeName);
+  if(record){
+    const dep = departments.find(item => item.id === record.departmentId || item.id === record.linkedDepartmentId);
+    const role = normalizeDepartmentRole(record.departmentRole || record.departmentName || record.department || dep?.name || dep?.slug || '');
+    if(role && role !== 'other') return role;
+  }
   const raw = normalizeText(creativeName || '');
   const key = identityClean(raw);
   if(!key) return 'montage';
   if(key.startsWith('تصوير') || key.includes('قسم التصوير')) return 'shooting';
-  const designKeys = ['post','carousel','panner','banner','motion','gif','print','mzjinterial','mzjinterior','تصميم'];
+  const designKeys = ['post','carousel','panner','banner','motion','gif','print','mzjinterial','mzjinterior','تصميم','story'];
   if(designKeys.some(item => key.includes(item))) return 'design';
   return 'montage';
 }
@@ -1772,48 +1835,13 @@ function creativeRoleLabelForName(creativeName){
   return {shooting:'قسم التصوير', design:'قسم التصميم', montage:'قسم المونتاج'}[role] || 'قسم المونتاج';
 }
 
-const MZJ_CREATIVE_SHORT_CODES = [
-  ['REEL - مواصفات كامله - STUDIO','M-RL-SPEC-ST'],
-  ['REEL - اهم المواصفات - STUDIO','M-RL-TOP-ST'],
-  ['REEL - SHORT/TREND - SHOWROOM','M-RL-TRD-SR'],
-  ['REEL - UGC - SHOWROOM','M-RL-UGC-SR'],
-  ['REEL - حملات - SHOWROOM','M-RL-CMP-SR'],
-  ['REEL - معارضنا - SHOWROOM','M-RL-SHOW-SR'],
-  ['REEL - تجربه عميل - SHOWROOM','M-RL-CUST-SR'],
-  ['VIDEO - مواصفات - STUDIO','M-VD-SPEC-ST'],
-  ['VIDEO - فيلم سياره - STUDIO','M-VD-CAR-ST'],
-  ['VIDEO - فيلم - STUDIO','M-VD-FILM-ST'],
-  ['VIDEO - مواصفات - SHOWROOM','M-VD-SPEC-SR'],
-  ['VIDEO - فيلم - SHOWROOM','M-VD-FILM-SR'],
-  ['VIDEO - معارضنا - SHOWROOM','M-VD-SHOW-SR'],
-  ['STORY - جاهزة الان - STUDIO','M-ST-READY-ST'],
-  ['STORY - سعرها اليوم - STUDIO','M-ST-PRICE-ST'],
-  ['STORY - قسطها الان - STUDIO','M-ST-INST-ST'],
-  ['STORY - معرضنا - SHOWROOM','M-ST-SHOW-SR'],
-  ['STORY - جاهزة الان - SHOWROOM','M-ST-READY-SR'],
-  ['STORY - سعرها اليوم - SHOWROOM','M-ST-PRICE-SR'],
-  ['STORY - قسطها الان - SHOWROOM','M-ST-INST-SR'],
-  ['POST','D-POST'],
-  ['CAROUSEL','D-CAROUSEL'],
-  ['PANNER','D-PANNER'],
-  ['MOTION','D-MOTION'],
-  ['GIF','D-GIF'],
-  ['PRINT','D-PRINT'],
-  ['MZJ-INTERIAL','D-INTERIAL'],
-  ['تصوير صور السياره','P-CAR-PHOTO'],
-  ['تصوير ريل - مواصفات - STUDIO','P-RL-SPEC-ST'],
-  ['تصوير ريل - SHORT/TREND - SHOWROOM','P-RL-TRD-SR'],
-  ['تصوير ريل - UGC - SHOWROOM','P-RL-UGC-SR'],
-  ['تصوير ريل - معارضنا - SHOWROOM','P-RL-SHOW-SR'],
-  ['تصوير ريل - تجربه عميل - SHOWROOM','P-RL-CUST-SR'],
-  ['تصوير فيديو - مواصفات - STUDIO','P-VD-SPEC-ST'],
-  ['تصوير فيديو - مواصفات - SHOWROOM','P-VD-SPEC-SR'],
-  ['تصوير فيديو - معارضنا - SHOWROOM','P-VD-SHOW-SR'],
-  ['تصوير ستوري - سياره - STUDIO','P-ST-CAR-ST'],
-  ['تصوير ستوري - معرضنا - SHOWROOM','P-ST-SHOW-SR']
-];
+const MZJ_CREATIVE_SHORT_CODES = (Array.isArray(window.MZJ_DEFAULT_CREATIVE_CATALOG) ? window.MZJ_DEFAULT_CREATIVE_CATALOG : [])
+  .map(item => [item.name, item.code]);
 function creativeShortCodeForName(creativeName){
   const clean = identityClean(creativeName || '');
+  const dynamic = (Array.isArray(creatives) ? creatives : []).find(item => identityClean(item?.name || '') === clean);
+  const dynamicCode = normalizeText(dynamic?.code || dynamic?.shortCode || dynamic?.creativeShortCode || '').toUpperCase();
+  if(dynamicCode) return dynamicCode;
   const found = MZJ_CREATIVE_SHORT_CODES.find(([name]) => identityClean(name) === clean);
   if(found) return found[1];
   const raw = normalizeText(creativeName || '').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
@@ -1821,6 +1849,8 @@ function creativeShortCodeForName(creativeName){
 }
 function creativeNameFromShortCode(code){
   const clean = normalizeText(code || '').toUpperCase();
+  const dynamic = (Array.isArray(creatives) ? creatives : []).find(item => normalizeText(item?.code || item?.shortCode || item?.creativeShortCode || '').toUpperCase() === clean);
+  if(dynamic) return dynamic.name || '';
   const found = MZJ_CREATIVE_SHORT_CODES.find(([, short]) => normalizeText(short).toUpperCase() === clean);
   return found ? found[0] : '';
 }
@@ -6363,7 +6393,78 @@ function bindDepartments(){
       event.target.reset(); resetForm(['assignmentActionEditIndex']); document.getElementById('assignmentActionDepartment').value = dep.id; showMessage('assignmentActionMessage', 'تم حفظ إجراء التكليف.');
     }catch(error){ console.error(error); showMessage('assignmentActionMessage', 'تعذر حفظ إجراء التكليف.'); }
   });
-  bindNamedForm('creativeForm', 'creativeEditId', 'creativeName', 'creativeMessage', window.MZJ_CREATIVES_COLLECTION, 'تم حفظ الكريتيف.');
+  document.getElementById('creativeForm')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const id = document.getElementById('creativeEditId')?.value || '';
+    const departmentId = document.getElementById('creativeDepartment')?.value || '';
+    const name = normalizeText(document.getElementById('creativeName')?.value);
+    const code = normalizeText(document.getElementById('creativeCode')?.value).toUpperCase();
+    const dep = departments.find(item => item.id === departmentId);
+    if(!dep || !name || !code) return showMessage('creativeMessage', 'اختار القسم واكتب اسم الكريتيف والكود المختصر.');
+    if(!mainDb) return showMessage('creativeMessage', 'اتصال Firebase غير متاح.');
+    const duplicate = creatives.find(item => item.id !== id && (identityClean(item.name) === identityClean(name) || normalizeText(item.code || item.shortCode || '').toUpperCase() === code));
+    if(duplicate) return showMessage('creativeMessage', 'اسم الكريتيف أو الكود المختصر مستخدم بالفعل.');
+    const payload = {
+      name,
+      code,
+      shortCode: code,
+      creativeShortCode: code,
+      departmentId: dep.id,
+      linkedDepartmentId: dep.id,
+      departmentName: dep.name,
+      departmentRole: departmentRole(dep),
+      updatedAt: serverTime()
+    };
+    try{
+      if(id) await safeCollection(window.MZJ_CREATIVES_COLLECTION).doc(id).update(payload);
+      else await safeCollection(window.MZJ_CREATIVES_COLLECTION).add({ ...payload, order: creatives.filter(item => creativeDepartmentRole(item.name) === departmentRole(dep)).length + 1, createdAt: serverTime() });
+      event.target.reset(); resetForm(['creativeEditId']); refreshCreativeDepartmentSelect(); showMessage('creativeMessage', 'تم حفظ الكريتيف وربطه بالقسم.');
+    }catch(error){ console.error(error); showMessage('creativeMessage', 'تعذر حفظ الكريتيف.'); }
+  });
+  document.getElementById('applyCreativeCatalogBtn')?.addEventListener('click', async event => {
+    if(!mainDb) return showMessage('creativeMessage', 'اتصال Firebase غير متاح.');
+    const catalog = Array.isArray(window.MZJ_DEFAULT_CREATIVE_CATALOG) ? window.MZJ_DEFAULT_CREATIVE_CATALOG : [];
+    if(!catalog.length) return showMessage('creativeMessage', 'التقسيمة الأساسية غير موجودة داخل السورس.');
+    if(!confirm('سيتم استبدال قائمة الكرييتيفات الحالية بالتقسيمة الجديدة وربط كل كريتيف بقسمه. هل تريد المتابعة؟')) return;
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = 'جاري تطبيق التقسيمة...';
+    try{
+      const snapshot = await safeCollection(window.MZJ_CREATIVES_COLLECTION).get();
+      const currentDocs = snapshot.docs.map(doc => ({ id:doc.id, ref:doc.ref, ...(doc.data() || {}) }));
+      const usedIds = new Set();
+      const batch = mainDb.batch();
+      catalog.forEach(item => {
+        const dep = departments.find(dep => departmentRole(dep) === item.departmentRole) || null;
+        const existing = currentDocs.find(doc => identityClean(doc.name || '') === identityClean(item.name) || normalizeText(doc.code || doc.shortCode || '').toUpperCase() === item.code);
+        const ref = existing?.ref || safeCollection(window.MZJ_CREATIVES_COLLECTION).doc(creativeSafeKey(item.code).toLowerCase());
+        usedIds.add(ref.id);
+        batch.set(ref, {
+          name:item.name,
+          code:item.code,
+          shortCode:item.code,
+          creativeShortCode:item.code,
+          departmentId:dep?.id || '',
+          linkedDepartmentId:dep?.id || '',
+          departmentName:dep?.name || item.departmentName,
+          departmentRole:item.departmentRole,
+          order:Number(item.order || 0),
+          catalogVersion:24,
+          updatedAt:serverTime(),
+          ...(existing ? {} : { createdAt:serverTime() })
+        }, { merge:true });
+      });
+      currentDocs.forEach(doc => { if(!usedIds.has(doc.id)) batch.delete(doc.ref); });
+      await batch.commit();
+      showMessage('creativeMessage', 'تم تطبيق التقسيمة الجديدة وربط الكرييتيفات بالأقسام.');
+    }catch(error){
+      console.error('Creative catalog apply error', error);
+      showMessage('creativeMessage', 'تعذر تطبيق التقسيمة الجديدة.');
+    }finally{
+      button.disabled = false;
+      button.textContent = 'تطبيق التقسيمة الجديدة للكرييتيفات';
+    }
+  });
   bindNamedForm('taskTypeForm', 'taskTypeEditId', 'taskTypeName', 'taskTypeMessage', window.MZJ_TASK_TYPES_COLLECTION, 'تم حفظ نوع التاسك.');
   document.getElementById('campaignTypeForm')?.addEventListener('submit', async event => {
     event.preventDefault();
@@ -6418,7 +6519,7 @@ function bindDepartments(){
     const depDel = event.target.closest('[data-delete-department]'); if(depDel){ await deleteDoc('department', depDel.dataset.deleteDepartment); return; }
     const actEdit = event.target.closest('[data-edit-assignment-action]'); if(actEdit){ const dep = departments.find(x => x.id === actEdit.dataset.editAssignmentAction); const action = assignmentActionsFromDepartment(dep)[Number(actEdit.dataset.actionIndex)]; if(dep && action){ const form = document.getElementById('assignmentActionForm'); const details = form?.closest('details'); if(details) details.open = true; document.getElementById('assignmentActionDepartment').value = dep.id; document.getElementById('assignmentActionEditIndex').value = actEdit.dataset.actionIndex; document.getElementById('assignmentActionName').value = action.label; document.getElementById('assignmentActionPercent').value = action.percent; document.getElementById('assignmentActionAdminOnly').checked = !!action.adminOnly; form?.scrollIntoView({ behavior:'smooth', block:'start' }); } return; }
     const actDel = event.target.closest('[data-delete-assignment-action]'); if(actDel){ const dep = departments.find(x => x.id === actDel.dataset.deleteAssignmentAction); if(dep && confirm('حذف إجراء التكليف؟')){ const actions = assignmentActionsFromDepartment(dep).filter((_, index) => index !== Number(actDel.dataset.actionIndex)).map((item, index) => ({ label:item.label, percent:Number(item.percent || 0), adminOnly:Boolean(item.adminOnly), index })); await safeCollection(window.MZJ_DEPARTMENTS_COLLECTION).doc(dep.id).update({ assignmentActions: actions, updatedAt: serverTime() }); } return; }
-    const crEdit = event.target.closest('[data-edit-creative]'); if(crEdit){ const item = creatives.find(x => x.id === crEdit.dataset.editCreative); if(item){ document.getElementById('creativeEditId').value = item.id; document.getElementById('creativeName').value = item.name; } return; }
+    const crEdit = event.target.closest('[data-edit-creative]'); if(crEdit){ const item = creatives.find(x => x.id === crEdit.dataset.editCreative); if(item){ const form = document.getElementById('creativeForm'); const details = form?.closest('details'); if(details) details.open = true; document.getElementById('creativeEditId').value = item.id; refreshCreativeDepartmentSelect(); const dep = creativeDepartmentForItem(item); document.getElementById('creativeDepartment').value = dep?.id || item.departmentId || ''; document.getElementById('creativeName').value = item.name || ''; document.getElementById('creativeCode').value = item.code || item.shortCode || creativeShortCodeForName(item.name); form?.scrollIntoView({ behavior:'smooth', block:'start' }); } return; }
     const crDel = event.target.closest('[data-delete-creative]'); if(crDel){ await deleteDoc('creative', crDel.dataset.deleteCreative); return; }
     const ttEdit = event.target.closest('[data-edit-task-type]'); if(ttEdit){ const item = taskTypes.find(x => x.id === ttEdit.dataset.editTaskType); if(item){ document.getElementById('taskTypeEditId').value = item.id; document.getElementById('taskTypeName').value = item.name; } return; }
     const ttDel = event.target.closest('[data-delete-task-type]'); if(ttDel){ await deleteDoc('taskType', ttDel.dataset.deleteTaskType); return; }
@@ -6435,13 +6536,13 @@ function bindDepartments(){
   });
   document.getElementById('cancelDepartmentEdit')?.addEventListener('click', () => { document.getElementById('departmentForm')?.reset(); resetForm(['departmentEditId']); refreshDynamicSelects(); });
   document.getElementById('cancelAssignmentActionEdit')?.addEventListener('click', () => { document.getElementById('assignmentActionForm')?.reset(); resetForm(['assignmentActionEditIndex']); refreshAssignmentActionsDepartmentSelect(); });
-  document.getElementById('cancelCreativeEdit')?.addEventListener('click', () => { document.getElementById('creativeForm')?.reset(); resetForm(['creativeEditId']); });
+  document.getElementById('cancelCreativeEdit')?.addEventListener('click', () => { document.getElementById('creativeForm')?.reset(); resetForm(['creativeEditId']); refreshCreativeDepartmentSelect(); });
   document.getElementById('cancelTaskTypeEdit')?.addEventListener('click', () => { document.getElementById('taskTypeForm')?.reset(); resetForm(['taskTypeEditId']); });
   document.getElementById('cancelCampaignTypeEdit')?.addEventListener('click', () => { document.getElementById('campaignTypeForm')?.reset(); document.getElementById('campaignTypePrefix').value = 'MZJ'; resetForm(['campaignTypeEditId']); });
   document.getElementById('cancelPlatformEdit')?.addEventListener('click', () => { document.getElementById('platformForm')?.reset(); resetForm(['platformEditId']); setPlatformPostTypesRows([]); });
   document.getElementById('cancelOrderStatusEdit')?.addEventListener('click', () => { document.getElementById('orderStatusForm')?.reset(); resetForm(['orderStatusEditId']); });
   document.getElementById('cancelContentSectionEdit')?.addEventListener('click', () => { document.getElementById('contentSectionForm')?.reset(); resetForm(['contentSectionEditId']); });
-  document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); renderTaskTypes(); renderCampaignTypes(); renderOrderStatuses(); renderContentSections(); renderCaptionTrends(); });
+  document.getElementById('refreshDepartmentsBtn')?.addEventListener('click', () => { renderDepartments(); renderCreatives(); refreshCreativeDepartmentSelect(); renderTaskTypes(); renderCampaignTypes(); renderOrderStatuses(); renderContentSections(); renderCaptionTrends(); });
   document.getElementById('refreshStockBtn')?.addEventListener('click', renderStock);
   document.getElementById('exportStockExcelBtn')?.addEventListener('click', exportStockRowsToExcel);
   document.getElementById('clearStockFiltersBtn')?.addEventListener('click', clearStockFilters);
@@ -39523,7 +39624,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   const roleLabels={content:'قسم المحتوى',design:'قسم التصميم',montage:'قسم المونتاج',shooting:'قسم التصوير',photography:'قسم التصوير',publishing:'قسم النشر'};
   const roleNorm=v=>{const x=norm(v); if(x.includes('content')||x.includes('محتو')||x.includes('script'))return'content'; if(x.includes('design')||x.includes('تصميم'))return'design'; if(x.includes('montage')||x.includes('مونتاج')||x.includes('edit'))return'montage'; if(x.includes('shoot')||x.includes('photo')||x.includes('تصوير'))return'shooting'; if(x.includes('publish')||x.includes('نشر'))return'publishing'; return S(v)||'';};
   const roleLabel=r=>roleLabels[roleNorm(r)]||S(r)||'قسم';
-  function creativeRole(name){const n=norm(name); if(n.includes(norm('تصوير'))) return 'shooting'; if(['POST','CAROUSEL','PANNER','MOTION','GIF','PRINT','MZJ-INTERIAL'].some(x=>n.includes(norm(x)))) return 'design'; if(['REEL','VIDEO','STORY'].some(x=>n.includes(norm(x)))) return 'montage'; return 'design';}
+  function creativeRole(name){try{const dynamic=typeof creativeDepartmentRole==='function'?creativeDepartmentRole(name):''; if(dynamic&&dynamic!=='other')return dynamic;}catch(_){} const n=norm(name); if(n.includes(norm('تصوير'))) return 'shooting'; if(['POST','CAROUSEL','PANNER','MOTION','GIF','PRINT','MZJ-INTERIAL','STORY'].some(x=>n.includes(norm(x)))) return 'design'; if(['REEL','VIDEO'].some(x=>n.includes(norm(x)))) return 'montage'; return 'design';}
   function creativeType(name){const n=norm(name); if(n.includes('carousel'))return'CAROUSEL'; if(n.includes('story'))return'STORY'; if(n.includes('post'))return'POST'; if(n.includes('video'))return'VIDEO'; if(n.includes('gif'))return'GIF'; return 'REEL';}
   function uniq(list,key){const out=[],seen=new Set(); A(list).forEach(x=>{const k=norm(key?key(x):x); if(k&&!seen.has(k)){seen.add(k); out.push(x);}}); return out;}
   function localList(name){try{if(Array.isArray(window[name]))return window[name];}catch(_){} try{return eval('typeof '+name+'!=="undefined"&&Array.isArray('+name+')?'+name+':[]');}catch(_){return [];}}
@@ -39538,7 +39639,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   function mapLocal(){
     state.refs.types=uniq([...state.refs.types,...localList('campaignTypes')].map((x,i)=>({id:S(x.id||x.code||x.name||'type_'+i),name:S(x.name||x.label||x.title||x.code||'نوع حملة'),code:S(x.code||''),prefix:S(x.prefix||'MZJ'),nextNumber:Number(x.nextNumber||x.next||1)||1})),x=>x.id||x.name);
     state.refs.creatives=uniq([...state.refs.creatives,...localList('creatives')].map((x,i)=>{const name=S(x.name||x.label||x.title||x.id||''); return {id:S(x.id||x.code||name||'creative_'+i),name:name||('Creative '+(i+1)),role:S(x.primaryRole||x.departmentRole||x.role||creativeRole(name)),code:S(x.code||x.primaryCode||''),type:S(x.type||creativeType(name))};}),x=>x.name||x.id).sort((a,b)=>S(a.name).localeCompare(S(b.name),'ar'));
-    try{if(!state.refs.creatives.length&&Array.isArray(MZJ_DEFAULT_CREATIVE_NAMES))state.refs.creatives=MZJ_DEFAULT_CREATIVE_NAMES.map(name=>({id:S(name),name:S(name),role:creativeRole(name),type:creativeType(name),code:''}));}catch(_){ }
+    try{if(!state.refs.creatives.length&&Array.isArray(window.MZJ_DEFAULT_CREATIVE_CATALOG))state.refs.creatives=window.MZJ_DEFAULT_CREATIVE_CATALOG.map(item=>({id:S(item.code||item.name),name:S(item.name),role:S(item.departmentRole||creativeRole(item.name)),type:creativeType(item.name),code:S(item.code||'')}));else if(!state.refs.creatives.length&&Array.isArray(MZJ_DEFAULT_CREATIVE_NAMES))state.refs.creatives=MZJ_DEFAULT_CREATIVE_NAMES.map(name=>({id:S(name),name:S(name),role:creativeRole(name),type:creativeType(name),code:''}));}catch(_){ }
     state.refs.funnels=uniq([...state.refs.funnels,...localList('funnels')].map((x,i)=>({id:S(x.id||x.name||'funnel_'+i),name:S(x.name||x.label||x.title||x.id||'Funnel')})),x=>x.id||x.name);
     state.refs.platforms=uniq([...state.refs.platforms,...localList('platforms')].map((x,i)=>({id:S(x.id||x.name||'platform_'+i),name:S(x.name||x.label||x.title||x.id||'منصة')})),x=>x.name||x.id);
     state.refs.users=uniq([...state.refs.users,...localList('users')].map((x,i)=>({id:S(x.id||x.uid||x.email||'user_'+i),uid:S(x.uid||x.id||''),email:S(x.email||''),name:S(x.name||x.displayName||x.email||x.id||'مستخدم'),department:S(x.department||x.departmentId||x.departmentName||'')})),x=>x.id||x.uid||x.email||x.name);

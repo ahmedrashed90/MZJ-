@@ -142,11 +142,53 @@ let stockWorkflowAuthPromise = null;
 let departments = [];
 let users = [];
 let creatives = [];
-const MZJ_DEFAULT_CREATIVE_NAMES = [
-  'REEL - مواصفات كامله - STUDIO','REEL - اهم المواصفات - STUDIO','REEL - SHORT/TREND - SHOWROOM','REEL - UGC - SHOWROOM','REEL - حملات - SHOWROOM','REEL - معارضنا - SHOWROOM','REEL - تجربه عميل - SHOWROOM','VIDEO - مواصفات - STUDIO','VIDEO - فيلم سياره - STUDIO','VIDEO - فيلم - STUDIO','VIDEO - مواصفات - SHOWROOM','VIDEO - فيلم - SHOWROOM','VIDEO - معارضنا - SHOWROOM','STORY - جاهزة الان - STUDIO','STORY - سعرها اليوم - STUDIO','STORY - قسطها الان - STUDIO','STORY - معرضنا - SHOWROOM','STORY - جاهزة الان - SHOWROOM','STORY - سعرها اليوم - SHOWROOM','STORY - قسطها الان - SHOWROOM',
-  'POST','CAROUSEL','PANNER','MOTION','GIF','PRINT','MZJ-INTERIAL',
-  'تصوير صور السياره','تصوير ريل - مواصفات - STUDIO','تصوير ريل - SHORT/TREND - SHOWROOM','تصوير ريل - UGC - SHOWROOM','تصوير ريل - معارضنا - SHOWROOM','تصوير ريل - تجربه عميل - SHOWROOM','تصوير فيديو - مواصفات - STUDIO','تصوير فيديو - مواصفات - SHOWROOM','تصوير فيديو - معارضنا - SHOWROOM','تصوير ستوري - سياره - STUDIO','تصوير ستوري - معرضنا - SHOWROOM'
+const MZJ_DEFAULT_CREATIVE_CATALOG = [
+  // قسم المونتاج
+  { name:'REEL - مواصفات كامله - STUDIO', code:'M-RL-SPEC-ST', departmentRole:'montage', departmentName:'قسم المونتاج', order:1 },
+  { name:'REEL - اهم المواصفات - STUDIO', code:'M-RL-TOP-ST', departmentRole:'montage', departmentName:'قسم المونتاج', order:2 },
+  { name:'REEL - SHORT/TREND - SHOWROOM', code:'M-RL-TRD-SR', departmentRole:'montage', departmentName:'قسم المونتاج', order:3 },
+  { name:'REEL - UGC - SHOWROOM', code:'M-RL-UGC-SR', departmentRole:'montage', departmentName:'قسم المونتاج', order:4 },
+  { name:'REEL - حملات - SHOWROOM', code:'M-RL-CMP-SR', departmentRole:'montage', departmentName:'قسم المونتاج', order:5 },
+  { name:'REEL - معارضنا - SHOWROOM', code:'M-RL-SHOW-SR', departmentRole:'montage', departmentName:'قسم المونتاج', order:6 },
+  { name:'REEL - تجربه عميل - SHOWROOM', code:'M-RL-CUST-SR', departmentRole:'montage', departmentName:'قسم المونتاج', order:7 },
+  { name:'VIDEO - مواصفات - STUDIO', code:'M-VD-SPEC-ST', departmentRole:'montage', departmentName:'قسم المونتاج', order:8 },
+  { name:'VIDEO - فيلم سياره - STUDIO', code:'M-VD-CAR-ST', departmentRole:'montage', departmentName:'قسم المونتاج', order:9 },
+  { name:'VIDEO - فيلم - STUDIO', code:'M-VD-FILM-ST', departmentRole:'montage', departmentName:'قسم المونتاج', order:10 },
+  { name:'VIDEO - مواصفات - SHOWROOM', code:'M-VD-SPEC-SR', departmentRole:'montage', departmentName:'قسم المونتاج', order:11 },
+  { name:'VIDEO - فيلم - SHOWROOM', code:'M-VD-FILM-SR', departmentRole:'montage', departmentName:'قسم المونتاج', order:12 },
+  { name:'VIDEO - معارضنا - SHOWROOM', code:'M-VD-SHOW-SR', departmentRole:'montage', departmentName:'قسم المونتاج', order:13 },
+
+  // قسم التصميم
+  { name:'POST', code:'D-POST', departmentRole:'design', departmentName:'قسم التصميم', order:1 },
+  { name:'CAROUSEL', code:'D-CAROUSEL', departmentRole:'design', departmentName:'قسم التصميم', order:2 },
+  { name:'PANNER', code:'D-PANNER', departmentRole:'design', departmentName:'قسم التصميم', order:3 },
+  { name:'MOTION', code:'D-MOTION', departmentRole:'design', departmentName:'قسم التصميم', order:4 },
+  { name:'GIF', code:'D-GIF', departmentRole:'design', departmentName:'قسم التصميم', order:5 },
+  { name:'PRINT', code:'D-PRINT', departmentRole:'design', departmentName:'قسم التصميم', order:6 },
+  { name:'MZJ-INTERIAL', code:'D-INTERIAL', departmentRole:'design', departmentName:'قسم التصميم', order:7 },
+  { name:'STORY - جاهزة الان - STUDIO', code:'M-ST-READY-ST', departmentRole:'design', departmentName:'قسم التصميم', order:8 },
+  { name:'STORY - سعرها اليوم - STUDIO', code:'M-ST-PRICE-ST', departmentRole:'design', departmentName:'قسم التصميم', order:9 },
+  { name:'STORY - قسطها الان - STUDIO', code:'M-ST-INST-ST', departmentRole:'design', departmentName:'قسم التصميم', order:10 },
+  { name:'STORY - معرضنا - SHOWROOM', code:'M-ST-SHOW-SR', departmentRole:'design', departmentName:'قسم التصميم', order:11 },
+  { name:'STORY - جاهزة الان - SHOWROOM', code:'M-ST-READY-SR', departmentRole:'design', departmentName:'قسم التصميم', order:12 },
+  { name:'STORY - سعرها اليوم - SHOWROOM', code:'M-ST-PRICE-SR', departmentRole:'design', departmentName:'قسم التصميم', order:13 },
+  { name:'STORY - قسطها الان - SHOWROOM', code:'M-ST-INST-SR', departmentRole:'design', departmentName:'قسم التصميم', order:14 },
+
+  // قسم التصوير
+  { name:'تصوير صور السياره', code:'P-CAR-PHOTO', departmentRole:'shooting', departmentName:'قسم التصوير', order:1 },
+  { name:'تصوير ريل - مواصفات - STUDIO', code:'P-RL-SPEC-ST', departmentRole:'shooting', departmentName:'قسم التصوير', order:2 },
+  { name:'تصوير ريل - SHORT/TREND - SHOWROOM', code:'P-RL-TRD-SR', departmentRole:'shooting', departmentName:'قسم التصوير', order:3 },
+  { name:'تصوير ريل - UGC - SHOWROOM', code:'P-RL-UGC-SR', departmentRole:'shooting', departmentName:'قسم التصوير', order:4 },
+  { name:'تصوير ريل - معارضنا - SHOWROOM', code:'P-RL-SHOW-SR', departmentRole:'shooting', departmentName:'قسم التصوير', order:5 },
+  { name:'تصوير ريل - تجربه عميل - SHOWROOM', code:'P-RL-CUST-SR', departmentRole:'shooting', departmentName:'قسم التصوير', order:6 },
+  { name:'تصوير فيديو - مواصفات - STUDIO', code:'P-VD-SPEC-ST', departmentRole:'shooting', departmentName:'قسم التصوير', order:7 },
+  { name:'تصوير فيديو - مواصفات - SHOWROOM', code:'P-VD-SPEC-SR', departmentRole:'shooting', departmentName:'قسم التصوير', order:8 },
+  { name:'تصوير فيديو - معارضنا - SHOWROOM', code:'P-VD-SHOW-SR', departmentRole:'shooting', departmentName:'قسم التصوير', order:9 },
+  { name:'تصوير ستوري - سياره - STUDIO', code:'P-ST-CAR-ST', departmentRole:'shooting', departmentName:'قسم التصوير', order:10 },
+  { name:'تصوير ستوري - معرضنا - SHOWROOM', code:'P-ST-SHOW-SR', departmentRole:'shooting', departmentName:'قسم التصوير', order:11 }
 ];
+window.MZJ_DEFAULT_CREATIVE_CATALOG = MZJ_DEFAULT_CREATIVE_CATALOG;
+const MZJ_DEFAULT_CREATIVE_NAMES = MZJ_DEFAULT_CREATIVE_CATALOG.map(item => item.name);
 let taskTypes = [];
 let contentSections = [];
 let campaignCodes = [];
