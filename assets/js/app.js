@@ -77,7 +77,7 @@ window.MZJ_WHATSAPP_CONTACTS_COLLECTION = "whatsapp_contacts";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
-const routes = ['dashboard','reports','create-campaign','campaigns','social-publisher','platform-settings','publish-prep','checklist-reel','tasks','calendar','stock','departments','local-publisher','settings'];
+const routes = ['dashboard','reports','create-campaign','create-agenda','campaigns','social-publisher','platform-settings','publish-prep','checklist-reel','tasks','calendar','stock','departments','local-publisher','settings'];
 const pageAliases = {
   database: 'reports',
   report: 'reports',
@@ -110,6 +110,9 @@ const pageAliases = {
   car_reel_checklist: 'checklist-reel',
   'ريل-السيارات': 'checklist-reel',
   'create-campaign': 'create-campaign',
+  'create-agenda': 'create-agenda',
+  create_agenda: 'create-agenda',
+  agenda: 'create-agenda',
   create_campaign: 'create-campaign',
   departments: 'departments',
   content: 'departments',
@@ -202,6 +205,7 @@ function renderRoute(){
   document.querySelectorAll('.nav a').forEach(link => link.classList.toggle('active', link.dataset.route === route));
   sidebar?.classList.remove('open'); overlay?.classList.remove('show');
   if(route === 'create-campaign') ensureDefaultCampaignDate();
+  if(route === 'create-agenda' && typeof window.MZJAgendaRender === 'function') window.MZJAgendaRender();
   if(route === 'dashboard') renderAdminDashboard();
   if(route === 'calendar') renderCalendarPage();
   if(route === 'tasks') renderTasksPage();
@@ -213,6 +217,33 @@ function renderRoute(){
   if(route === 'checklist-reel') renderChecklistReelStudio();
   if(route === 'local-publisher'){ loadPublishingJobs?.(); renderLocalPublisherPage?.(); }
 }
+
+window.MZJGetAgendaCars = function(){
+  let rows = [];
+  try{
+    if(typeof stockRowsWithMeta === 'function') rows = stockRowsWithMeta() || [];
+  }catch(_){ rows = []; }
+  try{
+    if(!rows.length && typeof buildStockGroups === 'function') rows = buildStockGroups() || [];
+  }catch(_){ }
+  if(Array.isArray(rows) && rows.length){
+    return rows.map(group => ({
+      __agendaStockGroup: true,
+      uniqueSpecKey: group.uniqueSpecKey || group.unique_spec_key || group['Unique Spec Key'] || group.specKey || group.spec_key || group.key || [group.carName, group.statement].filter(Boolean).join(' - '),
+      exteriorColor: group.exteriorColor || group.externalColor || group['اللون الخارجي'] || group['لون خارجي'] || '',
+      interiorColor: group.interiorColor || group.insideColor || group['اللون الداخلي'] || group['لون داخلي'] || '',
+      carName: group.carName || group.name || group.title || '',
+      statement: group.statement || group.carStatement || '',
+      count: Number(group.count || (Array.isArray(group.cars) ? group.cars.length : 1) || 1)
+    }));
+  }
+  return cars || [];
+};
+
+window.MZJGetAgendaContext = function(){
+  return { db: mainDb, departments: departments || [], users: users || [], creatives: creatives || [], cars: window.MZJGetAgendaCars(), currentUser: getCurrentUserIdentity(), serverTime: serverTime };
+};
+
 function showMessage(id, text){ const el = document.getElementById(id); if(el) el.textContent = text || ''; }
 function escapeHtml(value){ return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
 function normalizeText(value){ return String(value ?? '').trim(); }

@@ -1,0 +1,134 @@
+.agenda-view{padding:0!important}
+.agenda-shell{min-height:calc(100vh - 76px);background:linear-gradient(145deg,#fffdfa,#f7eee8);padding:22px}
+.agenda-stepper{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;background:#fff;border:1px solid #ead8cd;border-radius:22px;padding:18px 26px;box-shadow:0 12px 35px rgba(75,32,19,.08);margin-bottom:18px}
+.agenda-step{display:flex;align-items:center;justify-content:center;gap:12px;color:#9b7a6b;font-weight:800}
+.agenda-step .num{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;border:2px solid #ead4ca;background:#fff}
+.agenda-step.active{color:#5a2417}
+.agenda-step.active .num,.agenda-step.done .num{background:linear-gradient(135deg,#8e3e27,#4a1d13);color:#fff;border-color:transparent}
+.agenda-panel{background:rgba(255,255,255,.94);border:1px solid #ead8cd;border-radius:22px;box-shadow:0 14px 40px rgba(75,32,19,.09);padding:22px}
+.agenda-title{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.agenda-title i{width:46px;height:46px;border-radius:14px;background:#f2dfd5;display:grid;place-items:center;font-style:normal;font-size:23px;color:#713020}
+.agenda-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.agenda-field{display:flex;flex-direction:column;gap:8px}
+.agenda-field label{font-weight:800;color:#542719}
+.agenda-input,.agenda-select,.agenda-textarea{width:100%;border:1px solid #dfc8bb;border-radius:14px;padding:13px 14px;background:#fff;font-family:inherit}
+.agenda-actions{display:flex;justify-content:space-between;gap:12px;margin-top:22px}
+.agenda-actions>div{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.agenda-btn{border:0;border-radius:13px;padding:13px 22px;font-family:inherit;font-weight:900;cursor:pointer}
+.agenda-btn.primary{background:linear-gradient(135deg,#a84c31,#5c2417);color:#fff}
+.agenda-btn.light{background:#fff;border:1px solid #dec6b9;color:#5a2a1c}
+.agenda-btn.compact{padding:8px 12px;font-size:12px}
+.agenda-btn.wide{width:100%}
+.agenda-btn:disabled{opacity:.48;cursor:not-allowed;filter:grayscale(.3)}
+.agenda-days{display:grid;gap:10px}
+.agenda-day{display:grid;grid-template-columns:130px 140px 1fr 130px;gap:12px;align-items:center;border:1px solid #ead9cf;border-radius:16px;padding:12px;background:#fff}
+.agenda-day strong{color:#542719}
+.agenda-tags{display:flex;flex-wrap:wrap;gap:7px}
+.agenda-tag{padding:6px 9px;border-radius:999px;background:#f7e8df;color:#6a2b1c;font-size:12px;font-weight:800}
+.agenda-shell .muted{color:#8d786f}
+.agenda-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+.agenda-stat{border:1px solid #e6d2c8;border-radius:16px;padding:18px;background:#fff}
+.agenda-stat strong{display:block;font-size:28px;color:#6a2a1b}
+.agenda-review-list{margin-top:18px;border:1px solid #ead8cd;border-radius:16px;overflow:hidden}
+.agenda-review-row{display:grid;grid-template-columns:120px 150px 1fr 140px;padding:12px;border-bottom:1px solid #eee1da}
+.agenda-created{background:#edf8f0;border:1px solid #b9ddc1;color:#236533;padding:14px;border-radius:14px;margin-top:15px}
+.agenda-shell .is-hidden{display:none!important}
+
+.agenda-full-modal{position:fixed;inset:0;z-index:3000;display:grid;grid-template-columns:320px minmax(0,1fr);gap:14px;padding:14px;overflow:hidden;background:linear-gradient(145deg,#f6eee9,#fffaf7)}
+.agenda-modal-col{background:#fff;border:1px solid #e5d0c4;border-radius:20px;overflow:auto;padding:16px}
+.agenda-modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.agenda-add-panel{display:flex;flex-direction:column;gap:14px;position:relative}
+.agenda-tasks-panel{padding:0!important}
+.agenda-tasks-panel #agTaskCards{padding:14px;overflow:auto;height:calc(100vh - 118px)}
+.agenda-full-modal .sticky-head{position:sticky;top:0;z-index:20;background:#fff;padding:16px;border-bottom:1px solid #ead8cd;margin:0!important}
+.agenda-head-actions{display:flex;align-items:center;gap:8px}
+.sticky-save{margin-top:auto;position:sticky;bottom:0}
+.agenda-info-box{padding:13px;border-radius:13px;background:#fff7ea;border:1px solid #ecd4a9;color:#7b4b20;font-weight:800;line-height:1.6}
+.agenda-full-modal .empty-state.large{padding:60px 20px;font-size:16px}
+
+.agenda-task-card{border:1px solid #e6d2c7;border-radius:18px;margin-bottom:15px;background:#fff;overflow:hidden}
+.agenda-task-card.active-task{border-color:#8e3d28;box-shadow:0 0 0 3px rgba(142,61,40,.1)}
+.agenda-task-card.is-collapsed{box-shadow:none}
+.agenda-task-card.is-collapsed .agenda-task-head{border-bottom:0}
+.agenda-task-card.is-open{box-shadow:0 10px 28px rgba(91,42,25,.10)}
+.agenda-task-card.no-selection{border-color:#e8aaa4;background:#fffafa}
+.agenda-task-card.no-selection .agenda-task-head{background:linear-gradient(135deg,#fff4f3,#fffafa)}
+.agenda-task-card.no-selection .agenda-accordion-icon{background:#fbe0dd;color:#a52d22}
+.agenda-task-card.has-selection{border-color:#98cfaa;background:#fbfffc}
+.agenda-task-card.has-selection .agenda-task-head{background:linear-gradient(135deg,#edf9f0,#fbfffc)}
+.agenda-task-card.has-selection .agenda-accordion-icon{background:#d8efdf;color:#23733c}
+.agenda-task-head{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fcf7f3;border-bottom:1px solid #ead8cd;flex-wrap:wrap}
+.agenda-task-head[data-toggle-task]{cursor:pointer}
+.agenda-task-head[data-toggle-task] button{cursor:pointer}
+.agenda-task-head:hover{filter:brightness(.99)}
+.agenda-task-title{flex:1}
+.agenda-task-title h3{margin:0}
+.agenda-task-title small{display:block;color:#8d6c5f;margin-top:4px}
+.agenda-task-state{display:inline-flex;margin-top:7px;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:900}
+.agenda-task-card.no-selection .agenda-task-state{background:#fbe0dd;color:#a52d22}
+.agenda-task-card.has-selection .agenda-task-state{background:#d8efdf;color:#23733c}
+.agenda-accordion-icon{width:34px;height:34px;border-radius:10px;background:#f2e3db;color:#6b2e1d;display:grid;place-items:center;font-size:20px;font-weight:900;flex:0 0 auto}
+.agenda-code{background:#f1ebe7;border-radius:9px;padding:6px 10px;font-weight:800;font-size:12px}
+.agenda-delete{border:1px solid #e6c1b7;background:#fff;color:#b6402b;border-radius:10px;padding:8px;cursor:pointer}
+.agenda-delete-task{width:auto!important;min-width:120px;height:38px;padding:0 14px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:800;color:#a1261b;background:#fff7f5;border:1px solid #e7b2aa}
+.agenda-delete-task:hover{background:#a1261b;color:#fff;border-color:#a1261b}
+.agenda-task-body{padding:16px}
+.agenda-role-grid{display:grid;grid-template-columns:repeat(3,minmax(250px,1fr));gap:14px;align-items:start}
+.agenda-role{border:1px solid #ead9d0;border-radius:15px;padding:13px;min-height:160px;background:#fffdfb}
+.agenda-role h4{margin:0 0 10px;color:#5b281a}
+.agenda-role-title,.agenda-optional-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.agenda-optional{margin-top:14px}
+.agenda-optional-card{border:1px dashed #dcbcac;border-radius:14px;padding:10px;margin-top:10px;background:#fff}
+.agenda-user{border:1px solid #eee0d8;border-radius:12px;padding:9px;margin:7px 0;background:#fff;transition:.2s}
+.agenda-user.selected{border-color:#c88d75;background:#fff8f4}
+.agenda-user-line{display:flex;align-items:center;gap:8px}
+.agenda-user-note{display:block!important;margin-top:8px;min-height:70px}
+.agenda-content-links{margin-top:10px;padding:10px;border-radius:11px;background:#f8f1ed;border:1px solid #ead7cc}
+.agenda-content-links>label{display:block;font-size:12px;font-weight:900;color:#653121;margin-bottom:7px}
+.agenda-link-chip{display:flex!important;align-items:center;gap:7px;padding:7px 8px;margin:5px 0!important;border:1px solid #e3cfc4;border-radius:9px;background:#fff;cursor:pointer}
+.agenda-link-warning{font-size:12px;color:#b45d22;background:#fff5e7;border-radius:8px;padding:8px}
+.agenda-selected-cars{margin-top:15px;padding-top:13px;border-top:1px solid #eee0d8}
+.agenda-selected-cars .agenda-tag{display:inline-flex;align-items:center;gap:5px}
+
+.agenda-car-picker-overlay{position:fixed;inset:0;z-index:4200;background:rgba(48,25,17,.56);backdrop-filter:blur(5px);display:grid;place-items:center;padding:24px}
+.agenda-car-picker-dialog{width:min(980px,96vw);max-height:90vh;background:#fff;border:1px solid #e4cfc3;border-radius:24px;box-shadow:0 28px 80px rgba(62,27,17,.28);display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;overflow:hidden}
+.agenda-car-picker-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;border-bottom:1px solid #ead9d0;background:linear-gradient(135deg,#fffaf6,#f6e9e1)}
+.agenda-car-picker-head h2{margin:0;color:#542719}
+.agenda-car-picker-head p{margin:4px 0 0;color:#8b6a5c}
+.agenda-car-picker-toolbar{display:flex;align-items:center;gap:14px;padding:16px 22px;border-bottom:1px solid #eee1da}
+.agenda-car-picker-toolbar .agenda-input{flex:1}
+.agenda-car-count{white-space:nowrap;border:1px solid #e2cbbf;border-radius:999px;padding:10px 14px;color:#6b3424;background:#fff8f4}
+.agenda-car-picker-list{overflow:auto;padding:18px 22px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-content:start}
+.agenda-car-card{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid #ead8ce;border-radius:15px;margin-bottom:10px;cursor:pointer}
+.agenda-car-card.selected{border-color:#8e3d28;background:#fff7f2}
+.agenda-car-card>input{margin-top:5px;flex:0 0 auto}
+.agenda-car-picker-list .agenda-car-card{margin:0;min-height:108px;background:#fff}
+.agenda-car-combo{display:grid;gap:5px;min-width:0}
+.agenda-car-combo strong{font-size:14px;color:#542719;overflow-wrap:anywhere}
+.agenda-car-combo span{font-size:12px;color:#7b655b}
+.agenda-car-key{font-weight:900;color:#552315}
+.agenda-color-row{display:flex;gap:14px;color:#775c50;font-size:12px;margin-top:7px}
+.agenda-car-picker-actions{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:1px solid #ead9d0;background:#fffaf7}
+
+body.agenda-car-picker-open .topbar,
+body.agenda-car-picker-open .topbar .search,
+body.agenda-car-picker-open header .search,
+body.agenda-car-picker-open>.search{display:none!important}
+body.agenda-car-picker-open .agenda-car-picker-overlay{inset:0!important;padding-top:24px!important}
+
+@media(max-width:1250px){
+  .agenda-role-grid{grid-template-columns:1fr}
+  .agenda-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:900px){
+  .agenda-full-modal{grid-template-columns:1fr;overflow:auto}
+  .agenda-modal-col{overflow:visible}
+  .agenda-tasks-panel #agTaskCards{height:auto;overflow:visible}
+  .agenda-grid,.agenda-day,.agenda-summary{grid-template-columns:1fr}
+  .agenda-car-picker-list{grid-template-columns:1fr}
+  .agenda-car-picker-toolbar{align-items:stretch;flex-direction:column}
+  .agenda-review-row{grid-template-columns:1fr;gap:6px}
+}
+
+
+/* Agenda v14 - execution file review workflow (agenda tasks only) */
