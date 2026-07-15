@@ -18,7 +18,7 @@
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&amp;display=swap" rel="stylesheet"/>
-<link href="assets/css/style.css?v=notification-bottom-v25" rel="stylesheet">
+<link href="assets/css/style.css?v=receipt-calendar-v24" rel="stylesheet">
 <link href="assets/css/agenda.css?v=22-campaign-actions-only" rel="stylesheet">
 <link href="assets/favicon.png" rel="icon" type="image/x-icon"/>
 </link></head>
@@ -65,6 +65,7 @@
 <a data-route="checklist-reel" href="#checklist-reel"><span class="icon">🎬</span><span>Checklist ريل السيارات</span></a>
 <a data-route="tasks" href="#tasks"><span class="icon">📈</span><span>المتابعة</span></a>
 <a data-route="calendar" href="#calendar"><span class="icon">📅</span><span>التقويم</span></a>
+<a data-route="receipt-calendar" href="#receipt-calendar"><span class="icon">🗓️</span><span>تقويم الاستلام</span></a>
 <a data-route="stock" href="#stock"><span class="icon">🚗</span><span>الاستوك</span></a>
 <a data-route="departments" href="#departments"><span class="icon">👥</span><span>الأقسام</span></a>
 <a data-route="local-publisher" href="#local-publisher"><span class="icon">🖥️</span><span>جدولة النشر المحلي</span></a>
@@ -731,6 +732,20 @@
 <div class="publish-calendar-page" id="calendarBoard"><div class="empty-state">جاري تحميل جدول النشر...</div></div>
 </div>
 </section>
+<section class="view" data-title="تقويم الاستلام" id="receipt-calendar">
+<div class="page-head"><div class="page-title"><h1>تقويم الاستلام</h1><p>عرض مواعيد استلام تاسكات الحملات والأجندة حسب اليوزر والكرييتيف.</p></div></div>
+<div class="card receipt-calendar-card">
+<div class="receipt-calendar-toolbar">
+<strong id="receiptCalendarMonthTitle">—</strong>
+<div class="actions">
+<button class="btn btn-light" id="receiptCalendarPrevMonth" type="button">السابق</button>
+<button class="btn btn-light" id="receiptCalendarToday" type="button">اليوم</button>
+<button class="btn btn-light" id="receiptCalendarNextMonth" type="button">التالي</button>
+</div>
+</div>
+<div class="receipt-calendar-board" id="receiptCalendarBoard"><div class="empty-state">جاري تحميل مواعيد الاستلام...</div></div>
+</div>
+</section>
 <section class="view" data-title="المتابعة" id="tasks">
 <div class="page-head"><div class="page-title"><h1>المتابعة</h1><p>مؤشرات الحملات والتاسكات والتأخير وأداء الأقسام والموظفين.</p></div></div>
 <div class="tasks-page-board" id="tasksBoard"><div class="empty-state">جاري تحميل المتابعة...</div></div>
@@ -1057,7 +1072,7 @@
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="assets/js/jszip.min.js?v=160"></script>
 <script src="assets/js/app.js?v=760-core-creative-catalog-v24"></script>
-<script src="assets/js/merged-patches.js?v=campaign-actions-clean-v25"></script>
+<script src="assets/js/merged-patches.js?v=receipt-calendar-v24"></script>
 <script src="assets/js/agenda.js?v=23-final-upload-agenda-label"></script>
 </input></input></input></input></body>
 </html>

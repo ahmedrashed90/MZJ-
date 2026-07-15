@@ -10285,6 +10285,7 @@ function loadCampaigns(){
     if(getRoute() === 'dashboard') renderAdminDashboard();
     renderTasksPage();
     if(getRoute() === 'calendar') renderCalendarPage();
+    if(getRoute() === 'receipt-calendar' && typeof window.MZJRenderReceiptCalendarPage === 'function') window.MZJRenderReceiptCalendarPage();
     if(getRoute() === 'publish-prep') renderPublishPrepPage();
     if(getRoute() === 'reports') renderDatabasePage();
     refreshOpenTaskModal();
@@ -10678,7 +10679,7 @@ function renderUsersPermissions(){
   }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
 }
 function pageLabel(page){
-  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'ربط المنصات','platform-settings':'إعدادات المنصات','publish-prep':'تجهيز النشر','checklist-reel':'Checklist ريل السيارات',tasks:'المتابعة',calendar:'التقويم',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
+  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'ربط المنصات','platform-settings':'إعدادات المنصات','publish-prep':'تجهيز النشر','checklist-reel':'Checklist ريل السيارات',tasks:'المتابعة',calendar:'التقويم','receipt-calendar':'تقويم الاستلام',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
 }
 function renderNewUserPagesAccess(){
   const wrap = document.getElementById('newUserPagesAccess');
@@ -42410,3 +42411,148 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
     if(copy){ ev.preventDefault(); ev.stopPropagation(); copyPath(copy.getAttribute('data-copy-raidrive-path')); return; }
   }, true);
 })();
+
+/* MZJ v24 - standalone task receipt calendar. Existing publishing calendar is untouched. */
+(function(){
+  let receiptCalendarCursor = new Date();
+
+  function textValue(value){
+    try{ return typeof normalizeText === 'function' ? normalizeText(value) : String(value == null ? '' : value).trim(); }
+    catch(_){ return String(value == null ? '' : value).trim(); }
+  }
+  function html(value){
+    try{ return typeof escapeHtml === 'function' ? escapeHtml(value) : String(value == null ? '' : value).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
+    catch(_){ return String(value == null ? '' : value); }
+  }
+  function dateIso(value){
+    if(!value) return '';
+    try{
+      const raw = typeof taskRawDateValue === 'function' ? taskRawDateValue(value) : (value && typeof value.toDate === 'function' ? value.toDate() : value);
+      if(typeof raw === 'string'){
+        const match = raw.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if(match) return `${match[1]}-${match[2]}-${match[3]}`;
+      }
+      const date = raw instanceof Date ? raw : new Date(raw);
+      if(Number.isNaN(date.getTime())) return '';
+      return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    }catch(_){ return ''; }
+  }
+  function dateLabel(value){
+    const iso = dateIso(value);
+    if(!iso) return '—';
+    try{
+      const date = new Date(`${iso}T00:00:00`);
+      return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString('ar-EG-u-nu-latn', { day:'numeric', month:'long', year:'numeric' });
+    }catch(_){ return iso; }
+  }
+  function isAgenda(campaign, task){
+    const source = textValue(task?.source || task?.sourceType || campaign?.source || campaign?.type || campaign?.stage).toLowerCase();
+    const code = textValue(task?.agendaCode || campaign?.agendaCode || task?.campaignCode || campaign?.campaignCode || campaign?.campaign_code).toUpperCase();
+    return source === 'agenda' || Boolean(task?.agendaId || campaign?.agendaId) || code.startsWith('AGENDA-');
+  }
+  function ownerLabel(task){
+    const direct = textValue(task?.assignedToName || task?.assigneeName || task?.userName || task?.displayName);
+    if(direct) return direct;
+    const names = Array.isArray(task?.userNames) ? task.userNames.map(textValue).filter(Boolean) : [];
+    if(names.length) return names.join('، ');
+    try{
+      const resolved = typeof rawTaskOwnerName === 'function' ? textValue(rawTaskOwnerName(task)) : '';
+      if(resolved) return resolved;
+    }catch(_){ }
+    return 'بدون مسؤول';
+  }
+  function creativeLabel(task){
+    const bundle = Array.isArray(task?.creativeBundleNames) ? task.creativeBundleNames.map(textValue).filter(Boolean) : [];
+    if(bundle.length) return bundle.join('، ');
+    const required = Array.isArray(task?.structureRequiredCreatives) ? task.structureRequiredCreatives.map(item => textValue(item?.name || item?.label || item)).filter(Boolean) : [];
+    if(required.length) return required.join('، ');
+    return textValue(task?.creativeName || task?.creative || task?.product || task?.structureCreativeLabel || task?.contentType || task?.content_type || task?.taskType) || '—';
+  }
+  function receiptDate(task){
+    try{
+      const direct = typeof taskDateFromKeys === 'function' ? taskDateFromKeys(task || {}, ['requiredDate','dueDate','deadline','deliveryDeadline','targetDate','sectionDeadline','departmentDeadline','linkedContentDeadline','requiredDateTime']) : '';
+      if(direct) return dateIso(direct);
+      const execution = typeof taskDateFromKeys === 'function' ? taskDateFromKeys(task?.execution || {}, ['requiredDate','dueDate','deadline','deliveryDeadline']) : '';
+      if(execution) return dateIso(execution);
+    }catch(_){ }
+    return dateIso(task?.requiredDate || task?.dueDate || task?.deadline || task?.deliveryDeadline || task?.targetDate || task?.sectionDeadline || task?.departmentDeadline || task?.linkedContentDeadline || task?.requiredDateTime);
+  }
+  function entries(){
+    const rows = [];
+    const seen = new Set();
+    const sourceCampaigns = Array.isArray(campaigns) ? campaigns : (Array.isArray(window.campaigns) ? window.campaigns : []);
+    sourceCampaigns.forEach(campaign => {
+      let tasks = Array.isArray(campaign?.departmentTasks) ? campaign.departmentTasks : [];
+      try{
+        if(typeof adminDashboardTasksForCampaign === 'function') tasks = adminDashboardTasksForCampaign(campaign) || tasks;
+      }catch(_){ }
+      (Array.isArray(tasks) ? tasks : []).forEach((task, index) => {
+        if(!task || task.hidden || task.__hiddenDuplicateTemplateTask || task.__structureApprovedHidden) return;
+        const date = receiptDate(task);
+        if(!date) return;
+        const id = textValue(task.id || task.taskId || `${campaign?.id || campaign?.campaignCode || 'campaign'}-${index}`);
+        const key = `${id}::${date}`;
+        if(seen.has(key)) return;
+        seen.add(key);
+        const agenda = isAgenda(campaign, task);
+        rows.push({
+          id,
+          date,
+          type: agenda ? 'agenda' : 'campaign',
+          typeLabel: agenda ? 'أجندة' : 'حملة',
+          user: ownerLabel(task),
+          creative: creativeLabel(task)
+        });
+      });
+    });
+    return rows.sort((a,b) => a.date.localeCompare(b.date) || a.user.localeCompare(b.user, 'ar') || a.creative.localeCompare(b.creative, 'ar'));
+  }
+  function render(){
+    const board = document.getElementById('receiptCalendarBoard');
+    const title = document.getElementById('receiptCalendarMonthTitle');
+    if(!board) return;
+    const year = receiptCalendarCursor.getFullYear();
+    const month = receiptCalendarCursor.getMonth();
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    if(title) title.textContent = first.toLocaleDateString('ar-EG-u-nu-latn', { month:'long', year:'numeric' });
+
+    const grouped = entries().reduce((map, item) => {
+      (map[item.date] ||= []).push(item);
+      return map;
+    }, {});
+    const cells = [];
+    for(let offset = 0; offset < first.getDay(); offset += 1){
+      cells.push('<article class="receipt-calendar-day is-empty" aria-hidden="true"></article>');
+    }
+    const today = dateIso(new Date());
+    for(let day = 1; day <= last.getDate(); day += 1){
+      const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const dayRows = grouped[iso] || [];
+      const cards = dayRows.map(item => `<article class="receipt-calendar-task is-${html(item.type)}">
+        <span class="receipt-calendar-type">${html(item.typeLabel)}</span>
+        <dl>
+          <div><dt>اليوزر</dt><dd>${html(item.user)}</dd></div>
+          <div><dt>الكرييتيف</dt><dd>${html(item.creative)}</dd></div>
+          <div><dt>تاريخ الاستلام</dt><dd>${html(dateLabel(item.date))}</dd></div>
+        </dl>
+      </article>`).join('');
+      cells.push(`<article class="receipt-calendar-day${dayRows.length ? ' has-items' : ''}${iso === today ? ' is-today' : ''}"${iso === today ? ' aria-current="date"' : ''}>
+        <div class="receipt-calendar-day-head"><strong>${day}</strong>${iso === today ? '<span>اليوم</span>' : ''}</div>
+        <div class="receipt-calendar-day-list">${cards}</div>
+      </article>`);
+    }
+    board.innerHTML = `<div class="receipt-calendar-shell" dir="rtl">
+      <div class="receipt-calendar-week"><span>الأحد</span><span>الإثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div>
+      <div class="receipt-calendar-grid">${cells.join('')}</div>
+    </div>`;
+  }
+
+  window.MZJRenderReceiptCalendarPage = render;
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('receiptCalendarPrevMonth')?.addEventListener('click', () => { receiptCalendarCursor.setMonth(receiptCalendarCursor.getMonth()-1); render(); });
+    document.getElementById('receiptCalendarNextMonth')?.addEventListener('click', () => { receiptCalendarCursor.setMonth(receiptCalendarCursor.getMonth()+1); render(); });
+    document.getElementById('receiptCalendarToday')?.addEventListener('click', () => { receiptCalendarCursor = new Date(); render(); });
+  });
+})();
+

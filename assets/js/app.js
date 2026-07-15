@@ -77,7 +77,7 @@ window.MZJ_WHATSAPP_CONTACTS_COLLECTION = "whatsapp_contacts";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
-const routes = ['dashboard','reports','create-campaign','create-agenda','campaigns','social-publisher','platform-settings','publish-prep','checklist-reel','tasks','calendar','stock','departments','local-publisher','settings'];
+const routes = ['dashboard','reports','create-campaign','create-agenda','campaigns','social-publisher','platform-settings','publish-prep','checklist-reel','tasks','calendar','receipt-calendar','stock','departments','local-publisher','settings'];
 const pageAliases = {
   database: 'reports',
   report: 'reports',
@@ -117,6 +117,9 @@ const pageAliases = {
   departments: 'departments',
   content: 'departments',
   calendar: 'calendar',
+  'receipt-calendar': 'receipt-calendar',
+  receipt_calendar: 'receipt-calendar',
+  'تقويم-الاستلام': 'receipt-calendar',
   tasks: 'tasks',
   stock: 'stock',
   settings: 'settings'
@@ -250,6 +253,7 @@ function renderRoute(){
   if(route === 'create-agenda' && typeof window.MZJAgendaRender === 'function') window.MZJAgendaRender();
   if(route === 'dashboard') renderAdminDashboard();
   if(route === 'calendar') renderCalendarPage();
+  if(route === 'receipt-calendar' && typeof window.MZJRenderReceiptCalendarPage === 'function') window.MZJRenderReceiptCalendarPage();
   if(route === 'tasks') renderTasksPage();
   if(route === 'stock') renderStock();
   if(route === 'reports') renderDatabasePage();
