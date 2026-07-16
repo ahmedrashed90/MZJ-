@@ -42556,3 +42556,421 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
   });
 })();
 
+
+/* MZJ v761 - Firestore 1 MiB campaign document guard.
+   Large Task Template/structure payloads are stored in their existing independent
+   collections, while marketing_campaigns keeps lightweight task pointers only. */
+(function(){
+  const VERSION = 'v761-firestore-campaign-size-guard';
+  const CAMPAIGNS = window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns';
+  const TEMPLATE_UPLOADS = window.MZJ_TASK_TEMPLATES_COLLECTION || 'campaign_task_templates';
+  const STRUCTURE_UPLOADS = 'campaign_structure_uploads';
+  const AUTO_COMPACT_AT = 880000;
+  const docProxyCache = new WeakMap();
+  const collectionProxyCache = new WeakMap();
+  const campaignLocks = new Map();
+  const text = value => value == null ? '' : String(value).trim();
+  const arr = value => Array.isArray(value) ? value : (value == null ? [] : [value]);
+  const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
+  const taskId = task => text(task && (task.id || task.taskId || task.docId || task.taskCode || task.fullTaskCode || task.taskNo));
+  const safeId = value => (text(value || 'item').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 180) || `item-${Date.now()}`);
+  const nowIso = () => new Date().toISOString();
+  const byteSize = value => {
+    try{
+      const json = JSON.stringify(value, (_key, item) => {
+        if(item && typeof item.toDate === 'function'){
+          try{ return item.toDate().toISOString(); }catch(_){ return String(item); }
+        }
+        return item;
+      });
+      return typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(json || '').length : unescape(encodeURIComponent(json || '')).length;
+    }catch(_){ return 0; }
+  };
+  const cleanValue = value => {
+    try{
+      if(typeof cleanFirestoreValue === 'function') return cleanFirestoreValue(value);
+    }catch(_){ }
+    try{ return JSON.parse(JSON.stringify(value)); }catch(_){ return value; }
+  };
+  const fileUrl = value => text(value && (value.fileUrl || value.downloadURL || value.downloadUrl || value.storageUrl || value.url));
+  const fileName = value => text(value && (value.fileName || value.name || value.title));
+  const pairKey = task => text(task && (task.contentExecutionPairKey || task.linkedExecutionPairKey || task.contentFlowKey || task.contentPairKey));
+  const isContentTemplateTask = task => {
+    const blob = [task && task.contentTemplateTask, task && task.taskTemplateTask, task && task.flowType, task && task.taskType, task && task.source, task && task.departmentRole, task && task.assignedDepartmentRole].map(text).join(' ').toLowerCase();
+    return !!(task && (task.contentTemplateTask || task.taskTemplateTask || task.flowType === 'template' || blob.includes('task template') || blob.includes('tasktemplate') || blob.includes('contenttemplate')));
+  };
+  function compactCar(car){
+    if(!isObject(car)) return car;
+    const allowed = [
+      'id','uid','docId','key','specId','specKey','uniqueSpecKey','unique_spec_key','uniqueSpec','vehicleId','carId',
+      'name','title','label','displayName','statement','brand','make','model','year','trim','category','type',
+      'stockNo','stockNumber','chassisNo','vin','exteriorColor','externalColor','extColor','colorExterior',
+      'interiorColor','internalColor','intColor','colorInterior','color','image','imageUrl','thumbnail','url'
+    ];
+    const out = {};
+    allowed.forEach(key => {
+      const value = car[key];
+      if(value !== undefined && value !== null && (typeof value !== 'object' || value instanceof Date)) out[key] = value;
+    });
+    if(!Object.keys(out).length){
+      Object.entries(car).forEach(([key,value]) => {
+        if(Object.keys(out).length >= 12) return;
+        if(value == null || ['string','number','boolean'].includes(typeof value)) out[key] = value;
+      });
+    }
+    return out;
+  }
+  function compactRow(row){
+    if(!isObject(row)) return row;
+    const out = {...row};
+    delete out.raw;
+    delete out.workbook;
+    delete out.sheet;
+    delete out.cells;
+    delete out.styles;
+    delete out.merges;
+    if(Array.isArray(out.selectedCars)) out.selectedCars = out.selectedCars.map(compactCar);
+    return out;
+  }
+  function pointerFrom(payload, externalDocId, kind){
+    const source = isObject(payload) ? payload : {};
+    const pointer = {
+      externalDocId,
+      ...(kind === 'template' ? {templateUploadId:externalDocId} : {structureUploadId:externalDocId}),
+      status:text(source.status || source.reviewStatus || source.taskTemplateStatus || ''),
+      reviewStatus:text(source.reviewStatus || source.templateReviewStatus || source.status || ''),
+      fileName:fileName(source),
+      fileUrl:fileUrl(source),
+      downloadURL:text(source.downloadURL || source.downloadUrl || source.fileUrl || ''),
+      storagePath:text(source.storagePath || ''),
+      uploadedAt:source.uploadedAt || '',
+      reviewedAt:source.reviewedAt || '',
+      reviewedBy:text(source.reviewedBy || ''),
+      approvedAt:source.approvedAt || '',
+      approvedBy:text(source.approvedBy || ''),
+      reviewNote:text(source.reviewNote || source.note || ''),
+      linkedExecutionPairKey:text(source.linkedExecutionPairKey || source.contentExecutionPairKey || ''),
+      sourceTemplateTaskId:text(source.sourceTemplateTaskId || source.originalTaskId || source.taskId || '')
+    };
+    Object.keys(pointer).forEach(key => {
+      if(pointer[key] === '' || pointer[key] === undefined || pointer[key] === null) delete pointer[key];
+    });
+    return pointer;
+  }
+  function stripLargeNestedFields(value, preserveInlineFile = false){
+    if(Array.isArray(value)) return value.map(item => stripLargeNestedFields(item, preserveInlineFile));
+    if(!isObject(value)) return value;
+    const out = {};
+    Object.entries(value).forEach(([key,item]) => {
+      if(['sheetTables','workbook','workbookData','binary','arrayBuffer'].includes(key)) return;
+      if(['fileData','base64','dataUrl'].includes(key) && !preserveInlineFile) return;
+      out[key] = stripLargeNestedFields(item, preserveInlineFile);
+    });
+    return out;
+  }
+  async function uploadStoredDataUrl(payload, campaignId, externalId, kind){
+    const source = isObject(payload) ? {...payload} : {};
+    const dataUrl = text(source.fileData || source.dataUrl || '');
+    if(!dataUrl.startsWith('data:') || fileUrl(source)) return source;
+    let storage = null;
+    try{ storage = (typeof mainStorage !== 'undefined' && mainStorage) ? mainStorage : window.mainStorage; }catch(_){ storage = window.mainStorage || null; }
+    if(!storage) return source;
+    try{
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const root = kind === 'template' ? 'task-templates' : 'campaign-structures';
+      const extension = fileName(source).split('.').pop() || 'xlsx';
+      const path = `${root}/${safeId(campaignId)}/${safeId(externalId)}/migrated-${Date.now()}.${safeId(extension)}`;
+      const ref = storage.ref().child(path);
+      const snap = await ref.put(blob, {contentType:blob.type || source.mimeType || 'application/octet-stream'});
+      const url = await snap.ref.getDownloadURL();
+      source.storageProvider = 'firebase';
+      source.storagePath = path;
+      source.fileUrl = url;
+      source.downloadURL = url;
+      source.downloadUrl = url;
+      source.fileSize = source.fileSize || blob.size || 0;
+      source.mimeType = source.mimeType || blob.type || '';
+      delete source.fileData;
+      delete source.dataUrl;
+      delete source.base64;
+    }catch(error){
+      console.warn(VERSION, 'stored data URL migration skipped', error);
+    }
+    return source;
+  }
+  function externalCollection(name){
+    try{
+      if(window.__MZJ_V761_ORIGINAL_SAFE_COLLECTION__) return window.__MZJ_V761_ORIGINAL_SAFE_COLLECTION__(name);
+      if(typeof safeCollection === 'function' && !safeCollection.__mzjV761Wrapped) return safeCollection(name);
+      if(window.mainDb) return window.mainDb.collection(name);
+      if(window.db) return window.db.collection(name);
+    }catch(_){ }
+    return null;
+  }
+  function templateExternalId(task, payload, fallbackIndex){
+    return safeId(
+      payload && (payload.externalDocId || payload.templateUploadId || payload.sourceTemplateTaskId || payload.originalTaskId || payload.taskId) ||
+      task && (task.linkedContentTemplateTaskId || task.sourceContentTemplateTaskId) ||
+      (isContentTemplateTask(task) ? taskId(task) : '') ||
+      pairKey(task) || `${taskId(task) || 'template'}-${fallbackIndex || 0}`
+    );
+  }
+  function structureExternalId(task, payload, fallbackIndex){
+    return safeId(payload && (payload.externalDocId || payload.structureUploadId || payload.originalTaskId || payload.taskId) || taskId(task) || `structure-${fallbackIndex || 0}`);
+  }
+  async function saveTemplatePayload(campaignId, task, payload, fallbackIndex){
+    if(!isObject(payload) || !Object.keys(payload).length) return '';
+    const id = templateExternalId(task, payload, fallbackIndex);
+    let source = await uploadStoredDataUrl(payload, campaignId, id, 'template');
+    const preserveInlineFile = !fileUrl(source) && text(source.fileData || source.dataUrl).startsWith('data:');
+    source = stripLargeNestedFields(source, preserveInlineFile);
+    const metadata = {
+      id, externalDocId:id, templateUploadId:id, kind:'task_template', uploadKind:'task_template',
+      campaignId, campaignDocId:campaignId,
+      taskId:text(source.taskId || source.originalTaskId || (isContentTemplateTask(task) ? taskId(task) : task && (task.linkedContentTemplateTaskId || task.sourceContentTemplateTaskId)) || id),
+      originalTaskId:text(source.originalTaskId || source.taskId || (isContentTemplateTask(task) ? taskId(task) : task && (task.linkedContentTemplateTaskId || task.sourceContentTemplateTaskId)) || id),
+      linkedExecutionTaskId:text(source.linkedExecutionTaskId || (isContentTemplateTask(task) ? task && task.linkedExecutionTaskId : taskId(task))),
+      linkedExecutionPairKey:text(source.linkedExecutionPairKey || source.contentExecutionPairKey || pairKey(task)),
+      contentExecutionPairKey:text(source.contentExecutionPairKey || source.linkedExecutionPairKey || pairKey(task)),
+      contentWriterId:text(source.contentWriterId || task && (task.contentWriterId || task.linkedContentUserId || task.userId)),
+      contentWriterName:text(source.contentWriterName || task && (task.contentWriterName || task.linkedContentUserName || task.userName)),
+      creative:text(source.creative || task && task.creative),
+      product:text(source.product || task && task.product),
+      creativeInstanceId:text(source.creativeInstanceId || task && task.creativeInstanceId),
+      creativeLinkCode:text(source.creativeLinkCode || task && task.creativeLinkCode),
+      campaignCreativeCode:text(source.campaignCreativeCode || task && task.campaignCreativeCode),
+      updatedAt:nowIso()
+    };
+    let finalPayload = cleanValue({...source, ...metadata});
+    if(byteSize(finalPayload) > 900000){
+      if(preserveInlineFile) throw new Error('ملف Task Template القديم كبير ويحتاج رفعه إلى Storage قبل تخفيف مستند الحملة.');
+      delete finalPayload.sheetTablesJson;
+      delete finalPayload.parsedRows;
+      delete finalPayload.approvedRows;
+      delete finalPayload.rows;
+      delete finalPayload.rawRows;
+    }
+    const collection = externalCollection(TEMPLATE_UPLOADS);
+    if(!collection) throw new Error('تعذر الاتصال بمستندات Task Template المنفصلة.');
+    await collection.doc(id).set(finalPayload, {merge:true});
+    return id;
+  }
+  async function saveStructurePayload(campaignId, task, payload, fallbackIndex){
+    if(!isObject(payload) || !Object.keys(payload).length) return '';
+    const id = structureExternalId(task, payload, fallbackIndex);
+    let source = await uploadStoredDataUrl(payload, campaignId, id, 'structure');
+    const preserveInlineFile = !fileUrl(source) && text(source.fileData || source.dataUrl).startsWith('data:');
+    source = stripLargeNestedFields(source, preserveInlineFile);
+    const metadata = {
+      id, externalDocId:id, structureUploadId:id, kind:'structure', uploadKind:'structure',
+      campaignId, campaignDocId:campaignId,
+      taskId:text(source.taskId || source.originalTaskId || taskId(task) || id),
+      originalTaskId:text(source.originalTaskId || source.taskId || taskId(task) || id),
+      taskNo:text(source.taskNo || task && task.taskNo),
+      structureTaskNo:text(source.structureTaskNo || task && task.structureTaskNo),
+      contentWriterId:text(source.contentWriterId || task && (task.contentWriterId || task.userId)),
+      contentWriterName:text(source.contentWriterName || task && (task.contentWriterName || task.userName)),
+      updatedAt:nowIso()
+    };
+    let finalPayload = cleanValue({...source, ...metadata});
+    if(byteSize(finalPayload) > 900000){
+      if(preserveInlineFile) throw new Error('ملف الهيكل القديم كبير ويحتاج رفعه إلى Storage قبل تخفيف مستند الحملة.');
+      delete finalPayload.sheetTablesJson;
+      delete finalPayload.parsedRows;
+      delete finalPayload.approvedRows;
+      delete finalPayload.rows;
+      delete finalPayload.rawRows;
+    }
+    const collection = externalCollection(STRUCTURE_UPLOADS);
+    if(!collection) throw new Error('تعذر الاتصال بمستندات الهيكل المنفصلة.');
+    await collection.doc(id).set(finalPayload, {merge:true});
+    return id;
+  }
+  async function migrateTaskPayloads(campaignId, tasks){
+    const templateMap = new Map();
+    const structureMap = new Map();
+    arr(tasks).forEach((task,index) => {
+      if(!isObject(task)) return;
+      if(isObject(task.structure) && Object.keys(task.structure).length){
+        const id = structureExternalId(task,task.structure,index);
+        const previous = structureMap.get(id);
+        if(!previous || byteSize(task.structure) > byteSize(previous.payload)) structureMap.set(id,{task,payload:task.structure,index});
+      }
+      const candidates = [];
+      ['taskTemplate','contentTaskTemplate','approvedContentTemplate'].forEach(key => {
+        if(isObject(task[key]) && Object.keys(task[key]).length) candidates.push(task[key]);
+      });
+      if(isObject(task.approvedContentTemplates)) Object.values(task.approvedContentTemplates).forEach(value => { if(isObject(value)) candidates.push(value); });
+      candidates.forEach((payload,candidateIndex) => {
+        const id = templateExternalId(task,payload,`${index}-${candidateIndex}`);
+        const previous = templateMap.get(id);
+        if(!previous || byteSize(payload) > byteSize(previous.payload)) templateMap.set(id,{task,payload,index:`${index}-${candidateIndex}`});
+      });
+    });
+    const jobs = [];
+    structureMap.forEach(item => jobs.push(saveStructurePayload(campaignId,item.task,item.payload,item.index)));
+    templateMap.forEach(item => jobs.push(saveTemplatePayload(campaignId,item.task,item.payload,item.index)));
+    if(jobs.length) await Promise.all(jobs);
+  }
+  function compactTask(task, campaignId, index){
+    if(!isObject(task)) return task;
+    const out = {...task};
+    if(Array.isArray(out.selectedCars)) out.selectedCars = out.selectedCars.map(compactCar);
+    if(isObject(out.selectedCar) && !Array.isArray(out.selectedCar)) out.selectedCar = compactCar(out.selectedCar);
+    if(Array.isArray(out.structureItems)) out.structureItems = out.structureItems.map(compactRow);
+    if(Array.isArray(out.approvedStructureRows)) out.approvedStructureRows = out.approvedStructureRows.map(compactRow);
+    if(isObject(out.structureRow)) out.structureRow = compactRow(out.structureRow);
+
+    if(isObject(out.structure) && Object.keys(out.structure).length){
+      const id = structureExternalId(out, out.structure, index);
+      out.structure = pointerFrom(out.structure, id, 'structure');
+    }
+
+    const primaryTemplate = isObject(out.taskTemplate) ? out.taskTemplate : (isObject(out.contentTaskTemplate) ? out.contentTaskTemplate : (isObject(out.approvedContentTemplate) ? out.approvedContentTemplate : null));
+    if(primaryTemplate){
+      const id = templateExternalId(out, primaryTemplate, index);
+      const pointer = pointerFrom(primaryTemplate, id, 'template');
+      if(isContentTemplateTask(out)) out.taskTemplate = pointer;
+      else out.approvedContentTemplate = pointer;
+    }
+    if(!isContentTemplateTask(out) && out.contentTemplateApproved && !out.approvedContentTemplate){
+      const id = templateExternalId(out, {}, index);
+      out.approvedContentTemplate = {externalDocId:id, templateUploadId:id, sourceTemplateTaskId:text(out.linkedContentTemplateTaskId || out.sourceContentTemplateTaskId || id), status:'approved'};
+    }
+    delete out.contentTaskTemplate;
+    delete out.approvedContentTemplates;
+    if(!isContentTemplateTask(out)) delete out.taskTemplate;
+    delete out.templateFileData;
+    delete out.structureFileData;
+    delete out.fileData;
+    delete out.base64;
+    delete out.sheetTables;
+    delete out.sheetTablesJson;
+    delete out.workbook;
+    delete out.workbookData;
+    delete out.rawWorkbook;
+    delete out.parsedRows;
+    delete out.approvedRows;
+    delete out.rawRows;
+    return cleanValue(out);
+  }
+  async function compactTasksForWrite(campaignId, tasks){
+    const list = Array.isArray(tasks) ? tasks : [];
+    const previous = campaignLocks.get(campaignId) || Promise.resolve();
+    const current = previous.catch(()=>{}).then(() => migrateTaskPayloads(campaignId, list));
+    campaignLocks.set(campaignId, current);
+    try{ await current; }finally{ if(campaignLocks.get(campaignId) === current) campaignLocks.delete(campaignId); }
+    return list.map((task,index) => compactTask(task,campaignId,index));
+  }
+  async function prepareObjectPayload(campaignId, payload){
+    if(!isObject(payload) || !Array.isArray(payload.departmentTasks)) return payload;
+    const next = {...payload};
+    next.departmentTasks = await compactTasksForWrite(campaignId, payload.departmentTasks);
+    if(payload.taskCount == null) next.taskCount = next.departmentTasks.length;
+    return next;
+  }
+  async function prepareUpdateArgs(campaignId, args){
+    if(args.length === 1 && isObject(args[0])) return [await prepareObjectPayload(campaignId,args[0])];
+    if(args.length >= 2 && typeof args[0] === 'string'){
+      const next = [...args];
+      for(let i=0;i<next.length-1;i+=2){
+        if(next[i] === 'departmentTasks' && Array.isArray(next[i+1])) next[i+1] = await compactTasksForWrite(campaignId,next[i+1]);
+      }
+      return next;
+    }
+    return args;
+  }
+  function wrapDoc(ref){
+    if(!ref || !text(ref.path).startsWith(`${CAMPAIGNS}/`)) return ref;
+    if(docProxyCache.has(ref)) return docProxyCache.get(ref);
+    const campaignId = text(ref.id || text(ref.path).split('/').pop());
+    const proxy = new Proxy(ref, {
+      get(target, prop){
+        if(prop === '__mzjV761OriginalRef') return target;
+        if(prop === 'update') return async (...args) => target.update(...(await prepareUpdateArgs(campaignId,args)));
+        if(prop === 'set') return async (payload,options) => target.set(await prepareObjectPayload(campaignId,payload),options);
+        const value = target[prop];
+        return typeof value === 'function' ? value.bind(target) : value;
+      }
+    });
+    docProxyCache.set(ref,proxy);
+    return proxy;
+  }
+  function wrapCollection(ref,name){
+    if(!ref || text(name) !== CAMPAIGNS) return ref;
+    if(collectionProxyCache.has(ref)) return collectionProxyCache.get(ref);
+    const proxy = new Proxy(ref, {
+      get(target, prop){
+        if(prop === 'doc') return (...args) => wrapDoc(target.doc(...args));
+        const value = target[prop];
+        return typeof value === 'function' ? value.bind(target) : value;
+      }
+    });
+    collectionProxyCache.set(ref,proxy);
+    return proxy;
+  }
+  function installSafeCollectionWrapper(){
+    let original = null;
+    try{ original = window.safeCollection || (typeof safeCollection === 'function' ? safeCollection : null); }catch(_){ original = window.safeCollection || null; }
+    if(!original || original.__mzjV761Wrapped) return;
+    window.__MZJ_V761_ORIGINAL_SAFE_COLLECTION__ = original;
+    const wrapped = function(name){ return wrapCollection(original.apply(this,arguments),name); };
+    wrapped.__mzjV761Wrapped = true;
+    try{ window.safeCollection = wrapped; }catch(_){ }
+    try{ safeCollection = wrapped; }catch(_){ }
+  }
+  function installDbCollectionWrapper(dbInstance){
+    if(!dbInstance || typeof dbInstance.collection !== 'function' || dbInstance.collection.__mzjV761Wrapped) return;
+    const original = dbInstance.collection.bind(dbInstance);
+    const wrapped = function(name){ return wrapCollection(original(name),name); };
+    wrapped.__mzjV761Wrapped = true;
+    try{ dbInstance.collection = wrapped; }catch(error){ console.warn(VERSION,'db collection wrapper skipped',error); }
+  }
+  function canAutoCompact(){
+    try{ if(typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin()) return true; }catch(_){ }
+    try{
+      const user = (typeof getCurrentUser === 'function' ? getCurrentUser() : {}) || {};
+      const role = text(user.role || user.department || user.type).toLowerCase();
+      return ['admin','management','manager','marketing_manager','marketing'].some(item => role.includes(item));
+    }catch(_){ return false; }
+  }
+  async function autoCompactLargeCampaigns(){
+    if(!canAutoCompact()) return;
+    let list = [];
+    try{ list = Array.isArray(window.campaigns) ? window.campaigns : (typeof campaigns !== 'undefined' && Array.isArray(campaigns) ? campaigns : []); }catch(_){ list = []; }
+    const large = list.filter(campaign => campaign && Array.isArray(campaign.departmentTasks) && byteSize(campaign) >= AUTO_COMPACT_AT).slice(0,3);
+    if(!large.length) return;
+    const collection = typeof window.safeCollection === 'function' ? window.safeCollection(CAMPAIGNS) : null;
+    if(!collection) return;
+    let fixed = 0;
+    for(const campaign of large){
+      const id = text(campaign.id || campaign.docId);
+      if(!id) continue;
+      try{
+        const compacted = await compactTasksForWrite(id,campaign.departmentTasks);
+        await collection.doc(id).update({departmentTasks:compacted,taskCount:compacted.length,updatedAt:(typeof serverTime === 'function' ? serverTime() : nowIso())});
+        campaign.departmentTasks = compacted;
+        campaign.taskCount = compacted.length;
+        fixed += 1;
+      }catch(error){ console.error(VERSION,'automatic compaction failed',id,error); }
+    }
+    if(fixed){
+      try{ if(typeof showToast === 'function') showToast(`تم إصلاح حجم ${fixed === 1 ? 'الحملة الكبيرة' : `${fixed} حملات كبيرة`} وحفظ بيانات التاسكات بأمان.`); }catch(_){ }
+      try{ if(typeof renderCampaigns === 'function') renderCampaigns(); if(typeof renderTasksPage === 'function') renderTasksPage(); if(typeof renderAdminDashboard === 'function') renderAdminDashboard(); }catch(_){ }
+    }
+  }
+
+  installSafeCollectionWrapper();
+  try{ installDbCollectionWrapper(window.mainDb); }catch(_){ }
+  try{ installDbCollectionWrapper(window.db); }catch(_){ }
+  try{ if(typeof mainDb !== 'undefined') installDbCollectionWrapper(mainDb); }catch(_){ }
+  try{ if(typeof db !== 'undefined') installDbCollectionWrapper(db); }catch(_){ }
+  window.MZJCompactCampaignTasksForFirestore = compactTasksForWrite;
+  window.MZJCampaignDocumentByteSize = byteSize;
+  setTimeout(autoCompactLargeCampaigns,2500);
+  setTimeout(autoCompactLargeCampaigns,7000);
+  setTimeout(autoCompactLargeCampaigns,15000);
+  try{ window.MZJ_APP_VERSION = VERSION; window.MZJ_LAST_PATCH = VERSION; }catch(_){ }
+  console.info(`${VERSION} loaded`);
+})();
