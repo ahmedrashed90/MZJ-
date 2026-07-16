@@ -1,11 +1,8 @@
-# Firestore campaign document size fix
+# Firestore campaign size fix v27
 
-- Keeps `marketing_campaigns` below Firestore's 1 MiB document limit.
-- Before any campaign task write, large Task Template and structure payloads are copied to the existing independent collections:
-  - `campaign_task_templates`
-  - `campaign_structure_uploads`
-- The campaign document keeps lightweight pointers, task states, actions, owners, dates and file links.
-- Existing large campaigns are compacted automatically for management/admin users after loading.
-- Existing external upload listeners continue to hydrate the full Task Template/structure data in task details.
-- No campaign, task, attachment or final-file record is deleted.
-- Removed one corrupted-name duplicate of `campaign-logic-template.xlsx` to prevent Windows `Path too long` extraction errors.
+- Rebuilt from the user-uploaded source, not from the broken v26 package.
+- Keeps visible Task Template fields inline in campaign tasks.
+- Stores heavy workbook/file payloads in `campaign_task_templates` and `campaign_structure_uploads`.
+- Hydrates older v26 pointer-only tasks from the independent collections so uploaded data appears again.
+- Does not replace the in-memory task with a blank pointer after upload.
+- Compaction is staged and only becomes aggressive when the campaign is still close to Firestore's 1 MiB limit.
