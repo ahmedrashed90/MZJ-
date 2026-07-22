@@ -75,9 +75,10 @@ window.MZJ_PUBLISH_PREP_COLLECTION = "publish_prep_tasks";
 window.MZJ_PUBLISH_LOGS_COLLECTION = "publish_logs";
 window.MZJ_WHATSAPP_CONTACTS_COLLECTION = "whatsapp_contacts";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
+window.MZJ_PACKAGES_COLLECTION = "marketing_car_packages";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
 
-const routes = ['dashboard','reports','create-campaign','create-agenda','campaigns','social-publisher','platform-settings','publish-prep','checklist-reel','tasks','calendar','receipt-calendar','stock','departments','local-publisher','settings'];
+const routes = ['dashboard','reports','create-campaign','create-agenda','campaigns','packages','social-publisher','platform-settings','publish-prep','checklist-reel','tasks','calendar','receipt-calendar','stock','departments','local-publisher','settings'];
 const pageAliases = {
   database: 'reports',
   report: 'reports',
@@ -87,6 +88,12 @@ const pageAliases = {
   permissions: 'settings',
   dashboard: 'dashboard',
   campaigns: 'campaigns',
+  packages: 'packages',
+  package: 'packages',
+  package_management: 'packages',
+  'package-management': 'packages',
+  'إدارة-الباقات': 'packages',
+  'الباقات': 'packages',
   publisher: 'social-publisher',
   publish: 'social-publisher',
   social: 'social-publisher',
@@ -257,6 +264,7 @@ function renderRoute(){
   if(route === 'tasks') renderTasksPage();
   if(route === 'stock') renderStock();
   if(route === 'reports') renderDatabasePage();
+  if(route === 'packages' && typeof window.renderPackagesPage === 'function') window.renderPackagesPage();
   if(route === 'social-publisher') renderSocialPublisherPage();
   if(route === 'platform-settings') renderPlatformSettingsPage();
   if(route === 'publish-prep') renderPublishPrepPage();
@@ -287,7 +295,7 @@ window.MZJGetAgendaCars = function(){
 };
 
 window.MZJGetAgendaContext = function(){
-  return { db: mainDb, departments: departments || [], users: users || [], creatives: creatives || [], cars: window.MZJGetAgendaCars(), currentUser: getCurrentUserIdentity(), serverTime: serverTime };
+  return { db: mainDb, departments: departments || [], users: users || [], creatives: creatives || [], platforms: platforms || [], cars: window.MZJGetAgendaCars(), currentUser: getCurrentUserIdentity(), serverTime: serverTime };
 };
 
 function showMessage(id, text){ const el = document.getElementById(id); if(el) el.textContent = text || ''; }

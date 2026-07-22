@@ -19,7 +19,8 @@
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&amp;display=swap" rel="stylesheet"/>
 <link href="assets/css/style.css?v=v764-publish-schedule-card" rel="stylesheet">
-<link href="assets/css/agenda.css?v=22-campaign-actions-only" rel="stylesheet">
+<link href="assets/css/agenda.css?v=26-agenda-platform-publish-types" rel="stylesheet">
+<link href="assets/css/packages-page.css?v=1-native-packages" rel="stylesheet">
 <link href="assets/favicon.png" rel="icon" type="image/png"/>
 </link>
 <style>
@@ -72,6 +73,7 @@
 <a data-route="create-campaign" href="#create-campaign"><span class="icon">➕</span><span>إنشاء حملة</span></a>
 <a data-route="create-agenda" href="#create-agenda"><span class="icon">🗓️</span><span>إنشاء أجندة</span></a>
 <a data-route="campaigns" href="#campaigns"><span class="icon">📣</span><span>إدارة الحملات</span></a>
+<a data-route="packages" href="#packages"><span class="icon">🎁</span><span>إدارة الباقات</span></a>
 <a data-route="social-publisher" href="#social-publisher"><span class="icon">🔗</span><span>ربط المنصات</span></a>
 <a data-route="platform-settings" href="#platform-settings"><span class="icon">🧩</span><span>إعدادات المنصات</span></a>
 <a data-route="publish-prep" href="#publish-prep"><span class="icon">📤</span><span>تجهيز النشر</span></a>
@@ -113,6 +115,64 @@
 <div class="empty-state">جاري تحميل الحملات والتاسكات.</div>
 </div>
 <div class="card dashboard-detail" id="dashboardCampaignDetail"></div>
+</section>
+<section class="view" data-title="إدارة الباقات" id="packages">
+<div class="page-head packages-page-head">
+<div class="page-title"><h1>إدارة الباقات</h1><p>إنشاء باقة أو تعديلها أو حذفها حسب التصنيف.</p></div>
+</div>
+<div class="packages-layout">
+<aside class="packages-form-panel" aria-label="معلومات الباقة">
+<div class="packages-panel-title"><h2>معلومات الباقة</h2><span class="packages-title-icon">▤</span></div>
+<div class="package-selected-label" id="packageSelectedLabel"></div>
+<form class="packages-form" id="packagesForm" onsubmit="return false;">
+<label class="package-form-field"><span>اسم الباقة</span><input id="packageNameInput" placeholder="مثال: الباقة الذهبية - 1" type="text"/></label>
+<label class="package-form-field"><span>التصنيف</span><select id="packageCategoryInput"></select><input class="package-custom-category" id="packageCustomCategoryInput" placeholder="اكتب اسم التصنيف الجديد" type="text"/></label>
+<div class="packages-form-two-cols">
+<label class="package-form-field"><span>قيمة الباقة (ر.س)</span><input id="packagePriceInput" min="0" placeholder="أدخل قيمة الباقة" step="0.01" type="number"/></label>
+<label class="package-form-field"><span>خصم نقدي (%)</span><input id="packageDiscountInput" max="100" min="0" placeholder="0" step="0.01" type="number"/></label>
+</div>
+<div class="package-form-section">
+<span class="package-form-section-title">الإجراءات</span>
+<div class="package-checks">
+<label class="package-check"><input id="packageRegistrationInput" type="checkbox"/><span>رسوم التسجيل</span></label>
+<label class="package-check"><input id="packageInsuranceInput" type="checkbox"/><span>التأمين</span></label>
+<label class="package-check"><input id="packageIssuanceInput" type="checkbox"/><span>رسوم الإصدار</span></label>
+</div>
+</div>
+<div class="package-form-section">
+<label class="package-form-field"><span>العناية بالسيارة</span><small>أضف المميزات التي تتضمنها الباقة، كل ميزة في سطر مستقل.</small><textarea id="packageCareInput" placeholder="اكتب كل ميزة في سطر منفصل..."></textarea></label>
+</div>
+<div class="package-form-section">
+<span class="package-form-section-title">التوصيل</span>
+<div class="package-delivery-options">
+<label class="package-radio"><input checked name="packageDelivery" type="radio" value="إلى باب البيت"/><span>إلى باب البيت</span></label>
+<label class="package-radio"><input name="packageDelivery" type="radio" value="إلى المنطقة"/><span>إلى المنطقة</span></label>
+</div>
+</div>
+<div class="package-form-actions">
+<button class="btn btn-primary" id="packageCreateBtn" type="button">＋ إنشاء باقة</button>
+<button class="btn btn-light" disabled id="packageUpdateBtn" type="button">✎ تعديل الباقة</button>
+<button class="btn package-delete-btn" disabled id="packageDeleteBtn" type="button">⌫ حذف الباقة</button>
+</div>
+<p class="packages-form-message" id="packagesFormMessage"></p>
+</form>
+</aside>
+<section class="packages-content-panel" aria-label="عرض الباقات">
+<div class="packages-toolbar">
+<div class="packages-search-box"><span>⌕</span><input id="packagesSearchInput" placeholder="بحث عن باقة..." type="search"/></div>
+<select id="packagesCategoryFilter" aria-label="تصفية التصنيف"></select>
+<select id="packagesViewMode" aria-label="طريقة العرض"><option value="cards">عرض البطاقات</option><option value="table">عرض الجدول</option></select>
+<button class="btn btn-light" id="packagesExportPdfBtn" type="button">⇩ تصدير PDF</button>
+<button class="btn btn-light packages-refresh-btn" id="packagesRefreshBtn" title="تحديث" type="button">↻</button>
+</div>
+<div class="packages-tabs" id="packagesCategoryTabs"></div>
+<div class="packages-list-head"><h2 id="packagesCurrentTitle">الباقات — التصنيف: الذهبية</h2><span class="packages-count" id="packagesCount">0 باقة</span></div>
+<div class="packages-cards" id="packagesCards"><div class="empty-state packages-empty">جاري تحميل الباقات...</div></div>
+<div class="packages-table-view" id="packagesTableView">
+<table class="packages-table"><thead><tr><th>التصنيف</th><th>اسم الباقة</th><th>قيمة الباقة</th><th>الخصم</th><th>الإجراءات</th><th>العناية بالسيارة</th><th>التوصيل</th><th>إجراءات</th></tr></thead><tbody id="packagesTableBody"><tr><td colspan="8"><div class="empty-state">جاري تحميل الباقات...</div></td></tr></tbody></table>
+</div>
+</section>
+</div>
 </section>
 <section class="view" data-title="الحملات" id="campaigns">
 <div class="page-head campaigns-management-head"><div class="page-title"><h1>إدارة الحملات</h1><p>إدارة ومتابعة جميع الحملات التسويقية.</p></div><a class="btn btn-primary" href="#create-campaign">＋ إنشاء حملة</a></div>
@@ -1085,7 +1145,8 @@
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="assets/js/jszip.min.js?v=160"></script>
 <script src="assets/js/app.js?v=760-core-creative-catalog-v24"></script>
-<script src="assets/js/merged-patches.js?v=v764-publish-schedule-card"></script>
-<script src="assets/js/agenda.js?v=23-final-upload-agenda-label"></script>
+<script src="assets/js/merged-patches.js?v=v766-agenda-schedule-data-view"></script>
+<script src="assets/js/agenda.js?v=26-platform-publish-types"></script>
+<script src="assets/js/packages-page.js?v=1-native-packages"></script>
 </input></input></input></input></body>
 </html>

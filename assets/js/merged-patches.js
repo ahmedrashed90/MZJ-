@@ -7750,7 +7750,7 @@ function renderDatabasePage(){
       <td>${escapeHtml(campaign.campaign_goal || campaign.campaignGoal || '')}</td>
       <td>${formatDateShort(campaignStartPublishDate(campaign))}</td>
       <td>${formatDateShort(campaignEndDate(campaign))}</td>
-      <td><div class="db-data-actions"><button type="button" class="mini-btn db-view-data-btn" data-view-campaign-data="${escapeHtml(campaignStableId(campaign))}">عرض البيانات</button><button type="button" class="mini-btn" data-view-product-files="${escapeHtml(campaignStableId(campaign))}">عرض ملفات المنتجات</button></div></td>
+      <td><div class="db-data-actions"><button type="button" class="mini-btn db-view-data-btn" data-view-campaign-data="${escapeHtml(campaignStableId(campaign))}">عرض البيانات</button></div></td>
       <td class="db-actions"><button type="button" class="mini-btn danger" data-delete-campaign="${escapeHtml(campaignStableId(campaign))}">مسح</button><button type="button" class="mini-btn" data-archive-campaign="${escapeHtml(campaignStableId(campaign))}">أرشيف</button></td>
     </tr>`;
   }).join('');
@@ -8111,7 +8111,9 @@ function dbTaskFinalFileRecords(task){
   try{ if(typeof taskFiles === 'function') (taskFiles(task) || []).forEach(file => add(file)); }catch(_){ }
   const seen = new Set();
   return out.filter(file => {
-    const key = identityClean(`${dbFinalFileUrl(file)}|${dbFinalFileName(file)}`);
+    const url = dbFinalFileUrl(file);
+    if(!url) return false;
+    const key = identityClean(url);
     if(!key || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -8127,7 +8129,7 @@ function renderCampaignProductFiles(campaign){
     const url = dbFinalFileUrl(file);
     const name = dbFinalFileName(file);
     const taskName = typeof dbTaskCreativeLabel === 'function' ? dbTaskCreativeLabel(task) : shortTaskName(task);
-    return `<article class="campaign-product-file-card"><div><span>${escapeHtml(taskDepartmentLabel(task) || 'تاسك تنفيذي')}</span><strong>${escapeHtml(taskName || 'تاسك')}</strong><small>${escapeHtml(rawTaskOwnerName(task))}</small></div><div class="campaign-product-file-meta"><b>${escapeHtml(name)}</b>${url ? `<a class="mini-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener">فتح الملف</a>` : '<span class="state-chip is-waiting">الرابط غير متاح</span>'}</div></article>`;
+    return `<article class="campaign-product-file-card"><div><span>${escapeHtml(taskDepartmentLabel(task) || 'تاسك تنفيذي')}</span><strong>${escapeHtml(taskName || 'تاسك')}</strong><small>${escapeHtml(rawTaskOwnerName(task))}</small></div><div class="campaign-product-file-meta"><b>${escapeHtml(name)}</b><a class="mini-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener">فتح الملف</a></div></article>`;
   }).join('')}</div>`;
 }
 function openCampaignProductFilesModal(campaignId){
@@ -8135,6 +8137,9 @@ function openCampaignProductFilesModal(campaignId){
   const modal = document.getElementById('campaignModal');
   const content = document.getElementById('campaignModalContent');
   if(!campaign || !modal || !content) return;
+  const targetId = normalizeText(campaignStableId(campaign));
+  const embeddedSection = Array.from(content.querySelectorAll('[data-campaign-product-files-section]')).find(section => normalizeText(section.dataset.campaignProductFilesSection || '') === targetId);
+  if(embeddedSection){ embeddedSection.scrollIntoView({ behavior:'smooth', block:'start' }); return; }
   content.innerHTML = `<div class="task-modal-head"><div><span>ملفات المنتجات النهائية</span><h2>${escapeHtml(campaignNameText(campaign) || 'حملة')}</h2><p>${escapeHtml(campaignCodeText(campaign))}</p></div><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button></div><div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>عرض ملفات المنتجات</h3></div>${renderCampaignProductFiles(campaign)}</div>`;
   modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open');
 }
@@ -8206,10 +8211,11 @@ function openCampaignDataModal(campaignId){
   content.innerHTML = `<div class="campaign-data-view">
     <div class="campaign-data-top">
       <div class="campaign-data-title"><span>عرض بيانات الحملة</span><h2>${escapeHtml(campaignNameText(campaign) || 'حملة')}</h2><p>${escapeHtml(campaignCodeText(campaign))}</p></div>
-      <div class="modal-head-actions campaign-data-actions"><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button><button type="button" class="mini-btn pdf-export-btn" data-export-campaign-pdf="${escapeHtml(id)}">تصدير PDF</button><button type="button" class="mini-btn" data-export-campaign-schedule="${escapeHtml(id)}">تصدير جدول النشر</button><button type="button" class="mini-btn" data-export-campaign-audit="${escapeHtml(id)}">تصدير مراجعة Excel</button></div>
+      <div class="modal-head-actions campaign-data-actions"><button type="button" class="mini-btn" data-close-campaign-modal>إغلاق</button><button type="button" class="mini-btn" data-view-product-files="${escapeHtml(id)}">عرض ملفات المنتجات</button><button type="button" class="mini-btn pdf-export-btn" data-export-campaign-pdf="${escapeHtml(id)}">تصدير PDF</button><button type="button" class="mini-btn" data-export-campaign-schedule="${escapeHtml(id)}">تصدير جدول النشر</button><button type="button" class="mini-btn" data-export-campaign-audit="${escapeHtml(id)}">تصدير مراجعة Excel</button></div>
     </div>
     <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>بيانات الحملة كاملة</h3></div>${campaignFullDataGrid(campaign)}</div>
     <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>التاسكات التنفيذية واليوزرات</h3></div>${buildTaskSummaryList(campaign)}</div>
+    <div class="modal-section campaign-data-section" data-campaign-product-files-section="${escapeHtml(id)}"><div class="modal-section-title"><h3>عرض ملفات المنتجات</h3></div>${renderCampaignProductFiles(campaign)}</div>
     <div class="campaign-data-two-cols">
       <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>عرض جدول النشر</h3></div>${renderScheduleSummary(campaign)}</div>
       <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>عرض الميزانية</h3></div>${renderBudgetSummary(campaign)}</div>
@@ -8402,9 +8408,39 @@ async function importPublishScheduleFile(file){
   }
 }
 function campaignScheduleRowsForDataView(campaign){
-  return Array.isArray(campaign?.publishSchedule)
+  const direct = Array.isArray(campaign?.publishSchedule)
     ? campaign.publishSchedule.filter(item => item && (item.date || item.publishDate))
     : [];
+  if(direct.length) return direct;
+  const isAgenda = normalizeText(campaign?.source || campaign?.type || campaign?.campaignType || campaign?.campaign_type || '').toLowerCase().includes('agenda') || normalizeText(campaign?.campaignType || campaign?.campaign_type || '').includes('أجندة');
+  if(!isAgenda || !Array.isArray(campaign?.days)) return [];
+  return campaign.days.flatMap(day => (Array.isArray(day?.tasks) ? day.tasks : []).map((task,index) => {
+    const platformPublishing = Array.isArray(task?.platformPublishing) ? task.platformPublishing : [];
+    const platforms = uniqueList([
+      ...(Array.isArray(task?.platforms) ? task.platforms : []),
+      ...platformPublishing.map(item => item?.platform || item?.platformName || item?.platformLabel || '')
+    ].map(normalizeText).filter(Boolean));
+    if(!platforms.length && !platformPublishing.length) return null;
+    return {
+      date: day?.date || task?.publishDate || '',
+      publishDate: day?.date || task?.publishDate || '',
+      day: task?.day || '',
+      output: task?.name || task?.creativeName || task?.creative || '',
+      creative: task?.name || task?.creativeName || task?.creative || '',
+      creativeName: task?.name || task?.creativeName || task?.creative || '',
+      productCreative: task?.name || task?.creativeName || task?.creative || '',
+      creativeId: task?.id || task?.creativeId || '',
+      productId: task?.id || task?.productId || '',
+      source: 'agenda',
+      platforms,
+      platform: platforms.join('، '),
+      platformPublishing,
+      platformTypes: task?.platformTypes || {},
+      postTypes: Array.isArray(task?.postTypes) ? task.postTypes : [],
+      postTypeLabels: Array.isArray(task?.postTypeLabels) ? task.postTypeLabels : [],
+      order: index + 1
+    };
+  }).filter(Boolean));
 }
 function scheduleDataViewLooksLikeId(value){
   const text = normalizeText(value || '');
@@ -8532,27 +8568,45 @@ function scheduleDataViewPlatformRows(item){
 function renderScheduleSummary(campaign){
   const list = campaignScheduleRowsForDataView(campaign);
   if(!list.length) return '<div class="empty-state mini-empty">لا يوجد جدول نشر.</div>';
-  const grouped = new Map();
+  const dateGroups = new Map();
   list.forEach(item => {
     const date = normalizeText(item.date || item.publishDate || '') || 'بدون تاريخ';
-    if(!grouped.has(date)) grouped.set(date, { date, outputs:[], platforms:[], publishTypes:[] });
-    const day = grouped.get(date);
-    const output = scheduleDataViewCreativeName(campaign, item);
-    if(output && output !== '—') day.outputs.push(output);
+    const creative = scheduleDataViewCreativeName(campaign, item) || '—';
+    const creativeKey = normalizeText(item.productId || item.creativeId || item.product || item.creative || item.output || creative) || creative;
+    if(!dateGroups.has(date)) dateGroups.set(date, new Map());
+    const creativeGroups = dateGroups.get(date);
+    if(!creativeGroups.has(creativeKey)) creativeGroups.set(creativeKey, { label:creative, platforms:new Map() });
+    const platformGroups = creativeGroups.get(creativeKey).platforms;
     scheduleDataViewPlatformRows(item).forEach(row => {
       const platform = normalizeText(row.platform || '') || '—';
       const postType = normalizeText(row.postType || '') || '—';
-      day.platforms.push(platform);
-      day.publishTypes.push(platform === '—' ? postType : `${platform} - ${postType}`);
+      if(!platformGroups.has(platform)) platformGroups.set(platform, []);
+      platformGroups.get(platform).push(postType);
     });
   });
-  const rows = Array.from(grouped.values()).sort((a,b) => a.date.localeCompare(b.date)).map(day => ({
-    date: day.date,
-    outputs: uniqueList(day.outputs).join('، ') || '—',
-    platforms: uniqueList(day.platforms).join('، ') || '—',
-    publishTypes: uniqueList(day.publishTypes).join('، ') || '—'
-  }));
-  return `<div class="compact-table"><table><thead><tr><th>التاريخ</th><th>المخرج</th><th>المنصة</th><th>أنواع النشر لليوم</th></tr></thead><tbody>${rows.map(item => `<tr><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.outputs)}</td><td>${escapeHtml(item.platforms)}</td><td>${escapeHtml(item.publishTypes)}</td></tr>`).join('')}</tbody></table></div>`;
+
+  const bodyRows = [];
+  Array.from(dateGroups.entries()).sort(([a],[b]) => a.localeCompare(b)).forEach(([date, creativeGroups]) => {
+    const creatives = Array.from(creativeGroups.values());
+    const dateRowCount = creatives.reduce((dateTotal, creativeGroup) => dateTotal + Array.from(creativeGroup.platforms.values()).reduce((creativeTotal, types) => creativeTotal + Math.max(1, uniqueList(types).length), 0), 0);
+    let dateRendered = false;
+    creatives.forEach(({ label:creative, platforms:platformGroups }) => {
+      const platforms = Array.from(platformGroups.entries());
+      const creativeRowCount = platforms.reduce((total, [, types]) => total + Math.max(1, uniqueList(types).length), 0);
+      let creativeRendered = false;
+      platforms.forEach(([platform, rawTypes]) => {
+        const types = uniqueList(rawTypes).length ? uniqueList(rawTypes) : ['—'];
+        types.forEach((postType, typeIndex) => {
+          const cells = [`<td class="schedule-post-type-cell">${escapeHtml(postType)}</td>`];
+          if(typeIndex === 0) cells.push(`<td class="schedule-platform-cell" rowspan="${types.length}">${escapeHtml(platform)}</td>`);
+          if(!creativeRendered){ cells.push(`<td class="schedule-creative-cell" rowspan="${creativeRowCount}">${escapeHtml(creative)}</td>`); creativeRendered = true; }
+          if(!dateRendered){ cells.push(`<td class="schedule-date-cell" rowspan="${dateRowCount}">${escapeHtml(date === 'بدون تاريخ' ? date : formatDateShort(date))}</td>`); dateRendered = true; }
+          bodyRows.push(`<tr>${cells.join('')}</tr>`);
+        });
+      });
+    });
+  });
+  return `<div class="compact-table schedule-data-view-wrap"><table class="schedule-data-view-table" dir="rtl"><thead><tr><th>أنواع النشر</th><th>المنصة</th><th>الكرييتيف</th><th>التاريخ</th></tr></thead><tbody>${bodyRows.join('')}</tbody></table></div>`;
 }
 function budgetItemTotal(item){
   const rawAds = item?.adsCount ?? item?.ads_count ?? '';
@@ -10754,7 +10808,7 @@ function renderUsersPermissions(){
   }).join('') : '<div class="empty-state">لا توجد يوزرات.</div>';
 }
 function pageLabel(page){
-  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات','social-publisher':'ربط المنصات','platform-settings':'إعدادات المنصات','publish-prep':'تجهيز النشر','checklist-reel':'Checklist ريل السيارات',tasks:'المتابعة',calendar:'التقويم','receipt-calendar':'تقويم الاستلام',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
+  return {reports:'قاعدة البيانات','create-campaign':'إنشاء حملة',campaigns:'إدارة الحملات',packages:'إدارة الباقات','social-publisher':'ربط المنصات','platform-settings':'إعدادات المنصات','publish-prep':'تجهيز النشر','checklist-reel':'Checklist ريل السيارات',tasks:'المتابعة',calendar:'التقويم','receipt-calendar':'تقويم الاستلام',stock:'الاستوك',departments:'الأقسام',settings:'الإعدادات'}[page] || page;
 }
 function renderNewUserPagesAccess(){
   const wrap = document.getElementById('newUserPagesAccess');
@@ -42571,16 +42625,16 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
     try{ const label = typeof shortTaskName === 'function' ? textValue(shortTaskName(task).replace(/<[^>]+>/g,'')) : ''; if(label) return label; }catch(_){ }
     return creativeLabel(task);
   }
-  function receiptDate(task, campaign){
+  function receiptDate(task){
+    const received = task?.received === true || task?.receivedConfirmed === true || Boolean(task?.receivedAt || task?.receivedDate || task?.receivedOn || task?.received_at || task?.execution?.receivedAt || task?.execution?.receivedDate);
+    if(!received) return '';
     try{
-      const direct = typeof taskDateFromKeys === 'function' ? taskDateFromKeys(task || {}, ['requiredDate','dueDate','deadline','deliveryDeadline','targetDate','sectionDeadline','departmentDeadline','linkedContentDeadline','requiredDateTime']) : '';
+      const direct = typeof taskDateFromKeys === 'function' ? taskDateFromKeys(task || {}, ['receivedAt','receivedDate','receivedOn','received_at']) : '';
       if(direct) return dateIso(direct);
-      const execution = typeof taskDateFromKeys === 'function' ? taskDateFromKeys(task?.execution || {}, ['requiredDate','dueDate','deadline','deliveryDeadline']) : '';
+      const execution = typeof taskDateFromKeys === 'function' ? taskDateFromKeys(task?.execution || {}, ['receivedAt','receivedDate','receivedOn','received_at']) : '';
       if(execution) return dateIso(execution);
-      const resolved = typeof taskRequiredDate === 'function' ? taskRequiredDate(task, campaign) : '';
-      if(resolved) return dateIso(resolved);
     }catch(_){ }
-    return dateIso(task?.requiredDate || task?.dueDate || task?.deadline || task?.deliveryDeadline || task?.targetDate || task?.sectionDeadline || task?.departmentDeadline || task?.linkedContentDeadline || task?.requiredDateTime);
+    return dateIso(task?.receivedAt || task?.receivedDate || task?.receivedOn || task?.received_at || task?.execution?.receivedAt || task?.execution?.receivedDate);
   }
   function entries(){
     const rows = [];
@@ -42641,7 +42695,7 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
           <div><dt>${html(item.typeLabel)}</dt><dd>${html(item.sourceName)}</dd></div>
           <div><dt>التاسك</dt><dd>${html(item.taskName)}</dd></div>
           <div><dt>اليوزر</dt><dd>${html(item.user)}</dd></div>
-          <div><dt>تاريخ التسليم</dt><dd>${html(dateLabel(item.date))}</dd></div>
+          <div><dt>تاريخ الاستلام</dt><dd>${html(dateLabel(item.date))}</dd></div>
         </dl>
       </article>`).join('');
       cells.push(`<article class="receipt-calendar-day${dayRows.length ? ' has-items' : ''}${iso === today ? ' is-today' : ''}"${iso === today ? ' aria-current="date"' : ''}>

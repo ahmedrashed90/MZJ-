@@ -44,6 +44,141 @@
     [...dynamic,...CREATIVE_MAP].forEach(c=>{const key=String(c.name||'').trim().toLowerCase();if(key&&!map.has(key))map.set(key,c)});
     return [...map.values()];
   }
+  function agendaPlatformCatalog(){
+    const source=Array.isArray(ctx().platforms)?ctx().platforms:[];
+    const fallback=['Facebook','Instagram','TikTok','YouTube','Snapchat','حملات واتساب'].map((name,index)=>({id:`agenda-platform-${index+1}`,name}));
+    const list=source.length?source:fallback;
+    const seen=new Set();
+    return list.map((item,index)=>{
+      const name=String(item?.name||item?.label||item?.title||item?.platformName||item?.id||'').trim();
+      if(!name)return null;
+      const key=name.toLowerCase();
+      if(seen.has(key))return null;
+      seen.add(key);
+      return {id:String(item?.id||item?.slug||name||`platform-${index+1}`),name,raw:item};
+    }).filter(Boolean);
+  }
+  function agendaPostTypes(platformName){
+    try{
+      if(typeof postTypesForPlatform==='function'){
+        const configured=postTypesForPlatform(platformName)||[];
+        if(Array.isArray(configured)&&configured.length)return configured.map(item=>({
+          value:String(item?.value||item?.id||item?.name||item?.label||'').trim(),
+          label:String(item?.label||item?.name||item?.value||item?.id||'').trim(),
+          width:Number(item?.width||item?.requiredWidth||item?.dimensions?.width||0)||null,
+          height:Number(item?.height||item?.requiredHeight||item?.dimensions?.height||0)||null
+        })).filter(item=>item.value&&item.label);
+      }
+    }catch(_){ }
+    return [
+      {value:'post',label:'بوست',width:1080,height:1080},
+      {value:'reel',label:'ريل',width:1080,height:1920},
+      {value:'story',label:'ستوري',width:1080,height:1920},
+      {value:'photo_post',label:'صور',width:1080,height:1080},
+      {value:'hd_video',label:'فيديو',width:1920,height:1080}
+    ];
+  }
+  function normalizeTaskPlatformPublishing(t){
+    if(!t)return[];
+    const raw=Array.isArray(t.platformPublishing)?t.platformPublishing:[];
+    const normalized=[];
+    raw.forEach(item=>{
+      const platform=String(item?.platform||item?.platformName||item?.platformLabel||'').trim();
+      if(!platform)return;
+      const types=uniq(Array.isArray(item?.postTypes)?item.postTypes:(item?.postType?[item.postType]:[]));
+      const labels=uniq(Array.isArray(item?.postTypesLabels)?item.postTypesLabels:(item?.postTypeLabel?[item.postTypeLabel]:[]));
+      const available=agendaPostTypes(platform);
+      const postTypes=types.filter(Boolean);
+      const postTypesLabels=postTypes.map((value,index)=>labels[index]||available.find(type=>String(type.value)===String(value))?.label||value);
+      const requiredDimensions=postTypes.map(value=>{
+        const type=available.find(option=>String(option.value)===String(value));
+        return type&&type.width&&type.height?{postType:value,width:type.width,height:type.height}:null;
+      }).filter(Boolean);
+      normalized.push({platform,postTypes,postTypesLabels,postType:postTypes[0]||'',postTypeLabel:postTypesLabels[0]||'',requiredDimensions,requiredDimension:requiredDimensions[0]||null});
+    });
+    t.platformPublishing=normalized;
+    t.platforms=normalized.map(item=>item.platform);
+    t.platform=t.platforms.join('، ');
+    t.platformTypes=Object.fromEntries(normalized.map(item=>[item.platform,item.postTypes]));
+    t.postTypes=uniq(normalized.flatMap(item=>item.postTypes));
+    t.postTypeLabels=uniq(normalized.flatMap(item=>item.postTypesLabels));
+    return normalized;
+  }
+  function agendaPublishingRecord(t,platformName,create=false){
+    const publishing=normalizeTaskPlatformPublishing(t);
+    let record=publishing.find(item=>String(item.platform)===String(platformName));
+    if(!record&&create){
+      record={platform:platformName,postTypes:[],postTypesLabels:[],postType:'',postTypeLabel:'',requiredDimensions:[],requiredDimension:null};
+      publishing.push(record);
+      t.platformPublishing=publishing;
+      normalizeTaskPlatformPublishing(t);
+      record=t.platformPublishing.find(item=>String(item.platform)===String(platformName));
+    }
+    return record||null;
+  }
+  function agendaPlatformSummary(t){
+    const publishing=normalizeTaskPlatformPublishing(t);
+    if(!publishing.length)return 'لم يتم اختيار منصة نشر';
+    return publishing.map(item=>`${item.platform}: ${(item.postTypesLabels||[]).join(' + ')||'بدون نوع نشر'}`).join(' | ');
+  }
+  function renderAgendaPlatformSettings(t){
+    const publishing=normalizeTaskPlatformPublishing(t);
+    const selected=new Map(publishing.map(item=>[String(item.platform),item]));
+    const rows=agendaPlatformCatalog().map(platform=>{
+      const record=selected.get(platform.name);
+      const checked=!!record;
+      const selectedTypes=new Set(record?.postTypes||[]);
+      const types=agendaPostTypes(platform.name);
+      return `<div class="agenda-platform-row ${checked?'is-selected':''}" data-agenda-platform-row="${esc(platform.name)}">
+        <label class="agenda-platform-choice"><input type="checkbox" data-agenda-platform data-task-id="${esc(t.id)}" value="${esc(platform.name)}" ${checked?'checked':''}><span>${esc(platform.name)}</span></label>
+        <div class="agenda-post-types ${checked?'':'is-disabled'}">${types.length?types.map(type=>`<label class="agenda-post-type-chip ${selectedTypes.has(type.value)?'selected':''}"><input type="checkbox" data-agenda-post-type data-task-id="${esc(t.id)}" data-platform="${esc(platform.name)}" value="${esc(type.value)}" data-label="${esc(type.label)}" data-width="${type.width||''}" data-height="${type.height||''}" ${selectedTypes.has(type.value)?'checked':''} ${checked?'':'disabled'}><span>${esc(type.label)}${type.width&&type.height?` <small>${type.width}×${type.height}</small>`:''}</span></label>`).join(''):'<span class="muted">لا توجد أنواع نشر مضافة لهذه المنصة.</span>'}</div>
+      </div>`;
+    }).join('');
+    return `<section class="agenda-publish-settings"><div class="agenda-publish-title"><div><h4>📣 المنصات وأنواع النشر</h4><p>يمكن اختيار أكثر من منصة، ولكل منصة أكثر من نوع نشر.</p></div><span>${publishing.length} منصة</span></div><div class="agenda-platform-list">${rows||'<div class="empty-state">لا توجد منصات متاحة.</div>'}</div><div class="agenda-publish-summary">${esc(agendaPlatformSummary(t))}</div></section>`;
+  }
+  function buildAgendaPublishSchedule(){
+    const rows=[];
+    state.days.forEach(day=>(day.tasks||[]).forEach((t,taskIndex)=>{
+      const platformPublishing=normalizeTaskPlatformPublishing(t).map(item=>({
+        platform:item.platform,
+        platformLabel:item.platform,
+        postTypes:[...(item.postTypes||[])],
+        postTypesLabels:[...(item.postTypesLabels||[])],
+        postType:item.postTypes?.[0]||'',
+        postTypeLabel:item.postTypesLabels?.[0]||'',
+        requiredDimensions:Array.isArray(item.requiredDimensions)?item.requiredDimensions.map(value=>({...value})) : []
+      }));
+      if(!platformPublishing.length)return;
+      const platforms=platformPublishing.map(item=>item.platform);
+      const postTypes=uniq(platformPublishing.flatMap(item=>item.postTypes||[]));
+      const postTypeLabels=uniq(platformPublishing.flatMap(item=>item.postTypesLabels||[]));
+      rows.push({
+        date:day.date,
+        publishDate:day.date,
+        day:arDay(day.date),
+        output:t.name,
+        creative:t.name,
+        creativeName:t.name,
+        product:t.name,
+        productCreative:t.name,
+        creativeId:t.id,
+        productId:t.id,
+        agendaTaskId:t.id,
+        creativeCode:t.code,
+        source:'agenda',
+        platforms,
+        platform:platforms.join('، '),
+        platformPublishing,
+        platformTypes:Object.fromEntries(platformPublishing.map(item=>[item.platform,item.postTypes])),
+        postTypes,
+        postTypeLabels,
+        postType:postTypes.length===1?postTypes[0]:'',
+        postTypeLabel:postTypeLabels.length===1?postTypeLabels[0]:(postTypeLabels.length>1?'أنواع متعددة':''),
+        order:taskIndex+1
+      });
+    }));
+    return rows;
+  }
   function creativeCount(){return state.days.reduce((n,d)=>n+(d.tasks||[]).length,0)}
   function pairRows(){
     const rows=[];
@@ -72,6 +207,9 @@
     state.days.forEach(day=>(day.tasks||[]).forEach(t=>{
       const label=`${day.date} — ${t.name}`;
       const contentIds=new Set((t.contentUsers||[]).map(x=>String(x.id)));
+      const publishing=normalizeTaskPlatformPublishing(t);
+      if(!publishing.length)errors.push(`${label}: اختر منصة نشر واحدة على الأقل.`);
+      publishing.forEach(item=>{if(!(item.postTypes||[]).length)errors.push(`${label}: اختر نوع نشر واحدًا على الأقل لمنصة ${item.platform}.`)});
       if(!contentIds.size)errors.push(`${label}: اختر يوزرًا واحدًا على الأقل من قسم المحتوى.`);
       if(!(t.baseUsers||[]).length)errors.push(`${label}: اختر يوزرًا واحدًا على الأقل في القسم الأساسي.`);
       const used=new Set();
@@ -97,7 +235,7 @@
   }
   function taskHasAnySelection(t){
     if(!t)return false;
-    if((t.contentUsers||[]).length||(t.baseUsers||[]).length||(t.carIds||[]).length)return true;
+    if((t.contentUsers||[]).length||(t.baseUsers||[]).length||(t.carIds||[]).length||normalizeTaskPlatformPublishing(t).length)return true;
     return (t.optionals||[]).some(o=>o.departmentId||(o.users||[]).length);
   }
 
@@ -120,18 +258,19 @@
 
   function render(){ensureDefaults();const root=document.getElementById('agendaWizardRoot');if(!root)return;root.innerHTML=`<div class="agenda-shell"><div class="agenda-stepper">${[1,2,3].map(n=>`<div class="agenda-step ${state.step===n?'active':''} ${state.step>n?'done':''}"><span class="num">${state.step>n?'✓':n}</span><span>${n===1?'بيانات الأجندة':n===2?'جدول الأيام والربط':'إنشاء الأجندة'}</span></div>`).join('')}</div>${state.step===1?renderStep1():state.step===2?renderStep2():renderStep3()}</div>`;bind();}
   function renderStep1(){return `<section class="agenda-panel"><div class="agenda-title"><i>🗓️</i><div><h2>بيانات الأجندة</h2><p>حدد الشهر وفترة النشر قبل بناء جدول الأيام.</p></div></div><div class="agenda-grid"><div class="agenda-field"><label>الشهر</label><input id="agMonth" class="agenda-input" type="month" value="${state.data.month}"></div><div class="agenda-field"><label>اسم الأجندة</label><input id="agName" class="agenda-input" value="${esc(state.data.name)}" placeholder="مثال: أجندة أغسطس 2026"></div><div class="agenda-field"><label>بداية النشر</label><input id="agStart" class="agenda-input" type="date" value="${state.data.start}"></div><div class="agenda-field"><label>نهاية النشر</label><input id="agEnd" class="agenda-input" type="date" value="${state.data.end}"></div></div><div class="agenda-actions"><span></span><button class="agenda-btn primary" id="agNext1">التالي: جدول الأيام والربط ←</button></div></section>`}
-  function renderStep2(){return `<section class="agenda-panel"><div class="agenda-title"><i>📅</i><div><h2>جدول الأيام والربط</h2><p>أضف أكثر من كرييتيف لكل يوم، ثم اربط الأقسام واليوزرات والسيارات.</p></div></div><div class="agenda-days">${state.days.map(d=>`<div class="agenda-day"><strong>${arDay(d.date)}</strong><span>${arDate(d.date)}</span><div class="agenda-tags">${d.tasks.length?d.tasks.map(t=>`<span class="agenda-tag">${esc(t.name)}</span>`).join(''):'<span>لا توجد كرييتيفات</span>'}</div><button class="agenda-btn light" data-open-day="${d.date}">إضافة / تعديل الربط</button></div>`).join('')}</div><div class="agenda-actions"><button class="agenda-btn light" id="agBack1">السابق</button><button class="agenda-btn primary" id="agNext2">التالي: المراجعة والإنشاء ←</button></div></section>`}
-  function renderStep3(){const rows=state.days.flatMap(d=>d.tasks.map(t=>({d,t})));const pairs=pairRows();return `<section class="agenda-panel"><div class="agenda-title"><i>🚀</i><div><h2>مراجعة وإنشاء الأجندة</h2><p>راجع البيانات ثم أنشئ الأجندة. يتم إنشاء Task Template وتاسك تنفيذ مستقلين لكل علاقة.</p></div></div><div class="agenda-summary"><div class="agenda-stat"><span>الأيام</span><strong>${state.days.length}</strong></div><div class="agenda-stat"><span>الأيام المستخدمة</span><strong>${state.days.filter(d=>d.tasks.length).length}</strong></div><div class="agenda-stat"><span>الكرييتيفات</span><strong>${creativeCount()}</strong></div><div class="agenda-stat"><span>العلاقات</span><strong>${pairs.length}</strong></div><div class="agenda-stat"><span>إجمالي التاسكات</span><strong>${taskCount()}</strong></div></div><div class="agenda-review-list">${rows.length?rows.map(x=>`<div class="agenda-review-row"><span>${arDay(x.d.date)}</span><span>${x.d.date}</span><strong>${esc(x.t.name)}</strong><span>${esc(x.t.code)}</span></div>`).join(''):'<div class="empty-state">لم تتم إضافة تاسكات.</div>'}</div>${state.created?`<div class="agenda-created">تم إنشاء الأجندة بنجاح. كود الأجندة: ${esc(state.agendaCode||state.agendaId)}</div>`:''}<div class="agenda-actions"><button class="agenda-btn light" id="agBack2">السابق</button><div><button class="agenda-btn light" id="agRawFolders" ${state.created?'':'disabled'}>📁 إنشاء فولدرات الخام</button><button class="agenda-btn light" id="agZip" ${state.created?'':'disabled'}>⬇ تحميل شيتات العلاقات ZIP</button><button class="agenda-btn primary" id="agCreate" ${(state.created||state.creating)?'disabled':''}>${state.creating?'جاري الإنشاء...':'🚀 إنشاء الأجندة'}</button></div></div></section>`}
+  function renderStep2(){return `<section class="agenda-panel"><div class="agenda-title"><i>📅</i><div><h2>جدول الأيام والربط</h2><p>أضف أكثر من كرييتيف لكل يوم، ثم اربط الأقسام واليوزرات والسيارات وحدد المنصات وأنواع النشر.</p></div></div><div class="agenda-days">${state.days.map(d=>`<div class="agenda-day"><strong>${arDay(d.date)}</strong><span>${arDate(d.date)}</span><div class="agenda-tags">${d.tasks.length?d.tasks.map(t=>`<span class="agenda-tag">${esc(t.name)}${normalizeTaskPlatformPublishing(t).length?` · ${normalizeTaskPlatformPublishing(t).length} منصة`:''}</span>`).join(''):'<span>لا توجد كرييتيفات</span>'}</div><button class="agenda-btn light" data-open-day="${d.date}">إضافة / تعديل الربط</button></div>`).join('')}</div><div class="agenda-actions"><button class="agenda-btn light" id="agBack1">السابق</button><button class="agenda-btn primary" id="agNext2">التالي: المراجعة والإنشاء ←</button></div></section>`}
+  function renderStep3(){const rows=state.days.flatMap(d=>d.tasks.map(t=>({d,t})));const pairs=pairRows();return `<section class="agenda-panel"><div class="agenda-title"><i>🚀</i><div><h2>مراجعة وإنشاء الأجندة</h2><p>راجع البيانات ثم أنشئ الأجندة. يتم إنشاء Task Template وتاسك تنفيذ مستقلين لكل علاقة.</p></div></div><div class="agenda-summary"><div class="agenda-stat"><span>الأيام</span><strong>${state.days.length}</strong></div><div class="agenda-stat"><span>الأيام المستخدمة</span><strong>${state.days.filter(d=>d.tasks.length).length}</strong></div><div class="agenda-stat"><span>الكرييتيفات</span><strong>${creativeCount()}</strong></div><div class="agenda-stat"><span>العلاقات</span><strong>${pairs.length}</strong></div><div class="agenda-stat"><span>إجمالي التاسكات</span><strong>${taskCount()}</strong></div></div><div class="agenda-review-list">${rows.length?rows.map(x=>`<div class="agenda-review-row"><span>${arDay(x.d.date)}</span><span>${x.d.date}</span><strong>${esc(x.t.name)}</strong><span>${esc(x.t.code)}</span><small>${esc(agendaPlatformSummary(x.t))}</small></div>`).join(''):'<div class="empty-state">لم تتم إضافة تاسكات.</div>'}</div>${state.created?`<div class="agenda-created">تم إنشاء الأجندة بنجاح. كود الأجندة: ${esc(state.agendaCode||state.agendaId)}</div>`:''}<div class="agenda-actions"><button class="agenda-btn light" id="agBack2">السابق</button><div><button class="agenda-btn light" id="agRawFolders" ${state.created?'':'disabled'}>📁 إنشاء فولدرات الخام</button><button class="agenda-btn light" id="agZip" ${state.created?'':'disabled'}>⬇ تحميل شيتات العلاقات ZIP</button><button class="agenda-btn primary" id="agCreate" ${(state.created||state.creating)?'disabled':''}>${state.creating?'جاري الإنشاء...':'🚀 إنشاء الأجندة'}</button></div></div></section>`}
   function taskCard(t){
     const contentUsers=depUsers(depByRole('content')),baseUsers=depUsers(depByRole(t.role));
     const carLabels=(t.carIds||[]).map(id=>availableCars().find(c=>c.id===id)).filter(Boolean);
     const open=state.openTaskId===t.id;
     const selectedTotal=(t.contentUsers||[]).length+(t.baseUsers||[]).length+(t.optionals||[]).reduce((n,o)=>n+(o.users||[]).length,0);
+    const selectedPlatforms=normalizeTaskPlatformPublishing(t).length;
     const touched=taskHasAnySelection(t);
     return `<article class="agenda-task-card ${state.activeTaskId===t.id?'active-task':''} ${open?'is-open':'is-collapsed'} ${touched?'has-selection':'no-selection'}" data-task="${t.id}">
       <div class="agenda-task-head" data-toggle-task="${t.id}" title="اضغط لفتح أو إغلاق الكرييتيف">
         <span class="agenda-accordion-icon">${open?'⌃':'⌄'}</span>
-        <div class="agenda-task-title"><h3>${esc(t.name)}</h3><small>${esc(t.departmentName)} · ${selectedTotal} يوزر · ${carLabels.length} سيارة</small><span class="agenda-task-state">${touched?'تم بدء الاختيارات':'لم يتم اختيار أي بيانات بعد'}</span></div>
+        <div class="agenda-task-title"><h3>${esc(t.name)}</h3><small>${esc(t.departmentName)} · ${selectedTotal} يوزر · ${carLabels.length} سيارة · ${selectedPlatforms} منصة</small><span class="agenda-task-state">${touched?'تم بدء الاختيارات':'لم يتم اختيار أي بيانات بعد'}</span></div>
         <span class="agenda-code">${esc(t.code)}</span>
         <button class="agenda-btn light compact" data-open-car-picker="${t.id}">🚗 اختيار السيارات</button>
         <button class="agenda-delete agenda-delete-task" data-delete-task="${t.id}" title="حذف الكرييتيف">🗑 حذف الكرييتيف</button>
@@ -142,6 +281,7 @@
           <div class="agenda-role"><h4>🎯 القسم الأساسي — ${esc(t.departmentName)}</h4>${renderUsers(baseUsers,t,'base')}</div>
           <div class="agenda-role optional-role"><div class="agenda-role-title"><h4>🧩 الأقسام الاختيارية</h4><button class="agenda-btn light compact" data-add-optional="${t.id}">＋ إضافة قسم</button></div>${(t.optionals||[]).map((o,i)=>renderOptional(t,o,i)).join('')||'<div class="empty-state">لا توجد أقسام اختيارية.</div>'}</div>
         </div>
+        ${renderAgendaPlatformSettings(t)}
         <div class="agenda-selected-cars"><h4>🚗 السيارات المختارة لهذا التاسك</h4><div class="agenda-tags">${carLabels.length?carLabels.map(c=>`<span class="agenda-tag">${esc(c.combo)}</span>`).join(''):'<span class="muted">لم يتم اختيار سيارات.</span>'}</div></div>
       </div>
     </article>`
@@ -182,7 +322,7 @@
     const day=state.days.find(d=>d.date===state.modalDay);
     const close=()=>{document.querySelector('.agenda-full-modal')?.remove()};
     document.getElementById('agCloseModal').onclick=close;document.getElementById('agSaveDay').onclick=()=>{close();render()};
-    const addCreative=()=>{const c=creativeCatalog().find(x=>x.id===document.getElementById('agCreative').value),qty=Math.max(1,parseInt(document.getElementById('agQty').value||1));if(!c)return alert('اختر نوع الكرييتيف.');for(let i=0;i<qty;i++){const id=uid();day.tasks.push({id,name:c.name,code:c.code,role:c.role,departmentName:c.departmentName,contentUsers:[],baseUsers:[],optionals:[],carIds:[]});state.activeTaskId=id;state.openTaskId=id}refreshModal()};
+    const addCreative=()=>{const c=creativeCatalog().find(x=>x.id===document.getElementById('agCreative').value),qty=Math.max(1,parseInt(document.getElementById('agQty').value||1));if(!c)return alert('اختر نوع الكرييتيف.');for(let i=0;i<qty;i++){const id=uid();day.tasks.push({id,name:c.name,code:c.code,role:c.role,departmentName:c.departmentName,contentUsers:[],baseUsers:[],optionals:[],carIds:[],platforms:[],platformPublishing:[],platformTypes:{},postTypes:[],postTypeLabels:[]});state.activeTaskId=id;state.openTaskId=id}refreshModal()};
     document.getElementById('agAddCreative').onclick=addCreative;document.getElementById('agQuickAdd').onclick=()=>document.getElementById('agCreative')?.focus();
     document.querySelectorAll('[data-toggle-task]').forEach(h=>h.onclick=e=>{if(e.target.closest('button'))return;state.openTaskId=state.openTaskId===h.dataset.toggleTask?null:h.dataset.toggleTask;refreshModal()});
     document.querySelectorAll('[data-open-car-picker]').forEach(b=>b.onclick=e=>{e.stopPropagation();openCarPicker(day,b.dataset.openCarPicker)});
@@ -192,6 +332,29 @@
     document.querySelectorAll('[data-opt-dep]').forEach(s=>s.onchange=()=>{const t=getTask(day,s.dataset.optDep);t.optionals[Number(s.dataset.optIndex)]={departmentId:s.value,users:[]};refreshModal()});
     document.querySelectorAll('[data-user-kind]').forEach(ch=>ch.onchange=()=>{const t=getTask(day,ch.dataset.taskId),kind=ch.dataset.userKind,idx=ch.dataset.optIndex!=null?Number(ch.dataset.optIndex):null,arr=kind==='content'?t.contentUsers:kind==='base'?t.baseUsers:t.optionals[idx].users;if(ch.checked){if(!arr.some(x=>String(x.id)===String(ch.value)))arr.push({id:ch.value,note:'',linkedContentUserIds:[]})}else{const p=arr.findIndex(x=>String(x.id)===String(ch.value));if(p>=0)arr.splice(p,1);if(kind==='content'){[...(t.baseUsers||[]),...(t.optionals||[]).flatMap(o=>o.users||[])].forEach(u=>u.linkedContentUserIds=(u.linkedContentUserIds||[]).filter(id=>String(id)!==String(ch.value)))}}refreshModal()});
     document.querySelectorAll('[data-link-content]').forEach(ch=>ch.onchange=()=>{const t=getTask(day,ch.dataset.taskId),kind=ch.dataset.userKind,idx=ch.dataset.optIndex!=null?Number(ch.dataset.optIndex):null,arr=kind==='base'?t.baseUsers:t.optionals[idx].users,rec=arr.find(x=>String(x.id)===String(ch.dataset.userId));if(!rec)return;rec.linkedContentUserIds=rec.linkedContentUserIds||[];if(ch.checked&&!rec.linkedContentUserIds.includes(ch.value))rec.linkedContentUserIds.push(ch.value);if(!ch.checked)rec.linkedContentUserIds=rec.linkedContentUserIds.filter(x=>String(x)!==String(ch.value))});
+    document.querySelectorAll('[data-agenda-platform]').forEach(ch=>ch.onchange=()=>{
+      const t=getTask(day,ch.dataset.taskId);if(!t)return;
+      const platform=ch.value;
+      if(ch.checked)agendaPublishingRecord(t,platform,true);
+      else{t.platformPublishing=normalizeTaskPlatformPublishing(t).filter(item=>String(item.platform)!==String(platform));normalizeTaskPlatformPublishing(t)}
+      refreshModal();
+    });
+    document.querySelectorAll('[data-agenda-post-type]').forEach(ch=>ch.onchange=()=>{
+      const t=getTask(day,ch.dataset.taskId);if(!t)return;
+      const record=agendaPublishingRecord(t,ch.dataset.platform,true);if(!record)return;
+      const value=String(ch.value||'').trim();
+      const label=String(ch.dataset.label||value).trim();
+      record.postTypes=uniq(record.postTypes||[]);
+      record.postTypesLabels=Array.isArray(record.postTypesLabels)?record.postTypesLabels:[];
+      if(ch.checked){
+        if(!record.postTypes.includes(value)){record.postTypes.push(value);record.postTypesLabels.push(label)}
+      }else{
+        const index=record.postTypes.findIndex(item=>String(item)===value);
+        if(index>=0){record.postTypes.splice(index,1);record.postTypesLabels.splice(index,1)}
+      }
+      normalizeTaskPlatformPublishing(t);
+      refreshModal();
+    });
     document.querySelectorAll('[data-note-kind]').forEach(n=>n.oninput=()=>{const t=getTask(day,n.dataset.taskId),kind=n.dataset.noteKind,idx=n.dataset.optIndex!=null?Number(n.dataset.optIndex):null,arr=kind==='content'?t.contentUsers:kind==='base'?t.baseUsers:t.optionals[idx].users,rec=arr.find(x=>String(x.id)===String(n.dataset.userId));if(rec)rec.note=n.value});
   }
 
@@ -228,7 +391,31 @@
     return availableCars().filter(c=>!query||c.combo.toLowerCase().includes(query)).map(c=>`<label class="agenda-car-card ${selected.has(c.id)?'selected':''}"><input type="checkbox" data-car-picker-id="${esc(c.id)}" ${selected.has(c.id)?'checked':''}><div class="agenda-car-combo"><strong>${esc(c.key)}</strong><span>الخارجي: ${esc(c.ext)}</span><span>الداخلي: ${esc(c.inn)}</span></div></label>`).join('')||'<div class="empty-state">لا توجد تركيبات سيارات مطابقة.</div>'
   }
 
-  function refreshModal(){document.querySelector('.agenda-full-modal')?.remove();renderModal(state.modalDay)}
+  function refreshModal(){
+    const currentModal=document.querySelector('.agenda-full-modal');
+    const currentTasks=currentModal?.querySelector('#agTaskCards');
+    const currentAddPanel=currentModal?.querySelector('.agenda-add-panel');
+    const viewState={
+      windowX:window.scrollX||0,
+      windowY:window.scrollY||0,
+      modalScrollTop:currentModal?.scrollTop||0,
+      tasksScrollTop:currentTasks?.scrollTop||0,
+      addPanelScrollTop:currentAddPanel?.scrollTop||0
+    };
+    currentModal?.remove();
+    renderModal(state.modalDay);
+    const restore=()=>{
+      const nextModal=document.querySelector('.agenda-full-modal');
+      const nextTasks=nextModal?.querySelector('#agTaskCards');
+      const nextAddPanel=nextModal?.querySelector('.agenda-add-panel');
+      if(nextModal)nextModal.scrollTop=viewState.modalScrollTop;
+      if(nextTasks)nextTasks.scrollTop=viewState.tasksScrollTop;
+      if(nextAddPanel)nextAddPanel.scrollTop=viewState.addPanelScrollTop;
+      window.scrollTo(viewState.windowX,viewState.windowY);
+    };
+    restore();
+    requestAnimationFrame(restore);
+  }
   function buildDashboardTasks(campaignId,campaignCode){
     const out=[];
     const stamp=new Date().toISOString();
@@ -261,9 +448,10 @@
         state.agendaId=agendaRef.id;state.campaignId=campaignRef.id;
         state.agendaCode=`AGENDA-${state.data.month.replace('-','')}-${agendaRef.id.slice(0,6).toUpperCase()}`;
         const departmentTasks=buildDashboardTasks(state.campaignId,state.agendaCode);
+        const publishSchedule=buildAgendaPublishSchedule();
         const stamp=c.serverTime?c.serverTime():new Date();
-        const agendaPayload={id:state.agendaId,campaignId:state.campaignId,agendaCode:state.agendaCode,name:state.data.name,month:state.data.month,publishStart:state.data.start,publishEnd:state.data.end,status:'created',type:'agenda',days:state.days,totalCreatives:creativeCount(),totalRelations:pairRows().length,totalTasks:departmentTasks.length,createdBy:c.currentUser,createdAt:stamp,updatedAt:stamp};
-        const campaignPayload={id:state.campaignId,agendaId:state.agendaId,agendaCode:state.agendaCode,source:'agenda',type:'agenda',campaignName:state.data.name,campaign_name:state.data.name,name:state.data.name,campaignCode:state.agendaCode,campaign_code:state.agendaCode,campaignType:'أجندة',campaign_type:'أجندة',publishStartDate:state.data.start,publishEndDate:state.data.end,startDate:state.data.start,endDate:state.data.end,status:'active',stage:'agenda',taskCount:departmentTasks.length,departmentTasks,days:state.days,createdAt:stamp,createdBy:c.currentUser,updatedAt:stamp};
+        const agendaPayload={id:state.agendaId,campaignId:state.campaignId,agendaCode:state.agendaCode,name:state.data.name,month:state.data.month,publishStart:state.data.start,publishEnd:state.data.end,status:'created',type:'agenda',days:state.days,publishSchedule,totalCreatives:creativeCount(),totalRelations:pairRows().length,totalTasks:departmentTasks.length,createdBy:c.currentUser,createdAt:stamp,updatedAt:stamp};
+        const campaignPayload={id:state.campaignId,agendaId:state.agendaId,agendaCode:state.agendaCode,source:'agenda',type:'agenda',campaignName:state.data.name,campaign_name:state.data.name,name:state.data.name,campaignCode:state.agendaCode,campaign_code:state.agendaCode,campaignType:'أجندة',campaign_type:'أجندة',publishStartDate:state.data.start,publishEndDate:state.data.end,startDate:state.data.start,endDate:state.data.end,status:'active',stage:'agenda',taskCount:departmentTasks.length,departmentTasks,days:state.days,publishSchedule,createdAt:stamp,createdBy:c.currentUser,updatedAt:stamp};
         const batch=c.db.batch();batch.set(agendaRef,agendaPayload);batch.set(campaignRef,campaignPayload);await batch.commit();
       }else{state.agendaId='LOCAL-'+Date.now();state.campaignId='agenda_'+state.agendaId;state.agendaCode=`AGENDA-${state.data.month.replace('-','')}-${String(Date.now()).slice(-6)}`}
       state.created=true;state.creating=false;render();

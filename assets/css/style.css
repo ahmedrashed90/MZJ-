@@ -12073,6 +12073,12 @@ body .live-notification-popup,
 .campaign-product-file-card{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid rgba(126,83,69,.14);border-radius:15px;background:#fffaf7;padding:12px 14px}
 .campaign-product-file-card>div:first-child{display:grid;gap:4px;min-width:0}.campaign-product-file-card span{font-size:11px;color:#8b6b60;font-weight:900}.campaign-product-file-card strong{font-size:14px;color:#2f1d17}.campaign-product-file-card small{font-size:11px;color:#8b6b60;font-weight:800}
 .campaign-product-file-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.campaign-product-file-meta b{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#5f433a}
+#campaignModal .schedule-data-view-table th,#campaignModal .schedule-data-view-table td{text-align:center!important;vertical-align:middle!important}
+#campaignModal .schedule-data-view-table td[rowspan]{font-weight:900;background:#fffaf7}
+#campaignModal .schedule-data-view-table .schedule-post-type-cell{min-width:110px}
+#campaignModal .schedule-data-view-table .schedule-platform-cell{min-width:105px}
+#campaignModal .schedule-data-view-table .schedule-creative-cell{min-width:130px}
+#campaignModal .schedule-data-view-table .schedule-date-cell{min-width:105px;white-space:nowrap!important}
 #publish-prep .v733-final-files-center{border:1px solid rgba(126,83,69,.14);border-radius:22px;background:linear-gradient(180deg,#fff8f4,#fff);padding:16px;display:grid;gap:13px;margin-bottom:15px}
 #publish-prep .v733-final-files-head{display:flex;align-items:center;justify-content:space-between;gap:12px}#publish-prep .v733-final-files-head span{font-size:11px;color:#8c6b5f;font-weight:900}#publish-prep .v733-final-files-head h3{margin:3px 0 0;font-size:19px;color:#2b1c17}#publish-prep .v733-final-files-head>strong{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#5f392d;color:#fff;font-size:17px}
 #publish-prep .v733-final-files-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}

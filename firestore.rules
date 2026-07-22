@@ -585,6 +585,11 @@ service cloud.firestore {
       allow read, create, update, delete: if true;
     }
 
+
+    match /marketing_car_packages/{docId} {
+      allow read, create, update, delete: if true;
+    }
+
     match /{document=**} {
       allow read, create, update, delete: if false;
     }

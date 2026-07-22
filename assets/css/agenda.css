@@ -132,3 +132,25 @@ body.agenda-car-picker-open .agenda-car-picker-overlay{inset:0!important;padding
 
 
 /* Agenda v14 - execution file review workflow (agenda tasks only) */
+
+
+/* Agenda publish platforms inside جدول الأيام والربط */
+.agenda-publish-settings{margin-top:16px;padding:15px;border:1px solid #ead8cd;border-radius:16px;background:linear-gradient(135deg,#fffaf7,#fff)}
+.agenda-publish-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.agenda-publish-title h4{margin:0;color:#5b281a}
+.agenda-publish-title p{margin:5px 0 0;color:#8d6c5f;font-size:12px}
+.agenda-publish-title>span{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:7px 10px;border-radius:999px;background:#f1e3dc;color:#6a2b1c;font-weight:900;font-size:12px}
+.agenda-platform-list{display:grid;gap:9px}
+.agenda-platform-row{display:grid;grid-template-columns:minmax(150px,210px) minmax(0,1fr);gap:12px;align-items:start;padding:11px;border:1px solid #eaded7;border-radius:13px;background:#fff;transition:.18s}
+.agenda-platform-row.is-selected{border-color:#b97860;background:#fff8f4;box-shadow:0 5px 16px rgba(103,48,30,.06)}
+.agenda-platform-choice{display:flex;align-items:center;gap:9px;font-weight:900;color:#5b281a;min-height:34px;cursor:pointer}
+.agenda-platform-choice input,.agenda-post-type-chip input{accent-color:#8e3d28}
+.agenda-post-types{display:flex;flex-wrap:wrap;gap:7px;min-width:0}
+.agenda-post-types.is-disabled{opacity:.48;pointer-events:none}
+.agenda-post-type-chip{display:inline-flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid #e5d3c9;border-radius:10px;background:#fff;color:#6c5045;cursor:pointer;font-size:12px;font-weight:800}
+.agenda-post-type-chip.selected{border-color:#9e5038;background:#f8e7df;color:#5b281a}
+.agenda-post-type-chip small{font-size:10px;color:#9a7465}
+.agenda-publish-summary{margin-top:11px;padding:9px 11px;border-radius:11px;background:#f8f1ed;color:#6a4032;font-size:12px;font-weight:800;line-height:1.7}
+.agenda-review-row{grid-template-columns:120px 150px minmax(220px,1fr) 140px minmax(260px,1.2fr);gap:10px;align-items:center}
+.agenda-review-row small{color:#7c6257;line-height:1.6}
+@media(max-width:900px){.agenda-platform-row{grid-template-columns:1fr}.agenda-review-row{grid-template-columns:1fr}}
