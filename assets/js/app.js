@@ -77,8 +77,12 @@ window.MZJ_WHATSAPP_CONTACTS_COLLECTION = "whatsapp_contacts";
 window.MZJ_SYSTEM_SETTINGS_DOC = "main";
 window.MZJ_PACKAGES_COLLECTION = "marketing_car_packages";
 window.MZJ_STOCK_META_COLLECTION = "marketing_stock_cars"; // مسار حفظ حالة تم التصوير
+window.MZJ_ATTENDANCE_RECORDS_COLLECTION = "attendance_records";
+window.MZJ_PRESENCE_STATUS_COLLECTION = "presence_status";
+window.MZJ_ATTENDANCE_REQUESTS_COLLECTION = "attendance_requests";
+window.MZJ_ATTENDANCE_SETTINGS_COLLECTION = "attendance_settings";
 
-const routes = ['dashboard','reports','create-campaign','create-agenda','campaigns','packages','social-publisher','platform-settings','publish-prep','checklist-reel','tasks','calendar','receipt-calendar','stock','departments','local-publisher','settings'];
+const routes = ['dashboard','reports','create-campaign','create-agenda','campaigns','packages','social-publisher','platform-settings','publish-prep','checklist-reel','tasks','calendar','receipt-calendar','stock','departments','local-publisher','attendance','settings'];
 const pageAliases = {
   database: 'reports',
   report: 'reports',
@@ -129,7 +133,9 @@ const pageAliases = {
   'تقويم-الاستلام': 'receipt-calendar',
   tasks: 'tasks',
   stock: 'stock',
-  settings: 'settings'
+  settings: 'settings',
+  attendance: 'attendance',
+  'الحضور-والانصراف': 'attendance'
 };
 function normalizePageKey(page){
   const key = String(page || '').trim();
@@ -270,6 +276,7 @@ function renderRoute(){
   if(route === 'publish-prep') renderPublishPrepPage();
   if(route === 'checklist-reel') renderChecklistReelStudio();
   if(route === 'local-publisher'){ loadPublishingJobs?.(); renderLocalPublisherPage?.(); }
+  if(route === 'attendance' && window.MZJAttendance?.renderPage) window.MZJAttendance.renderPage();
 }
 
 window.MZJGetAgendaCars = function(){
@@ -332,9 +339,16 @@ function syncCurrentSessionUserFromUsers(){
   }
 }
 function isCurrentUserAdmin(){ const user = getCurrentUser(); return user.role === 'admin' || user.role === 'super_admin' || isAdminEmailUser(user); }
+function isCurrentUserAttendanceAdmin(){
+  const user = getCurrentUser() || {};
+  const role = String(user.role || '').toLowerCase();
+  const department = String(user.department || user.departmentId || '').toLowerCase();
+  return isCurrentUserAdmin() || ['management','marketing_manager','manager','owner'].includes(role) || department === 'management';
+}
 function isAdminEmailUser(user){ return ['hossamzayan10@gmail.com','mr.ahmed_rashed@outlook.sa'].includes(String(user?.email || '').toLowerCase()); }
 function pageAllowed(route){
   if(isCurrentUserAdmin()) return true;
+  if(route === 'attendance' && isCurrentUserAttendanceAdmin()) return true;
   return allowedPagesForCurrentUser().includes(route);
 }
 
@@ -342,7 +356,9 @@ function allowedPagesForCurrentUser(){
   if(isCurrentUserAdmin()) return routes;
   const user = getCurrentUser();
   const raw = [...(Array.isArray(user.pages) ? user.pages : []), ...(Array.isArray(user.pagesAccess) ? user.pagesAccess : [])];
-  return uniqueList(['dashboard', ...normalizePagesList(raw)]);
+  const base = uniqueList(['dashboard', ...normalizePagesList(raw)]);
+  if(isCurrentUserAttendanceAdmin() && !base.includes('attendance')) base.push('attendance');
+  return base;
 }
 function applyUserPermissions(){
   const allowed = allowedPagesForCurrentUser();

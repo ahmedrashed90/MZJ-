@@ -21,6 +21,7 @@
 <link href="assets/css/style.css?v=v764-publish-schedule-card" rel="stylesheet">
 <link href="assets/css/agenda.css?v=26-agenda-platform-publish-types" rel="stylesheet">
 <link href="assets/css/packages-page.css?v=1-native-packages" rel="stylesheet">
+<link href="assets/css/attendance.css?v=1-clean-attendance" rel="stylesheet">
 <link href="assets/favicon.png" rel="icon" type="image/png"/>
 </link>
 <style>
@@ -84,6 +85,7 @@
 <a data-route="stock" href="#stock"><span class="icon">🚗</span><span>الاستوك</span></a>
 <a data-route="departments" href="#departments"><span class="icon">👥</span><span>الأقسام</span></a>
 <a data-route="local-publisher" href="#local-publisher"><span class="icon">🖥️</span><span>جدولة النشر المحلي</span></a>
+<a data-route="attendance" href="#attendance"><span class="icon">🟢</span><span>الحضور والانصراف</span></a>
 <a data-route="settings" href="#settings"><span class="icon">⚙</span><span>الإعدادات</span></a>
 </nav>
 </aside>
@@ -92,6 +94,7 @@
 <button class="menu-btn" data-menu="" type="button">☰</button>
 <div class="search"><span>⌕</span><input placeholder="بحث داخل النظام" type="search"/></div>
 <div class="topbar-actions">
+<div class="attendance-topbar-slot" id="attendanceTopbarSlot"></div>
 <div class="notification-wrap">
 <button class="icon-btn notify-btn" id="notificationToggle" title="الإشعارات" type="button">🔔<span class="notify-count is-hidden" id="notificationCount">0</span></button>
 <div class="notification-panel is-hidden" id="notificationPanel"></div>
@@ -116,6 +119,15 @@
 </div>
 <div class="card dashboard-detail" id="dashboardCampaignDetail"></div>
 </section>
+<section class="view" data-title="الحضور والانصراف" id="attendance">
+<div class="page-head">
+<div class="page-title"><h1>الحضور والانصراف</h1><p>متابعة حضور فريق التسويق مع مواعيد الدوام القابلة للتعديل.</p></div>
+</div>
+<div id="attendanceRoot">
+<div class="empty-state">جاري تحميل بيانات الحضور.</div>
+</div>
+</section>
+
 <section class="view" data-title="إدارة الباقات" id="packages">
 <div class="page-head packages-page-head">
 <div class="page-title"><h1>إدارة الباقات</h1><p>إنشاء باقة أو تعديلها أو حذفها حسب التصنيف.</p></div>
@@ -1148,5 +1160,6 @@
 <script src="assets/js/merged-patches.js?v=v766-agenda-schedule-data-view"></script>
 <script src="assets/js/agenda.js?v=26-platform-publish-types"></script>
 <script src="assets/js/packages-page.js?v=1-native-packages"></script>
+<script src="assets/js/attendance.js?v=1-clean-attendance"></script>
 </input></input></input></input></body>
 </html>
