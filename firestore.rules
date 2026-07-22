@@ -929,30 +929,19 @@ match /marketing_car_packages/{docId} {
 
 
 match /attendance_records/{docId} {
-  allow read: if isAttendanceAdmin() || isOwnExistingAttendanceData();
-  allow create: if signedIn() && attendanceRecordKeysValid() && (isAttendanceAdmin() || isOwnAttendanceData());
-  allow update: if signedIn() && attendanceRecordKeysValid() && (isAttendanceAdmin() || isOwnAttendanceData() || isOwnExistingAttendanceData());
-  allow delete: if isAttendanceAdmin();
+  allow read, write: if true;
 }
 
 match /presence_status/{docId} {
-  allow read: if isAttendanceAdmin() || isOwnExistingAttendanceData();
-  allow create: if signedIn() && presenceStatusKeysValid() && (isAttendanceAdmin() || isOwnAttendanceData());
-  allow update: if signedIn() && presenceStatusKeysValid() && (isAttendanceAdmin() || isOwnAttendanceData() || isOwnExistingAttendanceData());
-  allow delete: if isAttendanceAdmin();
+  allow read, write: if true;
 }
 
 match /attendance_requests/{docId} {
-  allow read: if isAttendanceAdmin() || isOwnExistingAttendanceData();
-  allow create: if signedIn() && attendanceRequestKeysValid() && (isAttendanceAdmin() || isOwnAttendanceData());
-  allow update: if signedIn() && attendanceRequestKeysValid() && (isAttendanceAdmin() || isOwnAttendanceData() || isOwnExistingAttendanceData());
-  allow delete: if isAttendanceAdmin();
+  allow read, write: if true;
 }
 
 match /attendance_settings/{docId} {
-  allow read: if signedIn();
-  allow create, update: if isAttendanceAdmin() && attendanceSettingsKeysValid();
-  allow delete: if isAttendanceAdmin();
+  allow read, write: if true;
 }
 
 match /{document=**} {
