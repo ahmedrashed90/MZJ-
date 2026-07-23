@@ -248,31 +248,63 @@
     state.reportFilters = {from:document.getElementById('attReportFrom')?.value||monthStartKey(), to:document.getElementById('attReportTo')?.value||todayKey(), department:document.getElementById('attReportDepartment')?.value||'all', employee:document.getElementById('attReportEmployee')?.value||'all', status:document.getElementById('attReportStatus')?.value||'all'};
   }
   function datesBetween(from,to){
-    const out=[]; const start=new Date(`${from}T00:00:00`); const end=new Date(`${to}T00:00:00`); if(Number.isNaN(start)||Number.isNaN(end)) return [todayKey()];
-    for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)) out.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+    const out=[];
+    const start=new Date(`${from}T00:00:00`);
+    const end=new Date(`${to}T00:00:00`);
+    if(Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return [];
+    for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
+      out.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+    }
     return out;
   }
+  function recordDayKey(rec){
+    return rec?.dayKey || dateKeyOf(rec?.date) || dateKeyOf(rec?.checkInAt || rec?.checkInTime) || dateKeyOf(rec?.createdAt) || '';
+  }
+  function firstAttendanceDateInRange(from,to,records){
+    const days = new Set(datesBetween(from,to));
+    const found = (records || [])
+      .map(recordDayKey)
+      .filter(day => day && days.has(day))
+      .sort();
+    return found[0] || '';
+  }
+  function effectiveReportDays(){
+    const f = getReportFilters();
+    const allRecords = state.reportRecords || state.records || [];
+    const firstDay = firstAttendanceDateInRange(f.from, f.to, allRecords);
+    if(!firstDay) return [];
+    const from = firstDay > f.from ? firstDay : f.from;
+    return datesBetween(from, f.to);
+  }
   function reportRows(employees){
-    const f=getReportFilters(); const allRecords=state.reportRecords || state.records || []; const days=datesBetween(f.from,f.to); const totalDays=days.length;
+    const f=getReportFilters();
+    const allRecords=state.reportRecords || state.records || [];
+    const reportDays=effectiveReportDays();
+    const daySet=new Set(reportDays);
     let filteredEmployees=employees.filter(emp => (f.department==='all' || (emp.departmentId||emp.departmentName||emp.department)===f.department) && (f.employee==='all' || (userAliases(emp).includes(f.employee) || `name:${lower(emp.name)}`===f.employee)));
     let rows = filteredEmployees.map(emp=>{
       const aliases=userAliases(emp);
-      const recs=allRecords.filter(r=>aliases.some(a=>userAliases(r).includes(a)) && days.includes(r.dayKey || dateKeyOf(r.date) || dateKeyOf(r.checkInAt || r.checkInTime)));
-      const lateTotal=recs.reduce((s,r)=>s+lateMinutesOf(r),0); const lateCount=recs.filter(r=>lateMinutesOf(r)>0 || statusOfRecord(r).cls==='orange').length;
-      const noCheckout=recs.filter(r=>!(r.checkOutAt||r.checkOutTime)).length; const workTotal=recs.reduce((s,r)=>s+workMinutesOf(r),0);
-      const absent=Math.max(0,totalDays-recs.length);
-      const status = lateCount ? 'late' : recs.length ? 'present' : 'absent';
-      return {emp,totalDays,present:recs.length,absent,lateCount,lateTotal,noCheckout,workTotal,status};
+      const recs=allRecords.filter(r=>aliases.some(a=>userAliases(r).includes(a)) && daySet.has(recordDayKey(r)));
+      const recordedDays=new Set(recs.map(recordDayKey).filter(Boolean));
+      const lateTotal=recs.reduce((s,r)=>s+lateMinutesOf(r),0);
+      const lateCount=recs.filter(r=>lateMinutesOf(r)>0 || statusOfRecord(r).cls==='orange').length;
+      const noCheckout=recs.filter(r=>!(r.checkOutAt||r.checkOutTime)).length;
+      const workTotal=recs.reduce((s,r)=>s+workMinutesOf(r),0);
+      const present=recordedDays.size;
+      const absent=Math.max(0,reportDays.length-present);
+      const status = lateCount ? 'late' : present ? 'present' : 'absent';
+      return {emp,totalDays:reportDays.length,present,absent,lateCount,lateTotal,noCheckout,workTotal,status};
     });
     if(f.status==='present') rows=rows.filter(r=>r.present>0);
     if(f.status==='late') rows=rows.filter(r=>r.lateCount>0);
-    if(f.status==='absent') rows=rows.filter(r=>r.absent>0 && r.present===0);
+    if(f.status==='absent') rows=rows.filter(r=>r.absent>0);
     if(f.status==='no_checkout') rows=rows.filter(r=>r.noCheckout>0);
     return rows;
   }
   function reportStatusBadge(row){
     if(row.lateCount > 0) return '<span class="attendance-badge orange">متأخر</span>';
     if(row.present > 0 && row.noCheckout > 0) return '<span class="attendance-badge red">بدون انصراف</span>';
+    if(row.present > 0 && row.absent > 0) return '<span class="attendance-badge orange">حضور جزئي</span>';
     if(row.present > 0) return '<span class="attendance-badge green">منتظم</span>';
     return '<span class="attendance-badge gray">لم يسجل</span>';
   }
@@ -282,28 +314,32 @@
   function reportDailyRows(employees){
     const f=getReportFilters();
     const allRecords=state.reportRecords || state.records || [];
-    const days=datesBetween(f.from,f.to);
+    const reportDays=effectiveReportDays();
+    const daySet=new Set(reportDays);
     let filteredEmployees=employees.filter(emp => (f.department==='all' || (emp.departmentId||emp.departmentName||emp.department)===f.department) && (f.employee==='all' || (userAliases(emp).includes(f.employee) || `name:${lower(emp.name)}`===f.employee)));
     const rows=[];
     filteredEmployees.forEach(emp=>{
       const aliases=userAliases(emp);
-      const recs=allRecords.filter(r=>aliases.some(a=>userAliases(r).includes(a)) && days.includes(r.dayKey || dateKeyOf(r.date) || dateKeyOf(r.checkInAt || r.checkInTime)));
+      const recs=allRecords.filter(r=>aliases.some(a=>userAliases(r).includes(a)) && daySet.has(recordDayKey(r)));
       recs.forEach(rec=>{
         const st=statusOfRecord(rec);
         if(f.status==='late' && !(lateMinutesOf(rec)>0 || st.cls==='orange')) return;
         if(f.status==='no_checkout' && (rec.checkOutAt||rec.checkOutTime)) return;
         if(f.status==='absent') return;
-        rows.push({emp,rec,date:rec.dayKey || dateKeyOf(rec.date) || dateKeyOf(rec.checkInAt || rec.checkInTime) || '—', status:st});
+        rows.push({emp,rec,date:recordDayKey(rec) || '—', status:st});
       });
       if(f.status==='absent'){
-        const recordedDays=new Set(recs.map(r=>r.dayKey || dateKeyOf(r.date) || dateKeyOf(r.checkInAt || r.checkInTime)).filter(Boolean));
-        days.filter(day=>!recordedDays.has(day)).forEach(day=>rows.push({emp,rec:null,date:day,status:{label:'لم يسجل',cls:'gray'}}));
+        const recordedDays=new Set(recs.map(recordDayKey).filter(Boolean));
+        reportDays.filter(day=>!recordedDays.has(day)).forEach(day=>rows.push({emp,rec:null,date:day,status:{label:'لم يسجل',cls:'gray'}}));
       }
     });
     return rows.sort((a,b)=>String(a.date).localeCompare(String(b.date)) || displayNameOf(a.emp).localeCompare(displayNameOf(b.emp),'ar'));
   }
   function renderReports(employees){
     const f=getReportFilters();
+    const effectiveDays=effectiveReportDays();
+    const effectiveFrom=effectiveDays[0] || '';
+    const effectiveNote=effectiveFrom ? `يتم احتساب أيام بدون حضور من ${effectiveFrom} لأنه أول تاريخ تشغيل فعلي للحضور داخل الفترة المحددة.` : 'لا توجد سجلات حضور فعلية داخل الفترة المحددة، لذلك لا يتم احتساب أيام بدون حضور.';
     const departmentsList=[...new Map(employees.map(e=>[(e.departmentId||e.departmentName||e.department||'none'), e.departmentName||e.department||'—'])).entries()];
     const employeeOptions=employees.map(e=>`<option value="${esc(userAliases(e)[0] || `name:${lower(e.name)}`)}" ${f.employee===(userAliases(e)[0] || `name:${lower(e.name)}`)?'selected':''}>${esc(displayNameOf(e))}</option>`).join('');
     const rows=reportRows(employees);
@@ -326,9 +362,10 @@
           <label class="attendance-field"><span>الحالة</span><select id="attReportStatus"><option value="all">كل الحالات</option><option value="present" ${f.status==='present'?'selected':''}>حضور</option><option value="late" ${f.status==='late'?'selected':''}>تأخير</option><option value="absent" ${f.status==='absent'?'selected':''}>لم يسجل</option><option value="no_checkout" ${f.status==='no_checkout'?'selected':''}>بدون انصراف</option></select></label>
           <div class="attendance-report-actions pro"><button class="attendance-btn" type="button" data-att-run-report>عرض التقرير</button><button class="attendance-btn secondary" type="button" data-att-export-report>تصدير Excel</button></div>
         </div>
+        <div class="attendance-report-note">${esc(effectiveNote)}</div>
         <div class="attendance-kpi-row">
           <div class="attendance-kpi green"><span>أيام الحضور</span><strong>${totals.present}</strong><small>إجمالي أيام الحضور</small></div>
-          <div class="attendance-kpi red"><span>لم يسجل</span><strong>${totals.absent}</strong><small>أيام بدون حضور</small></div>
+          <div class="attendance-kpi red"><span>أيام بدون حضور</span><strong>${totals.absent}</strong><small>من تاريخ التشغيل الفعلي</small></div>
           <div class="attendance-kpi orange"><span>مرات التأخير</span><strong>${totals.lateCount}</strong><small>${minutesLabel(totals.lateTotal)} إجمالي التأخير</small></div>
           <div class="attendance-kpi brown"><span>بدون انصراف</span><strong>${totals.noCheckout}</strong><small>سجلات مفتوحة</small></div>
           <div class="attendance-kpi blue"><span>ساعات العمل</span><strong>${minutesLabel(totals.workTotal)}</strong><small>إجمالي الفترة</small></div>
