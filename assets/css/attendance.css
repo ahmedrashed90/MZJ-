@@ -21,3 +21,13 @@
 @media(max-width:1320px){.attendance-report-filters.pro{grid-template-columns:repeat(3,1fr)}.attendance-report-actions.pro{grid-column:1/-1}.attendance-kpi-row{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:760px){.attendance-report-header{flex-direction:column}.attendance-report-filters.pro{grid-template-columns:1fr}.attendance-kpi-row{grid-template-columns:1fr}.attendance-report-period{white-space:normal}}
 .attendance-report-note{background:#fff7ed;border:1px solid rgba(217,119,6,.22);color:#7c4a03;border-radius:16px;padding:11px 14px;margin:4px 0 14px;font-weight:900;font-size:13px;line-height:1.6}
+
+/* v768: stable report date picker controls */
+.attendance-report-filters.pro .attendance-date-field{min-width:0}
+.attendance-date-control{position:relative;display:flex;align-items:center;width:100%;background:#fffaf7;border:1px solid rgba(124,83,69,.22);border-radius:15px;overflow:hidden;z-index:2}
+.attendance-date-control input[type="date"]{width:100%;min-height:44px;border:0!important;background:transparent!important;color:#2d1713!important;font-family:inherit;font-weight:1000;padding:10px 44px 10px 12px;direction:ltr;text-align:left;cursor:pointer;position:relative;z-index:3;appearance:auto;-webkit-appearance:auto}
+.attendance-date-control input[type="date"]::-webkit-calendar-picker-indicator{opacity:1;cursor:pointer;position:absolute;inset-inline-end:8px;z-index:5;width:28px;height:28px}
+.attendance-date-open{position:absolute;inset-inline-end:7px;top:50%;transform:translateY(-50%);width:31px;height:31px;border:0;background:#fff2ea;border-radius:10px;cursor:pointer;z-index:4;display:flex;align-items:center;justify-content:center;font-size:15px}
+.attendance-date-presets{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.attendance-chip{border:1px solid rgba(124,83,69,.18);background:#fffaf7;color:#6c3f33;border-radius:999px;padding:10px 12px;font-family:inherit;font-weight:1000;cursor:pointer;min-height:42px}
+.attendance-chip:hover,.attendance-date-open:hover{background:#fff2ea}

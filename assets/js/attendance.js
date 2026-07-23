@@ -247,6 +247,16 @@
   function setReportFiltersFromDom(){
     state.reportFilters = {from:document.getElementById('attReportFrom')?.value||monthStartKey(), to:document.getElementById('attReportTo')?.value||todayKey(), department:document.getElementById('attReportDepartment')?.value||'all', employee:document.getElementById('attReportEmployee')?.value||'all', status:document.getElementById('attReportStatus')?.value||'all'};
   }
+  function openReportDatePicker(inputId){
+    const input=document.getElementById(inputId);
+    if(!input) return;
+    input.focus({preventScroll:true});
+    try{ if(typeof input.showPicker === 'function') input.showPicker(); }catch(_){ }
+  }
+  function setReportRange(kind){
+    if(kind === 'today') state.reportFilters = {...getReportFilters(), from:todayKey(), to:todayKey()};
+    if(kind === 'month') state.reportFilters = {...getReportFilters(), from:monthStartKey(), to:todayKey()};
+  }
   function datesBetween(from,to){
     const out=[];
     const start=new Date(`${from}T00:00:00`);
@@ -355,12 +365,12 @@
       </div>
       <div class="attendance-report-panel">
         <div class="attendance-report-filters pro">
-          <label class="attendance-field"><span>من تاريخ</span><input id="attReportFrom" type="date" value="${esc(f.from)}"></label>
-          <label class="attendance-field"><span>إلى تاريخ</span><input id="attReportTo" type="date" value="${esc(f.to)}"></label>
+          <label class="attendance-field attendance-date-field"><span>من تاريخ</span><div class="attendance-date-control"><input id="attReportFrom" type="date" value="${esc(f.from)}" data-att-report-date aria-label="من تاريخ"><button class="attendance-date-open" type="button" data-att-open-date="attReportFrom" title="اختيار التاريخ">📅</button></div></label>
+          <label class="attendance-field attendance-date-field"><span>إلى تاريخ</span><div class="attendance-date-control"><input id="attReportTo" type="date" value="${esc(f.to)}" data-att-report-date aria-label="إلى تاريخ"><button class="attendance-date-open" type="button" data-att-open-date="attReportTo" title="اختيار التاريخ">📅</button></div></label>
           <label class="attendance-field"><span>القسم</span><select id="attReportDepartment"><option value="all">كل الأقسام</option>${departmentsList.map(([id,name])=>`<option value="${esc(id)}" ${f.department===id?'selected':''}>${esc(name)}</option>`).join('')}</select></label>
           <label class="attendance-field"><span>الموظف</span><select id="attReportEmployee"><option value="all">كل الموظفين</option>${employeeOptions}</select></label>
           <label class="attendance-field"><span>الحالة</span><select id="attReportStatus"><option value="all">كل الحالات</option><option value="present" ${f.status==='present'?'selected':''}>حضور</option><option value="late" ${f.status==='late'?'selected':''}>تأخير</option><option value="absent" ${f.status==='absent'?'selected':''}>لم يسجل</option><option value="no_checkout" ${f.status==='no_checkout'?'selected':''}>بدون انصراف</option></select></label>
-          <div class="attendance-report-actions pro"><button class="attendance-btn" type="button" data-att-run-report>عرض التقرير</button><button class="attendance-btn secondary" type="button" data-att-export-report>تصدير Excel</button></div>
+          <div class="attendance-report-actions pro"><div class="attendance-date-presets"><button class="attendance-chip" type="button" data-att-range="today">اليوم</button><button class="attendance-chip" type="button" data-att-range="month">هذا الشهر</button></div><button class="attendance-btn" type="button" data-att-run-report>عرض التقرير</button><button class="attendance-btn secondary" type="button" data-att-export-report>تصدير Excel</button></div>
         </div>
         <div class="attendance-report-note">${esc(effectiveNote)}</div>
         <div class="attendance-kpi-row">
@@ -502,7 +512,15 @@
     const blob = new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`attendance-report-${todayKey()}.xlsx`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   }
-  document.addEventListener('click', async e=>{ const t=e.target.closest('[data-att-checkin],[data-att-checkout],[data-att-save-settings],[data-att-run-report],[data-att-export-report]'); if(!t) return; e.preventDefault(); try{ t.disabled=true; if(t.matches('[data-att-checkin]')) await checkIn(); if(t.matches('[data-att-checkout]')) await checkOut(); if(t.matches('[data-att-save-settings]')) await saveSettings(); if(t.matches('[data-att-run-report]')) { setReportFiltersFromDom(); await loadReportRecords(true); renderPage(); } if(t.matches('[data-att-export-report]')) { setReportFiltersFromDom(); await loadReportRecords(true); renderPage(); setTimeout(exportReportExcel,50); } }catch(err){ console.error(err); alert(err?.message || 'تعذر تنفيذ الإجراء.'); }finally{ t.disabled=false; } });
+  document.addEventListener('click', async e=>{
+    const openBtn=e.target.closest('[data-att-open-date]');
+    if(openBtn){ e.preventDefault(); openReportDatePicker(openBtn.getAttribute('data-att-open-date')); return; }
+    const rangeBtn=e.target.closest('[data-att-range]');
+    if(rangeBtn){ e.preventDefault(); setReportRange(rangeBtn.getAttribute('data-att-range')); await loadReportRecords(true); renderPage(); return; }
+    const t=e.target.closest('[data-att-checkin],[data-att-checkout],[data-att-save-settings],[data-att-run-report],[data-att-export-report]'); if(!t) return; e.preventDefault(); try{ t.disabled=true; if(t.matches('[data-att-checkin]')) await checkIn(); if(t.matches('[data-att-checkout]')) await checkOut(); if(t.matches('[data-att-save-settings]')) await saveSettings(); if(t.matches('[data-att-run-report]')) { setReportFiltersFromDom(); await loadReportRecords(true); renderPage(); } if(t.matches('[data-att-export-report]')) { setReportFiltersFromDom(); await loadReportRecords(true); renderPage(); setTimeout(exportReportExcel,50); } }catch(err){ console.error(err); alert(err?.message || 'تعذر تنفيذ الإجراء.'); }finally{ t.disabled=false; } });
+  document.addEventListener('change', e=>{
+    if(e.target?.matches?.('#attReportFrom,#attReportTo,#attReportDepartment,#attReportEmployee,#attReportStatus')) setReportFiltersFromDom();
+  });
   function boot(){ if(!isLoggedIn || !isLoggedIn()) return; startSnapshots(); updateTopbar(); }
   window.MZJAttendance={renderPage,updateTopbar,boot,loadReportRecords};
   document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,500)); window.addEventListener('hashchange',()=>setTimeout(()=>{boot(); if(location.hash==='#attendance')renderPage();},100)); setInterval(()=>{ if(isLoggedIn && isLoggedIn()) { boot(); updateTopbar(); if(location.hash==='#attendance') renderPage(); } },4000);
