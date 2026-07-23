@@ -270,11 +270,75 @@
     if(f.status==='no_checkout') rows=rows.filter(r=>r.noCheckout>0);
     return rows;
   }
+  function reportStatusBadge(row){
+    if(row.lateCount > 0) return '<span class="attendance-badge orange">متأخر</span>';
+    if(row.present > 0 && row.noCheckout > 0) return '<span class="attendance-badge red">بدون انصراف</span>';
+    if(row.present > 0) return '<span class="attendance-badge green">منتظم</span>';
+    return '<span class="attendance-badge gray">لم يسجل</span>';
+  }
+  function formatReportRange(f){
+    return `${f.from || monthStartKey()} إلى ${f.to || todayKey()}`;
+  }
+  function reportDailyRows(employees){
+    const f=getReportFilters();
+    const allRecords=state.reportRecords || state.records || [];
+    const days=datesBetween(f.from,f.to);
+    let filteredEmployees=employees.filter(emp => (f.department==='all' || (emp.departmentId||emp.departmentName||emp.department)===f.department) && (f.employee==='all' || (userAliases(emp).includes(f.employee) || `name:${lower(emp.name)}`===f.employee)));
+    const rows=[];
+    filteredEmployees.forEach(emp=>{
+      const aliases=userAliases(emp);
+      const recs=allRecords.filter(r=>aliases.some(a=>userAliases(r).includes(a)) && days.includes(r.dayKey || dateKeyOf(r.date) || dateKeyOf(r.checkInAt || r.checkInTime)));
+      recs.forEach(rec=>{
+        const st=statusOfRecord(rec);
+        if(f.status==='late' && !(lateMinutesOf(rec)>0 || st.cls==='orange')) return;
+        if(f.status==='no_checkout' && (rec.checkOutAt||rec.checkOutTime)) return;
+        if(f.status==='absent') return;
+        rows.push({emp,rec,date:rec.dayKey || dateKeyOf(rec.date) || dateKeyOf(rec.checkInAt || rec.checkInTime) || '—', status:st});
+      });
+      if(f.status==='absent'){
+        const recordedDays=new Set(recs.map(r=>r.dayKey || dateKeyOf(r.date) || dateKeyOf(r.checkInAt || r.checkInTime)).filter(Boolean));
+        days.filter(day=>!recordedDays.has(day)).forEach(day=>rows.push({emp,rec:null,date:day,status:{label:'لم يسجل',cls:'gray'}}));
+      }
+    });
+    return rows.sort((a,b)=>String(a.date).localeCompare(String(b.date)) || displayNameOf(a.emp).localeCompare(displayNameOf(b.emp),'ar'));
+  }
   function renderReports(employees){
-    const f=getReportFilters(); const departmentsList=[...new Map(employees.map(e=>[(e.departmentId||e.departmentName||e.department||'none'), e.departmentName||e.department||'—'])).entries()];
+    const f=getReportFilters();
+    const departmentsList=[...new Map(employees.map(e=>[(e.departmentId||e.departmentName||e.department||'none'), e.departmentName||e.department||'—'])).entries()];
     const employeeOptions=employees.map(e=>`<option value="${esc(userAliases(e)[0] || `name:${lower(e.name)}`)}" ${f.employee===(userAliases(e)[0] || `name:${lower(e.name)}`)?'selected':''}>${esc(displayNameOf(e))}</option>`).join('');
-    const rows=reportRows(employees); const totals=rows.reduce((a,r)=>({present:a.present+r.present, absent:a.absent+r.absent, lateCount:a.lateCount+r.lateCount, lateTotal:a.lateTotal+r.lateTotal, noCheckout:a.noCheckout+r.noCheckout, workTotal:a.workTotal+r.workTotal}),{present:0,absent:0,lateCount:0,lateTotal:0,noCheckout:0,workTotal:0});
-    return `<div class="attendance-card attendance-report-card"><div class="attendance-card-title"><h2>تقارير الحضور والانصراف</h2><span class="attendance-muted">مدة التأخير محسوبة بعد فترة السماح</span></div><div class="attendance-report-filters"><label class="attendance-field"><span>من تاريخ</span><input id="attReportFrom" type="date" value="${esc(f.from)}"></label><label class="attendance-field"><span>إلى تاريخ</span><input id="attReportTo" type="date" value="${esc(f.to)}"></label><label class="attendance-field"><span>القسم</span><select id="attReportDepartment"><option value="all">كل الأقسام</option>${departmentsList.map(([id,name])=>`<option value="${esc(id)}" ${f.department===id?'selected':''}>${esc(name)}</option>`).join('')}</select></label><label class="attendance-field"><span>الموظف</span><select id="attReportEmployee"><option value="all">كل الموظفين</option>${employeeOptions}</select></label><label class="attendance-field"><span>الحالة</span><select id="attReportStatus"><option value="all">كل الحالات</option><option value="present" ${f.status==='present'?'selected':''}>حضور</option><option value="late" ${f.status==='late'?'selected':''}>تأخير</option><option value="absent" ${f.status==='absent'?'selected':''}>لم يسجل</option><option value="no_checkout" ${f.status==='no_checkout'?'selected':''}>بدون انصراف</option></select></label><div class="attendance-report-actions"><button class="attendance-btn" type="button" data-att-run-report>عرض التقرير</button><button class="attendance-btn secondary" type="button" data-att-export-report>تصدير CSV</button></div></div><div class="attendance-grid report"><div class="attendance-stat green"><small>أيام الحضور</small><strong>${totals.present}</strong></div><div class="attendance-stat orange"><small>مرات التأخير</small><strong>${totals.lateCount}</strong></div><div class="attendance-stat red"><small>إجمالي التأخير</small><strong>${minutesLabel(totals.lateTotal)}</strong></div><div class="attendance-stat blue"><small>ساعات العمل</small><strong>${minutesLabel(totals.workTotal)}</strong></div></div><div class="attendance-table-wrap"><table class="attendance-table" id="attendanceReportTable"><thead><tr><th>الموظف</th><th>القسم</th><th>أيام الحضور</th><th>لم يسجل</th><th>مرات التأخير</th><th>إجمالي التأخير</th><th>بدون انصراف</th><th>إجمالي ساعات العمل</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(displayNameOf(r.emp))}</td><td>${esc(r.emp.departmentName||r.emp.department||'—')}</td><td>${r.present}</td><td>${r.absent}</td><td>${r.lateCount}</td><td>${minutesLabel(r.lateTotal)}</td><td>${r.noCheckout}</td><td>${minutesLabel(r.workTotal)}</td></tr>`).join('') || '<tr><td colspan="8">لا توجد نتائج حسب الفلاتر الحالية.</td></tr>'}</tbody></table></div></div>`;
+    const rows=reportRows(employees);
+    const dailyRows=reportDailyRows(employees).slice(0,150);
+    const totals=rows.reduce((a,r)=>({present:a.present+r.present, absent:a.absent+r.absent, lateCount:a.lateCount+r.lateCount, lateTotal:a.lateTotal+r.lateTotal, noCheckout:a.noCheckout+r.noCheckout, workTotal:a.workTotal+r.workTotal}),{present:0,absent:0,lateCount:0,lateTotal:0,noCheckout:0,workTotal:0});
+    return `<section class="attendance-report-pro">
+      <div class="attendance-report-header">
+        <div>
+          <h2>تقارير الحضور والانصراف</h2>
+          <p>ملخص احترافي للفترة المحددة مع حساب مدة التأخير بعد فترة السماح.</p>
+        </div>
+        <div class="attendance-report-period">${esc(formatReportRange(f))}</div>
+      </div>
+      <div class="attendance-report-panel">
+        <div class="attendance-report-filters pro">
+          <label class="attendance-field"><span>من تاريخ</span><input id="attReportFrom" type="date" value="${esc(f.from)}"></label>
+          <label class="attendance-field"><span>إلى تاريخ</span><input id="attReportTo" type="date" value="${esc(f.to)}"></label>
+          <label class="attendance-field"><span>القسم</span><select id="attReportDepartment"><option value="all">كل الأقسام</option>${departmentsList.map(([id,name])=>`<option value="${esc(id)}" ${f.department===id?'selected':''}>${esc(name)}</option>`).join('')}</select></label>
+          <label class="attendance-field"><span>الموظف</span><select id="attReportEmployee"><option value="all">كل الموظفين</option>${employeeOptions}</select></label>
+          <label class="attendance-field"><span>الحالة</span><select id="attReportStatus"><option value="all">كل الحالات</option><option value="present" ${f.status==='present'?'selected':''}>حضور</option><option value="late" ${f.status==='late'?'selected':''}>تأخير</option><option value="absent" ${f.status==='absent'?'selected':''}>لم يسجل</option><option value="no_checkout" ${f.status==='no_checkout'?'selected':''}>بدون انصراف</option></select></label>
+          <div class="attendance-report-actions pro"><button class="attendance-btn" type="button" data-att-run-report>عرض التقرير</button><button class="attendance-btn secondary" type="button" data-att-export-report>تصدير Excel</button></div>
+        </div>
+        <div class="attendance-kpi-row">
+          <div class="attendance-kpi green"><span>أيام الحضور</span><strong>${totals.present}</strong><small>إجمالي أيام الحضور</small></div>
+          <div class="attendance-kpi red"><span>لم يسجل</span><strong>${totals.absent}</strong><small>أيام بدون حضور</small></div>
+          <div class="attendance-kpi orange"><span>مرات التأخير</span><strong>${totals.lateCount}</strong><small>${minutesLabel(totals.lateTotal)} إجمالي التأخير</small></div>
+          <div class="attendance-kpi brown"><span>بدون انصراف</span><strong>${totals.noCheckout}</strong><small>سجلات مفتوحة</small></div>
+          <div class="attendance-kpi blue"><span>ساعات العمل</span><strong>${minutesLabel(totals.workTotal)}</strong><small>إجمالي الفترة</small></div>
+        </div>
+        <div class="attendance-report-section-title"><h3>ملخص الموظفين</h3><span>${rows.length} موظف</span></div>
+        <div class="attendance-table-wrap report-wrap"><table class="attendance-table attendance-report-table" id="attendanceReportTable"><thead><tr><th>الموظف</th><th>القسم</th><th>الحالة</th><th>أيام الحضور</th><th>لم يسجل</th><th>مرات التأخير</th><th>إجمالي التأخير</th><th>بدون انصراف</th><th>إجمالي ساعات العمل</th></tr></thead><tbody>${rows.map(r=>`<tr><td class="employee-cell"><strong>${esc(displayNameOf(r.emp))}</strong></td><td>${esc(r.emp.departmentName||r.emp.department||'—')}</td><td>${reportStatusBadge(r)}</td><td>${r.present}</td><td>${r.absent}</td><td>${r.lateCount}</td><td>${minutesLabel(r.lateTotal)}</td><td>${r.noCheckout}</td><td>${minutesLabel(r.workTotal)}</td></tr>`).join('') || '<tr><td colspan="9" class="attendance-empty-row">لا توجد نتائج حسب الفلاتر الحالية.</td></tr>'}</tbody></table></div>
+        <div class="attendance-report-section-title"><h3>تفاصيل السجلات</h3><span>${dailyRows.length ? 'آخر 150 سجل حسب الفلتر' : 'لا توجد سجلات'}</span></div>
+        <div class="attendance-table-wrap report-wrap"><table class="attendance-table attendance-report-table" id="attendanceDailyReportTable"><thead><tr><th>التاريخ</th><th>الموظف</th><th>القسم</th><th>الحالة</th><th>وقت الحضور</th><th>وقت الانصراف</th><th>مدة التأخير</th><th>ساعات العمل</th></tr></thead><tbody>${dailyRows.map(r=>`<tr><td>${esc(r.date)}</td><td class="employee-cell"><strong>${esc(displayNameOf(r.emp))}</strong></td><td>${esc(r.emp.departmentName||r.emp.department||'—')}</td><td><span class="attendance-badge ${r.status.cls}">${r.status.label}</span></td><td>${r.rec?fmtTime(r.rec.checkInAt||r.rec.checkInTime):'—'}</td><td>${r.rec?fmtTime(r.rec.checkOutAt||r.rec.checkOutTime):'—'}</td><td>${r.rec?minutesLabel(lateMinutesOf(r.rec)):'—'}</td><td>${r.rec?minutesLabel(workMinutesOf(r.rec)):'—'}</td></tr>`).join('') || '<tr><td colspan="8" class="attendance-empty-row">لا توجد سجلات تفصيلية حسب الفلاتر الحالية.</td></tr>'}</tbody></table></div>
+      </div>
+    </section>`;
   }
   function renderPage(){
     const root=document.getElementById('attendanceRoot'); if(!root) return; if(!mainDb){ root.innerHTML='<div class="attendance-empty">اتصال Firebase غير متاح.</div>'; return; }
@@ -286,11 +350,122 @@
     root.innerHTML=`<div class="attendance-grid"><div class="attendance-stat green"><small>حاضر</small><strong>${countPresent}</strong></div><div class="attendance-stat orange"><small>متأخر</small><strong>${countLate}</strong></div><div class="attendance-stat red"><small>لم يسجل</small><strong>${countAbsent}</strong></div><div class="attendance-stat blue"><small>أونلاين الآن</small><strong>${countOnline}</strong></div></div><div class="attendance-layout"><div class="attendance-card"><div class="attendance-card-title"><h2>متابعة حضور اليوم</h2><span class="attendance-muted">${todayKey()}</span></div>${employees.length?`<div class="attendance-table-wrap"><table class="attendance-table"><thead><tr><th>الموظف</th><th>القسم</th><th>الحضور</th><th>الأونلاين</th><th>وقت الحضور</th><th>وقت الانصراف</th><th>مدة التأخير</th><th>آخر ظهور</th><th>آخر نشاط</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(displayNameOf(r.emp))}</td><td>${esc(r.emp.departmentName||r.emp.department||'—')}</td><td><span class="attendance-badge ${r.st.cls}">${r.st.label}</span></td><td><span class="attendance-badge ${r.on.cls}">${r.on.label}</span></td><td>${fmtTime(r.rec?.checkInAt||r.rec?.checkInTime)}</td><td>${fmtTime(r.rec?.checkOutAt||r.rec?.checkOutTime)}</td><td>${r.rec?minutesLabel(lateMinutesOf(r.rec)):'—'}</td><td>${relative(r.pres?.lastSeenAt)}</td><td>${esc(r.pres?.lastActivityType||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="attendance-empty">لا توجد بيانات موظفين داخل الأقسام حتى الآن.</div>'}</div><div class="attendance-card"><div class="attendance-card-title"><h2>إعدادات الدوام</h2><span class="attendance-muted">للأدمن فقط</span></div><div class="attendance-settings-grid"><label class="attendance-field"><span>بداية الدوام</span><input id="attStartTime" type="time" value="${esc(settings.workStartTime||settings.startTime||'16:00')}"></label><label class="attendance-field"><span>نهاية الدوام</span><input id="attEndTime" type="time" value="${esc(settings.workEndTime||settings.endTime||'21:00')}"></label><label class="attendance-field"><span>فترة السماح بالدقائق</span><input id="attGraceMinutes" type="number" min="0" value="${esc(settings.graceMinutes||15)}"></label></div><div class="attendance-actions"><button class="attendance-btn" type="button" data-att-save-settings>حفظ الإعدادات</button><span class="attendance-msg" id="attendanceSettingsMsg"></span></div><p class="attendance-muted" style="margin-top:12px">لو لم يتم إنشاء إعدادات في قاعدة البيانات، يستخدم السيستم تلقائياً 4:00 م إلى 9:00 م.</p></div></div>${renderReports(employees)}`;
   }
   function renderUser(root){ const rec=myRecord(); const st=statusOfRecord(rec); root.innerHTML=`<div class="attendance-user-card"><h2>حضور اليوم</h2><p class="attendance-muted">تسجيل الحضور والانصراف داخل سيستم التسويق.</p><div class="attendance-user-status"><strong><span class="attendance-badge ${st.cls}">${st.label}</span></strong>${rec && !(rec.checkOutAt||rec.checkOutTime)?'<button class="attendance-btn danger" data-att-checkout type="button">تسجيل انصراف</button>':'<button class="attendance-btn success" data-att-checkin type="button">تسجيل حضور</button>'}</div><div class="attendance-user-times"><div class="attendance-time-box"><small>وقت الحضور</small><strong>${fmtTime(rec?.checkInAt||rec?.checkInTime)}</strong></div><div class="attendance-time-box"><small>وقت الانصراف</small><strong>${fmtTime(rec?.checkOutAt||rec?.checkOutTime)}</strong></div><div class="attendance-time-box"><small>مدة التأخير</small><strong>${rec?minutesLabel(lateMinutesOf(rec)):'—'}</strong></div><div class="attendance-time-box"><small>ساعات العمل</small><strong>${rec?minutesLabel(workMinutesOf(rec)):'—'}</strong></div></div></div>`; }
-  function exportReportCsv(){
-    const rows=[...document.querySelectorAll('#attendanceReportTable tr')].map(tr=>[...tr.children].map(td=>`"${String(td.innerText||'').replace(/"/g,'""')}"`).join(','));
-    const blob=new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`attendance-report-${todayKey()}.csv`; a.click(); URL.revokeObjectURL(url);
+  function xlsxEscXml(value){
+    return String(value ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   }
-  document.addEventListener('click', async e=>{ const t=e.target.closest('[data-att-checkin],[data-att-checkout],[data-att-save-settings],[data-att-run-report],[data-att-export-report]'); if(!t) return; e.preventDefault(); try{ t.disabled=true; if(t.matches('[data-att-checkin]')) await checkIn(); if(t.matches('[data-att-checkout]')) await checkOut(); if(t.matches('[data-att-save-settings]')) await saveSettings(); if(t.matches('[data-att-run-report]')) { setReportFiltersFromDom(); await loadReportRecords(true); renderPage(); } if(t.matches('[data-att-export-report]')) { setReportFiltersFromDom(); renderPage(); setTimeout(exportReportCsv,50); } }catch(err){ console.error(err); alert(err?.message || 'تعذر تنفيذ الإجراء.'); }finally{ t.disabled=false; } });
+  function xlsxColumnName(n){
+    let s='';
+    while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); }
+    return s;
+  }
+  function xlsxCellXml(rowIndex, colIndex, value, styleIndex){
+    const ref = `${xlsxColumnName(colIndex)}${rowIndex}`;
+    const style = styleIndex ? ` s="${styleIndex}"` : '';
+    if(typeof value === 'number' && Number.isFinite(value)) return `<c r="${ref}"${style}><v>${value}</v></c>`;
+    const text = xlsxEscXml(value);
+    return `<c r="${ref}" t="inlineStr"${style}><is><t>${text}</t></is></c>`;
+  }
+  function xlsxSheetXml(rows, colWidths){
+    const cols = (colWidths||[]).map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('');
+    const sheetRows = rows.map((row, rIdx) => {
+      const rowNumber = rIdx + 1;
+      const cells = row.map((cell, cIdx) => {
+        const value = cell && typeof cell === 'object' && !Array.isArray(cell) ? cell.v : cell;
+        const styleIndex = cell && typeof cell === 'object' && !Array.isArray(cell) ? (cell.s || 0) : 0;
+        return xlsxCellXml(rowNumber, cIdx + 1, value, styleIndex);
+      }).join('');
+      return `<row r="${rowNumber}">${cells}</row>`;
+    }).join('');
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0" rightToLeft="1"/></sheetViews><cols>${cols}</cols><sheetData>${sheetRows}</sheetData></worksheet>`;
+  }
+  function xlsxWorkbookXml(){
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView rightToLeft="1"/></bookViews><sheets><sheet name="ملخص الموظفين" sheetId="1" r:id="rId1"/><sheet name="تفاصيل السجلات" sheetId="2" r:id="rId2"/></sheets></workbook>`;
+  }
+  function xlsxStylesXml(){
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="11"/><name val="Tajawal"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Tajawal"/></font><font><b/><sz val="14"/><color rgb="FF4A2B22"/><name val="Tajawal"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF7A4638"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF7EFE9"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD9C7BD"/></left><right style="thin"><color rgb="FFD9C7BD"/></right><top style="thin"><color rgb="FFD9C7BD"/></top><bottom style="thin"><color rgb="FFD9C7BD"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center" readingOrder="2"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" readingOrder="2" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="right" vertical="center" readingOrder="2"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="right" vertical="center" readingOrder="2" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  }
+  function buildXlsxRows(){
+    const f = getReportFilters();
+    const employees = collectEmployees();
+    const rows = reportRows(employees);
+    const dailyRows = reportDailyRows(employees);
+    const summary = [
+      [{v:'تقرير الحضور والانصراف',s:2},{v:`الفترة: ${formatReportRange(f)}`,s:3}],
+      [],
+      ['الموظف','القسم','الحالة','أيام الحضور','لم يسجل','مرات التأخير','إجمالي التأخير','بدون انصراف','إجمالي ساعات العمل'].map(v=>({v,s:1})),
+      ...rows.map(r=>[
+        displayNameOf(r.emp),
+        r.emp.departmentName || r.emp.department || '—',
+        r.lateCount>0 ? 'متأخر' : (r.present>0 && r.noCheckout>0 ? 'بدون انصراف' : (r.present>0 ? 'منتظم' : 'لم يسجل')),
+        r.present,
+        r.absent,
+        r.lateCount,
+        minutesLabel(r.lateTotal),
+        r.noCheckout,
+        minutesLabel(r.workTotal)
+      ])
+    ];
+    const details = [
+      [{v:'تفاصيل سجلات الحضور والانصراف',s:2},{v:`الفترة: ${formatReportRange(f)}`,s:3}],
+      [],
+      ['التاريخ','الموظف','القسم','الحالة','وقت الحضور','وقت الانصراف','مدة التأخير','ساعات العمل'].map(v=>({v,s:1})),
+      ...dailyRows.map(r=>[
+        r.date,
+        displayNameOf(r.emp),
+        r.emp.departmentName || r.emp.department || '—',
+        r.status.label,
+        r.rec ? fmtTime(r.rec.checkInAt || r.rec.checkInTime) : '—',
+        r.rec ? fmtTime(r.rec.checkOutAt || r.rec.checkOutTime) : '—',
+        r.rec ? minutesLabel(lateMinutesOf(r.rec)) : '—',
+        r.rec ? minutesLabel(workMinutesOf(r.rec)) : '—'
+      ])
+    ];
+    return {summary, details};
+  }
+  function crc32(bytes){
+    let table = crc32.table;
+    if(!table){
+      table = crc32.table = new Uint32Array(256);
+      for(let i=0;i<256;i++){ let c=i; for(let k=0;k<8;k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); table[i]=c>>>0; }
+    }
+    let crc = 0xFFFFFFFF;
+    for(let i=0;i<bytes.length;i++) crc = table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+  function u16(n){ return [n & 255, (n >>> 8) & 255]; }
+  function u32(n){ return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]; }
+  function concatBytes(parts){ const len=parts.reduce((s,p)=>s+p.length,0); const out=new Uint8Array(len); let o=0; parts.forEach(p=>{out.set(p,o); o+=p.length;}); return out; }
+  function makeXlsxZip(files){
+    const enc = new TextEncoder();
+    const localParts=[]; const centralParts=[]; let offset=0;
+    const now=new Date(); const dosTime=((now.getHours()&31)<<11)|((now.getMinutes()&63)<<5)|Math.floor(now.getSeconds()/2); const dosDate=(((now.getFullYear()-1980)&127)<<9)|((now.getMonth()+1)<<5)|now.getDate();
+    files.forEach(file=>{
+      const nameBytes=enc.encode(file.name); const data=typeof file.data === 'string' ? enc.encode(file.data) : file.data; const crc=crc32(data); const size=data.length;
+      const local=concatBytes([new Uint8Array([0x50,0x4b,0x03,0x04]), new Uint8Array(u16(20)), new Uint8Array(u16(0x0800)), new Uint8Array(u16(0)), new Uint8Array(u16(dosTime)), new Uint8Array(u16(dosDate)), new Uint8Array(u32(crc)), new Uint8Array(u32(size)), new Uint8Array(u32(size)), new Uint8Array(u16(nameBytes.length)), new Uint8Array(u16(0)), nameBytes, data]);
+      localParts.push(local);
+      const central=concatBytes([new Uint8Array([0x50,0x4b,0x01,0x02]), new Uint8Array(u16(20)), new Uint8Array(u16(20)), new Uint8Array(u16(0x0800)), new Uint8Array(u16(0)), new Uint8Array(u16(dosTime)), new Uint8Array(u16(dosDate)), new Uint8Array(u32(crc)), new Uint8Array(u32(size)), new Uint8Array(u32(size)), new Uint8Array(u16(nameBytes.length)), new Uint8Array(u16(0)), new Uint8Array(u16(0)), new Uint8Array(u16(0)), new Uint8Array(u16(0)), new Uint8Array(u32(0)), new Uint8Array(u32(offset)), nameBytes]);
+      centralParts.push(central); offset += local.length;
+    });
+    const centralSize=centralParts.reduce((s,p)=>s+p.length,0); const centralOffset=offset;
+    const end=concatBytes([new Uint8Array([0x50,0x4b,0x05,0x06]), new Uint8Array(u16(0)), new Uint8Array(u16(0)), new Uint8Array(u16(files.length)), new Uint8Array(u16(files.length)), new Uint8Array(u32(centralSize)), new Uint8Array(u32(centralOffset)), new Uint8Array(u16(0))]);
+    return concatBytes([...localParts, ...centralParts, end]);
+  }
+  function exportReportExcel(){
+    const data = buildXlsxRows();
+    const files = [
+      {name:'[Content_Types].xml', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'},
+      {name:'_rels/.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
+      {name:'xl/workbook.xml', data:xlsxWorkbookXml()},
+      {name:'xl/_rels/workbook.xml.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'},
+      {name:'xl/styles.xml', data:xlsxStylesXml()},
+      {name:'xl/worksheets/sheet1.xml', data:xlsxSheetXml(data.summary, [26,24,16,14,14,14,18,16,22])},
+      {name:'xl/worksheets/sheet2.xml', data:xlsxSheetXml(data.details, [16,26,24,16,16,16,16,18])}
+    ];
+    const bytes = makeXlsxZip(files);
+    const blob = new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`attendance-report-${todayKey()}.xlsx`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+  document.addEventListener('click', async e=>{ const t=e.target.closest('[data-att-checkin],[data-att-checkout],[data-att-save-settings],[data-att-run-report],[data-att-export-report]'); if(!t) return; e.preventDefault(); try{ t.disabled=true; if(t.matches('[data-att-checkin]')) await checkIn(); if(t.matches('[data-att-checkout]')) await checkOut(); if(t.matches('[data-att-save-settings]')) await saveSettings(); if(t.matches('[data-att-run-report]')) { setReportFiltersFromDom(); await loadReportRecords(true); renderPage(); } if(t.matches('[data-att-export-report]')) { setReportFiltersFromDom(); await loadReportRecords(true); renderPage(); setTimeout(exportReportExcel,50); } }catch(err){ console.error(err); alert(err?.message || 'تعذر تنفيذ الإجراء.'); }finally{ t.disabled=false; } });
   function boot(){ if(!isLoggedIn || !isLoggedIn()) return; startSnapshots(); updateTopbar(); }
   window.MZJAttendance={renderPage,updateTopbar,boot,loadReportRecords};
   document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,500)); window.addEventListener('hashchange',()=>setTimeout(()=>{boot(); if(location.hash==='#attendance')renderPage();},100)); setInterval(()=>{ if(isLoggedIn && isLoggedIn()) { boot(); updateTopbar(); if(location.hash==='#attendance') renderPage(); } },4000);
