@@ -21,7 +21,7 @@
 <link href="assets/css/style.css?v=v764-publish-schedule-card" rel="stylesheet">
 <link href="assets/css/agenda.css?v=26-agenda-platform-publish-types" rel="stylesheet">
 <link href="assets/css/packages-page.css?v=1-native-packages" rel="stylesheet">
-<link href="assets/css/attendance.css?v=2-reports-clean" rel="stylesheet">
+<link href="assets/css/attendance.css?v=3-user-page-actions" rel="stylesheet">
 <link href="assets/favicon.png" rel="icon" type="image/png"/>
 </link>
 <style>
@@ -139,6 +139,7 @@
 <form class="packages-form" id="packagesForm" onsubmit="return false;">
 <label class="package-form-field"><span>اسم الباقة</span><input id="packageNameInput" placeholder="مثال: الباقة الذهبية - 1" type="text"/></label>
 <label class="package-form-field"><span>التصنيف</span><select id="packageCategoryInput"></select><input class="package-custom-category" id="packageCustomCategoryInput" placeholder="اكتب اسم التصنيف الجديد" type="text"/></label>
+<label class="package-form-field"><span>نوع المبيعات</span><select id="packageSalesTypeInput"><option value="">اختر نوع المبيعات</option><option value="مبيعات الكاش">مبيعات الكاش</option><option value="مبيعات القسط">مبيعات القسط</option></select></label>
 <div class="packages-form-two-cols">
 <label class="package-form-field"><span>قيمة الباقة (ر.س)</span><input id="packagePriceInput" min="0" placeholder="أدخل قيمة الباقة" step="0.01" type="number"/></label>
 <label class="package-form-field"><span>خصم نقدي (%)</span><input id="packageDiscountInput" max="100" min="0" placeholder="0" step="0.01" type="number"/></label>
@@ -1156,10 +1157,10 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="assets/js/jszip.min.js?v=160"></script>
-<script src="assets/js/app.js?v=760-core-creative-catalog-v24"></script>
+<script src="assets/js/app.js?v=761-attendance-page-access"></script>
 <script src="assets/js/merged-patches.js?v=v766-agenda-schedule-data-view"></script>
 <script src="assets/js/agenda.js?v=26-platform-publish-types"></script>
-<script src="assets/js/packages-page.js?v=1-native-packages"></script>
-<script src="assets/js/attendance.js?v=2-reports-clean"></script>
+<script src="assets/js/packages-page.js?v=2-package-sales-type"></script>
+<script src="assets/js/attendance.js?v=3-user-page-actions"></script>
 </input></input></input></input></body>
 </html>

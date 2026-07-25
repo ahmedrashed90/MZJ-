@@ -348,7 +348,7 @@ function isCurrentUserAttendanceAdmin(){
 function isAdminEmailUser(user){ return ['hossamzayan10@gmail.com','mr.ahmed_rashed@outlook.sa'].includes(String(user?.email || '').toLowerCase()); }
 function pageAllowed(route){
   if(isCurrentUserAdmin()) return true;
-  if(route === 'attendance' && isCurrentUserAttendanceAdmin()) return true;
+  if(route === 'attendance') return true;
   return allowedPagesForCurrentUser().includes(route);
 }
 
@@ -356,9 +356,7 @@ function allowedPagesForCurrentUser(){
   if(isCurrentUserAdmin()) return routes;
   const user = getCurrentUser();
   const raw = [...(Array.isArray(user.pages) ? user.pages : []), ...(Array.isArray(user.pagesAccess) ? user.pagesAccess : [])];
-  const base = uniqueList(['dashboard', ...normalizePagesList(raw)]);
-  if(isCurrentUserAttendanceAdmin() && !base.includes('attendance')) base.push('attendance');
-  return base;
+  return uniqueList(['dashboard', 'attendance', ...normalizePagesList(raw)]);
 }
 function applyUserPermissions(){
   const allowed = allowedPagesForCurrentUser();

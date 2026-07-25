@@ -5,7 +5,7 @@
   };
   const state = {
     settings:{...DEFAULT_SETTINGS}, records:[], presence:[], requests:[], reportRecords:null, unsub:[], booted:false,
-    lastActivityAt:new Date(), currentRecord:null, popupOpen:false, reportFilters:null
+    lastActivityAt:new Date(), currentRecord:null, reportFilters:null
   };
   const coll = (name) => mainDb && safeCollection ? safeCollection(name) : null;
   const esc = (v) => (typeof escapeHtml === 'function' ? escapeHtml(v) : String(v??'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])));
@@ -185,7 +185,7 @@
   }
   function startSnapshots(){
     if(!mainDb || state.booted) return; state.booted = true;
-    ensureSettings().then(()=>{ updateTopbar(); maybeShowCheckInPopup(); renderPage(); });
+    ensureSettings().then(()=>{ updateTopbar(); renderPage(); });
     const day=todayKey();
     const safeListen = (name, cb) => {
       try{ const unsub = coll(name).where('dayKey','==',day).onSnapshot(s=>cb(s.docs.map(d=>({id:d.id,...(d.data()||{})}))), e=>{ console.error(name,e); cb(null,e); }); state.unsub.push(unsub); }catch(e){ console.error(name,e); cb(null,e); }
@@ -195,7 +195,7 @@
     safeListen(window.MZJ_ATTENDANCE_REQUESTS_COLLECTION || 'attendance_requests', (rows,err)=>{ if(!err) state.requests=rows||[]; afterData(); });
     loadReportRecords(); trackActivity(); setInterval(updatePresence, 60000); setTimeout(updatePresence, 2000);
   }
-  function afterData(){ updateTopbar(); maybeShowCheckInPopup(); if(location.hash==='#attendance') renderPage(); }
+  function afterData(){ updateTopbar(); if(location.hash==='#attendance') renderPage(); }
   async function loadReportRecords(force=false){
     if(!mainDb || (state.reportRecords && !force)) return state.reportRecords || [];
     try{
@@ -206,19 +206,26 @@
     return state.reportRecords;
   }
   async function checkIn(){
+    const existing=myRecord();
+    if(existing) return alert(existing.checkOutAt||existing.checkOutTime ? 'تم تسجيل حضورك وانصرافك اليوم بالفعل.' : 'تم تسجيل حضورك اليوم بالفعل.');
     const u=currentUser(); if(!u.uid && !u.id && !u.email) return alert('لم يتم التعرف على المستخدم.');
     const settings=getSettings(); const now=new Date(); const day=todayKey(); const currentMins=now.getHours()*60+now.getMinutes(); const late=Math.max(0,currentMins-mins(settings.workStartTime||settings.startTime)-Number(settings.graceMinutes||0));
     const lu=localUser(); const displayName=displayNameOf({...lu,...u});
     const data={ id:docIdFor(u), uid:u.uid||u.id||u.email, userId:u.id||u.uid||u.email, userUid:u.uid||u.id||u.email, userName:displayName, userEmail:u.email||lu.email||'', displayName, role:u.role||lu.role||'', department:lu.department||'', departmentId:lu.departmentId||'', departmentName:lu.departmentName||lu.department||'', date:day, dayKey:day, checkInAt:nowIso(), checkInTime:nowIso(), status:late>0?'متأخر':'حاضر', attendanceStatus:late>0?'late':'present', isLate:late>0, lateMinutes:late, workStartTime:settings.workStartTime||settings.startTime, workEndTime:settings.workEndTime||settings.endTime, graceMinutes:Number(settings.graceMinutes||0), checkInSource:'marketing_system', checkInMethod:'manual_button', deviceInfo:{userAgent:navigator.userAgent, platform:navigator.platform}, userAgent:navigator.userAgent, platform:navigator.platform, lastSeenAt:nowIso(), lastActivityAt:nowIso(), createdAt:nowIso(), updatedAt:nowIso() };
     await coll(window.MZJ_ATTENDANCE_RECORDS_COLLECTION || 'attendance_records').doc(data.id).set(data,{merge:true});
-    state.reportRecords=null; await updatePresence('تسجيل حضور'); closePopup(); updateTopbar(); renderPage();
+    state.records=[data,...state.records.filter(r=>r.id!==data.id)]; state.currentRecord=data;
+    state.reportRecords=null; await updatePresence('تسجيل حضور'); updateTopbar(); renderPage();
   }
   async function checkOut(){
-    const u=currentUser(); const id=docIdFor(u); const rec=state.records.find(r=>r.id===id) || state.currentRecord;
-    const inD = rec ? dateFromValue(rec.checkInAt || rec.checkInTime) : null; const outD = new Date();
+    const u=currentUser(); const id=docIdFor(u); const rec=state.records.find(r=>r.id===id) || state.currentRecord || myRecord();
+    if(!rec) return alert('سجل الحضور أولاً قبل تسجيل الانصراف.');
+    if(rec.checkOutAt||rec.checkOutTime) return alert('تم تسجيل الانصراف اليوم بالفعل.');
+    const inD = dateFromValue(rec.checkInAt || rec.checkInTime); const outD = new Date();
     const workMinutes = inD ? Math.max(0, Math.round((outD.getTime()-inD.getTime())/60000)) : 0;
     const data={checkOutAt:nowIso(), checkOutTime:nowIso(), status:'منصرف', attendanceStatus:'checked_out', workMinutes, workingMinutes:workMinutes, workingHours:Math.round((workMinutes/60)*100)/100, checkOutSource:'marketing_system', checkOutMethod:'manual_button', updatedAt:nowIso()};
-    await coll(window.MZJ_ATTENDANCE_RECORDS_COLLECTION || 'attendance_records').doc((rec&&rec.id)||id).set(data,{merge:true});
+    const recordId=(rec&&rec.id)||id;
+    await coll(window.MZJ_ATTENDANCE_RECORDS_COLLECTION || 'attendance_records').doc(recordId).set(data,{merge:true});
+    const updatedRecord={...rec,...data,id:recordId}; state.records=[updatedRecord,...state.records.filter(r=>r.id!==recordId)]; state.currentRecord=updatedRecord;
     state.reportRecords=null; await updatePresence('تسجيل انصراف'); updateTopbar(); renderPage();
   }
   async function updatePresence(activity){
@@ -234,9 +241,6 @@
     const st=statusOfRecord(rec); const present=!!rec && !(rec.checkOutAt||rec.checkOutTime);
     slot.innerHTML=`<div class="attendance-mini-card ${present?'is-present':st.cls==='orange'?'is-late':rec?'is-out':''}"><span class="dot"></span><span>${rec?`${st.label} اليوم ${fmtTime(rec.checkInAt||rec.checkInTime)}`:'لم تسجل حضور اليوم'}</span>${present?'<button class="danger" type="button" data-att-checkout>تسجيل انصراف</button>':''}</div>`;
   }
-  function maybeShowCheckInPopup(){ if(state.popupOpen || isAdmin()) return; const rec=myRecord(); if(rec) return; if(!isLoggedIn || !isLoggedIn()) return; setTimeout(openPopup,250); }
-  function openPopup(){ if(state.popupOpen || myRecord()) return; state.popupOpen=true; const div=document.createElement('div'); div.className='attendance-modal-backdrop'; div.id='attendanceCheckInPopup'; div.innerHTML=`<div class="attendance-modal"><div class="attendance-modal-icon">🕒</div><h2>تسجيل حضور اليوم</h2><p>سيتم تسجيل وقت حضورك الحالي داخل سيستم التسويق.</p><div class="btn-row"><button class="attendance-btn success" data-att-checkin type="button">تسجيل حضور</button></div></div>`; document.body.appendChild(div); }
-  function closePopup(){ state.popupOpen=false; document.getElementById('attendanceCheckInPopup')?.remove(); }
   async function saveSettings(){
     const data={...getSettings(), workStartTime:document.getElementById('attStartTime')?.value||'16:00', startTime:document.getElementById('attStartTime')?.value||'16:00', workEndTime:document.getElementById('attEndTime')?.value||'21:00', endTime:document.getElementById('attEndTime')?.value||'21:00', graceMinutes:Number(document.getElementById('attGraceMinutes')?.value||15), updatedAt:nowIso(), updatedBy:currentUser().uid||currentUser().email||''};
     state.settings=data; await coll(window.MZJ_ATTENDANCE_SETTINGS_COLLECTION || 'attendance_settings').doc('default').set(data,{merge:true}); document.getElementById('attendanceSettingsMsg').textContent='تم حفظ مواعيد الدوام.'; renderPage();
@@ -396,7 +400,11 @@
     const countLate=rows.filter(r=>r.st.cls==='orange').length; const countAbsent=rows.filter(r=>!r.rec).length; const countOnline=rows.filter(r=>r.on.cls==='green').length;
     root.innerHTML=`<div class="attendance-grid"><div class="attendance-stat green"><small>حاضر</small><strong>${countPresent}</strong></div><div class="attendance-stat orange"><small>متأخر</small><strong>${countLate}</strong></div><div class="attendance-stat red"><small>لم يسجل</small><strong>${countAbsent}</strong></div><div class="attendance-stat blue"><small>أونلاين الآن</small><strong>${countOnline}</strong></div></div><div class="attendance-layout"><div class="attendance-card"><div class="attendance-card-title"><h2>متابعة حضور اليوم</h2><span class="attendance-muted">${todayKey()}</span></div>${employees.length?`<div class="attendance-table-wrap"><table class="attendance-table"><thead><tr><th>الموظف</th><th>القسم</th><th>الحضور</th><th>الأونلاين</th><th>وقت الحضور</th><th>وقت الانصراف</th><th>مدة التأخير</th><th>آخر ظهور</th><th>آخر نشاط</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(displayNameOf(r.emp))}</td><td>${esc(r.emp.departmentName||r.emp.department||'—')}</td><td><span class="attendance-badge ${r.st.cls}">${r.st.label}</span></td><td><span class="attendance-badge ${r.on.cls}">${r.on.label}</span></td><td>${fmtTime(r.rec?.checkInAt||r.rec?.checkInTime)}</td><td>${fmtTime(r.rec?.checkOutAt||r.rec?.checkOutTime)}</td><td>${r.rec?minutesLabel(lateMinutesOf(r.rec)):'—'}</td><td>${relative(r.pres?.lastSeenAt)}</td><td>${esc(r.pres?.lastActivityType||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="attendance-empty">لا توجد بيانات موظفين داخل الأقسام حتى الآن.</div>'}</div><div class="attendance-card"><div class="attendance-card-title"><h2>إعدادات الدوام</h2><span class="attendance-muted">للأدمن فقط</span></div><div class="attendance-settings-grid"><label class="attendance-field"><span>بداية الدوام</span><input id="attStartTime" type="time" value="${esc(settings.workStartTime||settings.startTime||'16:00')}"></label><label class="attendance-field"><span>نهاية الدوام</span><input id="attEndTime" type="time" value="${esc(settings.workEndTime||settings.endTime||'21:00')}"></label><label class="attendance-field"><span>فترة السماح بالدقائق</span><input id="attGraceMinutes" type="number" min="0" value="${esc(settings.graceMinutes||15)}"></label></div><div class="attendance-actions"><button class="attendance-btn" type="button" data-att-save-settings>حفظ الإعدادات</button><span class="attendance-msg" id="attendanceSettingsMsg"></span></div><p class="attendance-muted" style="margin-top:12px">لو لم يتم إنشاء إعدادات في قاعدة البيانات، يستخدم السيستم تلقائياً 4:00 م إلى 9:00 م.</p></div></div>${renderReports(employees)}`;
   }
-  function renderUser(root){ const rec=myRecord(); const st=statusOfRecord(rec); root.innerHTML=`<div class="attendance-user-card"><h2>حضور اليوم</h2><p class="attendance-muted">تسجيل الحضور والانصراف داخل سيستم التسويق.</p><div class="attendance-user-status"><strong><span class="attendance-badge ${st.cls}">${st.label}</span></strong>${rec && !(rec.checkOutAt||rec.checkOutTime)?'<button class="attendance-btn danger" data-att-checkout type="button">تسجيل انصراف</button>':'<button class="attendance-btn success" data-att-checkin type="button">تسجيل حضور</button>'}</div><div class="attendance-user-times"><div class="attendance-time-box"><small>وقت الحضور</small><strong>${fmtTime(rec?.checkInAt||rec?.checkInTime)}</strong></div><div class="attendance-time-box"><small>وقت الانصراف</small><strong>${fmtTime(rec?.checkOutAt||rec?.checkOutTime)}</strong></div><div class="attendance-time-box"><small>مدة التأخير</small><strong>${rec?minutesLabel(lateMinutesOf(rec)):'—'}</strong></div><div class="attendance-time-box"><small>ساعات العمل</small><strong>${rec?minutesLabel(workMinutesOf(rec)):'—'}</strong></div></div></div>`; }
+  function renderUser(root){
+    const rec=myRecord(); const st=statusOfRecord(rec); const checkedIn=!!rec; const checkedOut=!!(rec && (rec.checkOutAt||rec.checkOutTime));
+    const actionHint=!checkedIn?'اضغط تسجيل حضور عند بداية الدوام.':(!checkedOut?'تم تسجيل حضورك، ويمكنك تسجيل الانصراف عند نهاية الدوام.':'تم تسجيل الحضور والانصراف لليوم.');
+    root.innerHTML=`<div class="attendance-user-card"><h2>حضور اليوم</h2><p class="attendance-muted">تسجيل الحضور والانصراف داخل سيستم التسويق.</p><div class="attendance-user-status"><strong><span class="attendance-badge ${st.cls}">${st.label}</span></strong><span class="attendance-user-hint">${actionHint}</span></div><div class="attendance-user-actions"><button class="attendance-btn success" data-att-checkin type="button" ${checkedIn?'disabled':''}>تسجيل حضور</button><button class="attendance-btn danger" data-att-checkout type="button" ${!checkedIn||checkedOut?'disabled':''}>تسجيل انصراف</button></div><div class="attendance-user-times"><div class="attendance-time-box"><small>وقت الحضور</small><strong>${fmtTime(rec?.checkInAt||rec?.checkInTime)}</strong></div><div class="attendance-time-box"><small>وقت الانصراف</small><strong>${fmtTime(rec?.checkOutAt||rec?.checkOutTime)}</strong></div><div class="attendance-time-box"><small>مدة التأخير</small><strong>${rec?minutesLabel(lateMinutesOf(rec)):'—'}</strong></div><div class="attendance-time-box"><small>ساعات العمل</small><strong>${rec?minutesLabel(workMinutesOf(rec)):'—'}</strong></div></div></div>`;
+  }
   function xlsxEscXml(value){
     return String(value ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   }

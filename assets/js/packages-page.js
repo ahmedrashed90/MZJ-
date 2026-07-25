@@ -131,6 +131,7 @@
       id,
       name: clean(data.name || data.packageName),
       category: clean(data.category || data.classification) || 'بدون تصنيف',
+      salesType: clean(data.salesType || data.saleType || data.packageType),
       price: numberValue(data.price ?? data.packageValue),
       discountPercent: numberValue(data.discountPercent ?? data.cashDiscount ?? data.discount),
       procedures,
@@ -289,6 +290,7 @@
     state.selectedId = item.id;
     setValue('packageNameInput', item.name);
     setCategoryValue(item.category);
+    setValue('packageSalesTypeInput', item.salesType);
     setValue('packagePriceInput', item.price);
     setValue('packageDiscountInput', item.discountPercent);
     setChecked('packageRegistrationInput', item.procedures.registration);
@@ -374,6 +376,7 @@
   function readFormPayload(){
     const name = clean(document.getElementById('packageNameInput')?.value);
     const category = getCategoryValue();
+    const salesType = clean(document.getElementById('packageSalesTypeInput')?.value);
     const price = numberValue(document.getElementById('packagePriceInput')?.value);
     const discountPercent = numberValue(document.getElementById('packageDiscountInput')?.value);
     const careItems = normalizeLines(document.getElementById('packageCareInput')?.value);
@@ -381,12 +384,14 @@
 
     if(!name){ setMessage('اكتب اسم الباقة.'); return null; }
     if(!category){ setMessage('اختر تصنيف الباقة أو اكتب تصنيفاً جديداً.'); return null; }
+    if(!salesType){ setMessage('اختر نوع المبيعات: مبيعات الكاش أو مبيعات القسط.'); return null; }
     if(price < 0){ setMessage('قيمة الباقة غير صحيحة.'); return null; }
     if(discountPercent < 0 || discountPercent > 100){ setMessage('الخصم النقدي يجب أن يكون من 0 إلى 100.'); return null; }
 
     return {
       name,
       category,
+      salesType,
       price,
       discountPercent,
       procedures: {
