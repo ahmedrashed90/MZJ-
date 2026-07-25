@@ -237,9 +237,31 @@
   function trackActivity(){ ['click','keydown','input','change','scroll'].forEach(ev=>document.addEventListener(ev,()=>{ state.lastActivityAt=new Date(); },{passive:true})); }
   function myRecord(){ const u=currentUser(); const aliases=userAliases({uid:u.uid,id:u.id,email:u.email,userEmail:u.email}); return state.records.find(r=>r.id===docIdFor(u) || userAliases(r).some(a=>aliases.includes(a))) || null; }
   function updateTopbar(){
-    const slot=document.getElementById('attendanceTopbarSlot'); if(!slot) return; const rec=myRecord(); state.currentRecord=rec;
-    const st=statusOfRecord(rec); const present=!!rec && !(rec.checkOutAt||rec.checkOutTime);
-    slot.innerHTML=`<div class="attendance-mini-card ${present?'is-present':st.cls==='orange'?'is-late':rec?'is-out':''}"><span class="dot"></span><span>${rec?`${st.label} اليوم ${fmtTime(rec.checkInAt||rec.checkInTime)}`:'لم تسجل حضور اليوم'}</span>${present?'<button class="danger" type="button" data-att-checkout>تسجيل انصراف</button>':''}</div>`;
+    const slot=document.getElementById('attendanceTopbarSlot');
+    if(!slot) return;
+    const route=(location.hash||'#dashboard').replace(/^#/, '') || 'dashboard';
+    if(route!=='dashboard'){
+      slot.hidden=true;
+      slot.innerHTML='';
+      return;
+    }
+    slot.hidden=false;
+    const rec=myRecord(); state.currentRecord=rec;
+    const st=statusOfRecord(rec);
+    const checkedIn=!!rec;
+    const checkedOut=!!(rec && (rec.checkOutAt||rec.checkOutTime));
+    const present=checkedIn && !checkedOut;
+    const statusText=!checkedIn
+      ? 'لم تسجل حضور اليوم'
+      : checkedOut
+        ? `تم تسجيل الانصراف اليوم ${fmtTime(rec.checkOutAt||rec.checkOutTime)}`
+        : `${st.label} اليوم ${fmtTime(rec.checkInAt||rec.checkInTime)}`;
+    const action=!checkedIn
+      ? '<button class="success" type="button" data-att-checkin>تسجيل حضور</button>'
+      : present
+        ? '<button class="danger" type="button" data-att-checkout>تسجيل انصراف</button>'
+        : '';
+    slot.innerHTML=`<div class="attendance-mini-card ${present?'is-present':st.cls==='orange'?'is-late':checkedOut?'is-out':''}"><span class="dot"></span><span>${statusText}</span>${action}</div>`;
   }
   async function saveSettings(){
     const data={...getSettings(), workStartTime:document.getElementById('attStartTime')?.value||'16:00', startTime:document.getElementById('attStartTime')?.value||'16:00', workEndTime:document.getElementById('attEndTime')?.value||'21:00', endTime:document.getElementById('attEndTime')?.value||'21:00', graceMinutes:Number(document.getElementById('attGraceMinutes')?.value||15), updatedAt:nowIso(), updatedBy:currentUser().uid||currentUser().email||''};
@@ -403,7 +425,7 @@
   function renderUser(root){
     const rec=myRecord(); const st=statusOfRecord(rec); const checkedIn=!!rec; const checkedOut=!!(rec && (rec.checkOutAt||rec.checkOutTime));
     const actionHint=!checkedIn?'اضغط تسجيل حضور عند بداية الدوام.':(!checkedOut?'تم تسجيل حضورك، ويمكنك تسجيل الانصراف عند نهاية الدوام.':'تم تسجيل الحضور والانصراف لليوم.');
-    root.innerHTML=`<div class="attendance-user-card"><h2>حضور اليوم</h2><p class="attendance-muted">تسجيل الحضور والانصراف داخل سيستم التسويق.</p><div class="attendance-user-status"><strong><span class="attendance-badge ${st.cls}">${st.label}</span></strong><span class="attendance-user-hint">${actionHint}</span></div><div class="attendance-user-actions"><button class="attendance-btn success" data-att-checkin type="button" ${checkedIn?'disabled':''}>تسجيل حضور</button><button class="attendance-btn danger" data-att-checkout type="button" ${!checkedIn||checkedOut?'disabled':''}>تسجيل انصراف</button></div><div class="attendance-user-times"><div class="attendance-time-box"><small>وقت الحضور</small><strong>${fmtTime(rec?.checkInAt||rec?.checkInTime)}</strong></div><div class="attendance-time-box"><small>وقت الانصراف</small><strong>${fmtTime(rec?.checkOutAt||rec?.checkOutTime)}</strong></div><div class="attendance-time-box"><small>مدة التأخير</small><strong>${rec?minutesLabel(lateMinutesOf(rec)):'—'}</strong></div><div class="attendance-time-box"><small>ساعات العمل</small><strong>${rec?minutesLabel(workMinutesOf(rec)):'—'}</strong></div></div></div>`;
+    root.innerHTML=`<div class="attendance-user-card"><h2>حضور اليوم</h2><p class="attendance-muted">يمكن تسجيل الحضور والانصراف مباشرة من لوحة التحكم.</p><div class="attendance-user-status"><strong><span class="attendance-badge ${st.cls}">${st.label}</span></strong><span class="attendance-user-hint">${actionHint}</span></div><div class="attendance-user-times"><div class="attendance-time-box"><small>وقت الحضور</small><strong>${fmtTime(rec?.checkInAt||rec?.checkInTime)}</strong></div><div class="attendance-time-box"><small>وقت الانصراف</small><strong>${fmtTime(rec?.checkOutAt||rec?.checkOutTime)}</strong></div><div class="attendance-time-box"><small>مدة التأخير</small><strong>${rec?minutesLabel(lateMinutesOf(rec)):'—'}</strong></div><div class="attendance-time-box"><small>ساعات العمل</small><strong>${rec?minutesLabel(workMinutesOf(rec)):'—'}</strong></div></div></div>`;
   }
   function xlsxEscXml(value){
     return String(value ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
