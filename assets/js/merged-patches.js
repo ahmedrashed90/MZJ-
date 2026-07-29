@@ -38411,7 +38411,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const ts=statusOf(t,'template');
     if(ts==='approved'||S(t.status).toLowerCase()==='completed') return {text:'تم الاعتماد',cls:'ok'};
     if(ts==='in_review') return {text:'في مراجعة Task Template',cls:'wait'};
-    if(ts==='needs_changes') return {text:'محتاج تعديل',cls:'warn'};
+    if(['needs_changes','pending_task_template_changes','waiting_task_template_changes'].includes(ts)||S(t&&t.approvalCancelledAt)) return {text:'إعادة رفع Task Template',cls:'warn'};
     return {text:'رفع Task Template',cls:'soft'};
   }
   function contentTemplateCard(label,value,icon){return `<article class="v701-content-card"><div class="v701-content-card-copy"><span>${H(label)}</span><strong>${H(value||'—')}</strong></div><i>${H(icon||'')}</i></article>`;}
@@ -38422,6 +38422,12 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const st=S(t&&t.status||'').toLowerCase();
     return ts==='approved'||st==='task_template_approved'||t?.contentTemplateApproved===true||t?.taskTemplateApproved===true||S(tpl.status).toLowerCase()==='approved'||S(tpl.reviewStatus).toLowerCase()==='approved';
   }
+  function canUploadTaskTemplate(t){
+    const tpl=t&&t.taskTemplate||{};
+    const states=[statusOf(t,'template'),tpl.status,tpl.reviewStatus,tpl.templateReviewStatus,t&&t.taskTemplateStatus,t&&t.templateReviewStatus,t&&t.reviewStatus,t&&t.status,t&&t.state].map(v=>S(v).toLowerCase());
+    const uploadStates=['pending','received','needs_changes','rejected','pending_task_template_changes','waiting_task_template_changes'];
+    return states.some(state=>uploadStates.includes(state))||Boolean(S(t&&t.approvalCancelledAt||tpl.approvalCancelledAt));
+  }
   function contentTemplateActions(t){
     const ts=statusOf(t,'template');
     const tpl=t.taskTemplate||{};
@@ -38429,7 +38435,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const cancelApproval=(isAdmin()&&isContentTemplateApproved(t))?`<button type="button" class="btn btn-light" data-v677-cancel-template-approval="${H(taskId(t))}">إلغاء الاعتماد وإعادة الرفع</button>`:'';
     return `<div class="v701-content-actions">`
       + `<button type="button" class="btn btn-light" data-v677-task-template="${H(taskId(t))}">تحميل Task Template</button>`
-      + `${['pending','received','needs_changes','rejected'].includes(ts)?fileButton(taskId(t),'template','إرفاق Task Template Excel'):''}`
+      + `${canUploadTaskTemplate(t)?fileButton(taskId(t),'template','إرفاق Task Template Excel'):''}`
       + `${url?`<a class="btn btn-light" href="${H(url)}" target="_blank" rel="noopener">تحميل الملف المرفوع</a>`:''}`
       + cancelApproval
       + `</div>`;
@@ -38819,7 +38825,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     if(note) lines.push(`<article><span>ملاحظة القسم</span><b>${H(note)}</b></article>`);
     return lines.length?`<div class="v677-panel"><h3>مواعيد وملاحظات التكليف</h3><div class="v677-info">${lines.join('')}</div></div>`:'';
   }
-  function detailsActions(t){const ss=statusOf(t,'structure'),ts=statusOf(t,'template'); if(isContent(t)){const phase=isTemplateContentTask(t)||ss==='approved'; return `${phase?rowDetailsPanel(t):''}<div class="v677-panel"><h3>إجراءات الكاتب</h3><div class="v677-actions">${phase?`<button type="button" class="btn btn-light" data-v677-task-template="${H(taskId(t))}">تحميل Task Template</button>${['pending','received','needs_changes'].includes(ts)?fileButton(taskId(t),'template','إرفاق Task Template Excel'):''}`:`<button type="button" class="btn btn-light" data-v677-structure-template="${H(taskId(t))}">تحميل قالب الهيكل بالأكواد</button>${['pending','received','needs_changes'].includes(ss)?fileButton(taskId(t),'structure','إرفاق هيكل الحملة Excel'):''}`}</div>${ss==='in_review'?'<p class="v677-note">تم رفع الهيكل وفي انتظار مراجعة الأدمن.</p>':''}${ts==='in_review'?'<p class="v677-note">تم رفع Task Template وفي انتظار مراجعة الأدمن.</p>':''}</div>`;} return execDetails(t);}
+  function detailsActions(t){const ss=statusOf(t,'structure'),ts=statusOf(t,'template'); if(isContent(t)){const phase=isTemplateContentTask(t)||ss==='approved'; return `${phase?rowDetailsPanel(t):''}<div class="v677-panel"><h3>إجراءات الكاتب</h3><div class="v677-actions">${phase?`<button type="button" class="btn btn-light" data-v677-task-template="${H(taskId(t))}">تحميل Task Template</button>${canUploadTaskTemplate(t)?fileButton(taskId(t),'template','إرفاق Task Template Excel'):''}`:`<button type="button" class="btn btn-light" data-v677-structure-template="${H(taskId(t))}">تحميل قالب الهيكل بالأكواد</button>${['pending','received','needs_changes'].includes(ss)?fileButton(taskId(t),'structure','إرفاق هيكل الحملة Excel'):''}`}</div>${ss==='in_review'?'<p class="v677-note">تم رفع الهيكل وفي انتظار مراجعة الأدمن.</p>':''}${ts==='in_review'?'<p class="v677-note">تم رفع Task Template وفي انتظار مراجعة الأدمن.</p>':''}</div>`;} return execDetails(t);}
   function rawLocalSafeFolderName(value){
     return S(value||'')
       .trim()
@@ -43370,8 +43376,23 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
     const external = externalTemplateFor(pointer,task);
     if(external){
       out = {...out};
-      if(isContentTemplateTask(out)) out.taskTemplate = {...pointer,...external};
-      else{
+      if(isContentTemplateTask(out)){
+        const nestedTemplate=isObject(external.taskTemplate)?external.taskTemplate:{};
+        const externalState=text([external.status,external.reviewStatus,external.templateReviewStatus,external.taskTemplateStatus,external.approvalStatus,nestedTemplate.status,nestedTemplate.reviewStatus,nestedTemplate.templateReviewStatus].join(' ')).toLowerCase();
+        const approvalCancelled=Boolean(text(out.approvalCancelledAt||external.approvalCancelledAt||nestedTemplate.approvalCancelledAt))||externalState.includes('needs_changes')||externalState.includes('pending_task_template_changes');
+        const mergedTemplate={...pointer,...external,...nestedTemplate};
+        delete mergedTemplate.taskTemplate;
+        if(approvalCancelled){
+          mergedTemplate.status='needs_changes';
+          mergedTemplate.reviewStatus='needs_changes';
+          mergedTemplate.templateReviewStatus='needs_changes';
+          mergedTemplate.taskTemplateStatus='needs_changes';
+          mergedTemplate.approvedAt='';
+          mergedTemplate.approvedBy='';
+          out={...out,taskTemplateApproved:false,contentTemplateApproved:false,taskTemplateStatus:'needs_changes',templateReviewStatus:'needs_changes',reviewStatus:'needs_changes',waitingForApproval:false,waitingForTaskTemplate:true,waitingForContent:true,status:'pending_task_template_changes',state:'pending_task_template_changes'};
+        }
+        out.taskTemplate=mergedTemplate;
+      }else{
         const externalState = text([external.status,external.reviewStatus,external.templateReviewStatus,external.taskTemplateStatus,external.approvalStatus].join(' ')).toLowerCase();
         const externallyApproved = external.taskTemplateApproved === true || external.contentTemplateApproved === true || Boolean(text(external.approvedAt)) || externalState.includes('approved');
         const approvalCancelled = Boolean(text(out.approvalCancelledAt || external.approvalCancelledAt)) || externalState.includes('needs_changes') || externalState.includes('pending_task_template_changes');
