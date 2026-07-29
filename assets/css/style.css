@@ -12058,6 +12058,9 @@ body .live-notification-popup,
 #receipt-calendar .receipt-calendar-task dl div{display:grid;grid-template-columns:62px minmax(0,1fr);gap:5px;align-items:start}
 #receipt-calendar .receipt-calendar-task dt{margin:0;color:#9a7e73;font-size:9.5px;font-weight:800;white-space:nowrap}
 #receipt-calendar .receipt-calendar-task dd{margin:0;color:var(--receipt-dark);font-size:10.5px;font-weight:900;line-height:1.35;overflow-wrap:anywhere}
+#receipt-calendar .receipt-calendar-task dl div.receipt-calendar-deadline{grid-template-columns:minmax(0,1fr) max-content;gap:4px;align-items:center;margin-top:2px;padding-top:4px;border-top:1px solid #f0e5df}
+#receipt-calendar .receipt-calendar-task .receipt-calendar-deadline dt{font-size:7.5px;line-height:1.1;letter-spacing:-.1px;white-space:nowrap}
+#receipt-calendar .receipt-calendar-task .receipt-calendar-deadline dd{font-size:9px;line-height:1.2;white-space:nowrap;overflow-wrap:normal}
 @media(max-width:780px){
   #receipt-calendar .receipt-calendar-toolbar{align-items:stretch;flex-direction:column}
   #receipt-calendar .receipt-calendar-toolbar .actions{display:grid;grid-template-columns:repeat(3,1fr)}

@@ -923,6 +923,14 @@ match /marketing_agendas/{docId} {
   allow read, create, update, delete: if true;
 }
 
+match /marketing_campaign_drafts/{docId} {
+  allow read, create, update, delete: if true;
+}
+
+match /marketing_agenda_drafts/{docId} {
+  allow read, create, update, delete: if true;
+}
+
 match /marketing_car_packages/{docId} {
   allow read, create, update, delete: if true;
 }

@@ -73,6 +73,10 @@
 .agenda-delete-task{width:auto!important;min-width:120px;height:38px;padding:0 14px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:800;color:#a1261b;background:#fff7f5;border:1px solid #e7b2aa}
 .agenda-delete-task:hover{background:#a1261b;color:#fff;border-color:#a1261b}
 .agenda-task-body{padding:16px}
+.agenda-task-deadlines{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px;padding:13px;border:1px solid #ead9d0;border-radius:15px;background:#fffaf7}
+.agenda-deadline-field{display:flex;flex-direction:column;gap:7px}
+.agenda-deadline-field span{font-size:13px;font-weight:900;color:#5b281a}
+.agenda-deadline-field .agenda-input{padding:10px 12px}
 .agenda-role-grid{display:grid;grid-template-columns:repeat(3,minmax(250px,1fr));gap:14px;align-items:start}
 .agenda-role{border:1px solid #ead9d0;border-radius:15px;padding:13px;min-height:160px;background:#fffdfb}
 .agenda-role h4{margin:0 0 10px;color:#5b281a}
@@ -124,7 +128,7 @@ body.agenda-car-picker-open .agenda-car-picker-overlay{inset:0!important;padding
   .agenda-full-modal{grid-template-columns:1fr;overflow:auto}
   .agenda-modal-col{overflow:visible}
   .agenda-tasks-panel #agTaskCards{height:auto;overflow:visible}
-  .agenda-grid,.agenda-day,.agenda-summary{grid-template-columns:1fr}
+  .agenda-grid,.agenda-day,.agenda-summary,.agenda-task-deadlines{grid-template-columns:1fr}
   .agenda-car-picker-list{grid-template-columns:1fr}
   .agenda-car-picker-toolbar{align-items:stretch;flex-direction:column}
   .agenda-review-row{grid-template-columns:1fr;gap:6px}
@@ -154,3 +158,5 @@ body.agenda-car-picker-open .agenda-car-picker-overlay{inset:0!important;padding
 .agenda-review-row{grid-template-columns:120px 150px minmax(220px,1fr) 140px minmax(260px,1.2fr);gap:10px;align-items:center}
 .agenda-review-row small{color:#7c6257;line-height:1.6}
 @media(max-width:900px){.agenda-platform-row{grid-template-columns:1fr}.agenda-review-row{grid-template-columns:1fr}}
+
+.agenda-draft-saved{display:inline-flex;align-items:center;margin-inline:8px;color:#8f6c60;font-size:11px;font-weight:800;vertical-align:middle}
