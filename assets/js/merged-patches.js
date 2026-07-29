@@ -38416,14 +38416,22 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
   }
   function contentTemplateCard(label,value,icon){return `<article class="v701-content-card"><div class="v701-content-card-copy"><span>${H(label)}</span><strong>${H(value||'—')}</strong></div><i>${H(icon||'')}</i></article>`;}
   function contentTemplateField(label,value){return `<article class="v701-content-field"><div class="v701-content-value">${H(value||'—')}</div><div class="v701-content-label">${H(label)}</div></article>`;}
+  function isContentTemplateApproved(t){
+    const tpl=t&&t.taskTemplate||{};
+    const ts=S(statusOf(t,'template')).toLowerCase();
+    const st=S(t&&t.status||'').toLowerCase();
+    return ts==='approved'||st==='task_template_approved'||t?.contentTemplateApproved===true||t?.taskTemplateApproved===true||S(tpl.status).toLowerCase()==='approved'||S(tpl.reviewStatus).toLowerCase()==='approved';
+  }
   function contentTemplateActions(t){
     const ts=statusOf(t,'template');
     const tpl=t.taskTemplate||{};
     const url=S(tpl.fileUrl||tpl.downloadURL||tpl.downloadUrl||'');
+    const cancelApproval=(isAdmin()&&isContentTemplateApproved(t))?`<button type="button" class="btn btn-light" data-v677-cancel-template-approval="${H(taskId(t))}">إلغاء الاعتماد وإعادة الرفع</button>`:'';
     return `<div class="v701-content-actions">`
       + `<button type="button" class="btn btn-light" data-v677-task-template="${H(taskId(t))}">تحميل Task Template</button>`
       + `${['pending','received','needs_changes','rejected'].includes(ts)?fileButton(taskId(t),'template','إرفاق Task Template Excel'):''}`
       + `${url?`<a class="btn btn-light" href="${H(url)}" target="_blank" rel="noopener">تحميل الملف المرفوع</a>`:''}`
+      + cancelApproval
       + `</div>`;
   }
 
@@ -39565,7 +39573,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
       const taskTemplateFields=fieldNames.map(label=>({label,value:S(labels[label]||'')}));
       const parsedRows=[{raw:labels,taskTemplateFields}];
       const tt={...(t.taskTemplate||{}),...labels,status:'in_review',reviewStatus:'in_review',templateReviewStatus:'in_review',fileName:file.name,uploadedAt:now(),locked:false,sheetRows,parsedRows,taskTemplateFields,versions:[...versions,{fileName:file.name,uploadedAt:now(),size:file.size||0}],marks:[],notes:[],draftNotes:[]};
-      return {...t,taskTemplate:tt,templateReviewStatus:'in_review',taskTemplateStatus:'in_review',status:'in_review',dashboardStatusLabel:'في مراجعة Task Template',progress:isTemplateContentTask(t)?50:(t.progress||0),updatedAt:now()};
+      return {...t,taskTemplate:{...tt,approvedAt:'',approvedBy:''},contentTaskTemplate:null,approvedContentTemplate:null,approvedContentTemplates:{},templateReviewStatus:'in_review',taskTemplateStatus:'in_review',reviewStatus:'in_review',taskTemplateApproved:false,contentTemplateApproved:false,waitingForApproval:true,waitingForTaskTemplate:false,status:'in_review',state:'in_review',taskStatus:'في مراجعة Task Template',dashboardStatusLabel:'في مراجعة Task Template',contentTemplateUserCompleted:false,contentTemplateFinished:false,completedByContentUser:false,userCompleted:false,completionStatus:'',completedAt:'',progress:isTemplateContentTask(t)?50:(t.progress||0),updatedAt:now()};
     });
     try{await pushAdminCampaignNotification(id,type==='structure'?'structure_uploaded':'task_template_uploaded',type==='structure'?'تم رفع الهيكل':'تم رفع Task Template',{icon:type==='structure'?'📤':'🧾'});}catch(_){}
     openModal(id);
@@ -39634,7 +39642,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
       const domTemplateData=templateReviewFieldsDataFromDom();
       const revisionNotes=A(d.notes).map(n=>({...n,key:S(n.key||n.cellKey||''),cellKey:S(n.cellKey||n.key||''),field:S(n.field||n.section||''),note:S(n.note||n.text||''),text:S(n.text||n.note||'')})).filter(n=>n.note);
       const reviewNote=revisionNotes.map(n=>`${n.field||'حقل'}: ${n.note}`).join(String.fromCharCode(10));
-      const tt={...(arr[idx].taskTemplate||{}),...domTemplateData,status:decision,reviewStatus:decision,templateReviewStatus:decision,reviewedAt:now(),draftNotes:decision==='needs_changes'?revisionNotes:[],notes:decision==='needs_changes'?revisionNotes:[],marks:decision==='needs_changes'?Array.from(d.marks):[],reviewNote:decision==='needs_changes'?reviewNote:''};
+      const tt={...(arr[idx].taskTemplate||{}),...domTemplateData,status:decision,reviewStatus:decision,templateReviewStatus:decision,reviewedAt:now(),draftNotes:decision==='needs_changes'?revisionNotes:[],notes:decision==='needs_changes'?revisionNotes:[],marks:decision==='needs_changes'?Array.from(d.marks):[],reviewNote:decision==='needs_changes'?reviewNote:'',approvalCancelledAt:decision==='approved'?'':S(arr[idx].taskTemplate&&arr[idx].taskTemplate.approvalCancelledAt||''),approvalCancelledBy:decision==='approved'?'':S(arr[idx].taskTemplate&&arr[idx].taskTemplate.approvalCancelledBy||'')};
       arr[idx].taskTemplate=tt;
       arr[idx].taskTemplateStatus=decision;
       arr[idx].templateReviewStatus=decision;
@@ -39647,9 +39655,11 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
         arr[idx].progress=100;
         arr[idx].contentTemplateApproved=true;
         arr[idx].taskTemplateApproved=true;
+        arr[idx].approvalCancelledAt='';
+        arr[idx].approvalCancelledBy='';
         arr[idx].completedAt=arr[idx].completedAt||'';
         const payload={...tt,...templateData(arr[idx]),taskNo:S(arr[idx].taskNo||arr[idx].taskCode||''),creativeName:creativeName(arr[idx]),cars:cars(arr[idx]),structureRow:{...(arr[idx].structureRow||{})},requiredDate:arr[idx].requiredDate||arr[idx].dueDate||arr[idx].deadline||'',deadline:arr[idx].deadline||arr[idx].dueDate||arr[idx].requiredDate||'',dueDate:arr[idx].dueDate||arr[idx].requiredDate||arr[idx].deadline||'',sectionNote:arr[idx].sectionNote||arr[idx].departmentNote||'',departmentNote:arr[idx].departmentNote||arr[idx].sectionNote||''};
-        arr=arr.map(t=>{if(isExecution(t)&&execMatchesTemplate(t,arr[idx])){return {...t,approvedContentTemplate:payload,contentTaskTemplate:payload,linkedContentWriterName:writerName(arr[idx]),execution:{...(t.execution||{}),status:'ready',waitingFor:''},status:'ready',state:'ready',taskStatus:'جاهز للتنفيذ',dashboardStatusLabel:'جاهز للتنفيذ',waitingForTaskTemplate:false,waitingForContent:false,waitingForApproval:false,waitingQueue:false,waitingForApprovalLabel:'',updatedAt:now()};}return t;});
+        arr=arr.map(t=>{if(isExecution(t)&&execMatchesTemplate(t,arr[idx])){return {...t,approvedContentTemplate:payload,contentTaskTemplate:payload,linkedContentWriterName:writerName(arr[idx]),execution:{...(t.execution||{}),status:'ready',waitingFor:''},status:'ready',state:'ready',taskStatus:'جاهز للتنفيذ',dashboardStatusLabel:'جاهز للتنفيذ',waitingForTaskTemplate:false,waitingForContent:false,waitingForApproval:false,waitingQueue:false,waitingForApprovalLabel:'',approvalCancelledAt:'',approvalCancelledBy:'',updatedAt:now()};}return t;});
       }
     }else{
       const st={...(arr[idx].structure||{}),status:decision,reviewedAt:now(),draftNotes:decision==='needs_changes'?d.notes:[],marks:decision==='needs_changes'?Array.from(d.marks):[]};
@@ -39671,6 +39681,90 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     renderAll();
     try{if(typeof renderUserDashboard==='function')renderUserDashboard();if(typeof renderAdminDashboard==='function')renderAdminDashboard();if(typeof renderTasksPage==='function')renderTasksPage();if(typeof refreshOpenTaskModal==='function')refreshOpenTaskModal();}catch(_){}
     toast(decision==='approved'&&!isTpl?'تم اعتماد الهيكل وإنشاء تاسكات Task Template حسب صفوف الهيكل.':decision==='needs_changes'&&isTpl?'تم إرسال ملاحظات التعديل ليوزر قسم المحتوى.':'تم حفظ القرار.');
+  }
+  function templateApprovalActor(){try{const u=currentUser()||{};return S(u.email||u.name||u.displayName||u.uid||u.id||'');}catch(_){return '';}}
+  function taskTemplateLinkIds(t){
+    const tpl=t&&t.taskTemplate||{};
+    const approved=t&&t.approvedContentTemplate||{};
+    const content=t&&t.contentTaskTemplate||{};
+    return [taskId(t),t&&t.linkedContentTemplateTaskId,t&&t.sourceContentTemplateTaskId,t&&t.templateSourceStructureTaskId,tpl.externalDocId,tpl.templateUploadId,tpl.taskId,tpl.originalTaskId,approved.externalDocId,approved.templateUploadId,approved.taskId,approved.originalTaskId,content.externalDocId,content.templateUploadId,content.taskId,content.originalTaskId].map(S).filter(Boolean);
+  }
+  function taskTemplatePairIds(t){
+    const tpl=t&&t.taskTemplate||{};
+    const approved=t&&t.approvedContentTemplate||{};
+    const content=t&&t.contentTaskTemplate||{};
+    return [t&&t.contentExecutionPairKey,t&&t.linkedExecutionPairKey,t&&t.contentFlowKey,tpl.contentExecutionPairKey,tpl.linkedExecutionPairKey,approved.contentExecutionPairKey,approved.linkedExecutionPairKey,content.contentExecutionPairKey,content.linkedExecutionPairKey].map(S).filter(Boolean);
+  }
+  function externalTemplateDocMatches(doc,idKeys,pairKeys){
+    if(!doc||typeof doc!=='object')return false;
+    const ids=[doc.id,doc.taskId,doc.originalTaskId,doc.sourceTemplateTaskId,doc.linkedContentTemplateTaskId,doc.linkedExecutionTaskId,doc.executionTaskId,doc.externalDocId,doc.templateUploadId].map(norm).filter(Boolean);
+    if(ids.some(id=>idKeys.has(id)))return true;
+    const pairs=[doc.contentExecutionPairKey,doc.linkedExecutionPairKey,doc.contentFlowKey,doc.taskTemplate&&doc.taskTemplate.contentExecutionPairKey,doc.taskTemplate&&doc.taskTemplate.linkedExecutionPairKey].map(norm).filter(Boolean);
+    return pairs.some(pair=>pairKeys.has(pair));
+  }
+  async function syncCancelledTemplateApproval(templateTask,executionTasks,revisedTemplate){
+    const col=templateCollection();
+    const allTasks=[templateTask,...A(executionTasks)];
+    const directIds=new Set(allTasks.flatMap(taskTemplateLinkIds).map(norm).filter(Boolean));
+    const directRaw=[...new Set(allTasks.flatMap(taskTemplateLinkIds))];
+    const pairIds=new Set(allTasks.flatMap(taskTemplatePairIds).map(norm).filter(Boolean));
+    const actor=templateApprovalActor();
+    const tpl={...(revisedTemplate.taskTemplate||{}),status:'needs_changes',reviewStatus:'needs_changes',templateReviewStatus:'needs_changes',taskTemplateStatus:'needs_changes',approvedAt:'',approvedBy:'',approvalCancelledAt:now(),approvalCancelledBy:actor};
+    const patch={taskTemplate:tpl,contentTaskTemplate:null,approvedContentTemplate:null,approvedContentTemplates:null,approvedTemplate:null,approvedTaskTemplate:null,taskTemplateStatus:'needs_changes',templateReviewStatus:'needs_changes',reviewStatus:'needs_changes',approvalStatus:'needs_changes',linkedContentTemplateStatus:'needs_changes',taskTemplateApproved:false,contentTemplateApproved:false,approvedAt:'',approvedBy:'',status:'pending_task_template_changes',state:'pending_task_template_changes',updatedAt:now(),approvalCancelledAt:now(),approvalCancelledBy:actor};
+    const docs=A(window.MZJ_TASK_TEMPLATE_DOCS);
+    window.MZJ_TASK_TEMPLATE_DOCS=docs.map(doc=>externalTemplateDocMatches(doc,directIds,pairIds)?{...doc,...patch}:doc);
+    if(!col)return;
+    const touched=new Set();
+    const updateRef=async ref=>{if(!ref)return;const key=S(ref.id||ref.path);if(!key||touched.has(key))return;touched.add(key);try{await ref.set(patch,{merge:true});}catch(error){console.warn(VERSION,'cancel template approval sync',key,error);}};
+    for(const rawId of directRaw){
+      try{const ref=col.doc(rawId);const snap=await ref.get();if(snap&&snap.exists)await updateRef(ref);}catch(_){ }
+    }
+    const templateId=taskId(templateTask);
+    for(const field of ['taskId','originalTaskId','sourceTemplateTaskId','linkedContentTemplateTaskId']){
+      if(!templateId)continue;
+      try{const snap=await col.where(field,'==',templateId).limit(20).get();for(const row of A(snap&&snap.docs))await updateRef(row.ref);}catch(_){ }
+    }
+    for(const pair of [...pairIds]){
+      const rawPair=allTasks.flatMap(taskTemplatePairIds).find(value=>norm(value)===pair)||'';
+      if(!rawPair)continue;
+      for(const field of ['contentExecutionPairKey','linkedExecutionPairKey','contentFlowKey']){
+        try{const snap=await col.where(field,'==',rawPair).limit(20).get();for(const row of A(snap&&snap.docs))await updateRef(row.ref);}catch(_){ }
+      }
+    }
+  }
+  async function cancelTaskTemplateApproval(id){
+    const loc=locate(id);
+    if(!loc||!loc.task||!isTemplateContentTask(loc.task))throw new Error('تعذر العثور على Task Template.');
+    if(!isAdmin())throw new Error('إلغاء الاعتماد متاح للأدمن فقط.');
+    if(!isContentTemplateApproved(loc.task))throw new Error('Task Template غير معتمد حالياً.');
+    if(!window.confirm('سيتم إلغاء اعتماد Task Template وإعادته ليوزر المحتوى لرفع ملف جديد. هل تريد المتابعة؟'))return;
+    const stamp=now();
+    const actor=templateApprovalActor();
+    const templateId=taskId(loc.task);
+    const matchingExecutions=loc.tasks.filter(t=>isExecution(t)&&execMatchesTemplate(t,loc.task));
+    let revisedTemplate=null;
+    const next=loc.tasks.map(t=>{
+      if(taskId(t)===templateId){
+        const tpl={...(t.taskTemplate||{}),status:'needs_changes',reviewStatus:'needs_changes',templateReviewStatus:'needs_changes',taskTemplateStatus:'needs_changes',approvedAt:'',approvedBy:'',approvalCancelledAt:stamp,approvalCancelledBy:actor};
+        revisedTemplate={...t,taskTemplate:tpl,contentTaskTemplate:null,approvedContentTemplate:null,approvedContentTemplates:{},taskTemplateStatus:'needs_changes',templateReviewStatus:'needs_changes',reviewStatus:'needs_changes',taskTemplateApproved:false,contentTemplateApproved:false,waitingForApproval:false,waitingForTaskTemplate:true,waitingForContent:true,status:'pending_task_template_changes',state:'pending_task_template_changes',taskStatus:'إعادة رفع Task Template',dashboardStatusLabel:'إعادة رفع Task Template',contentTemplateUserCompleted:false,contentTemplateFinished:false,completedByContentUser:false,userCompleted:false,completionStatus:'',completedAt:'',contentUserCompletedAt:'',contentUserCompletedBy:'',progress:50,approvalCancelledAt:stamp,approvalCancelledBy:actor,updatedAt:stamp};
+        return revisedTemplate;
+      }
+      if(isExecution(t)&&execMatchesTemplate(t,loc.task)){
+        const approvedMap={...(t.approvedContentTemplates||{})};
+        taskTemplateLinkIds(loc.task).forEach(key=>{delete approvedMap[key];delete approvedMap[norm(key)];});
+        return {...t,approvedContentTemplate:null,contentTaskTemplate:null,approvedContentTemplates:approvedMap,taskTemplateApproved:false,contentTemplateApproved:false,linkedContentTemplateStatus:'needs_changes',linkedContentTemplateTaskId:templateId,waitingForTaskTemplate:true,waitingForContent:true,waitingForApproval:true,waitingQueue:true,isWaitingQueue:true,status:'waiting_task_template_changes',state:'waiting_task_template_changes',taskStatus:'في انتظار إعادة رفع Task Template',dashboardStatusLabel:'في انتظار إعادة رفع Task Template',execution:{...(t.execution||{}),status:'waiting',waitingFor:'task_template'},approvalCancelledAt:stamp,approvalCancelledBy:actor,updatedAt:stamp};
+      }
+      return t;
+    });
+    await persist(loc.campaign,next);
+    if(revisedTemplate)await syncCancelledTemplateApproval(loc.task,matchingExecutions,revisedTemplate);
+    try{
+      const staleKeys=[templateId,...matchingExecutions.flatMap(executionTemplateLookupIds),...matchingExecutions.flatMap(taskTemplatePairIds)].map(norm).filter(Boolean);
+      staleKeys.forEach(key=>execTemplateLoads.delete(key));
+    }catch(_){ }
+    try{renderAll();if(typeof renderUserDashboard==='function')renderUserDashboard();if(typeof renderAdminDashboard==='function')renderAdminDashboard();if(typeof renderTasksPage==='function')renderTasksPage();}catch(_){ }
+    openModal(id);
+    toast('تم إلغاء اعتماد Task Template، ويمكن ليوزر المحتوى رفع الملف الصحيح من جديد.');
   }
   function b64ToUint8(b64){const bin=atob(b64); const u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i); return u;}
   function xmlEscape(v){return S(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');}
@@ -39742,7 +39836,7 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     await excelFromBase64(TASK_TEMPLATE_B64,p,`${S(c.campaignCode||c.name||'campaign')}-Task-Template.xlsx`);
     toast('تم تحميل Task Template.');
   }
-  document.addEventListener('click',e=>{const rel=e.target.closest('[data-v704-release-campaign]'); if(rel){e.preventDefault();e.stopPropagation();releaseCampaignToPublish(rel.dataset.v704ReleaseCampaign).catch(err=>toast(err.message||'تعذر نقل الحملة لقسم النشر'));return;} const notif=e.target.closest('[data-open-task]'); if(notif){e.preventDefault();e.stopImmediatePropagation();try{document.getElementById('notificationPanel')?.classList.add('is-hidden');}catch(_){} openModal(notif.dataset.openTask);return;} const togg=e.target.closest('[data-v686-toggle-done]'); if(togg){e.preventDefault();window.__MZJ_V686_SHOW_DONE__=!window.__MZJ_V686_SHOW_DONE__;renderAll();return;} const completeTemplate=e.target.closest('[data-complete-content-template]'); if(completeTemplate){e.preventDefault();e.stopPropagation();completeContentTemplateTask(completeTemplate.dataset.completeContentTemplate).catch(err=>toast(err.message||'تعذر إنهاء Task Template'));return;} const completeExecution=e.target.closest('[data-complete-execution-task]'); if(completeExecution){e.preventDefault();e.stopPropagation();completeExecutionTaskForUser(completeExecution.dataset.completeExecutionTask).catch(err=>toast(err.message||'تعذر إنهاء التاسك'));return;} const open=e.target.closest('[data-v677-open]'); if(open){e.preventDefault();openModal(open.dataset.v677Open);return;} const rec=e.target.closest('[data-v677-receive]'); if(rec){e.preventDefault();receive(rec.dataset.v677Receive).catch(err=>toast(err.message||'تعذر الحفظ'));return;} const file=e.target.closest('[data-v677-file]'); if(file){e.preventDefault();const [id,type]=S(file.dataset.v677File).split(':'); const inp=document.createElement('input'); inp.type='file'; inp.accept='.xlsx,.xls'; inp.style.display='none'; document.body.appendChild(inp); inp.onchange=ev=>{const f=ev.target.files&&ev.target.files[0]; if(f)upload(id,type,f).catch(err=>toast(err.message||'تعذر الرفع')).finally(()=>inp.remove()); else inp.remove();}; inp.click();return;} const st=e.target.closest('[data-v677-structure-template]'); if(st){e.preventDefault();downloadStructureTemplate(st.dataset.v677StructureTemplate).catch(err=>{console.error(err);toast('تعذر تحميل القالب.');});return;} const tt=e.target.closest('[data-v677-task-template]'); if(tt){e.preventDefault();downloadTaskTemplate(tt.dataset.v677TaskTemplate).catch(err=>{console.error(err);toast('تعذر تحميل Task Template.');});return;} const rev=e.target.closest('[data-v677-review]'); if(rev){e.preventDefault();openReviewForTask(rev.dataset.v677Review);return;} const dec=e.target.closest('[data-v677-decision]'); if(dec){e.preventDefault();const [d,id]=S(dec.dataset.v677Decision).split(':'); decide(id,d).catch(err=>toast(err.message||'تعذر حفظ القرار'));return;} const close=e.target.closest('[data-v677-review-close]'); if(close){e.preventDefault();document.querySelectorAll('.v677-review-overlay').forEach(x=>x.remove());return;} const cell=e.target.closest('[data-v677-cell]'); if(cell){cell.classList.toggle('marked'); const ov=e.target.closest('.v677-review-overlay'); if(ov){const d=getDraft(ov.dataset.id,ov.dataset.kind); const key=cell.dataset.v677Cell; if(cell.classList.contains('marked'))d.marks.add(key); else d.marks.delete(key);} return;}},true);
+  document.addEventListener('click',e=>{const rel=e.target.closest('[data-v704-release-campaign]'); if(rel){e.preventDefault();e.stopPropagation();releaseCampaignToPublish(rel.dataset.v704ReleaseCampaign).catch(err=>toast(err.message||'تعذر نقل الحملة لقسم النشر'));return;} const cancelTemplateApproval=e.target.closest('[data-v677-cancel-template-approval]'); if(cancelTemplateApproval){e.preventDefault();e.stopPropagation();cancelTaskTemplateApproval(cancelTemplateApproval.dataset.v677CancelTemplateApproval).catch(err=>toast(err.message||'تعذر إلغاء اعتماد Task Template'));return;} const notif=e.target.closest('[data-open-task]'); if(notif){e.preventDefault();e.stopImmediatePropagation();try{document.getElementById('notificationPanel')?.classList.add('is-hidden');}catch(_){} openModal(notif.dataset.openTask);return;} const togg=e.target.closest('[data-v686-toggle-done]'); if(togg){e.preventDefault();window.__MZJ_V686_SHOW_DONE__=!window.__MZJ_V686_SHOW_DONE__;renderAll();return;} const completeTemplate=e.target.closest('[data-complete-content-template]'); if(completeTemplate){e.preventDefault();e.stopPropagation();completeContentTemplateTask(completeTemplate.dataset.completeContentTemplate).catch(err=>toast(err.message||'تعذر إنهاء Task Template'));return;} const completeExecution=e.target.closest('[data-complete-execution-task]'); if(completeExecution){e.preventDefault();e.stopPropagation();completeExecutionTaskForUser(completeExecution.dataset.completeExecutionTask).catch(err=>toast(err.message||'تعذر إنهاء التاسك'));return;} const open=e.target.closest('[data-v677-open]'); if(open){e.preventDefault();openModal(open.dataset.v677Open);return;} const rec=e.target.closest('[data-v677-receive]'); if(rec){e.preventDefault();receive(rec.dataset.v677Receive).catch(err=>toast(err.message||'تعذر الحفظ'));return;} const file=e.target.closest('[data-v677-file]'); if(file){e.preventDefault();const [id,type]=S(file.dataset.v677File).split(':'); const inp=document.createElement('input'); inp.type='file'; inp.accept='.xlsx,.xls'; inp.style.display='none'; document.body.appendChild(inp); inp.onchange=ev=>{const f=ev.target.files&&ev.target.files[0]; if(f)upload(id,type,f).catch(err=>toast(err.message||'تعذر الرفع')).finally(()=>inp.remove()); else inp.remove();}; inp.click();return;} const st=e.target.closest('[data-v677-structure-template]'); if(st){e.preventDefault();downloadStructureTemplate(st.dataset.v677StructureTemplate).catch(err=>{console.error(err);toast('تعذر تحميل القالب.');});return;} const tt=e.target.closest('[data-v677-task-template]'); if(tt){e.preventDefault();downloadTaskTemplate(tt.dataset.v677TaskTemplate).catch(err=>{console.error(err);toast('تعذر تحميل Task Template.');});return;} const rev=e.target.closest('[data-v677-review]'); if(rev){e.preventDefault();openReviewForTask(rev.dataset.v677Review);return;} const dec=e.target.closest('[data-v677-decision]'); if(dec){e.preventDefault();const [d,id]=S(dec.dataset.v677Decision).split(':'); decide(id,d).catch(err=>toast(err.message||'تعذر حفظ القرار'));return;} const close=e.target.closest('[data-v677-review-close]'); if(close){e.preventDefault();document.querySelectorAll('.v677-review-overlay').forEach(x=>x.remove());return;} const cell=e.target.closest('[data-v677-cell]'); if(cell){cell.classList.toggle('marked'); const ov=e.target.closest('.v677-review-overlay'); if(ov){const d=getDraft(ov.dataset.id,ov.dataset.kind); const key=cell.dataset.v677Cell; if(cell.classList.contains('marked'))d.marks.add(key); else d.marks.delete(key);} return;}},true);
   document.addEventListener('dblclick',e=>{const cell=e.target.closest('[data-v677-cell]'); if(cell){const ov=e.target.closest('.v677-review-overlay'); const n=prompt('ملاحظة الأدمن'); if(n){cell.classList.add('marked','noted'); cell.title=n; if(ov){getDraft(ov.dataset.id,ov.dataset.kind).notes.push({key:cell.dataset.v677Cell,note:n,by:'الأدمن',at:now()});}}}},true);
   document.addEventListener('click',e=>{const btn=e.target.closest('[data-v677-open-review]'); if(!btn)return;},true);
   document.addEventListener('DOMContentLoaded',()=>{startLive();setTimeout(renderAll,300);}); window.addEventListener('hashchange',()=>setTimeout(renderAll,120)); setTimeout(()=>{startLive();renderAll();},500);
@@ -43278,8 +43372,18 @@ try{ window.MZJ_APP_VERSION='v737-readiness-campaign-opens-departments'; window.
       out = {...out};
       if(isContentTemplateTask(out)) out.taskTemplate = {...pointer,...external};
       else{
-        out.approvedContentTemplate = {...pointer,...external};
-        if(out.contentTemplateApproved || text(external.status || external.reviewStatus).toLowerCase() === 'approved') out.contentTaskTemplate = {...pointer,...external};
+        const externalState = text([external.status,external.reviewStatus,external.templateReviewStatus,external.taskTemplateStatus,external.approvalStatus].join(' ')).toLowerCase();
+        const externallyApproved = external.taskTemplateApproved === true || external.contentTemplateApproved === true || Boolean(text(external.approvedAt)) || externalState.includes('approved');
+        const approvalCancelled = Boolean(text(out.approvalCancelledAt || external.approvalCancelledAt)) || externalState.includes('needs_changes') || externalState.includes('pending_task_template_changes');
+        if(externallyApproved && !approvalCancelled){
+          out.approvedContentTemplate = {...pointer,...external};
+          out.contentTaskTemplate = {...pointer,...external};
+        }else if(approvalCancelled){
+          out.approvedContentTemplate = null;
+          out.contentTaskTemplate = null;
+          out.taskTemplateApproved = false;
+          out.contentTemplateApproved = false;
+        }
       }
     }
     const structurePointer = isObject(task.structure) ? task.structure : {};
