@@ -8087,6 +8087,526 @@ function buildTaskSummaryList(campaign){
   const taskTable = `<div class="compact-table db-task-lines-wrap"><table class="db-task-lines-table"><thead><tr><th>التاسك</th><th>اليوزر</th><th>القسم</th><th>الحالة</th><th>التقدم</th><th>التاريخ المطلوب</th><th>مختصر المطلوب</th></tr></thead><tbody>${list.map(task => taskOneLineRow(task, campaign)).join('')}</tbody></table></div>`;
   return `${summary}${taskTable}`;
 }
+
+function databaseRepairRawTasks(campaign){
+  const raw = campaign?.departmentTasks;
+  if(Array.isArray(raw)) return raw.filter(task => task && typeof task === 'object');
+  if(raw && typeof raw === 'object') return Object.entries(raw).map(([key, task]) => task && typeof task === 'object' ? { ...task, id: task.id || task.taskId || key, taskId: task.taskId || task.id || key, __departmentTaskMapKey:key } : null).filter(Boolean);
+  return [];
+}
+function databaseRepairNorm(value){
+  try{ return identityClean(value || ''); }catch(_){ return normalizeText(value || '').toLowerCase().replace(/[\s\-_\/]+/g,''); }
+}
+function databaseRepairTaskId(task){ return normalizeText(task?.id || task?.taskId || task?.docId || task?.taskNo || task?.taskCode || ''); }
+function databaseRepairTaskPairs(task){
+  const nested = [task?.taskTemplate, task?.contentTaskTemplate, task?.approvedContentTemplate].filter(item => item && typeof item === 'object');
+  return uniqueList([
+    task?.contentExecutionPairKey, task?.linkedExecutionPairKey, task?.contentFlowKey, task?.mzjTaskLinkKey,
+    ...nested.flatMap(item => [item.contentExecutionPairKey, item.linkedExecutionPairKey, item.contentFlowKey, item.mzjTaskLinkKey])
+  ].map(normalizeText).filter(Boolean));
+}
+function databaseRepairIsStructureTask(task){
+  if(!task) return false;
+  const text = databaseRepairNorm([task.structureRequest, task.structureRequestTask, task.needsStructureUpload, task.campaignStructureTask, task.source, task.flowType, task.taskType, task.title, task.name].join(' '));
+  return Boolean(task.structureRequest || task.structureRequestTask || task.needsStructureUpload || task.campaignStructureTask || text.includes(databaseRepairNorm('طلب هيكل')) || text.includes('structurerequest'));
+}
+function databaseRepairIsTemplateTask(task){
+  if(!task || databaseRepairIsStructureTask(task)) return false;
+  const text = databaseRepairNorm([task.contentTemplateTask, task.taskTemplateTask, task.flowType, task.taskType, task.title, task.name, task.source, task.departmentRole].join(' '));
+  return Boolean(task.contentTemplateTask || task.taskTemplateTask || task.flowType === 'template' || task.flowType === 'task_template' || text.includes('tasktemplate') || text.includes('contenttemplate'));
+}
+function databaseRepairIsExecutionTask(task){
+  if(!task || databaseRepairIsStructureTask(task) || databaseRepairIsTemplateTask(task)) return false;
+  const role = normalizeDepartmentRole(task.departmentRole || task.assignedDepartmentRole || task.assignedDepartmentName || task.contentSectionName || '');
+  return Boolean(task.executionTask || task.flowType === 'execution_task' || ['design','montage','shooting'].includes(role));
+}
+function databaseRepairUserIdentity(user){ return normalizeText(user?.id || user?.uid || user?.email || user?.name || user?.displayName || ''); }
+function databaseRepairFindUser(value){
+  try{ if(typeof findUserByAnyIdentity === 'function'){ const found = findUserByAnyIdentity(value); if(found) return found; } }catch(_){ }
+  const wanted = databaseRepairNorm(value);
+  return (Array.isArray(users) ? users : (Array.isArray(window.users) ? window.users : [])).find(user => [user.id,user.uid,user.email,user.name,user.displayName].some(key => databaseRepairNorm(key) === wanted)) || null;
+}
+function databaseRepairUsersForRole(role){
+  try{ if(typeof usersForRole === 'function'){ const list = usersForRole(role); if(Array.isArray(list) && list.length) return uniqueUsersByIdentity(list); } }catch(_){ }
+  const wanted = normalizeDepartmentRole(role);
+  const all = Array.isArray(users) ? users : (Array.isArray(window.users) ? window.users : []);
+  return uniqueUsersByIdentity(all.filter(user => {
+    const dep = departmentForUser(user.id || user.uid || user.email || user.name);
+    return normalizeDepartmentRole([dep?.id,dep?.slug,dep?.name,user.department,user.departmentId].filter(Boolean).join(' ')) === wanted;
+  }));
+}
+function databaseRepairCreativeCatalog(){
+  const rows = [];
+  const push = (item, index) => {
+    if(!item) return;
+    const name = normalizeText(item.name || item.label || item.title || item.creative || item.id || '');
+    if(!name) return;
+    const id = normalizeText(item.id || item.code || name || `creative_${index}`);
+    const role = normalizeDepartmentRole(item.departmentRole || item.role || item.departmentName || item.department || name);
+    const key = databaseRepairNorm(id || name);
+    if(!key || rows.some(row => databaseRepairNorm(row.id) === key)) return;
+    rows.push({ id, name, code:normalizeText(item.code || ''), role, departmentName:normalizeText(item.departmentName || (typeof roleLabel === 'function' ? roleLabel(role) : role)) });
+  };
+  (Array.isArray(creatives) ? creatives : []).forEach(push);
+  (Array.isArray(window.MZJ_DEFAULT_CREATIVE_CATALOG) ? window.MZJ_DEFAULT_CREATIVE_CATALOG : []).forEach(push);
+  return rows.filter(item => ['design','montage','shooting'].includes(item.role)).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
+}
+function databaseRepairCreativeNameFromTask(task){ return normalizeText(task?.creativeName || task?.creative || task?.productCreative || task?.product || task?.contentType || task?.taskType || 'كرييتيف'); }
+function databaseRepairCreativeKeyForTask(task, tasks = []){
+  const linkedExecutionId = normalizeText(task?.linkedExecutionTaskId || task?.executionTaskId || '');
+  if(linkedExecutionId){
+    const linked = tasks.find(item => databaseRepairTaskId(item) === linkedExecutionId);
+    if(linked && linked !== task) return databaseRepairCreativeKeyForTask(linked, tasks);
+  }
+  const instanceId = normalizeText(task?.creativeInstanceId || task?.creativeItemId || task?.creativeRecordId || task?.campaignCreativeId || '');
+  if(instanceId) return `instance:${instanceId}`;
+  const creativeId = normalizeText(task?.creativeId || task?.productCreativeId || task?.productId || '');
+  const index = task?.creativeIndex ?? task?.productIndex ?? task?.taskIndex;
+  if(creativeId && index !== undefined && index !== null && index !== '') return `creative:${creativeId}|index:${index}`;
+  if(creativeId) return `creative:${creativeId}|name:${databaseRepairNorm(databaseRepairCreativeNameFromTask(task))}`;
+  return `name:${databaseRepairNorm(databaseRepairCreativeNameFromTask(task))}|index:${index ?? ''}`;
+}
+function databaseRepairCreativeRecords(campaign){
+  const tasks = databaseRepairRawTasks(campaign);
+  const catalog = databaseRepairCreativeCatalog();
+  const map = new Map();
+  const campaignCreatives = Array.isArray(campaign?.creatives) ? campaign.creatives : (campaign?.creatives && typeof campaign.creatives === 'object' ? Object.values(campaign.creatives) : []);
+  campaignCreatives.forEach((creative, index) => {
+    const catalogItem = catalog.find(item => databaseRepairNorm(item.id) === databaseRepairNorm(creative?.creativeId || creative?.id) || databaseRepairNorm(item.name) === databaseRepairNorm(creative?.name || creative?.creativeName || creative?.creative));
+    const instanceId = normalizeText(creative?.id || creative?.creativeInstanceId || creative?.campaignCreativeId || '');
+    const creativeId = normalizeText(creative?.creativeId || catalogItem?.id || '');
+    const name = normalizeText(creative?.name || creative?.creativeName || creative?.creative || catalogItem?.name || creativeId || `كرييتيف ${index + 1}`);
+    const key = instanceId ? `instance:${instanceId}` : (creativeId ? `creative:${creativeId}|index:${index}` : `name:${databaseRepairNorm(name)}|index:${index}`);
+    map.set(key, { key, instanceId, creativeId, name, role:normalizeDepartmentRole(creative?.primaryRole || creative?.departmentRole || catalogItem?.role || name), campaignCreativeIndex:index, sourceCreative:creative, taskCount:0 });
+  });
+  tasks.filter(task => !databaseRepairIsStructureTask(task)).forEach(task => {
+    const key = databaseRepairCreativeKeyForTask(task, tasks);
+    const current = map.get(key) || { key, instanceId:normalizeText(task.creativeInstanceId || ''), creativeId:normalizeText(task.creativeId || ''), name:databaseRepairCreativeNameFromTask(task), role:normalizeDepartmentRole(task.departmentRole || task.assignedDepartmentRole || ''), campaignCreativeIndex:-1, sourceCreative:null, taskCount:0 };
+    current.taskCount += 1;
+    if(!current.name) current.name = databaseRepairCreativeNameFromTask(task);
+    map.set(key, current);
+  });
+  return Array.from(map.values()).filter(item => item.name && item.key && !databaseRepairNorm(item.name).includes('tasktemplate')).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
+}
+function databaseRepairIsAgendaCampaign(campaign){
+  if(!campaign) return false;
+  const source = normalizeText(campaign.source || campaign.type || campaign.stage || '').toLowerCase();
+  const code = normalizeText(campaign.agendaCode || campaign.campaignCode || campaign.campaign_code || '').toUpperCase();
+  return source === 'agenda' || Boolean(normalizeText(campaign.agendaId || '')) || code.startsWith('AGENDA-');
+}
+function databaseRepairAgendaId(campaign){
+  const direct = normalizeText(campaign?.agendaId || '');
+  if(direct) return direct;
+  const campaignId = normalizeText(campaignDocId(campaign, campaignStableId(campaign)) || '');
+  return campaignId.startsWith('agenda_') ? campaignId.slice(7) : '';
+}
+function databaseRepairAgendaDays(campaign){
+  return (Array.isArray(campaign?.days) ? campaign.days : []).map(day => ({ ...day, tasks:(Array.isArray(day?.tasks) ? day.tasks : []).map(task => ({ ...task })) }));
+}
+function databaseRepairAgendaRemoveCreative(days, removedTaskIds, record){
+  const ids = new Set(Array.from(removedTaskIds || []).map(databaseRepairNorm).filter(Boolean));
+  const recordInstance = databaseRepairNorm(record?.instanceId || '');
+  return (Array.isArray(days) ? days : []).map(day => ({
+    ...day,
+    tasks:(Array.isArray(day?.tasks) ? day.tasks : []).filter(item => {
+      const itemId = databaseRepairNorm(item?.id || item?.agendaTaskId || item?.creativeInstanceId || '');
+      if(itemId && ids.has(itemId)) return false;
+      if(recordInstance && itemId === recordInstance) return false;
+      return true;
+    })
+  }));
+}
+function databaseRepairAgendaAddCreative(days, publishDate, sourceTask){
+  const next = (Array.isArray(days) ? days : []).map(day => ({ ...day, tasks:(Array.isArray(day?.tasks) ? day.tasks : []).map(task => ({ ...task })) }));
+  let day = next.find(item => normalizeText(item?.date || item?.publishDate || '') === normalizeText(publishDate));
+  if(!day){ day = { date:publishDate, tasks:[] }; next.push(day); }
+  if(!Array.isArray(day.tasks)) day.tasks = [];
+  day.tasks.push(sourceTask);
+  next.sort((a,b) => normalizeText(a?.date || '').localeCompare(normalizeText(b?.date || '')));
+  return next;
+}
+function databaseRepairAgendaTotals(days, tasks){
+  const sourceDays = Array.isArray(days) ? days : [];
+  const taskRows = Array.isArray(tasks) ? tasks : [];
+  return {
+    totalCreatives:sourceDays.reduce((sum, day) => sum + (Array.isArray(day?.tasks) ? day.tasks.length : 0), 0),
+    totalRelations:taskRows.filter(databaseRepairIsExecutionTask).length,
+    totalTasks:taskRows.length
+  };
+}
+function databaseRepairTemplateStatus(task){
+  const tpl = task?.taskTemplate || {};
+  const status = databaseRepairNorm([task?.taskTemplateStatus, task?.templateReviewStatus, task?.reviewStatus, task?.status, tpl?.status, tpl?.reviewStatus].filter(Boolean).join(' '));
+  if(status.includes('approved')) return 'معتمد';
+  if(status.includes('needschanges') || status.includes('rejected')) return 'محتاج تعديل';
+  if(tpl.fileName || tpl.fileUrl || tpl.downloadURL || tpl.uploadedAt || status.includes('uploaded') || status.includes('pendingreview')) return 'مرفوع للمراجعة';
+  return 'لم يتم الرفع';
+}
+function databaseRepairUserOptions(list, selected = ''){
+  const rows = Array.isArray(list) ? list : [];
+  if(!rows.length) return '<option value="">لا توجد يوزرات في هذا القسم</option>';
+  return '<option value="">اختر اليوزر</option>' + rows.map(user => {
+    const id = databaseRepairUserIdentity(user);
+    return `<option value="${escapeHtml(id)}"${databaseRepairNorm(selected) === databaseRepairNorm(id) ? ' selected' : ''}>${escapeHtml(userName(user))}</option>`;
+  }).join('');
+}
+function renderDatabaseRepairPanel(campaign){
+  if(typeof isCurrentUserAdmin === 'function' && !isCurrentUserAdmin()) return '';
+  const campaignId = campaignStableId(campaign);
+  const isAgenda = databaseRepairIsAgendaCampaign(campaign);
+  const entityLabel = isAgenda ? 'الأجندة' : 'الحملة';
+  const tasks = databaseRepairRawTasks(campaign);
+  const templates = tasks.filter(databaseRepairIsTemplateTask);
+  const creativeRecords = databaseRepairCreativeRecords(campaign);
+  const catalog = databaseRepairCreativeCatalog();
+  const initialCreative = catalog[0] || {};
+  const contentUsers = databaseRepairUsersForRole('content');
+  const primaryUsers = databaseRepairUsersForRole(initialCreative.role || 'design');
+  const templateRows = templates.length ? templates.map(task => {
+    const id = databaseRepairTaskId(task);
+    return `<div class="db-repair-row"><div><strong>${escapeHtml(task.taskNo || task.taskCode || databaseRepairCreativeNameFromTask(task))}</strong><span>${escapeHtml(rawTaskOwnerName(task))} · ${escapeHtml(databaseRepairCreativeNameFromTask(task))}</span><small>${escapeHtml(databaseRepairTemplateStatus(task))}</small></div><button type="button" class="mini-btn danger" data-db-reset-task-template="${escapeHtml(id)}" data-campaign-id="${escapeHtml(campaignId)}">مسح وإعادة الرفع</button></div>`;
+  }).join('') : '<div class="empty-state mini-empty">لا توجد Task Templates منفصلة داخل الحملة.</div>';
+  const creativeRows = creativeRecords.length ? creativeRecords.map(record => `<div class="db-repair-row"><div><strong>${escapeHtml(record.name)}</strong><span>${escapeHtml(typeof roleLabel === 'function' ? roleLabel(record.role) : record.role)} · ${record.taskCount} تاسك</span></div><button type="button" class="mini-btn danger" data-db-delete-creative="${escapeHtml(encodeURIComponent(record.key))}" data-campaign-id="${escapeHtml(campaignId)}">حذف الكرييتيف</button></div>`).join('') : '<div class="empty-state mini-empty">لا توجد كرييتيفات حالية.</div>';
+  return `<div class="db-repair-panel" data-db-repair-panel="${escapeHtml(campaignId)}">
+    <div class="db-repair-intro"><div><h4>إدارة وتصحيح Task Template والكرييتيف</h4><p>الأدوات دي بتعدل ${entityLabel} الحالية فقط، وبتحافظ على باقي منطق النظام والتاسكات غير المرتبطة بالعنصر المحذوف.</p></div><span>للأدمن فقط</span></div>
+    <div class="db-repair-columns"><section><h5>Task Templates الحالية</h5>${templateRows}</section><section><h5>الكرييتيفات الحالية</h5>${creativeRows}</section></div>
+    <section class="db-repair-create"><div class="db-repair-create-head"><h5>إنشاء كرييتيف بديل</h5><p>ينشئ Task Template جديد لقسم المحتوى وتاسك تنفيذ للقسم الأساسي في نفس ${entityLabel}.</p></div>
+      <div class="db-repair-form-grid">
+        <label><span>نوع الكرييتيف</span><select data-db-repair-creative-select>${catalog.length ? catalog.map((item,index) => `<option value="${escapeHtml(item.id)}" data-role="${escapeHtml(item.role)}"${index === 0 ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('') : '<option value="">لا توجد أنواع كرييتيف</option>'}</select></label>
+        <label><span>يوزر قسم المحتوى</span><select data-db-repair-content-user>${databaseRepairUserOptions(contentUsers)}</select></label>
+        <label><span>يوزر القسم الأساسي</span><select data-db-repair-primary-user data-role="${escapeHtml(initialCreative.role || '')}">${databaseRepairUserOptions(primaryUsers)}</select></label>
+        ${isAgenda ? `<label><span>تاريخ النشر في الأجندة</span><input type="date" data-db-repair-publish-date value="${escapeHtml(dateInputValue(campaign.publishStartDate || campaign.publish_start_date || campaign.startDate || ''))}"></label>` : ''}
+        <label><span>تاريخ تسليم المحتوى</span><input type="date" data-db-repair-content-date value="${escapeHtml(dateInputValue(campaign.publish_start_date || campaign.publishStartDate || campaign.campaign_date || campaign.startDate || ''))}"></label>
+        <label><span>تاريخ تسليم القسم الأساسي</span><input type="date" data-db-repair-exec-date value="${escapeHtml(dateInputValue(campaign.publish_start_date || campaign.publishStartDate || campaign.campaign_date || campaign.startDate || ''))}"></label>
+      </div>
+      <button type="button" class="btn btn-primary db-repair-create-btn" data-db-create-creative="${escapeHtml(campaignId)}">إنشاء الكرييتيف والتاسكات</button>
+    </section>
+  </div>`;
+}
+function refreshDatabaseRepairPrimaryUsers(creativeSelect){
+  const panel = creativeSelect?.closest('[data-db-repair-panel]');
+  const primarySelect = panel?.querySelector('[data-db-repair-primary-user]');
+  if(!panel || !primarySelect) return;
+  const item = databaseRepairCreativeCatalog().find(row => databaseRepairNorm(row.id) === databaseRepairNorm(creativeSelect.value));
+  const role = item?.role || creativeSelect.selectedOptions?.[0]?.dataset.role || '';
+  primarySelect.dataset.role = role;
+  primarySelect.innerHTML = databaseRepairUserOptions(databaseRepairUsersForRole(role));
+}
+function databaseRepairResetSteps(task, role){
+  try{ if(typeof taskStepTemplate === 'function') return taskStepTemplate(role); }catch(_){ }
+  return (Array.isArray(task?.steps) ? task.steps : []).map(step => ({ ...step, done:false, completed:false, completedAt:'', completedBy:'' }));
+}
+function databaseRepairExternalTemplateIds(tasks){
+  const ids = new Set();
+  const add = value => { const clean = normalizeText(value || ''); if(clean) ids.add(clean); };
+  (Array.isArray(tasks) ? tasks : []).forEach(task => {
+    [task?.taskTemplate, task?.contentTaskTemplate, task?.approvedContentTemplate, task?.approvedTemplate, task?.approvedTaskTemplate].filter(value => value && typeof value === 'object').forEach(value => {
+      add(value.externalDocId); add(value.templateUploadId); add(value.sourceTemplateTaskId); add(value.originalTaskId); add(value.taskId);
+    });
+    if(databaseRepairIsTemplateTask(task)) add(databaseRepairTaskId(task));
+  });
+  return Array.from(ids);
+}
+async function databaseRepairDeleteExternalTemplateDocs(ids){
+  const uniqueIds = uniqueList((ids || []).map(normalizeText).filter(Boolean));
+  if(!uniqueIds.length) return;
+  const collectionName = window.MZJ_TASK_TEMPLATES_COLLECTION || 'campaign_task_templates';
+  const collection = safeCollection(collectionName);
+  for(const id of uniqueIds){
+    try{ await collection.doc(id).delete(); }catch(error){ console.warn('Task Template external delete skipped', id, error); }
+  }
+  try{ if(Array.isArray(window.MZJ_TASK_TEMPLATE_DOCS)) window.MZJ_TASK_TEMPLATE_DOCS = window.MZJ_TASK_TEMPLATE_DOCS.filter(doc => !uniqueIds.some(id => databaseRepairNorm(id) === databaseRepairNorm(doc?.id || doc?.externalDocId || doc?.templateUploadId))); }catch(_){ }
+}
+function databaseRepairLinkedExecutionTasks(templateTask, tasks){
+  const templateId = databaseRepairNorm(databaseRepairTaskId(templateTask));
+  const directIds = new Set([templateTask?.linkedExecutionTaskId, templateTask?.executionTaskId].map(databaseRepairNorm).filter(Boolean));
+  const pairs = new Set(databaseRepairTaskPairs(templateTask).map(databaseRepairNorm).filter(Boolean));
+  const instanceId = databaseRepairNorm(templateTask?.creativeInstanceId || '');
+  const writerIds = new Set([templateTask?.contentWriterId, templateTask?.userId, templateTask?.userUid, templateTask?.assignedToId, templateTask?.assignedToUid].map(databaseRepairNorm).filter(Boolean));
+  return tasks.filter(task => {
+    if(!databaseRepairIsExecutionTask(task)) return false;
+    const id = databaseRepairNorm(databaseRepairTaskId(task));
+    if(directIds.has(id)) return true;
+    const templateRefs = [task.linkedContentTemplateTaskId, task.sourceContentTemplateTaskId, task.templateSourceTaskId].map(databaseRepairNorm).filter(Boolean);
+    if(templateId && templateRefs.includes(templateId)) return true;
+    if(databaseRepairTaskPairs(task).some(pair => pairs.has(databaseRepairNorm(pair)))) return true;
+    if(instanceId && databaseRepairNorm(task.creativeInstanceId || '') === instanceId){
+      const linkedWriters = [task.contentWriterId, task.linkedContentUserId, task.linkedContentWriterIds, task.dependsOnContentUserIds, task.upstreamUserIds].flat(Infinity).map(databaseRepairNorm).filter(Boolean);
+      if(linkedWriters.some(idValue => writerIds.has(idValue))) return true;
+    }
+    return false;
+  });
+}
+async function databaseRepairSaveCampaign(campaign, patch, options = {}){
+  const id = campaignDocId(campaign, campaignStableId(campaign));
+  if(!id) throw new Error('تعذر تحديد مستند الحملة.');
+  const localPatch = { ...patch, updatedAt:new Date().toISOString() };
+  const dbPatch = { ...patch, updatedAt:serverTime() };
+  const campaignRef = safeCollection(window.MZJ_CAMPAIGNS_COLLECTION || 'marketing_campaigns').doc(id);
+  const agendaPatch = options?.agendaPatch && typeof options.agendaPatch === 'object' ? options.agendaPatch : null;
+  const agendaId = agendaPatch ? databaseRepairAgendaId(campaign) : '';
+  if(agendaPatch && agendaId){
+    const agendaRef = safeCollection(window.MZJ_AGENDAS_COLLECTION || 'marketing_agendas').doc(agendaId);
+    const agendaDbPatch = { ...agendaPatch, updatedAt:serverTime() };
+    const db = window.mainDb || window.db || (typeof mainDb !== 'undefined' ? mainDb : null);
+    if(db && typeof db.batch === 'function'){
+      const batch = db.batch();
+      batch.update(campaignRef, dbPatch);
+      batch.set(agendaRef, agendaDbPatch, { merge:true });
+      await batch.commit();
+    }else{
+      await campaignRef.update(dbPatch);
+      await agendaRef.set(agendaDbPatch, { merge:true });
+    }
+  }else{
+    await campaignRef.update(dbPatch);
+  }
+  Object.assign(campaign, localPatch);
+  const list = Array.isArray(campaigns) ? campaigns : [];
+  const index = list.findIndex(item => databaseRepairNorm(campaignStableId(item)) === databaseRepairNorm(campaignStableId(campaign)));
+  if(index >= 0) list[index] = { ...list[index], ...localPatch };
+  try{ window.campaigns = list; }catch(_){ }
+}
+async function resetDatabaseTaskTemplate(campaignId, taskId){
+  if(typeof isCurrentUserAdmin === 'function' && !isCurrentUserAdmin()) return showToast('الإجراء متاح للأدمن فقط.');
+  const campaign = campaignByStableId(campaignId);
+  if(!campaign) return showToast('تعذر العثور على الحملة.');
+  const tasks = databaseRepairRawTasks(campaign);
+  const templateTask = tasks.find(task => databaseRepairNorm(databaseRepairTaskId(task)) === databaseRepairNorm(taskId));
+  if(!templateTask || !databaseRepairIsTemplateTask(templateTask)) return showToast('تعذر العثور على Task Template المطلوب.');
+  if(!confirm('مسح Task Template الحالي وإعادة نفس التاسك لحالة الرفع من جديد؟')) return;
+  const linkedExecution = databaseRepairLinkedExecutionTasks(templateTask, tasks);
+  const linkedIds = new Set(linkedExecution.map(task => databaseRepairNorm(databaseRepairTaskId(task))));
+  const externalIds = databaseRepairExternalTemplateIds([templateTask, ...linkedExecution]);
+  const nextTasks = tasks.map(task => {
+    const id = databaseRepairNorm(databaseRepairTaskId(task));
+    if(id === databaseRepairNorm(databaseRepairTaskId(templateTask))){
+      const next = { ...task };
+      ['contentTaskTemplate','approvedContentTemplate','approvedContentTemplates','approvedTemplate','approvedTaskTemplate','taskTemplateFields','parsedRows','templateFile','templateFileData','taskTemplateFileName','taskTemplateFileUrl','taskTemplateUploadedAt','taskTemplateApprovedAt','contentTaskTemplateApprovedAt','contentTemplateApprovedAt','completedAt','finishedAt','userCompletedAt','contentTemplateUserCompletedAt'].forEach(key => delete next[key]);
+      next.taskTemplate = { status:'pending', locked:false, versions:[], marks:[], notes:[], draftNotes:[], linkedExecutionPairKey:normalizeText(task.linkedExecutionPairKey || task.contentExecutionPairKey || ''), contentExecutionPairKey:normalizeText(task.contentExecutionPairKey || task.linkedExecutionPairKey || '') };
+      next.taskTemplateStatus = 'pending';
+      next.templateReviewStatus = '';
+      next.reviewStatus = '';
+      next.approvalStatus = '';
+      next.taskTemplateApproved = false;
+      next.contentTemplateApproved = false;
+      next.status = 'pending';
+      next.state = 'pending';
+      next.taskStatus = 'في انتظار Task Template';
+      next.dashboardStatusLabel = 'في انتظار رفع Task Template';
+      next.waitingForTaskTemplate = true;
+      next.waitingForContent = true;
+      next.waitingForApproval = false;
+      next.waitingQueue = false;
+      next.progress = 0;
+      next.steps = databaseRepairResetSteps(task, 'content');
+      next.updatedAt = new Date().toISOString();
+      return next;
+    }
+    if(linkedIds.has(id)){
+      const next = { ...task };
+      ['contentTaskTemplate','approvedContentTemplate','approvedContentTemplates','approvedTemplate','approvedTaskTemplate','taskTemplateApprovedAt','contentTaskTemplateApprovedAt','contentTemplateApprovedAt'].forEach(key => delete next[key]);
+      next.linkedContentTemplateStatus = 'not_uploaded';
+      next.taskTemplateApproved = false;
+      next.contentTemplateApproved = false;
+      next.status = 'waiting_task_template';
+      next.state = 'waiting_task_template';
+      next.taskStatus = 'في انتظار Task Template';
+      next.dashboardStatusLabel = 'في انتظار Task Template';
+      next.waitingForTaskTemplate = true;
+      next.waitingForContent = true;
+      next.waitingForApproval = false;
+      next.waitingQueue = true;
+      next.execution = { ...(task.execution || {}), status:'waiting', waitingFor:'task_template' };
+      next.updatedAt = new Date().toISOString();
+      return next;
+    }
+    return task;
+  });
+  try{
+    await databaseRepairSaveCampaign(campaign, { departmentTasks:nextTasks, taskCount:nextTasks.length });
+    await databaseRepairDeleteExternalTemplateDocs(externalIds);
+    showToast('تم مسح Task Template وإعادة التاسك للرفع من جديد.');
+    openCampaignDataModal(campaignStableId(campaign));
+    try{ renderAdminDashboard(); renderTasksPage(); }catch(_){ }
+  }catch(error){ console.error('Database Task Template reset failed', error); showToast(error?.message || 'تعذر مسح Task Template.'); }
+}
+function databaseRepairTaskMatchesRecord(task, record, tasks){
+  if(databaseRepairIsStructureTask(task)) return false;
+  const taskKey = databaseRepairCreativeKeyForTask(task, tasks);
+  if(taskKey === record.key) return true;
+  const recordInstance = databaseRepairNorm(record.instanceId || '');
+  if(recordInstance){
+    return databaseRepairNorm(task.creativeInstanceId || task.creativeItemId || task.campaignCreativeId || '') === recordInstance;
+  }
+  if(record.creativeId && databaseRepairNorm(task.creativeId || task.productCreativeId || '') === databaseRepairNorm(record.creativeId)){
+    if(record.campaignCreativeIndex < 0 || task.creativeIndex === undefined || Number(task.creativeIndex) === Number(record.campaignCreativeIndex)) return true;
+  }
+  return false;
+}
+function databaseRepairPruneStructureCreativeItems(task, record){
+  if(!databaseRepairIsStructureTask(task) || !Array.isArray(task.creativeItems)) return task;
+  const nextItems = task.creativeItems.filter((item,index) => {
+    if(record.instanceId && databaseRepairNorm(item?.id || item?.creativeInstanceId) === databaseRepairNorm(record.instanceId)) return false;
+    if(record.creativeId && databaseRepairNorm(item?.creativeId || item?.id) === databaseRepairNorm(record.creativeId) && (record.campaignCreativeIndex < 0 || index === record.campaignCreativeIndex)) return false;
+    if(!record.instanceId && !record.creativeId && databaseRepairNorm(item?.name || item?.creativeName) === databaseRepairNorm(record.name)) return false;
+    return true;
+  });
+  return nextItems.length === task.creativeItems.length ? task : { ...task, creativeItems:nextItems, creative:nextItems.map(item => item.name || item.creativeName || item.creativeId || '').filter(Boolean).join('، '), contentType:nextItems.map(item => item.name || item.creativeName || item.creativeId || '').filter(Boolean).join('، '), updatedAt:new Date().toISOString() };
+}
+function databaseRepairRelatedObjectMatches(item, record){
+  if(!item || typeof item !== 'object') return false;
+  const instance = databaseRepairNorm(record.instanceId || '');
+  const itemInstanceValues = [item.id,item.creativeInstanceId,item.campaignCreativeId,item.productId,item.productCreativeId,item.creativeItemId].map(databaseRepairNorm).filter(Boolean);
+  if(instance && itemInstanceValues.includes(instance)) return true;
+  if(!instance && record.creativeId){
+    const creativeId = databaseRepairNorm(record.creativeId);
+    if([item.creativeId,item.productCreativeId,item.productId].map(databaseRepairNorm).includes(creativeId)) return true;
+  }
+  return false;
+}
+async function deleteDatabaseCreative(campaignId, encodedKey){
+  if(typeof isCurrentUserAdmin === 'function' && !isCurrentUserAdmin()) return showToast('الإجراء متاح للأدمن فقط.');
+  const campaign = campaignByStableId(campaignId);
+  if(!campaign) return showToast('تعذر العثور على الحملة.');
+  const key = decodeURIComponent(encodedKey || '');
+  const record = databaseRepairCreativeRecords(campaign).find(item => item.key === key);
+  if(!record) return showToast('تعذر العثور على الكرييتيف المطلوب.');
+  if(!confirm(`حذف الكرييتيف "${record.name}" وكل التاسكات المرتبطة به فقط؟`)) return;
+  const tasks = databaseRepairRawTasks(campaign);
+  const directTasks = tasks.filter(task => databaseRepairTaskMatchesRecord(task, record, tasks));
+  const directIds = new Set(directTasks.map(task => databaseRepairNorm(databaseRepairTaskId(task))));
+  const pairs = new Set(directTasks.flatMap(databaseRepairTaskPairs).map(databaseRepairNorm).filter(Boolean));
+  directTasks.filter(databaseRepairIsExecutionTask).forEach(task => {
+    [task.linkedContentTemplateTaskId, task.sourceContentTemplateTaskId].map(databaseRepairNorm).filter(Boolean).forEach(id => directIds.add(id));
+  });
+  tasks.filter(databaseRepairIsTemplateTask).forEach(task => {
+    if(databaseRepairTaskPairs(task).some(pair => pairs.has(databaseRepairNorm(pair)))) directIds.add(databaseRepairNorm(databaseRepairTaskId(task)));
+    const linkedExec = databaseRepairNorm(task.linkedExecutionTaskId || '');
+    if(linkedExec && directIds.has(linkedExec)) directIds.add(databaseRepairNorm(databaseRepairTaskId(task)));
+  });
+  const removedTasks = tasks.filter(task => directIds.has(databaseRepairNorm(databaseRepairTaskId(task))) || databaseRepairTaskMatchesRecord(task, record, tasks));
+  const nextTasks = tasks.filter(task => !removedTasks.includes(task)).map(task => databaseRepairPruneStructureCreativeItems(task, record));
+  const currentCreatives = Array.isArray(campaign.creatives) ? campaign.creatives : (campaign.creatives && typeof campaign.creatives === 'object' ? Object.values(campaign.creatives) : []);
+  const nextCreatives = currentCreatives.filter((item,index) => {
+    if(index === record.campaignCreativeIndex) return false;
+    return !databaseRepairRelatedObjectMatches(item, record);
+  });
+  const nextBudgetItems = (Array.isArray(campaign.budgetItems) ? campaign.budgetItems : []).filter(item => !databaseRepairRelatedObjectMatches(item, record));
+  const nextPublishSchedule = (Array.isArray(campaign.publishSchedule) ? campaign.publishSchedule : []).filter(item => !databaseRepairRelatedObjectMatches(item, record));
+  const isAgenda = databaseRepairIsAgendaCampaign(campaign);
+  const removedAgendaTaskIds = new Set(removedTasks.map(task => databaseRepairNorm(task?.agendaTaskId || task?.creativeInstanceId || '')).filter(Boolean));
+  const nextDays = isAgenda ? databaseRepairAgendaRemoveCreative(databaseRepairAgendaDays(campaign), removedAgendaTaskIds, record) : campaign.days;
+  const agendaTotals = isAgenda ? databaseRepairAgendaTotals(nextDays, nextTasks) : {};
+  const externalIds = databaseRepairExternalTemplateIds(removedTasks);
+  try{
+    const campaignPatch = { departmentTasks:nextTasks, taskCount:nextTasks.length, creatives:nextCreatives, budgetItems:nextBudgetItems, publishSchedule:nextPublishSchedule };
+    if(isAgenda) Object.assign(campaignPatch, { days:nextDays, ...agendaTotals });
+    await databaseRepairSaveCampaign(campaign, campaignPatch, isAgenda ? { agendaPatch:{ days:nextDays, publishSchedule:nextPublishSchedule, ...agendaTotals } } : {});
+    await databaseRepairDeleteExternalTemplateDocs(externalIds);
+    showToast(isAgenda ? 'تم حذف الكرييتيف من الأجندة والتاسكات المرتبطة به فقط.' : 'تم حذف الكرييتيف والتاسكات المرتبطة به فقط.');
+    openCampaignDataModal(campaignStableId(campaign));
+    try{ renderAdminDashboard(); renderTasksPage(); renderCampaigns(); }catch(_){ }
+  }catch(error){ console.error('Database creative delete failed', error); showToast(error?.message || 'تعذر حذف الكرييتيف.'); }
+}
+function databaseRepairSafeId(value){
+  try{ if(typeof safeFirestoreDocId === 'function') return safeFirestoreDocId(value); }catch(_){ }
+  return normalizeText(value || '').replace(/[^A-Za-z0-9_-]+/g,'_').slice(0,180) || `repair_${Date.now()}`;
+}
+function databaseRepairRoleCode(role){ return ({content:'CONTENT',design:'DESIGN',montage:'MONTAGE',shooting:'SHOOTING'})[normalizeDepartmentRole(role)] || String(role || 'EXEC').toUpperCase(); }
+function databaseRepairFreshSteps(role){
+  try{ if(typeof taskStepTemplate === 'function') return taskStepTemplate(role); }catch(_){ }
+  return [];
+}
+async function createDatabaseReplacementCreative(campaignId, button){
+  if(typeof isCurrentUserAdmin === 'function' && !isCurrentUserAdmin()) return showToast('الإجراء متاح للأدمن فقط.');
+  const campaign = campaignByStableId(campaignId);
+  const panel = button?.closest('[data-db-repair-panel]');
+  if(!campaign || !panel) return showToast('تعذر قراءة بيانات الحملة.');
+  const creativeId = panel.querySelector('[data-db-repair-creative-select]')?.value || '';
+  const contentUserId = panel.querySelector('[data-db-repair-content-user]')?.value || '';
+  const primaryUserId = panel.querySelector('[data-db-repair-primary-user]')?.value || '';
+  const isAgenda = databaseRepairIsAgendaCampaign(campaign);
+  const publishDate = panel.querySelector('[data-db-repair-publish-date]')?.value || campaign.publishStartDate || campaign.publish_start_date || campaign.startDate || '';
+  const contentDate = panel.querySelector('[data-db-repair-content-date]')?.value || publishDate;
+  const execDate = panel.querySelector('[data-db-repair-exec-date]')?.value || publishDate;
+  const creative = databaseRepairCreativeCatalog().find(item => databaseRepairNorm(item.id) === databaseRepairNorm(creativeId));
+  const writer = databaseRepairFindUser(contentUserId);
+  const executor = databaseRepairFindUser(primaryUserId);
+  if(!creative) return showToast('اختر نوع الكرييتيف.');
+  if(!writer) return showToast('اختر يوزر قسم المحتوى.');
+  if(!executor) return showToast('اختر يوزر القسم الأساسي.');
+  if(isAgenda && !publishDate) return showToast('اختر تاريخ النشر في الأجندة.');
+  const role = creative.role;
+  if(!['design','montage','shooting'].includes(role)) return showToast('تعذر تحديد القسم الأساسي للكرييتيف.');
+  const campaignIdValue = campaignDocId(campaign, campaignStableId(campaign));
+  const tasks = databaseRepairRawTasks(campaign);
+  const sequence = databaseRepairCreativeRecords(campaign).length + 1;
+  const instanceId = databaseRepairSafeId(`DBR_${Date.now()}_${creative.id}_${sequence}`);
+  const pairKey = databaseRepairSafeId(`${campaignIdValue}_${instanceId}_${databaseRepairUserIdentity(writer)}_${databaseRepairUserIdentity(executor)}`);
+  const templateId = databaseRepairSafeId(`${campaignIdValue}_TEMPLATE_${instanceId}_${databaseRepairUserIdentity(writer)}`);
+  const executionId = databaseRepairSafeId(`${campaignIdValue}_EXEC_${instanceId}_${role}_${databaseRepairUserIdentity(executor)}`);
+  const campaignCode = campaignCodeText(campaign) || '';
+  const baseTaskNo = [campaignCode, 'R', String(sequence).padStart(2,'0')].filter(Boolean).join('-');
+  const writerId = databaseRepairUserIdentity(writer);
+  const executorId = databaseRepairUserIdentity(executor);
+  const writerName = userName(writer);
+  const executorName = userName(executor);
+  const departmentName = typeof roleLabel === 'function' ? roleLabel(role) : creative.departmentName;
+  const now = new Date().toISOString();
+  const common = {
+    campaignId:campaignIdValue, campaignDocId:campaignIdValue, campaignCode, campaignName:campaignNameText(campaign), campaignType:campaignTypeText(campaign), campaignTypeId:campaign.campaignTypeId || '', campaignTypeName:campaign.campaignTypeName || campaignTypeText(campaign),
+    creative:creative.name, creativeName:creative.name, creativeId:isAgenda ? (creative.code || creative.id) : creative.id, creativeCatalogId:creative.id, creativeCode:creative.code || '', creativeInstanceId:instanceId, creativeIndex:sequence - 1, contentType:creative.name, product:creative.name,
+    contentExecutionPairKey:pairKey, linkedExecutionPairKey:pairKey, contentFlowKey:pairKey, mzjTaskLinkKey:pairKey, source:isAgenda ? 'agenda' : 'database_repair', agendaId:isAgenda ? databaseRepairAgendaId(campaign) : '', agendaTaskId:isAgenda ? instanceId : '', publishDate:isAgenda ? publishDate : '', contentReceiptDate:contentDate, executionReceiptDate:execDate, createdAt:now, updatedAt:now
+  };
+  const templateTask = {
+    ...common,
+    id:templateId, taskId:templateId, taskNo:`${baseTaskNo}-TT`, taskNumber:`${baseTaskNo}-TT`, taskCode:`${baseTaskNo}-TT`, fullTaskCode:`${baseTaskNo}-TT`, canonicalTaskCode:`${baseTaskNo}-TT`,
+    taskType:`Task Template - ${creative.name}`, title:`Task Template - ${creative.name}`, name:`Task Template - ${creative.name}`, contentTemplateTask:true, taskTemplateTask:true, flowType:'template', taskTemplateFlow:'direct_content_first',
+    departmentRole:'content', assignedDepartmentRole:'content', departmentCode:'CONTENT', assignedDepartmentCode:'CONTENT', assignedDepartmentName:'قسم المحتوى', contentSectionName:'قسم المحتوى',
+    assignedToId:writerId, assignedToUid:writer.uid || writerId, assignedToName:writerName, assignedToEmail:writer.email || '', userId:writerId, userUid:writer.uid || writerId, userName:writerName, userEmail:writer.email || '', userIds:[writerId], userNames:[writerName], assigneeUid:writer.uid || writerId, assigneeName:writerName, contentWriterId:writerId, contentWriterUid:writer.uid || writerId, contentWriterName:writerName, contentWriterEmail:writer.email || '',
+    linkedExecutionTaskId:executionId, linkedExecutionUserId:executorId, linkedExecutionUserUid:executor.uid || executorId, linkedExecutionUserName:executorName, linkedExecutionDepartmentRole:role, linkedExecutionDepartmentCode:databaseRepairRoleCode(role), linkedExecutionDepartmentName:departmentName,
+    requiredDate:contentDate, requiredDateTime:contentDate, deadline:contentDate, dueDate:contentDate, status:isAgenda ? 'pending_task_template' : 'pending', state:isAgenda ? 'pending_task_template' : 'pending', taskStatus:'في انتظار Task Template', dashboardStatusLabel:'في انتظار رفع Task Template', waitingForTaskTemplate:true, waitingForContent:true, waitingForApproval:false, waitingQueue:false, received:false, receivedConfirmed:false, progress:0, steps:databaseRepairFreshSteps('content'), taskTemplate:{status:'pending',locked:false,versions:[],marks:[],notes:[],draftNotes:[],linkedExecutionPairKey:pairKey,contentExecutionPairKey:pairKey}
+  };
+  const executionTask = {
+    ...common,
+    id:executionId, taskId:executionId, taskNo:`${baseTaskNo}-${databaseRepairRoleCode(role)}`, taskNumber:`${baseTaskNo}-${databaseRepairRoleCode(role)}`, taskCode:`${baseTaskNo}-${databaseRepairRoleCode(role)}`, fullTaskCode:`${baseTaskNo}-${databaseRepairRoleCode(role)}`, canonicalTaskCode:`${baseTaskNo}-${databaseRepairRoleCode(role)}`,
+    taskType:`تنفيذ - ${departmentName}`, title:`تنفيذ - ${departmentName}`, executionTask:true, flowType:'execution_task', departmentRole:role, assignedDepartmentRole:role, departmentCode:databaseRepairRoleCode(role), assignedDepartmentCode:databaseRepairRoleCode(role), assignedDepartmentName:departmentName, contentSectionName:departmentName,
+    assignedToId:executorId, assignedToUid:executor.uid || executorId, assignedToName:executorName, assignedToEmail:executor.email || '', userId:executorId, userUid:executor.uid || executorId, userName:executorName, userEmail:executor.email || '', userIds:[executorId], userNames:[executorName], assigneeUid:executor.uid || executorId, assigneeName:executorName,
+    executionUserId:executorId, executionUserUid:executor.uid || executorId, executionUserName:executorName, executionUserEmail:executor.email || '', contentWriterId:writerId, contentWriterUid:writer.uid || writerId, contentWriterName:writerName, contentWriterEmail:writer.email || '', linkedContentUserId:writerId, linkedContentUserUid:writer.uid || writerId, linkedContentUserName:writerName, linkedContentUserEmail:writer.email || '', linkedContentWriterIds:[writerId], linkedContentWriterNames:[writerName], dependsOnContentUserIds:[writerId], dependsOnContentUserNames:[writerName], upstreamUserIds:[writerId], upstreamUserNames:[writerName], upstreamUserLabel:writerName, linkedContentTemplateTaskId:templateId, sourceContentTemplateTaskId:templateId,
+    requiredDate:execDate, requiredDateTime:execDate, deadline:execDate, dueDate:execDate, status:'waiting_task_template', state:'waiting_task_template', taskStatus:'في انتظار Task Template', dashboardStatusLabel:isAgenda ? 'في انتظار اعتماد Task Template' : 'في انتظار Task Template', waitingForTaskTemplate:true, waitingForContent:true, waitingForApproval:isAgenda, waitingForApprovalLabel:isAgenda ? 'في انتظار اعتماد Task Template' : '', waitingQueue:true, received:false, receivedConfirmed:false, progress:0, steps:databaseRepairFreshSteps(role), execution:{status:'waiting',waitingFor:'task_template'}
+  };
+  const creativeRecord = {
+    id:instanceId, creativeInstanceId:instanceId, creativeId:creative.id, creativeName:creative.name, name:creative.name, code:creative.code || '', type:creative.name, primaryRole:role, primaryDeadline:execDate, primaryNote:'', carIds:[], optionalRoles:{}, source:isAgenda ? 'agenda' : 'database_repair',
+    primaryUsers:{ [executorId]:{ selected:true, linkedWriterIds:[writerId], linkedWriterDeadlines:{ [writerId]:execDate }, deadline:execDate } }
+  };
+  const currentCreatives = Array.isArray(campaign.creatives) ? campaign.creatives : (campaign.creatives && typeof campaign.creatives === 'object' ? Object.values(campaign.creatives) : []);
+  const currentContentUsers = Array.isArray(campaign.contentUsers) ? campaign.contentUsers : [];
+  const contentUserRecord = { id:writerId, uid:writer.uid || writerId, name:writerName, email:writer.email || '' };
+  const nextContentUsers = uniqueUsersByIdentity([...currentContentUsers, contentUserRecord]);
+  const nextUserIds = uniqueList([...(Array.isArray(campaign.userIds) ? campaign.userIds : []), writerId]);
+  const nextUserNames = uniqueList([...(Array.isArray(campaign.userNames) ? campaign.userNames : []), writerName]);
+  try{
+    const nextTasks = [...tasks, templateTask, executionTask];
+    const sourceAgendaTask = isAgenda ? {
+      id:instanceId, agendaTaskId:instanceId, name:creative.name, creativeName:creative.name, code:creative.code || creative.id, role, departmentName,
+      contentReceiptDate:contentDate, executionReceiptDate:execDate,
+      contentUsers:[{ id:writerId, note:'', linkedContentUserIds:[] }],
+      baseUsers:[{ id:executorId, note:'', linkedContentUserIds:[writerId] }],
+      optionals:[], carIds:[], platforms:[], platformPublishing:[], platformTypes:{}, postTypes:[], postTypeLabels:[], source:'agenda'
+    } : null;
+    const nextDays = isAgenda ? databaseRepairAgendaAddCreative(databaseRepairAgendaDays(campaign), publishDate, sourceAgendaTask) : campaign.days;
+    const agendaTotals = isAgenda ? databaseRepairAgendaTotals(nextDays, nextTasks) : {};
+    const campaignPatch = { departmentTasks:nextTasks, taskCount:nextTasks.length, contentUsers:nextContentUsers, userIds:nextUserIds, userNames:nextUserNames };
+    if(isAgenda) Object.assign(campaignPatch, { days:nextDays, ...agendaTotals });
+    else campaignPatch.creatives = [...currentCreatives, creativeRecord];
+    await databaseRepairSaveCampaign(campaign, campaignPatch, isAgenda ? { agendaPatch:{ days:nextDays, publishSchedule:Array.isArray(campaign.publishSchedule) ? campaign.publishSchedule : [], ...agendaTotals } } : {});
+    showToast(isAgenda ? 'تم إنشاء الكرييتيف الجديد داخل الأجندة وتكليف قسم المحتوى والقسم الأساسي.' : 'تم إنشاء الكرييتيف الجديد وتكليف قسم المحتوى والقسم الأساسي.');
+    openCampaignDataModal(campaignStableId(campaign));
+    try{ renderAdminDashboard(); renderTasksPage(); renderCampaigns(); }catch(_){ }
+  }catch(error){ console.error('Database replacement creative create failed', error); showToast(error?.message || 'تعذر إنشاء الكرييتيف الجديد.'); }
+}
+
 function openOwnerTasksModal(campaignId, ownerKey){
   const campaign = campaigns.find(item => item.id === campaignId);
   const modal = document.getElementById('campaignModal');
@@ -8249,6 +8769,7 @@ function openCampaignDataModal(campaignId){
     </div>
     <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>بيانات الحملة كاملة</h3></div>${campaignFullDataGrid(campaign)}</div>
     <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>التاسكات التنفيذية واليوزرات</h3></div>${buildTaskSummaryList(campaign)}</div>
+    ${(typeof isCurrentUserAdmin !== 'function' || isCurrentUserAdmin()) ? `<div class="modal-section campaign-data-section database-repair-section"><div class="modal-section-title"><h3>إدارة Task Template والكرييتيف</h3></div>${renderDatabaseRepairPanel(campaign)}</div>` : ''}
     <div class="modal-section campaign-data-section" data-campaign-product-files-section="${escapeHtml(id)}"><div class="modal-section-title"><h3>عرض ملفات المنتجات</h3></div>${renderCampaignProductFiles(campaign)}</div>
     <div class="campaign-data-two-cols">
       <div class="modal-section campaign-data-section"><div class="modal-section-title"><h3>عرض جدول النشر</h3></div>${renderScheduleSummary(campaign)}</div>
@@ -11335,6 +11856,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.addEventListener('change', async event => {
+    const databaseRepairCreativeSelect = event.target?.closest?.('[data-db-repair-creative-select]');
+    if(databaseRepairCreativeSelect){ refreshDatabaseRepairPrimaryUsers(databaseRepairCreativeSelect); return; }
     if(event.target && event.target.id === 'userThemeImageInput'){
       const file = event.target.files?.[0];
       event.target.value = '';
@@ -11372,6 +11895,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if(exportSchedule){ exportCampaignPublishScheduleFile(exportSchedule.dataset.exportCampaignSchedule); return; }
     const viewProductFiles = event.target.closest('[data-view-product-files]');
     if(viewProductFiles){ openCampaignProductFilesModal(viewProductFiles.dataset.viewProductFiles); return; }
+    const resetTaskTemplate = event.target.closest('[data-db-reset-task-template]');
+    if(resetTaskTemplate){ await resetDatabaseTaskTemplate(resetTaskTemplate.dataset.campaignId || '', resetTaskTemplate.dataset.dbResetTaskTemplate || ''); return; }
+    const deleteCreative = event.target.closest('[data-db-delete-creative]');
+    if(deleteCreative){ await deleteDatabaseCreative(deleteCreative.dataset.campaignId || '', deleteCreative.dataset.dbDeleteCreative || ''); return; }
+    const createReplacementCreative = event.target.closest('[data-db-create-creative]');
+    if(createReplacementCreative){ await createDatabaseReplacementCreative(createReplacementCreative.dataset.dbCreateCreative || '', createReplacementCreative); return; }
     const viewData = event.target.closest('[data-view-campaign-data]');
     if(viewData){ openCampaignDataModal(viewData.dataset.viewCampaignData); return; }
     const selectCampaignRow = event.target.closest('[data-select-campaign-row]');
@@ -39436,9 +39965,6 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
         out.push({num:S(sm[1]),title:v728SceneTitleFromDetails(sm[2],details),desc:descParts.join('\n'),voice:voiceParts.join('\n'),text:textParts.join('\n'),details});
       }
     }
-    if(!out.length){
-      ['Hook','تقديم السيارة','الفئات المتوفرة','الألوان المتاحة','المزايا العامة','التقسيط','أفضل سعر وخدمات بعد البيع','End Frame / CTA'].forEach((x,i)=>out.push({num:String(i+1),title:x,desc:'—',voice:'—',text:'—',details:[]}));
-    }
     return out;
   }
   function renderSlideDetailsV728(sc){
@@ -39475,7 +40001,10 @@ AA4AAAAAAAAAAAAQAAAAKYYBAHhsL3dvcmtzaGVldHMvUEsFBgAAAAALAAsAqwIAAFWGAQAAAA==';
     const hashtags=execField(data,'هاشتاج');
     const tags=hashtags?hashtags.split(/\s+/).filter(Boolean):[];
     const allRows=Object.entries(data).filter(([k,v])=>S(v));
-    return `<div class="v696-template-panel v729-scenes-only-panel${panelClass}"><div class="v696-section-head"><h3>${H(title)}</h3><span>${H(badge)}</span></div><div class="v696-top-cards"><article class="v696-mini-card"><strong>الاسم المقترح للكرييتيف</strong><div>${H(execField(data,'الاسم المقترح للكرييتيف')||'—')}</div></article><article class="v696-mini-card v696-wide"><strong>الهدف</strong><div>${H(execField(data,'الهدف')||'—')}</div></article><article class="v696-mini-card"><strong>الرسالة الأساسية</strong><div>${H(execField(data,'الرسالة الأساسية')||'—')}</div></article><article class="v696-mini-card"><strong>الهوك</strong><div>${H(execField(data,'الهوك')||'—')}</div></article><article class="v696-mini-card v696-cta"><strong>CTA</strong><div>${H(execField(data,'CTA')||'—')}</div></article></div><div class="v696-layout v729-scenes-only" style="display:block"><section class="v696-scenes-box v729-scenes-wide"><div class="v696-box-title">🎬 المشاهد / السلايدات</div><div class="v696-scenes-grid">${scenes.map(sc=>`<article class="v696-scene v728-slide-card"><span class="v696-scene-num">${H(sc.num)}</span><h4>${H(sc.title||'سلايد')}</h4>${renderSlideDetailsV728(sc)}</article>`).join('')}</div></section></div><div class="v696-bottom-grid"><article class="v696-bottom-card"><div class="v696-box-title">📋 الكابشن</div><div class="v696-caption">${H(execField(data,'الكابشن')||'—')}</div></article><article class="v696-bottom-card"><div class="v696-box-title"># هاشتاج</div><div class="v696-tags">${tags.length?tags.map(t=>`<span class="v696-tag">${H(t)}</span>`).join(''):H(hashtags||'—')}</div></article></div></div>`;
+    const scriptContent = scenes.length
+      ? `<div class="v696-layout v729-scenes-only" style="display:block"><section class="v696-scenes-box v729-scenes-wide"><div class="v696-box-title">🎬 المشاهد / السلايدات</div><div class="v696-scenes-grid">${scenes.map(sc=>`<article class="v696-scene v728-slide-card"><span class="v696-scene-num">${H(sc.num)}</span><h4>${H(sc.title||'سلايد')}</h4>${renderSlideDetailsV728(sc)}</article>`).join('')}</div></section></div>`
+      : `<div class="v696-layout" style="display:block"><section class="v696-script-box"><div class="v696-box-title">📝 السكريبت الأساسي</div><div class="v696-meta-grid"><article class="v696-meta"><p>${H(script||'—')}</p></article></div></section></div>`;
+    return `<div class="v696-template-panel${scenes.length?' v729-scenes-only-panel':''}${panelClass}"><div class="v696-section-head"><h3>${H(title)}</h3><span>${H(badge)}</span></div><div class="v696-top-cards"><article class="v696-mini-card"><strong>الاسم المقترح للكرييتيف</strong><div>${H(execField(data,'الاسم المقترح للكرييتيف')||'—')}</div></article><article class="v696-mini-card v696-wide"><strong>الهدف</strong><div>${H(execField(data,'الهدف')||'—')}</div></article><article class="v696-mini-card"><strong>الرسالة الأساسية</strong><div>${H(execField(data,'الرسالة الأساسية')||'—')}</div></article><article class="v696-mini-card"><strong>الهوك</strong><div>${H(execField(data,'الهوك')||'—')}</div></article><article class="v696-mini-card v696-cta"><strong>CTA</strong><div>${H(execField(data,'CTA')||'—')}</div></article></div>${scriptContent}<div class="v696-bottom-grid"><article class="v696-bottom-card"><div class="v696-box-title">📋 الكابشن</div><div class="v696-caption">${H(execField(data,'الكابشن')||'—')}</div></article><article class="v696-bottom-card"><div class="v696-box-title"># هاشتاج</div><div class="v696-tags">${tags.length?tags.map(t=>`<span class="v696-tag">${H(t)}</span>`).join(''):H(hashtags||'—')}</div></article></div></div>`;
   }
   function workflowStepDone(step){const status=N(step?.status||step?.state||'');return !!(step&&(step.done||step.completed||step.isDone||step.checked||step.value===true||status.includes('done')||status.includes('completed')||status.includes(N('تم'))));}
   function finalUploadApprovalReached(t,preparedSteps){
